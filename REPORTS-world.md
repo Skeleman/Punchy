@@ -7508,3 +7508,22 @@ measurement, rule 21; the BENCH job gives the real table):**
 - Not checked: a player build (markers there come from the BENCH run); town and forest in the editor; shots (nothing
   visible changed).
 - Next: R-21 foot boxes and the fall 74 bank spot.
+
+## R-21 bench 74 fix: fall foot boxes per grid cell, fall 74 bank spot (done, verified by number check; shots UNVERIFIED for cost)
+
+Branch world/waterfall-sheets, commits f42cfaba (merge main afea013c) and 21b2281c.
+- **What changed:** a 16x16 grid over the open falls' boxes (new Ambience/FallCells.cs, filled in
+  LandmarkEffectSystem.SetCurtainBoxes) lists which boxes reach each cell as 32 bits. RiverCurtains.hlsl's three tests
+  (PunchyWaterUnderCurtain, PunchyFallWater, PunchyFallWet) look up their point's cell and loop only over its boxes,
+  not all 32. No look change.
+- **Number check at fall 22** (32 boxes, cell about 100 m): 2832 random points that some box's shader test reaches,
+  0 missed by the grid. Boxes per cell: mean 2.40, worst 5 (was 32 per pixel).
+- **Fall 74 bank spot:** `-benchspot -2205.6,7.9,3667.5,130`: dry bank 14-32 m from the foot, off the pour line, clear
+  sight to the fall (lip -2180.7, 21.0, 3646.5; drop 17.8 m). Fall 22's front spot stays `-2702.6,179.4,652.6,69`.
+- **Shots:** Assets/Temp/shots/r21b-bank74.png (fall 74 from the bank with its pool churn; a water wall shows at the
+  right edge, the W-153 leftover), Assets/Temp/shots/r21b-front22.png (unchanged look). They can't show cost.
+- **Suite (rule 19):** 39/40. FollowTests.Follow_ArrivesWithinFourMetres_StopReleases failed (dog 26.9 m behind, the
+  known A-88 flake); rerun alone: 1/1 passed.
+- **BENCH request:** rerun job 74 on 21b2281c: fall 22 front spot and the new fall 74 bank spot, Medium and High,
+  against main. GPU cost not measured by me (rule 21).
+- **Next:** paddies bake speed-up (bench 75) on water/truth.
