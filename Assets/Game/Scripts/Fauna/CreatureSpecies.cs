@@ -25,6 +25,9 @@ namespace Punchy.Fauna
         [Min(0.1f)] public float VariantThickness = 1f;
         [Tooltip("Variants only: leg length relative to the body it's based on (children: shorter, about 0.8).")]
         [Min(0.1f)] public float VariantLegs = 1f;
+        [Tooltip("A-124: how far one individual's build strays from this species' (or variant's) own: picked per " +
+                 "individual on every machine. Narrow for animals; folk wider, their children about half.")]
+        public BuildRange BuildRange = BuildRange.Narrow;
 
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]

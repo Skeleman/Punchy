@@ -206,6 +206,7 @@ namespace Punchy.Fauna
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
             CreatureSnapshotSystem.Forget();
+            DisposeBuilds();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -615,6 +616,7 @@ namespace Punchy.Fauna
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
             Init(e, speciesIndex, position, yaw);
+            ApplyBuild(em, e, true);
             return e;
         }
 
@@ -664,6 +666,7 @@ namespace Punchy.Fauna
                 pendingTiers[(int)p.Tier]--;
                 Init(made[i], p.Species, p.Position, p.Yaw);
                 p.Then?.Invoke(made[i]);
+                ApplyBuild(em, made[i], true); // (A-124: after Then, which may settle it into a house's Individual.)
             }
             made.Dispose();
         }

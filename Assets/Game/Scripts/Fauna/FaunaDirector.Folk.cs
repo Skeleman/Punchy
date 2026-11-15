@@ -95,6 +95,7 @@ namespace Punchy.Fauna
                         Settle(ref st, PinHut(home.OwnerIndex, home.Position.xz));
                     }
                     em.SetComponentData(e, st);
+                    ApplyBuild(em, e, false); // (A-124: the hut's Individual now, so its build.)
                     hermits[i] = e;
                     settledCount++;
                 }
