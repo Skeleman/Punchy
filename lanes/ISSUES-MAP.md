@@ -115,3 +115,4 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #368 | folk | A-127 turtle robes follow legs, sea folk upright, no drifting up with breath left |
 | #369 | player | P-37 no loading screen, no body glow + starting torch, seamless interiors phase 1 |
 | #370 | roadmap | small-animal passages, river-carved tunnels |
+| #372 | player | P-38 two-hand controls: land take-items, per-item block (lantern held high) |
