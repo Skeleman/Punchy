@@ -7979,3 +7979,4 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   separate log path. Parallel found but not folded in: none.
 - **BENCH:** bench job 94 (this branch) is still queued. The merge adds no per-frame work.
 - Next: W-172 row 2 (#277).
+- Issue for the log-bark row above: #359.
