@@ -43,6 +43,11 @@ Shader "Punchy/Flora"
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
             float _PunchyFloraDetailOff;
 
+            // A-115: the nearest town street lights a lamplighter hasn't lit yet (or has put out): xyz the light, w how
+            // lit (LampRoutes.Tick). Count 0 by day and once the rounds are done.
+            float4 _PunchyLamps[64];
+            float _PunchyLampCount;
+
             half PunchyOctave(float period, float footprint)
             {
                 return smoothstep(3, 8, period / max(footprint, 1e-4));
@@ -580,6 +585,14 @@ Shader "Punchy/Flora"
                     float on = smoothstep(0.25, 0.55, _PunchyNight) * (h > 0.85 ? 1 : step(late, 0.3 + 0.7 * h));
                     // Underground there is no day: a cave's lamps (a tunnel's wall lanterns) stay lit.
                     on = max(on, _FloraInCave);
+                    // A-115: a street light's glass stays dark until its lamplighter comes by.
+                    // (Its glass anywhere on the head: a lantern's hangs off an arm, a brazier's bowl sits lower.)
+                    [loop] for (int lamp = 0; lamp < (int)_PunchyLampCount; lamp++)
+                    {
+                        float3 d = input.positionWS - _PunchyLamps[lamp].xyz;
+                        if (dot(d.xz, d.xz) < 0.81 && d.y > -1.0 && d.y < 0.7)
+                            on *= _PunchyLamps[lamp].w;
+                    }
                     color += windowLight * on * 2.2;
                 }
 

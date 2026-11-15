@@ -226,6 +226,7 @@ namespace Punchy.Fauna
             /// forced   Flit        drawn to light                                             always               Flit
             /// forced   Breach       breaches, awake                                            30%                  soar (Wander 2)
             /// forced   Patrol       guard on shift / night guard by day                        always               StartPatrol / Home, Sleep
+            /// forced   Lamps        lamplighter, its dusk / dawn round due (A-115)             always               StartRound
             /// forced   Hermit       hermit, its day at the shelter                             HermitDay            HermitDay
             /// forced   Camper       traveller, its night at camp                               CamperNight          CamperNight
             /// forced   FolkLife     turtle child / old turtle at midday / sea folk child       50% / 5% / 35%       slide / lie in the sun / chase a fish
@@ -273,7 +274,7 @@ namespace Punchy.Fauna
             enum DecideStep : byte
             {
                 // forced, before the senses
-                Shield, Flit, Breach, Patrol, Hermit, Camper, FolkLife, FisherSpot, Rooted, Disguised,
+                Shield, Flit, Breach, Patrol, Lamps, Hermit, Camper, FolkLife, FisherSpot, Rooted, Disguised,
                 // the senses and the weights
                 Senses,
                 // forced, after the senses
@@ -326,6 +327,7 @@ namespace Punchy.Fauna
                     case DecideStep.Flit: return DecideFlit(ref s, ref b, ref rng);
                     case DecideStep.Breach: return DecideBreach(ref s, ref b, ref rng, sleepy);
                     case DecideStep.Patrol: return DecidePatrol(ref s, ref rng);
+                    case DecideStep.Lamps: return s.Job == (byte)FolkJob.Lamplighter && OnRound(s) && StartRound(ref s);
                     case DecideStep.Hermit: return s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy);
                     case DecideStep.Camper: return s.Task == CreatureTask.Camper && CamperNight(ref s, ref rng);
                     case DecideStep.FolkLife: return (b.TurtleJobs || BedWalk && b.Child) && DecideFolkLife(ref s, ref b, ref rng, sleepy);

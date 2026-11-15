@@ -184,7 +184,7 @@ namespace Punchy.Flora
         public TreeKind Kind;
     }
 
-    public static class FloraPlacement
+    public static partial class FloraPlacement
     {
         public const int TreeLayer = 2;
         static int Gcd(int a, int b)

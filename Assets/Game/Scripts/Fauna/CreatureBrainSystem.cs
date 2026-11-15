@@ -368,6 +368,8 @@ namespace Punchy.Fauna
             var hasFlora = SystemAPI.TryGetSingleton<FloraLookup>(out var flora) && flora.Blob.IsCreated;
             var wharves = default(WharfSpotLookup);
             var hasWharves = hasFlora && SystemAPI.TryGetSingleton(out wharves) && wharves.Blob.IsCreated;
+            var lamps = default(LampRouteLookup);
+            var hasLamps = hasFlora && SystemAPI.TryGetSingleton(out lamps) && lamps.Blob.IsCreated;
             // (The last brain job is done: the snapshot above waited for its CreatureState.)
             FoldSpread();
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
@@ -404,6 +406,8 @@ namespace Punchy.Fauna
                 HasFlora = hasFlora,
                 Wharves = hasWharves ? wharves.Blob : default,
                 HasWharves = hasWharves,
+                Lamps = hasLamps ? lamps.Blob : default,
+                HasLamps = hasLamps,
                 Players = players.AsArray(),
                 PlayerIds = playerIds.AsArray(),
                 PlayerYaws = playerYaws.AsArray(),
@@ -804,6 +808,10 @@ namespace Punchy.Fauna
                 var busyWatch = b.FleeDistance > 0f && playerDistance < b.FleeDistance * 1.6f;
                 var lookAtPlayer = math.clamp(WrapAngle(math.atan2(-away.x, -away.y) - s.Yaw), -1.2f, 1.2f);
                 var idleLook = watchPlayer ? lookAtPlayer : math.sin(s.Clock * 0.7f + s.Seed % 7) * 0.5f;
+
+                // (A-115: a lamplighter leaves whatever it's at when its round is due.)
+                if (RoundCalls(s))
+                    StartRound(ref s);
 
                 // Following a player (Follow.Start) takes the place of its own mode while it lasts.
                 // (So does a fish come over to a bobber: A-100 row 2.)
@@ -1498,6 +1506,10 @@ namespace Punchy.Fauna
                     Messenger(ref s, ref b, ref rng, dt, ref vertical);
                     return;
                 }
+                // (A-115: a lamplighter's round, lamp to lamp.)
+                if (s.Job == (byte)FolkJob.Lamplighter &&
+                    LampRound(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook))
+                    return;
                 // (A-73: out along a wharf's deck, off the terrain's floor: PierWork walks it.)
                 if (s.Task == CreatureTask.Fish && s.PierSpot > 0 &&
                     PierWork(ref s, ref b, ref rng, dt, walk, ref targetSpeed, ref moving, ref custom, ref desiredLook))
@@ -1822,7 +1834,9 @@ namespace Punchy.Fauna
                 // Folk out and about after dark carry a lantern: lit at dusk, put away at dawn (with a margin either way so
                 // it doesn't flicker at the turn), and not asleep, indoors, dozing at a post, or in someone's arms.
                 // (A guard by day has its weapon, worn or drawn: Patrol works out which.)
-                if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
+                if (s.Job == (byte)FolkJob.Lamplighter && s.Mode == CreatureMode.Work && s.Stage >= FolkJobs.RoundWalk)
+                    s.Held = HeldItem.Staff;   // (A-115: its lamp pole)
+                else if (s.Task == CreatureTask.Patrol && s.Mode == CreatureMode.Patrol)
                     s.Held = Night > 0.5f ? HeldItem.Torch : s.Held == HeldItem.SpearDrawn ? HeldItem.SpearDrawn : HeldItem.Spear;
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = !OnPier(in s) ? HeldItem.Rod : s.Stage == PierCarry ? HeldItem.OreSack : s.Stage == PierNets || s.Stage == PierSetDown ? HeldItem.None : HeldItem.Rod;
