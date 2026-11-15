@@ -777,7 +777,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   c828df2a, 1746d62a, 4cd4edd8, c378a480, 6375c738, 9a1694eb, 3d0c8df2, f1747057, 19012b1f, 13fbd5cf. `shelf.sh get`
   is tried first anyway, so check the shelf before building anything yourself.
 
-## Job 77 (2026-11-14, RUNNING 11-14 (q119.job; A, B and C); supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
+## Job 77 (2026-11-14, REPORTED 11-14 in REPORTS-profiler.md (q119.job; rim view needs a pose); supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
 - Main 697e565f (A) vs `world/scarps` feab6870 (B). Profile builds, 1920x1080, Medium, uncapped, noon, Clear,
   `-weatherseed 4`, ABBA, 3 rounds.
 - Bake: delete the island cache before each run; record the `[scarps]` bake line and total island bake time, A vs B.

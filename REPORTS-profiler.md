@@ -2,6 +2,30 @@
 
 Newest first.
 
+## Job 77: W-155 scarps, rows 1 (world/scarps feab6870 = B) and 1b (4b38a42c = C) vs main 697e565f (A), 2026-11-14 (q119.job): bake within 250 ms; 1b's canyon chunks take 3.4 s to apply (frames up to 810 ms); my rim pose missed the wall
+**Setup:** Profile builds, Medium, 1920x1080, uncapped, noon, Clear, arms rotated, 3 rounds.
+
+**Bake (`-freshisland`, 3 starts each):**
+| | `[scarps]` (ms) | island ready (s) |
+|---|---|---|
+| A main | — | 30.7, 31.6, 30.8 |
+| B row 1 | 158, 128, 149 | 32.0, 31.5, 31.1 |
+| C row 1b | 168, 173, 204 | 31.5, 31.1, 30.5 |
+- Both under the 250 ms flag ("2 scarps; ridge canyon wall: rim 211 m, 106 nodes, drop up to 47.8 m; river cut bank: rim 84 m ..."). Island ready moves by under 0.5 s, inside start-to-start noise.
+
+**Canyon chunks (a 1 km run south into the box at 25 m/s, `-hitchms 40`):**
+| | GPU ms | main thread ms | `[stream]` batches applied (3 runs) | frames over 40 ms |
+|---|---|---|---|---|
+| A main | 13.3 | 17.57 | 3, 135 ms total, max 63 ms | 56 |
+| B row 1 | 13.33 | 17.93 | 3, 83 ms total, max 34 ms | 87 |
+| C row 1b | 13.6 | 18.67 | **9, 3400 ms total, max 810 ms** | 84 |
+- **Flag: row 1b's chunks.** On arrival, C applies 9 chunk batches costing 3.4 s over the 3 runs, the worst 810 ms in one frame (main and row 1: 3 batches, under 70 ms each). Main thread +1.1 ms over the run. Whatever 1b adds to the canyon chunks is built on the main thread in the stream's apply step.
+- GPU on the run: +0.03 (B), +0.30 (C, at the flag line).
+
+**Rim view (300 frames):** A 11.37, B 11.47, C 11.47 GPU ms; main thread 12.6 / 12.6 / 12.87. **But my pose (the box's north edge, -1568,1856, facing south) stands on a ridge and the canyon wall isn't in frame** (results/sheets/scarps.jpg: the three arms look the same), so this says nothing about drawing the scarps. The card gave no rim pose: a spot on the canyon's rim facing along the wall from the world lane would fix it.
+
+Cost: laptop total $891 (laptop session e163d8ab; 2 builds, 27 games).
+
 ## Job 76: R-25 far lights (render/far-lights 17177829 = B, 768ff9ae = C, vs main 697e565f = A), 2026-11-14 (q118, q118b): PASS (B +0.50 / +0.13 at the town, Medium); item 6 saves nothing (C isn't cheaper than B)
 **Setup:** Profile builds, 1920x1080, uncapped, 22:00, Clear, `-weatherseed 4`, `-lightlog`, arms rotated, 3 rounds, Medium and High. A is the card's main 697e565f = the branches' base d95e7ff1 plus #307 (colossus climbing; nothing at these views). Beacon: a 3 m line toward it at 0.2 m/s, 40 m over the ground, from (2044, -1261).
 
