@@ -15,7 +15,6 @@ cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382.
 | fauna/one-population | A-110 to r7b | fauna | RideLife.cs. |
 | fauna/lying-legs | - | fauna | CreatureAnimator.cs. |
 | folk/a111-row1-parked | A-111 r1 | folk | Parked; only if A-110 slips. |
-| world/cliff-kit | W-150 r1-2 | world | IslandV2, TerrainSource. |
 | world/world-pack | W-168 r2 | world | IslandCache, IslandV2. |
 | water/truth | bench 75 | world | IslandV2, TerrainSource. |
 | world/waterfall-sheets | R-21 | world | LandmarkEffectSystem. |
