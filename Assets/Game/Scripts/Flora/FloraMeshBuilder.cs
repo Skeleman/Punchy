@@ -986,6 +986,128 @@ namespace Punchy.Flora
             return t * t * (3f - 2f * t);
         }
 
+        // R-30 row 1 (#323) leaf trial: cut-out marks on plain foliage, read by FloraMossData / FloraLeafClip in Flora.hlsl.
+        // Foliage vertex colour alpha is unused (it is wood grain only on bark), so it carries the mark: 1 solid, 0.02-0.48
+        // a leaf card (centre to rim), 0.6 + 0.05 k shell k. Every pass cuts the same through FloraMossClip.
+
+        bool PlainFoliage(int v) => Mathf.Abs(data[v].y - (float)FloraPart.Foliage) < 0.01f;
+
+        /// <summary>The plain foliage triangles (first index of each), the foliage centroid and half extents.</summary>
+        public List<int> FoliageTriangles(out Vector3 centre, out Vector3 extents)
+        {
+            var tris = new List<int>();
+            var min = Vector3.one * float.MaxValue;
+            var max = -min;
+            for (int i = 0; i + 2 < indices.Count; i += 3)
+            {
+                if (!PlainFoliage(indices[i]) || !PlainFoliage(indices[i + 1]) || !PlainFoliage(indices[i + 2]))
+                    continue;
+                tris.Add(i);
+                for (int k = 0; k < 3; k++)
+                {
+                    min = Vector3.Min(min, positions[indices[i + k]]);
+                    max = Vector3.Max(max, positions[indices[i + k]]);
+                }
+            }
+            centre = tris.Count > 0 ? (min + max) * 0.5f : Vector3.zero;
+            extents = tris.Count > 0 ? Vector3.Max((max - min) * 0.5f, Vector3.one * 0.05f) : Vector3.one;
+            return tris;
+        }
+
+        /// <summary>Bends every plain foliage normal towards "out from the crown" (amount 1: a sphere's).</summary>
+        public void LeafSphereNormals(Vector3 centre, Vector3 extents, float amount)
+        {
+            for (int v = 0; v < positions.Count; v++)
+                if (PlainFoliage(v))
+                {
+                    var d = positions[v] - centre;
+                    var outward = new Vector3(d.x / extents.x, d.y / extents.y, d.z / extents.z).normalized;
+                    normals[v] = Vector3.Lerp(normals[v], outward, amount).normalized;
+                }
+        }
+
+        /// <summary>Moves plain foliage vertices along their normals and scales their colour (a shrunk, darker core).</summary>
+        public void LeafCore(float offset, float shade)
+        {
+            for (int v = 0; v < positions.Count; v++)
+                if (PlainFoliage(v))
+                {
+                    positions[v] += normals[v] * offset;
+                    var c = colors[v] * shade;
+                    c.a = 1f;
+                    colors[v] = c;
+                }
+        }
+
+        /// <summary>A copy of the given foliage triangles pushed out along the normals, marked as cut-out shell k.</summary>
+        public void LeafShell(List<int> tris, float offset, int shell)
+        {
+            var map = new Dictionary<int, int>();
+            foreach (var t in tris)
+                for (int k = 0; k < 3; k++)
+                {
+                    var v = indices[t + k];
+                    if (!map.TryGetValue(v, out var copy))
+                    {
+                        copy = positions.Count;
+                        positions.Add(positions[v] + normals[v] * offset);
+                        normals.Add(normals[v]);
+                        var c = colors[v];
+                        c.a = 0.6f + 0.05f * shell;
+                        colors.Add(c);
+                        data.Add(data[v]);
+                        map[v] = copy;
+                    }
+                    indices.Add(copy);
+                }
+        }
+
+        /// <summary>
+        /// Leaf cards over the given foliage triangles: hexagons of about <paramref name="size"/> across, scattered by area
+        /// (one per <paramref name="spacing"/> m²), tilted at random, lit with the surface's (crown-bent) normal so the
+        /// crown shades as one volume while the card rims break into leaves.
+        /// </summary>
+        public void LeafCards(List<int> tris, float size, float spacing, System.Random rng)
+        {
+            foreach (var t in tris)
+            {
+                Vector3 a = positions[indices[t]], b = positions[indices[t + 1]], c = positions[indices[t + 2]];
+                var area = Vector3.Cross(b - a, c - a).magnitude * 0.5f;
+                var count = area / spacing;
+                var n = (int)count + ((float)rng.NextDouble() < count - (int)count ? 1 : 0);
+                for (int j = 0; j < n; j++)
+                {
+                    float u = (float)rng.NextDouble(), w = (float)rng.NextDouble();
+                    if (u + w > 1f) { u = 1f - u; w = 1f - w; }
+                    var src = indices[t + (u > 0.5f ? 1 : w > 0.5f ? 2 : 0)];
+                    var surface = (normals[indices[t]] * (1f - u - w) + normals[indices[t + 1]] * u + normals[indices[t + 2]] * w).normalized;
+                    var s = size * (0.7f + 0.6f * (float)rng.NextDouble());
+                    var centre = a + (b - a) * u + (c - a) * w + surface * s * ((float)rng.NextDouble() - 0.4f) * 0.5f;
+                    var facing = Vector3.Lerp(surface, RandomDirection(rng), 0.65f).normalized;
+                    var t1 = Vector3.Cross(facing, RandomDirection(rng)).normalized;
+                    var t2 = Vector3.Cross(facing, t1);
+                    var col = colors[src] * (0.85f + 0.3f * (float)rng.NextDouble());
+                    var d = data[src];
+                    col.a = 0.02f;
+                    var first = positions.Count;
+                    positions.Add(centre); normals.Add(surface); colors.Add(col); data.Add(d);
+                    col.a = 0.48f;
+                    for (int k = 0; k < 6; k++)
+                    {
+                        var ang = k * Mathf.PI / 3f;
+                        positions.Add(centre + (t1 * Mathf.Cos(ang) + t2 * Mathf.Sin(ang)) * s * 0.5f);
+                        normals.Add(surface); colors.Add(col); data.Add(d);
+                    }
+                    for (int k = 0; k < 6; k++)
+                    {
+                        indices.Add(first);
+                        indices.Add(first + 1 + k);
+                        indices.Add(first + 1 + (k + 1) % 6);
+                    }
+                }
+            }
+        }
+
         public static Vector3 RandomDirection(System.Random rng)
         {
             var z = (float)rng.NextDouble() * 2f - 1f;
