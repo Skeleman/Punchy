@@ -864,7 +864,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 
 - 11-14 note (supervisor): #341 merged to main (11ba8e42). Fauna fingerprint re-pinned E99E8FCB -> B2A5823C (stables and hitch rails are now obstacles); landmarks 689D5348 and layout 28DB5D55 unchanged. Re-pin your baseline if a job compares it.
 
-## Job 87 (2026-11-14, NEXT on the laptop, chained after 86 (q129.job, main 3b192717); world lane, W-168 row 1, #345): where a start's time goes
+## Job 87 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md (q129.job, main 3b192717); world lane, W-168 row 1, #345): where a start's time goes
 - main afea013c (includes #348, the start ledger). Profile build, 1920x1080, High, uncapped, 12:00, Clear.
 - One warm-up launch, then per start 3 cache-hit launches and 1 `-freshisland` launch: default spawn, town
   (`-place HumanVillage`), forest (`-place OakGrove`).

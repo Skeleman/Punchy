@@ -2,6 +2,23 @@
 
 Newest first.
 
+## Job 87: where a start's time goes (main 3b192717 with the #348 start ledger, shelf build), 2026-11-15 (q129.job): CreatureRenderSystem is most of it (7-23 s of main thread before world ready), then CaveSocketSystem (~2.7 s, 1.2-1.5 s worst frame); chunk apply is small now
+**Setup:** High, 1920x1080, uncapped, noon, Clear. One warm-up launch, then per start 3 cache-hit launches and 1 `-freshisland` launch. Numbers from each Player.log's `[start]` ledger (main-thread ms summed from launch to `[stream] world ready` / worst single frame).
+
+| start | world ready (s): hits / fresh | island ready (s): hits / fresh | CreatureRenderSystem (sum / worst ms) | CaveSocketSystem (sum / worst ms) | chunks apply (sum / worst ms) |
+|---|---|---|---|---|---|
+| default spawn | 55.4, 56.7, 55.4 / 77.7 | ~8.1 / 29.4 | **18,371-23,460 / 1,260-1,343** | 2,550-2,754 / 1,193-1,278 | 86-110 / 23-46 |
+| town | 41.0, 41.0, 38.8 / 58.8 | ~8.1 / 29.5 | **10,012-11,333 / 938-1,016** | 2,818-3,018 / 1,284-1,539 | 78-93 / 21-30 |
+| forest | 36.2, 34.8, 36.7 / 57.2 | ~8.1 / 29.9 | **6,990-8,774 / 508-563** | 2,661-3,121 / 1,272-1,512 | 84-97 / 24-34 |
+
+- **The top producer by far is CreatureRenderSystem**: 7-23 s of main-thread time between launch and world ready, with single frames of 0.5-1.3 s. It's largest at the default spawn (the colossus slots near spawn; job 64 saw their slot and LOD builds, 0.1-1.8 s each, in the log; the ledger books them under CreatureRenderSystem). **That's the first thing W-168 row 2 should bake or spread.**
+- **CaveSocketSystem**: ~2.7-3.0 s per start with one frame of 1.2-1.5 s, the same at every start (it's island-wide, not near the player).
+- **Chunk apply is no longer a problem:** 78-110 ms in total, worst frame 21-46 ms (job 64 saw one 2.4 s batch; the 96-chunk batch frames are gone).
+- Other sizeable ones (spawn hit 1): FaunaDirector.Update 943 ms (one 805 ms frame), DungeonSpawnSystem 611 / 200, FaunaSpawnGroup and FaunaPopulationSystem ~400 / 260, FaunaDirector.Residents 233 / 231, RibcageSystem 138 / 138; island cache load 1.1-1.3 s.
+- **Timeline:** island ready ~8 s on a hit (29-30 s fresh); world ready 35-57 s on a hit (57-78 s fresh). Island-ready to world-ready is where the producers above run.
+
+Cost: laptop total $920 (laptop session e163d8ab; 0 builds (shelf), 13 games).
+
 ## Job 85: W-155 row 2 scarp debris and end outcrops (world/scarps 13fbd5cf = B vs 19012b1f = A), 2026-11-15 (q127.job): PASS on GPU at the canyon toe (-0.27); main thread +0.64 there; my river view was under water
 **Setup:** shelf builds (runner checked), Medium, 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds. Views: the canyon toe via `-benchface -1530,1790,10` (standing at -1522,1784, yaw -56, pitch -21, facing the wall), the river cut via `-benchface -878,-1462,15`, and a far view 300 m over (800,164) facing west with both scarps in frame. Shots: results/sheets/scarp_debris.jpg.
 
