@@ -5154,3 +5154,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Also fixed: the -rideplayer test breaking on a second play without a domain reload (static ride counters). Jump is now pressed at 5 s and 10 s, since a steep climb hid the single jump.
 - Shares: PlayerBodyAbilities (player body + steered mounts, boats later). PlayerAvatarSystem.Drive reused for steered mounts. No parallel found.
 - NEXT: fauna/playtest-1114 is ready for PR (rows 1-4). Then the landing list, starting with flora/tree-variety.
+
+## 11-15 A-127 row 3 (#368): no drifting upward under water - done (verified)
+- folk/playtest-1114 2043b44a (origin/main 951605d9 merged in first; fingerprint still 859112C9, so no re-pin). Breath.Head now takes the water depth. A swimming folk wading the shallows uses its standing head, blended to the afloat head over the same depths the swim body floats up (SensesMovement upright Swim). Before, y+0.35 counted every wader as under water: it ran its breath down, gasped and lifted off the bed.
+- Count (folk under water rising while they still have breath). Wading drop (2 Humans in Swim mode, 0.4-0.9 m of water, 30 s): before 2/2 used breath (0.83, 0.96) and 1 gasped and lifted 0.22 m off the bed; after 0/2 (breath 0, never off the bed). FishingVillage 109, 120 samples: before 0, after 0 (65 under-pairs). The metric counts a rise only when the body goes up >0.05 m against both the bed and the surface, not gasping, not a chosen ascent, and not air folk turning back on low breath. The looser first count (51/19) was all sea folk swimming: the swim bob, bodies following the bed clamp, and chosen new depths.
+- Regression: a Human sunk on a 3 m lake bed still uses breath (0.50 after 12 s) and gasps as before.
+- No shot (the card asks for a count). Breath and swim state are host-only, and clients read positions from ghosts, so solo/host/client behave alike.
+- Shares: extends the one Breath meter (Breath.Head, used by creatures' Breathe and the breath/dive debug reports). Parallel found: SensesMovement keeps its own copy of the wading smoothstep, and Breath now mirrors it. They could share one helper later.
+- NEXT: folk/playtest-1114 is ready for PR (A-127 rows 1-3). Then folk/spawn-wait-fix (TestSceneSetup.Spawn waits on LogWatch line counts).
