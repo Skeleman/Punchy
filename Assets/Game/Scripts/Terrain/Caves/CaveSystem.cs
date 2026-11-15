@@ -1349,9 +1349,7 @@ namespace Punchy.Terrain
             marks[6] = clock.Elapsed.TotalMilliseconds;
             UploadGlowing(cam);
             marks[7] = clock.Elapsed.TotalMilliseconds;
-            // Startup hitch hunting (#102): name the slow parts of any frame over a quarter second.
-            if (marks[7] > 250)
-                Debug.Log($"[caves] slow frame {marks[7]:F0} ms: pools+glow {marks[0]:F0}, styles {marks[1] - marks[0]:F0}, stream {marks[2] - marks[1]:F0}, draw+pools {marks[3] - marks[2]:F0}, bat folk {marks[4] - marks[3]:F0}, plants {marks[5] - marks[4]:F0}, drips {marks[6] - marks[5]:F0}, glowing {marks[7] - marks[6]:F0}");
+            NoteFrame(marks);
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;
