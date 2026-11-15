@@ -1,0 +1,33 @@
+# Job 81 (A-108 row 2, #298): herds' far form and the live hand-over. fauna/far-life d0524eaa (B, -herdlog) vs main
+# 697e565f (A, its base). Both from the shelf. Medium and High, 10:00, Clear, 3 rounds.
+# Views: the summit vantage (-benchspot -2496,294,960,55); standing 130 m from the town-e herd (-benchspot 3570.2,-973.1,99);
+# and the walk in toward that herd at 6 m/s from 460 m out to 35 m (yaw 99 from the stand spot puts the herd at about
+# 3698.6,-993.4), -hitchms 30 so the wake frame (11 animals made at once) is logged.
+# After: one Profiler-captured walk per arm at Medium, analysed for CreatureRenderSystem (GatherHerds/WriteHerds) and
+# FaunaDirector (UpdateHerds), and every main frame over 8 ms.
+Q=q123; TITLE="job 81 far herds"
+BUILDS="d0524ea 697e565"
+VIEWS="vantage stand walk"
+view() { case $1 in
+  vantage) echo "-goto -2496,294,960 -benchstops spot -benchspot -2496,294,960,55 -benchhour 10 -benchweather Clear";;
+  stand)   echo "-goto 3570.2,-973.1 -benchstops spot -benchspot 3570.2,-973.1,99 -benchhour 10 -benchweather Clear";;
+  walk)    echo "-goto 3244.2,-921.6 -benchstops line -benchline 3244.2,-921.6,3664,-987.9,6,0.1 -benchhour 10 -benchweather Clear -hitchms 30";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-d0524ea -herdlog";; A) echo "Profile-697e565";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3
+after() {
+  for a in B A; do
+    local spec o t; spec=$(arm $a); o=${spec%% *}; t=$Q-prof-$a-cs100-1
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$a ${o#Profile-} s100 1 -gfx Medium -fpscap 0 $(view walk) ${spec#$o} \
+      -profiler-enable -profiler-log-file "$W/q-$t.raw" -profiler-maxusedmemory 1073741824
+    check "$R/q-$t.log"
+    cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+    cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+    ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+        -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$t.txt")" -over 8 -keep Herd -logFile "$W/analyze-$t.log" )
+    cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+    rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+    [ -f "$R/$t.txt" ] && rm -f "$R/q-$t.raw"
+    echo "== $t"; grep -a "Herd\|frames used" "$R/$t.txt" | head -8
+  done
+}

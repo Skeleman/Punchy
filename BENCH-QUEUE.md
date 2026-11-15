@@ -808,7 +808,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Every main frame over 8 ms: its top three samples (cave water tile build, TraceSystem, flora cells, terrain
   chunks, structures). Say whether two streaming systems spike in the same frame (decides #270's scheduler).
 
-## Job 81 (2026-11-14, QUEUED after 80; fauna lane, A-108 row 2, #298): herds' far form and the live hand-over
+## Job 81 (2026-11-14, RUNNING 11-15 (q123.job); fauna lane, A-108 row 2, #298): herds' far form and the live hand-over
 - Main 697e565f (A) vs `fauna/far-life` d0524eaa (B). Profile builds, 1920x1080, Medium and High, uncapped, 10:00,
   Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Herd vantage (summit, many herds in view): `-benchspot -2496,294,960,55`.
