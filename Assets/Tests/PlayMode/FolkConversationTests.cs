@@ -70,6 +70,30 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// Target (A-129 row 1): the shipped dialogue.json and weather-lines.json name no bad entry; on a scratch copy, a
+        /// version with five bad entries (a line with no text, a "when" that isn't a time, a number in a word list, an
+        /// unclosed {slot} and an unknown key in a talk line) is turned down with all five named by path and line, the
+        /// last good lines are kept, and the fixed version is read again.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Archive_BadEntriesNamed_OldLinesKept()
+        {
+            var shipped = Game.Hook<string[]>("ArchiveProblems");
+            var r = Game.Hook<float[]>("ArchiveReload");
+            var why = Game.HookField<string>("ReloadError") ?? "";
+            LogWatch.Measure($"archive: shipped problems {shipped.Length}; reload {r[0]:F0} lines, bad version kept {r[1]:F0}, " +
+                             $"{r[2]:F0} named, fixed {r[3]:F0}\n{why}\n{string.Join("\n", shipped)}");
+            Assert.AreEqual(0, shipped.Length, string.Join("\n", shipped));
+            Assert.Greater(r[0], 0f, "the scratch copy wasn't read");
+            Assert.AreEqual(r[0], r[1], "the bad version replaced the good lines");
+            Assert.AreEqual(5f, r[2], why);
+            foreach (var part in new[] { "no \"text\"", "midnight", "broken_list", "never closed", "unknown key \"moood\"", "(line " })
+                StringAssert.Contains(part, why);
+            Assert.AreEqual(r[0], r[3], "the fixed version wasn't read again");
+            yield return null;
+        }
+
+        /// <summary>
         /// Target: 20 folk of one town (mixed trades, conditions and hours) feel distinct: at least 18 give a set of
         /// answers nobody else gives, and each topic has at least 6 different lines among them. Logs 10 folk x 3 topics.
         /// </summary>

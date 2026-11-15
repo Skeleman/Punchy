@@ -868,10 +868,16 @@ namespace Punchy.Fauna
         /// "parent", "grandparent", "grandchild", "sibling", "inlaw", or "none") and "gone" (about a member who died), and
         /// fill {kin_name} and {kin_word}.
         /// </summary>
-        public static TalkBook Parse(JToken section)
+        public static TalkBook Parse(JToken section, JsonProblems problems = null)
         {
-            if (!(section is JObject root))
+            if (section == null || section.Type == JTokenType.Null)
                 return null;
+            if (!(section is JObject root))
+            {
+                problems?.Add(section, "should be an object of culture name: { topic: [ lines ] }");
+                return null;
+            }
+            problems ??= new JsonProblems();
             var book = new TalkBook();
             foreach (var pair in root)
             {
@@ -881,7 +887,7 @@ namespace Punchy.Fauna
                 if (pair.Key == "groups" && pair.Value is JObject groups)
                 {
                     foreach (var g in groups)
-                        if (!g.Key.StartsWith("_") && Strings(g.Value) is string[] names)
+                        if (!g.Key.StartsWith("_") && problems.Strings(g.Value, g.Key) is string[] names)
                             foreach (var n in names)
                                 book.Groups[n] = g.Key;
                     continue;
@@ -890,20 +896,33 @@ namespace Punchy.Fauna
                 {
                     foreach (var l in labels)
                         if (!l.Key.StartsWith("_"))
-                            book.Labels[l.Key] = (string)l.Value;
+                        {
+                            if (l.Value.Type == JTokenType.String)
+                                book.Labels[l.Key] = (string)l.Value;
+                            else
+                                problems.Add(l.Value, $"a topic's label should be text, not {JsonProblems.Kind(l.Value)}");
+                        }
                     continue;
                 }
                 if (!(pair.Value is JObject topics))
+                {
+                    problems.Add(pair.Value, "a culture should be an object of topic: [ lines ]");
                     continue;
+                }
                 var culture = new Dictionary<string, List<TalkLine>>(StringComparer.OrdinalIgnoreCase);
                 foreach (var t in topics)
                 {
-                    if (t.Key.StartsWith("_") || !(t.Value is JArray lines))
+                    if (t.Key.StartsWith("_"))
                         continue;
+                    if (!(t.Value is JArray lines))
+                    {
+                        problems.Add(t.Value, "a topic should be a list of lines");
+                        continue;
+                    }
                     var list = new List<TalkLine>();
                     foreach (var l in lines)
                     {
-                        var line = ParseLine(l);
+                        var line = ParseLine(l, problems);
                         if (line != null)
                             list.Add(line);
                     }
@@ -914,39 +933,79 @@ namespace Punchy.Fauna
             return book;
         }
 
-        static TalkLine ParseLine(JToken t)
+        /// <summary>The keys a talk line can have, besides the persona traits' names (any other is a named problem: a typo).</summary>
+        static readonly HashSet<string> LineKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "text", "gesture", "when", "weight", "weather", "mood", "stance", "trade", "group", "willing", "pestered", "need",
+            "home", "job", "ends", "kin", "gone", "pet", "offer", "response", "state"
+        };
+
+        static readonly string[] KinWords = { "partner", "child", "parent", "grandparent", "grandchild", "sibling", "inlaw", "none" };
+
+        static TalkLine ParseLine(JToken t, JsonProblems problems)
         {
             if (t.Type == JTokenType.String)
+            {
+                problems.Slots(t, (string)t);
                 return new TalkLine { Text = (string)t };
-            if (!(t is JObject o) || o["text"] == null)
+            }
+            if (!(t is JObject o))
+            {
+                problems.Add(t, $"a line should be text or an object with \"text\", not {JsonProblems.Kind(t)}");
                 return null;
+            }
+            var text = problems.Text(o);
+            if (text == null)
+                return null;
+            foreach (var key in o)
+                if (!key.Key.StartsWith("_") && !LineKeys.Contains(key.Key) && FolkPersona.TraitIndex(key.Key) < 0)
+                    problems.Add(key.Value, $"unknown key \"{key.Key}\"");
             var line = new TalkLine
             {
-                Text = (string)o["text"],
-                Gesture = (string)o["gesture"],
-                When = (string)o["when"],
-                Weight = o["weight"] != null ? (float)o["weight"] : 1f,
-                Weather = Strings(o["weather"]),
-                Moods = Strings(o["mood"]),
-                Stances = Strings(o["stance"]),
-                Trades = Strings(o["trade"]),
-                Groups = Strings(o["group"]),
-                Willing = Bool(o["willing"]),
-                Pestered = Bool(o["pestered"]),
-                Need = Bool(o["need"]),
-                Home = Bool(o["home"]),
-                Job = Bool(o["job"]),
-                Ends = o["ends"] != null && (bool)o["ends"],
-                Kin = Strings(o["kin"]),
-                Gone = o["gone"] != null && (bool)o["gone"],
-                Pet = o["pet"] != null && (bool)o["pet"],
+                Text = text,
+                Gesture = problems.Str(o, "gesture"),
+                When = problems.Str(o, "when"),
+                Weight = problems.Num(o, "weight", 1f),
+                Weather = problems.Strings(o["weather"], "weather"),
+                Moods = problems.Strings(o["mood"], "mood"),
+                Stances = problems.Strings(o["stance"], "stance"),
+                Trades = problems.Strings(o["trade"], "trade"),
+                Groups = problems.Strings(o["group"], "group"),
+                Willing = problems.Bool(o, "willing"),
+                Pestered = problems.Bool(o, "pestered"),
+                Need = problems.Bool(o, "need"),
+                Home = problems.Bool(o, "home"),
+                Job = problems.Bool(o, "job"),
+                Ends = problems.Bool(o, "ends") ?? false,
+                Kin = problems.Strings(o["kin"], "kin"),
+                Gone = problems.Bool(o, "gone") ?? false,
+                Pet = problems.Bool(o, "pet") ?? false,
             };
-            line.OfferKind = OfferOf((string)o["offer"], out line.OfferId);
-            if (o["response"] != null && Enum.TryParse((string)o["response"], true, out BeastResponse response))
-                line.Response = response;
+            if (line.Gesture != null && !Enum.TryParse(line.Gesture, true, out IdleAction _))
+                problems.Add(o["gesture"], $"\"gesture\": no gesture called \"{line.Gesture}\"");
+            problems.OneOf(o, "when", line.When, "day", "night", "dawn", "morning", "afternoon", "evening", "dusk");
+            if (line.Weather != null)
+                foreach (var w in line.Weather)
+                    if (!Enum.TryParse(w, true, out ComfortKind _))
+                        problems.Add(o["weather"], $"\"weather\": no weather called \"{w}\"");
+            if (line.Kin != null)
+                foreach (var k in line.Kin)
+                    problems.OneOf(o, "kin", k, KinWords);
+            var offer = problems.Str(o, "offer");
+            line.OfferKind = OfferOf(offer, out line.OfferId);
+            if (offer != null && line.OfferKind == OfferKind.None)
+                problems.Add(o["offer"], $"\"offer\": \"{offer}\" isn't quest, item:<id>, directions, rumour, discount or refuses");
+            var response = problems.Str(o, "response");
+            if (response != null)
+            {
+                if (Enum.TryParse(response, true, out BeastResponse r))
+                    line.Response = r;
+                else
+                    problems.Add(o["response"], $"\"response\": \"{response}\" isn't approach, feed, backoff, flee or none");
+            }
             foreach (var trait in FolkPersona.Traits)
             {
-                var bands = Strings(o[trait.Name]);
+                var bands = problems.Strings(o[trait.Name], trait.Name);
                 if (bands == null)
                     continue;
                 line.Bands ??= new byte[FolkPersona.Count];
@@ -955,10 +1014,16 @@ namespace Punchy.Fauna
                     var b = Array.IndexOf(FolkPersona.BandNames, band.ToLowerInvariant());
                     if (b >= 0)
                         line.Bands[(int)trait.Trait] |= (byte)(1 << b);
+                    // ("mood" also takes the talk mood's names, matched as written: Plain, Cheerful, Grumpy.)
+                    else if (trait.Trait == PersonaTrait.Mood && Enum.TryParse(band, false, out FolkMood m) && m.ToString() == band)
+                        continue;
+                    else
+                        problems.Add(o[trait.Name], $"\"{trait.Name}\": \"{band}\" isn't one of {string.Join(", ", FolkPersona.BandNames)}" +
+                                     (trait.Trait == PersonaTrait.Mood ? ", Plain, Cheerful, Grumpy" : ""));
                 }
                 line.Keys++;
             }
-            var states = Strings(o["state"]);
+            var states = problems.Strings(o["state"], "state");
             if (states != null)
                 foreach (var st in states)
                 {
@@ -971,6 +1036,8 @@ namespace Punchy.Fauna
                             line.State |= c;
                         line.Keys++;
                     }
+                    else
+                        problems.Add(o["state"], $"\"state\": no state called \"{st}\"");
                 }
             if (line.Weather != null || line.Moods != null || line.Trades != null)
                 line.Keys++;
@@ -980,11 +1047,6 @@ namespace Punchy.Fauna
                 line.Keys++;
             return line;
         }
-
-        static string[] Strings(JToken t) =>
-            t == null ? null : t is JArray a ? new List<string>(a.Values<string>()).ToArray() : t.Type == JTokenType.String ? new[] { (string)t } : null;
-
-        static bool? Bool(JToken t) => t == null || t.Type == JTokenType.Null ? (bool?)null : (bool)t;
 
         /// <summary>
         /// The lines every folk falls back on when dialogue.json has none that fit (a topic it lacks, a file mid-edit):

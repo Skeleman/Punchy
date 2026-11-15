@@ -479,6 +479,90 @@ namespace Punchy.Debugging
         }
 
         /// <summary>
+        /// The bad entries named in the shipped dialogue.json and weather-lines.json, as they'd be logged (A-129): none
+        /// expected. Each comes as "file: path (line n): what's wrong".
+        /// </summary>
+        public static string[] ArchiveProblems()
+        {
+            var found = new List<string>();
+            foreach (var (name, parse) in new (string, System.Action<string, JsonProblems>)[]
+                     {
+                         (DialogueArchive.FileName, (j, p) => DialogueArchive.Parse(j, p)),
+                         (WeatherLines.FileName, (j, p) => WeatherLines.Parse(j, p)),
+                     })
+            {
+                var problems = new JsonProblems();
+                try
+                {
+                    parse(System.IO.File.ReadAllText(JsonFiles.PathOf(name)), problems);
+                }
+                catch (System.Exception e)
+                {
+                    problems.Add(e.Message);
+                }
+                foreach (var problem in problems.All)
+                    found.Add($"{name}: {problem}");
+            }
+            return found.ToArray();
+        }
+
+        /// <summary>
+        /// The live reload (LiveJsonFile, A-129) on a scratch copy of the shipped dialogue.json in Temp: read it, then
+        /// break one culture line, one talk line and one word list and read it again. [first read's line count, line
+        /// count after the bad version (the kept one), the bad version's problems, line count after the fix];
+        /// ReloadError holds the bad version's logged problems.
+        /// </summary>
+        public static float[] ArchiveReload()
+        {
+            var path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", "Temp", "dialogue-reload-test.json");
+            var good = System.IO.File.ReadAllText(DialogueArchive.Path);
+            var file = new LiveJsonFile<DialogueArchive>(path, "DialogueTest", DialogueArchive.Parse, a => $"{a.Count} lines");
+            var r = new float[4];
+            try
+            {
+                System.IO.File.WriteAllText(path, good);
+                r[0] = file.Current?.Count ?? -1;
+                var bad = Newtonsoft.Json.Linq.JObject.Parse(good);
+                foreach (var culture in (Newtonsoft.Json.Linq.JObject)bad["cultures"])
+                {
+                    // (A line with no text, a "when" that isn't a time, a word list holding a number, and an unknown talk key.)
+                    var lines = (Newtonsoft.Json.Linq.JArray)culture.Value["lines"];
+                    lines.Add(new Newtonsoft.Json.Linq.JObject { ["txet"] = "Typo." });
+                    lines.Add(new Newtonsoft.Json.Linq.JObject { ["text"] = "Late, isn't it?", ["when"] = "midnight" });
+                    culture.Value["words"]["broken_list"] = new Newtonsoft.Json.Linq.JArray("fine", 7);
+                    break;
+                }
+                foreach (var culture in (Newtonsoft.Json.Linq.JObject)bad["conversation"])
+                    if (!culture.Key.StartsWith("_") && culture.Key != "topics" && culture.Value is Newtonsoft.Json.Linq.JObject topics)
+                    {
+                        foreach (var topic in topics)
+                            if (topic.Value is Newtonsoft.Json.Linq.JArray talk)
+                            {
+                                talk.Add(new Newtonsoft.Json.Linq.JObject { ["text"] = "Hm {trade.", ["moood"] = "Grumpy" });
+                                break;
+                            }
+                        break;
+                    }
+                System.IO.File.WriteAllText(path, bad.ToString());
+                file.Reload();
+                r[1] = file.Current?.Count ?? -1;
+                ReloadError = file.Error;
+                r[2] = string.IsNullOrEmpty(file.Error) ? 0 : file.Error.Split('\n').Length;
+                System.IO.File.WriteAllText(path, good);
+                file.Reload();
+                var fixedCount = file.Current?.Count ?? -1;
+                r[3] = file.Error == null ? fixedCount : -1;
+            }
+            finally
+            {
+                System.IO.File.Delete(path);
+            }
+            return r;
+        }
+
+        public static string ReloadError;
+
+        /// <summary>
         /// Every topic asked of made-up folk of every culture in dialogue.json (and of no culture), many individuals, at
         /// all hours, in every condition, with and without a home and a job, to a player of playerSpecies (null: its own
         /// kind; beast: an animal player). [cultures, answers, empty answers, unfilled {slots}, exceptions, help answers
