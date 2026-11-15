@@ -12,6 +12,8 @@ namespace Punchy.Fauna
     /// from its shared clock and Individual) and its job, which clients read off its Stage, so nothing new is sent (a
     /// hermit at its biome chore too, row 2: FolkJobs.Shown). One
     /// pooled particle system, made on first use; with no such worker near it only looks every couple of seconds.
+    /// A-111 row 2: between those looks it visits just the workers it found, by their place in the snapshot, not every
+    /// creature each frame; it walks the snapshot again early only when creatures come or go and the places shift.
     /// </summary>
     public class WorkDust : MonoBehaviour
     {
@@ -22,10 +24,16 @@ namespace Punchy.Fauna
         ParticleSystem dust;
         Material dustMaterial;
         Punchy.Ambience.AmbienceSystem ambience;
-        readonly HashSet<Entity> workers = new HashSet<Entity>();
+        /// <summary>The dusty workers near the camera, each with its place in the snapshot when last found.</summary>
+        readonly List<(Entity Who, int At)> workers = new List<(Entity, int)>();
         readonly Dictionary<Entity, float> lastPhase = new Dictionary<Entity, float>();
-        float nextFind;
+        float nextFind, nextLog;
         int puffs;
+        int logScans = -1;
+
+        /// <summary>Tests ("-workdust" logs them every 10 s): creatures visited, and what walking the snapshot every frame
+        /// with workers near (as before A-111) would have visited.</summary>
+        public static long Visited, WouldVisit;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Create()
@@ -61,32 +69,71 @@ namespace Punchy.Fauna
             {
                 nextFind = Time.time + FindEvery;
                 workers.Clear();
+                Visited += states.Length;
+                WouldVisit += states.Length;
                 for (int i = 0; i < states.Length; i++)
                     if (states[i].Mode == CreatureMode.Work && states[i].Stage != 0 && Dusty(FolkJobs.Shown(states[i])) &&
                         math.distancesq(states[i].Position, eye) < Range * Range)
-                        workers.Add(entities[i]);
+                        workers.Add((entities[i], i));
                 if (lastPhase.Count > 64)
                     lastPhase.Clear();
             }
-            if (workers.Count > 0)
-                for (int i = 0; i < entities.Length; i++)
+            else
+                for (int w = 0; w < workers.Count; w++)
                 {
-                    if (!workers.Contains(entities[i]))
-                        continue;
-                    var s = states[i];
-                    var job = FolkJobs.Shown(s);
-                    if (s.Mode != CreatureMode.Work || s.Stage == 0 || !Dusty(job))
-                        continue;
-                    var sweep = job == FolkJob.AshSweeper;
-                    var phase = sweep ? CreatureAnimator.SweepPhase(s) : CreatureAnimator.ShovelPhase(s);
-                    var was = lastPhase.TryGetValue(entities[i], out var p) ? p : phase;
-                    lastPhase[entities[i]] = phase;
-                    // (A broom puffs at each end of its stroke; a shovel at the top of its toss.)
-                    var hit = sweep ? Crossed(was, phase, 0.25f) || Crossed(was, phase, 0.75f) : Crossed(was, phase, 0.72f);
-                    if (hit)
-                        Emit(s, job, sweep);
+                    var at = workers[w].At;
+                    // (-1: gone since it was found; it drops off at the next look.)
+                    if (at >= 0 && (at >= entities.Length || entities[at] != workers[w].Who))
+                    {
+                        // (Creatures came or went and the places shifted: find the same workers again.)
+                        Refind(entities);
+                        break;
+                    }
                 }
+            if (workers.Count > 0)
+            {
+                WouldVisit += states.Length;
+                Visited += workers.Count;
+            }
+            for (int w = 0; w < workers.Count; w++)
+            {
+                var i = workers[w].At;
+                if (i < 0)
+                    continue;
+                var s = states[i];
+                var job = FolkJobs.Shown(s);
+                if (s.Mode != CreatureMode.Work || s.Stage == 0 || !Dusty(job))
+                    continue;
+                var sweep = job == FolkJob.AshSweeper;
+                var phase = sweep ? CreatureAnimator.SweepPhase(s) : CreatureAnimator.ShovelPhase(s);
+                var was = lastPhase.TryGetValue(entities[i], out var p) ? p : phase;
+                lastPhase[entities[i]] = phase;
+                // (A broom puffs at each end of its stroke; a shovel at the top of its toss.)
+                var hit = sweep ? Crossed(was, phase, 0.25f) || Crossed(was, phase, 0.75f) : Crossed(was, phase, 0.72f);
+                if (hit)
+                    Emit(s, job, sweep);
+            }
             CreatureSnapshotSystem.Release(world, states, all, entities);
+            if (logScans < 0)
+                logScans = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-workdust") >= 0 ? 1 : 0;
+            if (logScans == 1 && Time.time >= nextLog)
+            {
+                nextLog = Time.time + 10f;
+                Debug.Log($"WorkDust: scans visited {Visited} creatures (a walk of all each frame with workers near: {WouldVisit}), " +
+                          $"{workers.Count} workers near, {puffs} puffs");
+            }
+        }
+
+        /// <summary>The found workers' new places in the snapshot, after creatures came or went (-1: gone).</summary>
+        void Refind(Unity.Collections.NativeArray<Entity> entities)
+        {
+            Visited += entities.Length;
+            for (int w = 0; w < workers.Count; w++)
+                workers[w] = (workers[w].Who, -1);
+            for (int i = 0; i < entities.Length; i++)
+                for (int w = 0; w < workers.Count; w++)
+                    if (workers[w].Who == entities[i])
+                        workers[w] = (entities[i], i);
         }
 
         /// <summary>Whether the phase passed the mark since last frame (wrapping at 1).</summary>

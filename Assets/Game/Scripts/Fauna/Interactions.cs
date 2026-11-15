@@ -69,6 +69,19 @@ namespace Punchy.Fauna
         /// <summary>Who someone is, as an animal's Holder: the connection's NetworkId + 1 (alone: 1). 0 is nobody.</summary>
         public static int HolderId(int networkId) => networkId + 1;
 
+        /// <summary>A-120: where a solo world's folk keys start (it has no ghost ids): FolkHolder adds the entity's index.</summary>
+        public const int FolkSoloBase = 1 << 30;
+
+        /// <summary>
+        /// A-120: one of the folk as an animal's Holder while it pets or carries it (Mode Petted or Held): minus its ghost
+        /// id, or in a solo world minus (FolkSoloBase + its entity index). Negative like a rider's mount (Mode Ride), told
+        /// apart by the Mode. The same key on every machine: clients match it on GhostInstance.ghostId.
+        /// </summary>
+        public static int FolkHolder(Entity folk, int ghostId) => ghostId != 0 ? -ghostId : -(FolkSoloBase + folk.Index);
+
+        /// <summary>A-120: whether a held or petted animal's Holder is one of the folk (not a player).</summary>
+        public static bool ByFolk(int holder) => holder < 0;
+
         /// <summary>Whether people can get near it and touch it at all (not a person, not up a tree, in the air, in water…).</summary>
         public static bool CanPet(ref CreatureBlob b, in CreatureState s) =>
             !b.Upright && b.Habitat != Habitat.Swims && s.Fly < 0.5f && !s.Gone &&

@@ -211,6 +211,56 @@ namespace Punchy.Fauna
                 return d;
             }
 
+            /// <summary>
+            /// A-117: WalkOn for a horse led or ridden through a town, and the one leading it: never into a building's,
+            /// stall's or fence's walls by its body's width (a horse at least 0.55 m either side, folk 0.3 m). Walled off,
+            /// it slides along the wall as MoveBody does, but right up to where it's going (a stable's gate is narrow);
+            /// boxed in, it waits. FaunaDirector hands it the way (gate, then streets) a waypoint at a time.
+            /// </summary>
+            float LeadOn(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt)
+            {
+                var before = s.Position.xz;
+                var yawBefore = s.Yaw;
+                var d = WalkOn(ref s, ref b, target, speed, dt);
+                if (!HasFlora)
+                    return d;
+                var to = s.Position.xz;
+                var radius = Riding.LeadRadius(ref b, s.Scale);
+                if (LeadFits(ref b, s.Scale, to, s.Yaw, radius) || !LeadFits(ref b, s.Scale, before, yawBefore, radius))
+                    return d;
+                var step = math.max(math.distance(to, before), 0.02f);
+                var heading = math.atan2(target.x - before.x, target.z - before.y);
+                var moved = false;
+                for (int k = 1; k <= 7 && !moved; k++)
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var angle = heading + side * k * 0.45f;
+                        var slide = before + new float2(math.sin(angle), math.cos(angle)) * step;
+                        // (Turned only part way, as it can in one step.)
+                        var yaw = yawBefore + math.clamp(WrapAngle(angle - yawBefore), -b.TurnRate * dt, b.TurnRate * dt);
+                        if (LeadFits(ref b, s.Scale, slide, yaw, radius))
+                        {
+                            to = slide;
+                            s.Yaw = yaw;
+                            moved = true;
+                            break;
+                        }
+                    }
+                if (!moved)
+                {
+                    to = before;
+                    s.Yaw = yawBefore;
+                    s.Speed = 0f;
+                }
+                s.Position.xz = to;
+                s.Position.y = Terrain.FloorUnder(new float3(to.x, s.Position.y + 0.8f, to.y), out _);
+                return d;
+            }
+
+            /// <summary>A-117: its middle and, for a horse, its hindquarters both clear of every wall by its width.</summary>
+            bool LeadFits(ref CreatureBlob b, float scale, float2 at, float yaw, float radius) =>
+                !Walled(at, radius) && (b.Upright || !Walled(Riding.LeadRear(ref b, scale, at, yaw), radius));
+
             // ------------------------------------------------------------------------------- swimming
 
             /// <summary>
@@ -963,7 +1013,7 @@ namespace Punchy.Fauna
                             s.Timer -= dt;
                         // (A guard comes out when its watch begins, however long it meant to stay in: a night guard
                         // asleep through the day is out again at dusk.)
-                        if (s.Timer <= 0f || OnShift(s))
+                        if (s.Timer <= 0f || OnShift(s) || s.Job == (byte)FolkJob.Lamplighter && OnRound(s))
                             NextStage(ref s);
                         break;
                     default:
@@ -1119,6 +1169,54 @@ namespace Punchy.Fauna
 
             /// <summary>Where the player with this Holder id is, and which way they face (false if they've gone).</summary>
             bool FindHolder(int holder, out float3 position, out float yaw) => FindHolder(holder, out position, out yaw, out _);
+
+            /// <summary>
+            /// A-120: as below, and one of the folk too (a negative Holder, Interactions.FolkHolder), looked for in the
+            /// grid cells round `near` (the animal's own place: its folk is beside it). A folk carrier's species is -1, so
+            /// Hands falls back to the human's hold.
+            /// </summary>
+            bool FindHolder(int holder, float2 near, out float3 position, out float yaw, out int species)
+            {
+                if (!Interactions.ByFolk(holder))
+                    return FindHolder(holder, out position, out yaw, out species);
+                species = -1;
+                if (FindFolkHolder(holder, near, out var j))
+                {
+                    position = States[j].Position;
+                    yaw = States[j].Yaw;
+                    return true;
+                }
+                position = default;
+                yaw = 0f;
+                return false;
+            }
+
+            /// <summary>A-120: the snapshot index of the folk with this Holder key near a place (false if none).</summary>
+            bool FindFolkHolder(int holder, float2 near, out int index)
+            {
+                var c = Cell(near);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var e = Entities[j];
+                        if (Interactions.FolkHolder(e, Ghosts.HasComponent(e) ? Ghosts[e].ghostId : 0) == holder && !States[j].Gone)
+                        {
+                            index = j;
+                            return true;
+                        }
+                    }
+                    while (Grid.TryGetNextValue(out j, ref it));
+                }
+                index = -1;
+                return false;
+            }
+
+            /// <summary>A-120: this folk's own Holder key, for an animal it pets or carries.</summary>
+            int FolkKey(Entity self) => Interactions.FolkHolder(self, Ghosts.HasComponent(self) ? Ghosts[self].ghostId : 0);
 
             bool FindHolder(int holder, out float3 position, out float yaw, out int species)
             {

@@ -61,7 +61,7 @@ namespace Punchy.Terrain
         /// <summary>Set in a biome's culture mask when it takes camps only (Habitability.CampsOnly).</summary>
         const int CampsOnlyFlag = 1 << 30;
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct EvaluateJob : IJobParallelFor
         {
             public TerrainSource Source;
@@ -616,6 +616,7 @@ namespace Punchy.Terrain
 
             var pools = new List<LandmarkPoolData>();
             var trodden = new List<LandmarkTroddenData>();
+            var beds = new List<LandmarkBedData>();
             var typeArray = builder.Allocate(ref root.Types, types.Count);
             for (int t = 0; t < types.Count; t++)
             {
@@ -629,6 +630,15 @@ namespace Punchy.Terrain
                     if (p.Species != null && p.Count > 0 && p.Trodden > 0f)
                         for (int k = 0; k < p.Count; k++)
                             trodden.Add(new LandmarkTroddenData { Offset = LandmarkLayout.Spot(p.Ring.x, p.Angle + k * 360f / p.Count), Radius = p.Trodden });
+                // W-164: a level bed under each placed garden, flat past its corners at its largest size.
+                var firstBed = beds.Count;
+                foreach (var p in type.Props)
+                    if (p.Species != null && p.Count > 0 && p.Species.Form == Punchy.Flora.FloraForm.Garden)
+                    {
+                        var half = (p.Species.Height.x + p.Species.Height.y) * 0.5f * p.Species.Spread * 0.5f * math.max(p.Scale.x, p.Scale.y);
+                        for (int k = 0; k < p.Count; k++)
+                            beds.Add(new LandmarkBedData { Offset = LandmarkLayout.Spot(p.Ring.x, p.Angle + k * 360f / p.Count), Radius = half * math.SQRT2 + LandmarkBeds.Margin });
+                    }
                 var water = type.WaterColor.linear;
                 typeArray[t] = new LandmarkTypeData
                 {
@@ -643,6 +653,8 @@ namespace Punchy.Terrain
                     PoolCount = pools.Count - first,
                     FirstTrodden = firstTrodden,
                     TroddenCount = trodden.Count - firstTrodden,
+                    FirstBed = firstBed,
+                    BedCount = beds.Count - firstBed,
                     OverrideWater = type.OverrideWater ? 1 : 0,
                     Water = new float4(water.r, water.g, water.b, type.WaterMurk),
                     WaterGlow = type.WaterGlow,
@@ -662,6 +674,9 @@ namespace Punchy.Terrain
             var troddenArray = builder.Allocate(ref root.Trodden, trodden.Count);
             for (int i = 0; i < trodden.Count; i++)
                 troddenArray[i] = trodden[i];
+            var bedArray = builder.Allocate(ref root.Beds, beds.Count);
+            for (int i = 0; i < beds.Count; i++)
+                bedArray[i] = beds[i];
             var instanceArray = builder.Allocate(ref root.Instances, instances.Count);
             for (int i = 0; i < instances.Count; i++)
                 instanceArray[i] = instances[i];

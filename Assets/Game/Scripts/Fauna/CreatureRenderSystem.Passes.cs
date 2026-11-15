@@ -503,6 +503,15 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<byte> PrevDecisions;
             public NativeArray<byte> Decisions;
             public NativeArray<int> GroupStarts;
+            /// <summary>A-114: this frame's time and number, and the items each body last held and those being put
+            /// away or taken out (TrackPocket).</summary>
+            public float Time;
+            public int Frame;
+            /// <summary>PocketScrub, and the count of moves started this frame (one slot, read after).</summary>
+            public float PocketScrub;
+            public NativeArray<int> PocketStarted;
+            public NativeParallelHashMap<Entity, PocketSeen> SeenHeld;
+            public NativeParallelHashMap<Entity, PocketMove> PocketMoves;
 
             public void Execute()
             {
@@ -525,7 +534,13 @@ namespace Punchy.Fauna
                         if (Keep[i] && DrawGroup(new Punchy.Settings.DetailPolicy.Decision { Packed = decided[i] }) == group)
                         {
                             Bodies[keep] = AllBodies[i];
-                            States[keep] = AllStates[i];
+                            var kept = AllStates[i];
+                            var keptBody = AllBodies[i];
+                            var started = PocketStarted[0];
+                            TrackPocket(ref kept, ref keptBody.Blob.Value, AllEntities[i], Time, PocketScrub, Frame, SeenHeld,
+                                        PocketMoves, ref started);
+                            PocketStarted[0] = started;
+                            States[keep] = kept;
                             Entities[keep] = AllEntities[i];
                             Decisions[keep] = decided[i];
                             keep++;

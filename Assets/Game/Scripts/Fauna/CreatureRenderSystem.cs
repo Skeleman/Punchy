@@ -143,6 +143,7 @@ namespace Punchy.Fauna
             noBodies = new NativeArray<CreatureBody>(0, Allocator.Persistent);
             noEntities = new NativeArray<Entity>(0, Allocator.Persistent);
             noDecisions = new NativeArray<byte>(0, Allocator.Persistent);
+            CreatePockets();
         }
 
         protected override void OnDestroy()
@@ -155,6 +156,7 @@ namespace Punchy.Fauna
             noBodies.Dispose();
             noEntities.Dispose();
             noDecisions.Dispose();
+            DisposePockets();
             if (roosts.IsCreated) roosts.Dispose();
             if (hives.IsCreated) hives.Dispose();
             buffer?.Release();
@@ -291,7 +293,13 @@ namespace Punchy.Fauna
                 PrevIndex = prevIndex,
                 PrevDecisions = usePrev ? prevPosed.Decisions : noDecisions,
                 Decisions = decisions,
-                GroupStarts = groupStarts
+                GroupStarts = groupStarts,
+                Time = (float)SystemAPI.Time.ElapsedTime,
+                Frame = poseFrame,
+                PocketScrub = PocketScrub,
+                PocketStarted = pocketStarted,
+                SeenHeld = pocketSeen,
+                PocketMoves = pocketMoves
             }.Schedule(JobHandle.CombineDependencies(culling, indexing));
 
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
@@ -320,6 +328,16 @@ namespace Punchy.Fauna
             culling.Complete();
             CreatureSnapshotSystem.WaitTicks += System.Diagnostics.Stopwatch.GetTimestamp() - waitStart;
             keepFlags.Dispose();
+            // (A-114: what each body last held, with the gone pruned now and then so they don't pile up.)
+            if ((poseFrame & 255) == 0)
+                PrunePockets(poseFrame, (float)SystemAPI.Time.ElapsedTime);
+            if (pocketStarted[0] > 0)
+            {
+                PocketStarts += pocketStarted[0];
+                if (PocketLog)
+                    UnityEngine.Debug.Log($"[pocket] {pocketStarted[0]} put away or taken out, {PocketStarts} on this machine");
+            }
+            pocketStarted[0] = 0;
             if (ownCopy)
             {
                 allBodies.Dispose();
@@ -471,7 +489,9 @@ namespace Punchy.Fauna
                 Frame = poseFrame++,
                 Looks = looks.Blob,
                 HaveLooks = haveLooks,
-                Stats = stats
+                Stats = stats,
+                PocketScrub = PocketScrub,
+                PocketMoves = pocketMoves
             }.Schedule(bodies.Length, 8, indexing);
             Pass(5);
             // While the creatures are posed on the workers, the rest is drawn here into its own array (the colonies, the
@@ -537,6 +557,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<int> Offsets;
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
             public float Time;
+            /// <summary>A-114 shots: PocketScrub, read once for the frame.</summary>
+            public float PocketScrub;
             public Unity.Mathematics.float3 CameraRight, CameraPosition;
             /// <summary>"-needcues": every creature shows a need cue all the time (for shots of #64).</summary>
             public bool ForceCues;
@@ -560,6 +582,8 @@ namespace Punchy.Fauna
             public bool HaveLooks;
             /// <summary>Per worker, StatStride apart: ticks, posed afresh, moved on (for -perflog).</summary>
             [NativeDisableParallelForRestriction] public NativeArray<long> Stats;
+            /// <summary>A-114: items being put away and taken out (CompactJob starts and ends them).</summary>
+            [ReadOnly] public NativeParallelHashMap<Entity, PocketMove> PocketMoves;
             [Unity.Collections.LowLevel.Unsafe.NativeSetThreadIndex] int threadIndex;
 
             public void Execute(int index)
@@ -574,12 +598,16 @@ namespace Punchy.Fauna
                 // As it looks smaller (Decisions, refactor 3.7) a body is posed afresh only every 2nd frame, then every 4th
                 // (staggered by entity), and between those its last pose is carried along to where it is now and turned as
                 // it turns (A-70 row 4).
-                var reused = Tiers && Reuse(state, body, entity, offset, Decisions[index]);
+                // (A-114: one reaching to a pocket is posed afresh every frame, so the reach doesn't stutter.)
+                var pocket = default(PocketReach);
+                if (body.Blob.Value.Upright && PocketMoves.TryGetValue(entity, out var move))
+                    pocket = SamplePocket(move, PocketClock(move, Time, PocketScrub), out _, out _);
+                var reused = Tiers && pocket.Amount <= 0f && Reuse(state, body, entity, offset, Decisions[index]);
                 if (!reused)
                 {
                     var decision = new Punchy.Settings.DetailPolicy.Decision { Packed = Decisions[index] };
                     CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset, decision.Feet,
-                                              decision.Geometry == 0);
+                                              decision.Geometry == 0, pocket);
                 }
                 RideSwell(state, body, offset);
                 Rest(index, state, body, entity, offset);
@@ -672,6 +700,9 @@ namespace Punchy.Fauna
                 // Stepping through a door: dithered out going in, gone indoors, dithered back in coming out.
                 if (state.Mode == CreatureMode.Home && state.Stage >= 1)
                     faded = Unity.Mathematics.math.max(faded, state.Stage == 2 ? 1f : state.ActionTime);
+                // (A-120 row 3: an animal carried through a door in someone's arms goes with them: the brain's Held.)
+                else if (state.Mode == CreatureMode.Held && state.Stage == 1)
+                    faded = Unity.Mathematics.math.max(faded, state.ActionTime);
                 // A ghost is only half there (shimmering), and not there at all by day.
                 if (body.Blob.Value.Haunts)
                 {

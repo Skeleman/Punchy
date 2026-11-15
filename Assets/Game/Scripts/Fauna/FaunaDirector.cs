@@ -85,6 +85,8 @@ namespace Punchy.Fauna
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
         BlobAssetReference<WharfSpotSet> wharfBlob;
+        /// <summary>A-115: the towns' lamplighter rounds (every machine: the lamps' lit state is worked out from them).</summary>
+        BlobAssetReference<LampRouteBlob> lampBlob;
         /// <summary>A-73: the gull spots on the wharves' rail posts, by critter cell (WharfSpots.GullSpots).</summary>
         readonly Dictionary<int2, List<AmbientLife.CritterSpot>> gullCells = new Dictionary<int2, List<AmbientLife.CritterSpot>>();
         readonly List<Punchy.Flora.FloraSpecies> floraSpecies = new List<Punchy.Flora.FloraSpecies>();
@@ -186,6 +188,10 @@ namespace Punchy.Fauna
             if (wharfBlob.IsCreated)
                 wharfBlob.Dispose();
             wharfBlob = default;
+            LampRoutes.Clear();   // (A-115: before the blob it points at is freed)
+            if (lampBlob.IsCreated)
+                lampBlob.Dispose();
+            lampBlob = default;
             gullCells.Clear();
             if (carryBlob.IsCreated)
                 carryBlob.Dispose();
@@ -207,6 +213,7 @@ namespace Punchy.Fauna
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
             CreatureSnapshotSystem.Forget();
+            DisposeBuilds();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -279,9 +286,12 @@ namespace Punchy.Fauna
             KeepAvatar();
             GiveReplicasBodies();
 
-            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
+            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f, Day = Cycle != null ? Cycle.Day : 0 };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
+            NoticeSheets.Tick(source, clock.Day, clock.Hour, Camera.main);   // (A-116 row 2: cosmetic, on a client too)
             Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
+            var view = Camera.main;
+            LampRoutes.Tick(clock.Hour, clock.Night, view != null ? (float3)view.transform.position : float3.zero);   // (A-115)
             WatchHouses(source);   // (A-105 -households: on a client too)
             WatchFarFolk(source);  // (A-109 row 2: the towns' far figures, on every machine)
             ServeTownExceptions(); // (A-110 row 6: the host sends the towns' dead, a joined client applies them)
@@ -334,6 +344,7 @@ namespace Punchy.Fauna
                     Despawn();
             }
             DrainSpawns();
+            UpdateRiders(source);
             if (players.Count == 0)
                 return;
             if (Time.time >= nextResidentCheck)
@@ -627,6 +638,7 @@ namespace Punchy.Fauna
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
             Init(e, speciesIndex, position, yaw);
+            ApplyBuild(em, e, true);
             return e;
         }
 
@@ -677,6 +689,7 @@ namespace Punchy.Fauna
                 pendingTiers[(int)p.Tier]--;
                 Init(made[i], p.Species, p.Position, p.Yaw);
                 p.Then?.Invoke(made[i]);
+                ApplyBuild(em, made[i], true); // (A-124: after Then, which may settle it into a house's Individual.)
             }
             made.Dispose();
         }

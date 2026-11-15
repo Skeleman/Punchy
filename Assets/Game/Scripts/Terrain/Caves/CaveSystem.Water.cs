@@ -14,12 +14,14 @@ namespace Punchy.Terrain
     /// surface (the floor found by marching the cave field, as FloorUnder does), and a dry one sits at the surface inside
     /// the rock round it (sinking only at the very end of the water's reach), so a quad from wet to dry ends where the water meets the rock, exactly as surface water hides
     /// its edge in the bank. Shore foam then comes from the water shader's depth-buffer thickness, and the depth under
-    /// each vertex drives its river speed, soft rim and white middle, as on the surface. Streams and their pools share
+    /// each vertex drives its river speed, as on the surface. White pools are the same water with a milky look (W-148). Streams and their pools share
     /// the lattice, so the water runs from one into the other with no seam.
     ///
     /// A cave is sampled in a background Burst job the first time it comes within LoadRadius (one cave at a time,
     /// collected on a later frame), cut into tiles of the lattice, and each tile is drawn only while it is big enough on
-    /// screen (DetailPolicy.ScreenSize, rule 20). Lava pools keep their smooth disc and glow.
+    /// screen (DetailPolicy.ScreenSize, rule 20). Lava pools are the same lattice in the lava look (W-148 row 4: they were a
+    /// disc); their glow light is still handed to LightBudget by DrawPools, and nobody swims in them (CaveData's water
+    /// query still skips lava, so only OverLava's harm applies).
     /// </summary>
     public partial class CaveSystem
     {
@@ -47,12 +49,12 @@ namespace Punchy.Terrain
         /// <summary>Two lattice neighbours whose surfaces differ more than this aren't joined (m).</summary>
         const float WaterSeam = 0.75f;
 
-        /// <summary>One drawn piece of a cave's water: a lattice tile's quads (submesh 1, if any, is white pool water).</summary>
+        /// <summary>One drawn piece of a cave's water: a lattice tile's quads (white pools are ordinary water with their own look, W-148).</summary>
         class WaterTile
         {
             public Mesh Mesh;
             public Bounds Bounds;
-            public bool Shown, White;
+            public bool Shown;
             public int Triangles;
         }
 
@@ -105,6 +107,7 @@ namespace Punchy.Terrain
             {
                 waterJob.Complete();
                 caveWaterTiles[waterBakingCave] = BuildWaterTiles(source);
+                Counts.WaterBakes++;
                 DisposeWaterBake();
             }
             var view = Punchy.Settings.DetailPolicy.Current.Data;
@@ -132,18 +135,15 @@ namespace Punchy.Terrain
                 {
                     var d = math.distance((float3)t.Bounds.ClosestPoint(camPos), camPos);
                     var size = math.cmax((float3)t.Bounds.size);
+                    var wasShown = t.Shown;
                     t.Shown = Punchy.Settings.DetailPolicy.Holds(
                         Punchy.Settings.DetailPolicy.ScreenSize(size, d, view.PixelsPerMetre), pixels, t.Shown);
+                    if (t.Shown && !wasShown)
+                        Counts.WaterShown++;
                     if (!t.Shown || d > LoadRadius)
                         continue;
                     var rp = new RenderParams(water) { worldBounds = t.Bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
                     Graphics.RenderMesh(rp, t.Mesh, 0, Matrix4x4.identity);
-                    if (t.White)
-                    {
-                        // White pools fade out towards their rim (W-16), now by the real depth under each vertex.
-                        rp.matProps = SoftRimProps;
-                        Graphics.RenderMesh(rp, t.Mesh, 1, Matrix4x4.identity);
-                    }
                     WaterTrianglesDrawn += t.Triangles;
                     WaterTilesDrawn++;
                 }
@@ -169,8 +169,6 @@ namespace Punchy.Terrain
             for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
             {
                 ref var pool = ref set.Pools[i];
-                if (pool.Lava > 0.5f)
-                    continue;
                 var reach = PoolReach(pool) + WaterStep;
                 AddNear(keys, pool.Centre.xz, pool.Centre.xz, reach);
             }
@@ -217,8 +215,11 @@ namespace Punchy.Terrain
         }
 
         /// <summary>How far from a pool's middle its water may reach (m), past where its basin rises out of it.</summary>
-        // A lake's beach rises steadily from its edge (W-134 row 3), so its water ends close past the basin.
-        static float PoolReach(in CavePool pool) => pool.Hall > 0f ? pool.Radius * 1.2f + 3f : pool.Radius * 2f + 1.5f;
+        // A lake's beach rises steadily from its edge (W-134 row 3), so its water ends close past the basin. Lava is cut
+        // where its harm ends (OverLava's radius; the claim cuts ShoreCut short of the reach), so no lava lies on a low
+        // floor round the basin that a player could walk across unharmed (W-148 row 4).
+        static float PoolReach(in CavePool pool) => pool.Lava > 0.5f ? pool.Radius + ShoreCut
+            : pool.Hall > 0f ? pool.Radius * 1.2f + 3f : pool.Radius * 2f + 1.5f;
 
         /// <summary>How far from a stream's middle its water may reach (m), past where StreamBed's banks rise out of it.</summary>
         static float StreamReach(float half) => half * 2f + 2.5f;
@@ -278,7 +279,7 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<int2> Keys;
             [ReadOnly] public NativeArray<float> StreamRapids;
             [ReadOnly] public NativeArray<byte> White;
-            /// <summary>x surface, y depth (-1 dry), z rapids, w kind (0 none, 1 pool, 2 stream, 3 white pool).</summary>
+            /// <summary>x surface, y depth (-1 dry), z rapids, w kind (0 none, 1 pool, 2 stream, 3 white pool, 4 lava pool).</summary>
             [WriteOnly] public NativeArray<float4> Samples;
             /// <summary>xy flow direction, z claim: how far inside its water's reach the vertex lies (m; negative where no
             /// water claims it, or where the claim was cut over a drop), so BuildWaterTiles can cut cells along it.</summary>
@@ -302,8 +303,6 @@ namespace Punchy.Terrain
                 for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
                 {
                     ref var pool = ref set.Pools[i];
-                    if (pool.Lava > 0.5f)
-                        continue;
                     var d = math.distance(xz, pool.Centre.xz);
                     var poolReach = PoolReach(pool);
                     if (d >= poolReach)
@@ -318,7 +317,7 @@ namespace Punchy.Terrain
                     surface = pool.Centre.y;
                     edge = poolReach - d;
                     band = math.smoothstep(poolReach - ShoreBand, poolReach, d);
-                    kind = White[i] != 0 ? 3f : 1f;
+                    kind = pool.Lava > 0.5f ? 4f : White[i] != 0 ? 3f : 1f;
                     flow = float2.zero;
                     rapids = 0f;
                     reach = pool.Depth + 1.5f;
@@ -428,8 +427,10 @@ namespace Punchy.Terrain
                         // Dry: inside the bank. It stays flat, so the GPU clips the sheet along the floor between it and
                         // its wet neighbours (sinking it would pull the shoreline onto the lattice), except over the last
                         // ShoreCut of the reach, where it sinks so the rim ends under the rock. Wet vertices stay flat
-                        // everywhere (sinking them shows a slope).
-                        surface -= ShoreSink * (1f - math.smoothstep(0f, ShoreCut, edge));
+                        // everywhere (sinking them shows a slope). Lava is cut at its harm's edge, often over a ledge
+                        // inside its reach, so its dry vertices stay flat: sunk, they tore notches out of the pool (W-148).
+                        if (kind != 4f)
+                            surface -= ShoreSink * (1f - math.smoothstep(0f, ShoreCut, edge));
                         depth = -1f;
                     }
                     // Still wet near the end of its reach, the floor falls away (a drop, or a bank lower than the water):
@@ -473,7 +474,7 @@ namespace Punchy.Terrain
                 if (!at.TryGetValue(Key(k + new int2(1, 0)), out corners[1]) || !at.TryGetValue(Key(k + new int2(1, 1)), out corners[2]) ||
                     !at.TryGetValue(Key(k + new int2(0, 1)), out corners[3]))
                     continue;
-                bool wet = false, white = false;
+                bool wet = false;
                 int inside = 0;
                 float lo = float.MaxValue, hi = float.MinValue;
                 for (int j = 0; j < 4; j++)
@@ -484,7 +485,6 @@ namespace Punchy.Terrain
                     var sample = waterSamples[c];
                     inside++;
                     wet |= sample.y > 0.02f;
-                    white |= sample.w == 3f;
                     lo = math.min(lo, sample.x);
                     hi = math.max(hi, sample.x);
                 }
@@ -493,7 +493,7 @@ namespace Punchy.Terrain
                 var tile = Key(new int2((int)math.floor(k.x / (float)WaterTileCells), (int)math.floor(k.y / (float)WaterTileCells)));
                 if (!builds.TryGetValue(tile, out var build))
                     builds[tile] = build = new TileBuild();
-                var target = white ? build.Whites : build.Plain;
+                var target = build.Indices;
                 // The cell's outline with each corner outside the claim replaced by the edge's crossings.
                 polygon.Clear();
                 for (int j = 0; j < 4; j++)
@@ -520,15 +520,12 @@ namespace Punchy.Terrain
                 mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
                 mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
                 mesh.indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16;
-                mesh.subMeshCount = build.Whites.Count > 0 ? 2 : 1;
-                mesh.SetIndices(build.Plain, MeshTopology.Triangles, 0);
-                if (build.Whites.Count > 0)
-                    mesh.SetIndices(build.Whites, MeshTopology.Triangles, 1);
+                mesh.SetIndices(build.Indices, MeshTopology.Triangles, 0);
                 mesh.RecalculateBounds();
                 var bounds = mesh.bounds;
                 // Drawn from the GPU copy only.
                 mesh.UploadMeshData(true);
-                tiles.Add(new WaterTile { Mesh = mesh, Bounds = bounds, White = build.Whites.Count > 0, Triangles = (build.Plain.Count + build.Whites.Count) / 3 });
+                tiles.Add(new WaterTile { Mesh = mesh, Bounds = bounds, Triangles = build.Indices.Count / 3 });
             }
             return tiles;
         }
@@ -537,7 +534,7 @@ namespace Punchy.Terrain
         class TileBuild
         {
             public readonly List<WaterVertex> Vertices = new List<WaterVertex>();
-            public readonly List<int> Plain = new List<int>(), Whites = new List<int>();
+            public readonly List<int> Indices = new List<int>();
             readonly Dictionary<int, int> local = new Dictionary<int, int>();
 
             public int Vertex(CaveSystem sys, int i)
@@ -565,12 +562,13 @@ namespace Punchy.Terrain
         {
             var s = waterSamples[i];
             var white = s.w == 3f;
+            var lava = s.w == 4f;
             return new WaterVertex
             {
                 Position = new float3(xz.x, s.x, xz.y),
                 Data = new float4(waterFlow[i].xy, math.max(s.y, 0f), s.z),
-                Look = white ? WhitePoolWater : s.w == 2f ? CaveStreamWater : CaveWater,
-                Glow = new float2(white ? WhitePoolGlow : 0f, 0f)
+                Look = lava ? LavaPoolLook : white ? WhitePoolWater : s.w == 2f ? CaveStreamWater : CaveWater,
+                Glow = new float2(white ? WhitePoolGlow : 0f, lava ? 1f : 0f)
             };
         }
 
