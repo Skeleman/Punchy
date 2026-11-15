@@ -8,6 +8,7 @@
 # A shelf build is the same as build() in b/bench-stress Tools/bench/lib.sh (the runner, not main's) (BProfileTools.BuildDev, same Unity 6000.5.8f1) and
 # carries the .bench2-<commit> marker, so build() then skips it.
 REL=bench-builds; REPO=Skeleman/Punchy
+WTAR=/c/Windows/System32/tar.exe   # bsdtar: reads and writes zip; Git Bash's GNU tar does neither (and takes "D:" for a host)
 cmd=$1; shift
 case $cmd in
 get)
@@ -16,7 +17,7 @@ get)
   t=$(mktemp -d)
   gh release download $REL -R $REPO -p "Profile-$c.zip" -D "$t" 2>/dev/null || { rm -rf "$t"; exit 1; }
   mkdir -p "$P/Builds" && rm -rf "$P/Builds/$o.part" && mkdir "$P/Builds/$o.part" &&
-    tar -xf "$t/Profile-$c.zip" -C "$P/Builds/$o.part" && rm -rf "$P/Builds/$o" &&
+    $WTAR -xf "$(cygpath -w "$t/Profile-$c.zip")" -C "$(cygpath -w "$P/Builds/$o.part")" && rm -rf "$P/Builds/$o" &&
     mv "$P/Builds/$o.part/Profile-$c" "$P/Builds/$o" && rm -rf "$P/Builds/$o.part"
   ok=$?; rm -rf "$t"
   [ $ok -eq 0 ] && [ -f "$P/Builds/$o/.bench2-$c" ] && echo "shelf: $o from the shelf" && exit 0
@@ -31,7 +32,7 @@ put)
     [ -f D:/Unity/PunchyBench/HOLD ] && { log "HOLD: stopping before $c"; exit 3; }
     gh release view $REL -R $REPO --json assets -q '.assets[].name' | grep -qx "Profile-$c.zip" && { log "$c already shelved"; continue; }
     build $c BuildDev Profile-$c || { log "shelf: build $c failed (log $B/results/build-Profile-$c.log)"; continue; }
-    ( cd $PUNCHY/Builds && rm -f $T/zips/Profile-$c.zip && tar -a -cf "$(cygpath -w $T/zips/Profile-$c.zip)" Profile-$c ) &&
+    ( cd $PUNCHY/Builds && rm -f $T/zips/Profile-$c.zip && $WTAR -a -cf "$(cygpath -w $T/zips/Profile-$c.zip)" Profile-$c ) &&
       gh release upload $REL -R $REPO --clobber $T/zips/Profile-$c.zip && rm -f $T/zips/Profile-$c.zip &&
       log "shelf: Profile-$c.zip uploaded"
   done;;
