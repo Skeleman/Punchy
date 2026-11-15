@@ -352,3 +352,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: v0.15.0 candidate: branch rc/v0.15.0 (main 244805ae + bundleVersion 0.15.0), pushed, not merged or published. Zip in Punchy-release/Builds, SHA-256 ca612aec...a1a4, 235 files. Suite 39/1/17; the one failure is the known Setup_SpawnRainAndShot timeout under load (shot saved). Solo smoke: world ready 14.9 s, no exceptions. Notes in release/release-notes-v0.15.0.md.
 - Release gotcha: BProfileTools.Build sets productName to PunchyBench (moves saves and prefs). Release builds use a plain BuildPipeline.BuildPlayer call instead; check Punchy_Data/app.info reads Punchy before zipping.
 - 11-14: Zach will try the v0.15.0 candidate before it is published; publish and merge rc/v0.15.0 only after his OK.
+- 11-14: merged #363 (R-32 rows 3-5, blue-moon shadows); #328 closed. Bench note 93 is now live: night benches pin a full blue moon.

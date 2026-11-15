@@ -906,4 +906,4 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Once render/blue-moon-shadow-2 merges, the blue moon casts the night shadows on blue nights. final.sh, look-d3d12.sh
   and visual.sh pin `-moonphase 0.5 -bluemoondays 0` (full blue), so their night views would switch caster.
 - Ask: pin an ordinary night in those scripts (keep the big moon as caster, comparable with old runs) and take one
-  blue-night baseline as its own row. No job to run until the branch merges; I'll say when.
+  blue-night baseline as its own row. Merged 11-14 as #363 (main 1a18ba61): apply now.
