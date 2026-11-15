@@ -7944,3 +7944,23 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   query. Parallel found but not folded in: none new. The W-172 row 1 fix is folded in, not kept beside it.
 - **BENCH:** bench 75 already covered this branch's paddy cost. The merge adds no per-sample work.
 - Next: world/waterfall-sheets, then world/log-bark.
+
+## Land world/waterfall-sheets (R-21, #284): ready for PR
+
+- **Branch:** world/waterfall-sheets 7908190c = origin/main merged in, pushed. Ready for PR (rule 31).
+- **Conflicts:** LandmarkEffectSystem.cs (two clear lists). Kept both sides: main's vent clears (W-134/W-148) and the
+  branch's fall shapes. One follow-up fix commit drops a `heardFalls.Clear()` that came in from main, because the
+  branch replaced heard falls with fall shapes (it was a compile error).
+- **Checks:** clean compile; landmarks 117 hash 689D5348, game hash FA8F24B1 (unchanged).
+  - Full suite: 38/40. Player_CrowFliesOutOfCaveThroughHitches timed out with the crow stuck at the cave 0 mouth
+    (-1795, 52, -203). CaveWater_SurfaceMatchesAndPoolStirs failed as a knock-on, because the unfinished flight was
+    still moving the player away from the pool.
+  - Reruns: CaveWater passes alone. In fresh editors the crow test passes on both main 19bdb274 and this branch
+    (0 off the wing, reached). The branch touches no physics or ground code (its WaterPatchSystem.Falls.cs change is
+    only a struct rename), so I'm calling the crow failure a flake. The likely cause is the tight cave-0 mouth, which
+    is the same mouth as W-172 row 6 (too small for a horse). Row 6 will widen it, which should also settle this test.
+- **Shares:** curtains go through the shared fall-shape list (FallShape.cs) that LandmarkEffectSystem and the water
+  patch read. The water patch's own rectangle struct is renamed FallSheetShape so the two don't clash. Parallel found
+  but not folded in: none new.
+- **BENCH:** the rerun of bench 74 on 21b2281c is still pending. The merge adds no per-frame work.
+- Next: world/log-bark.
