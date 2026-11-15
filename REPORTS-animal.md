@@ -5137,3 +5137,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Risk: remote avatars take their Anchor from looks.Rim ahead of their current position, so their hands may drift with the body. Solo/host verified, client unchecked.
 - Shares: extends the one Climbing/mantle hand IK in CreatureAnimator (all upright bodies). No parallel found.
 - NEXT: row 3 shimmy prompt, then row 4 ride steering.
+
+## 11-15 A-126 row 3 (#367): the hang shows its moves - done (verified)
+- fauna/playtest-1114 17d23c36. InteractionInputSystem: while hanging (Hang>0, not mantling) the prompt reads "A D shimmy / W climb / S let go" on keys, using the Move composite keys as bound, or "LS left, right shimmy / up climb / down let go" on a pad. Local only, no wire change.
+- Steps: `-place ledge:lip -body Human -promptshot` (add `-forcepad xbox` for the pad form). The lip test logs "hang prompt ..." and still PASSes.
+- Shots: PunchyMilestones/A-126/a126-hang-prompt.png and a126-hang-prompt-pad.png. The camera faces the wall, so the shot shows the prompt rather than the hanger.
+- Controls line for the player lane (Keys tab), supervisor to pass on: "Hanging on a ledge: left/right shimmy, up climb onto it, down let go, jump leap off."
+- Shares: extends the one interaction prompt (InteractionInputSystem/UI.Prompts tokens). Parallel found: InputGlyphs.ActionToken skips composite parts, so a local MoveKey helper reads them. It could move into InputGlyphs (player lane).
+- NEXT: row 4, steering ridden animals through the player body path; a wire note comes before any ghost field.
