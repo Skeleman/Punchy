@@ -16,6 +16,7 @@ line if you already saw it there.
 - [ ] **Shadows**: one shadow darkness at every distance (no darker or lighter bands as you look farther out). Near shadow edges flicker less when you walk; note any that still crawl, with place, time and preset.
 - [ ] **Cliffs and steep slopes** read as layered rock with beds and slabs at High and above (Low and Medium keep colour and grain).
 - [ ] **Putting items away**: folk reach to a pocket, pouch, coat or over the shoulder when they put an item away or take one out.
+- [ ] **Animals lying down** fold their legs under them (horses, deer, cattle); no leg sticks out straight behind.
 - Anything merged before the build goes in this list (I'll update it when I cut the build).
 
 ## v0.14.0 (11-12)

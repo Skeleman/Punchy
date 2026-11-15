@@ -833,3 +833,5 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Report: the producer table per start (main-thread ms, worst frame, in-flight ms); whether the chunk apply, the
   cave sockets (CaveSocketSystem), the colossus LOD builds and CreatureRenderSystem show in the top markers. No pass
   bar: this picks what W-168 row 2 bakes.
+
+- 11-14 note (supervisor): #349 merged to main (5140b48e). Fauna fingerprint re-pinned B2A5823C -> E483FBF0 (creature blob gained lying fields; no placement moved); landmarks 689D5348 unchanged. Re-pin your baseline if a job compares it.
