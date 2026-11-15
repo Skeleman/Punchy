@@ -346,3 +346,4 @@ Read first: REFACTOR-ROADMAP.md (order and status), FEEDBACK-2026-11-08.md (Zach
 - 11-14: Zach: puddles now sit in recesses but edges are hard; carded W-169 (#357) for world (graded rim), queue 3b4.
 - 11-14: Zach said yes to per-person build and gait; carded A-124 (#358) for fauna after A-123. Adds one NetPlayerLook build field (approved; old builds can't join, note for release).
 - 11-14: Zach clarified: puddles stop dead at a terrain square's border. Cause found: hollow depth written only for LOD0-1 chunks (BuildChunkMeshJob ~168). W-169 row 1 is now the seam fix; the graded rim is row 2.
+- 11-14: Zach: a lone log's wood runs the wrong way. Cause: FallenLog/Driftwood/SeatLog have Flexibility 0.4, so they sway, draw as living and take upright trunk furrows that ring a lying log. Carded W-170 (#359) for world, first after its current row.
