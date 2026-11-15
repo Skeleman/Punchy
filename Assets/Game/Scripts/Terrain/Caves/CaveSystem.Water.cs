@@ -105,6 +105,7 @@ namespace Punchy.Terrain
             {
                 waterJob.Complete();
                 caveWaterTiles[waterBakingCave] = BuildWaterTiles(source);
+                Counts.WaterBakes++;
                 DisposeWaterBake();
             }
             var view = Punchy.Settings.DetailPolicy.Current.Data;
@@ -132,8 +133,11 @@ namespace Punchy.Terrain
                 {
                     var d = math.distance((float3)t.Bounds.ClosestPoint(camPos), camPos);
                     var size = math.cmax((float3)t.Bounds.size);
+                    var wasShown = t.Shown;
                     t.Shown = Punchy.Settings.DetailPolicy.Holds(
                         Punchy.Settings.DetailPolicy.ScreenSize(size, d, view.PixelsPerMetre), pixels, t.Shown);
+                    if (t.Shown && !wasShown)
+                        Counts.WaterShown++;
                     if (!t.Shown || d > LoadRadius)
                         continue;
                     var rp = new RenderParams(water) { worldBounds = t.Bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
