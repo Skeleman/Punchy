@@ -579,3 +579,11 @@ with main d95e7ff1); compiles, no suite run yet.
   52, 60, 64, 65 (fade bottom), 66, 70, 78, 90) are replaced by the row 5 run.
 - Asks: none.
 - NEXT: R-34 row 1 (wet-stone switch, default off; sheet to the coordinator first).
+
+## R-34 row 1 (paused for Zach's playtest, HOLD)
+- NOT DONE. Paused: the code is written but not compiled, shot or tested. It is pushed as WIP, unverified, on
+  render/stone-trial (1c12cd97 + c2b2c0d1 the meta). Stone.hlsl holds the shared look behind `_PunchyStoneTrial` (0
+  off by default, 1 dry, 2 wet). It is hooked into Flora (boulders; built stone for now = non-living, non-timber part 0
+  pieces), TerrainSurface (rock faces) and Cave (walls).
+- NEXT once HOLD is gone: compile check, then off == main pixel diff, the four-stone sheet (current / dry / wet, 2 m
+  and 15 m, noon and low sun, plus a far view), NaN probe and suite. After that, the handoff.
