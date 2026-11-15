@@ -5,7 +5,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 ## Merged 11-15 (catch-up)
 far-towns #373, lamplighter #374, notice-board-life #362, fire-heat #375, door-sound #376, scarps #377, level-gardens #378,
 cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382, cliff-kit #386,
-individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #390, spawn-wait-fix #391.
+individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #390, spawn-wait-fix #391, cloth-legs #394.
 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |

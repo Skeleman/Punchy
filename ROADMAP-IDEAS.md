@@ -73,7 +73,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   climb by the cliff method (W-162).
 - **Fishing (A-100, P-33).** Shipped: catch tables, fish notice the bobber. In flight: player fishing (P-33).
 - **Individual builds and gaits (A-124).** Shipped: row 1 builds (PR #387) and the style draw that really varies (PR #388). In flight: later rows.
-- **Bodies read clearly (A-123, #356).** Shipped (PR #385): arms meet the torso, canine faces, feathered birds.
+- **Bodies read clearly (A-123, #356).** Shipped (PR #385): arms meet the torso, canine faces, feathered birds. Shipped: robes, aprons and capes clear the legs (A-127 PR #390, A-128 PR #394).
 - **Gold variants.** Shipped: 1 in 400.
 
 ## Dungeons, items, quests
