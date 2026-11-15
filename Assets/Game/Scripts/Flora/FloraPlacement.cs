@@ -1713,7 +1713,9 @@ namespace Punchy.Flora
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Woodpile or FloraForm.Well or
             FloraForm.Hall or FloraForm.Shrine or FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or
             FloraForm.Bench or FloraForm.Log or FloraForm.Stump or FloraForm.FirePit or FloraForm.Ruin or FloraForm.RailFence or
-            FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin => true,
+            FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin or
+            // A-117: a stable's walls and paddock fence (its gate left open) and a hitching rail; horses and riders use the gate
+            FloraForm.Stable or FloraForm.HitchRail => true,
             _ => false
         };
 

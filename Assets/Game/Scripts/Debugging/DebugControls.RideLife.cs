@@ -122,8 +122,11 @@ namespace Punchy.Debugging
                 rideLifeAt = Time.time;
                 log.On = 1;
                 log.Begun = log.Ended = 0;
+                log.Ticks = log.Searches = log.Mismatches = 0;
+                log.Checks = log.WholeChecks = 0;
                 log.Offs.Clear();
-                RideLifeSystem.Force.Data = 3;
+                // (8: A-112's check, each neighbourhood search against a whole scan.)
+                RideLifeSystem.Force.Data = 3 | 8;
                 Debug.Log($"RideLife: town part, {RideLifeTime:F0} s at ({player.Position.x:F0}, {player.Position.z:F0}), every roll passing");
             }
             var since = Time.time - rideLifeAt;
@@ -159,7 +162,8 @@ namespace Punchy.Debugging
                     return;
                 using var query = em.CreateEntityQuery(ComponentType.ReadOnly<Fauna.Rider>(), ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
                 using var riders = query.ToEntityArray(Allocator.Temp);
-                var line = tick ? new System.Text.StringBuilder($"RideLife {since:F0} s: {log.Begun} begun, {log.Ended} ended, {riders.Length} riding:") : null;
+                var line = tick ? new System.Text.StringBuilder($"RideLife {since:F0} s: {log.Begun} begun, {log.Ended} ended, {riders.Length} riding" +
+                                                                 $" (searches {log.Searches}, pair checks {log.Checks} in {log.Ticks} ticks, {log.Checks / math.max(1, log.Ticks)} a tick, {log.Checks / math.max(1, log.Searches)} a search, a whole scan's {log.WholeChecks / math.max(1, log.Ticks)} a tick; differ from whole scan {log.Mismatches}):") : null;
                 if (line != null)
                     line.Append($" [near: {TownCensus(em, player.Position)}]");
                 foreach (var e in riders)

@@ -61,7 +61,7 @@ namespace Punchy.Terrain
         /// <summary>Set in a biome's culture mask when it takes camps only (Habitability.CampsOnly).</summary>
         const int CampsOnlyFlag = 1 << 30;
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct EvaluateJob : IJobParallelFor
         {
             public TerrainSource Source;

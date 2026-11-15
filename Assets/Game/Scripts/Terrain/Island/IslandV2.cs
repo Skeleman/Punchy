@@ -549,6 +549,7 @@ namespace Punchy.Terrain
             // #102: the plants depend on the palette, not the island, so they grow on worker threads beside the bake.
             var types = LandmarkTypes(palette);
             var pregrown = Punchy.Flora.FloraSystem.Pregrow(palette);
+            StartLedger.Stamp("island start");
             var watch = System.Diagnostics.Stopwatch.StartNew();
             // W-140: the island cache. A key match loads the saved island instead of baking; anything else (no file,
             // a changed key, an unreadable file) bakes fresh and rewrites the file. The key is made from the source
@@ -561,11 +562,14 @@ namespace Punchy.Terrain
                 bakeText = $"v{version} loaded from the island cache in {watch.ElapsedMilliseconds} ms";
             else
             {
+                bool burst = BakeBurst.Check();
                 var baked = Bake(ref source, palette, types, version);
                 bakeText = $"{baked.Report}; baked in {baked.TotalMs} ms (generate {baked.GenerateMs}, places {baked.TotalMs - baked.GenerateMs}: grand falls {baked.FallsMs}, archipelago {baked.ArchipelagoMs})";
-                if (key != null) IslandCache.Save(ref source, version, key);
+                // A managed bake differs from a Burst one: never save it for later launches.
+                if (key != null && burst) IslandCache.Save(ref source, version, key);
             }
             Debug.Log($"[island] cache {(hit ? "hit" : "miss")} {reason} {watch.ElapsedMilliseconds} ms");
+            StartLedger.Add(hit ? "island cache load" : "island bake", watch.Elapsed.TotalMilliseconds);
             EntityManager.SetComponentData(entity, source);
             Shared.Keep(source, version);
             shares = true; Shared.Users++;
@@ -586,6 +590,8 @@ namespace Punchy.Terrain
                 if (hit) Debug.Log("[island] audits skipped on a cache hit (-freshisland or PUNCHY_FRESHISLAND=1 runs them)");
                 else { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
             }
+            StartLedger.Add("island reports", report.Elapsed.TotalMilliseconds);
+            StartLedger.Stamp("island ready");
             Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
         }
 

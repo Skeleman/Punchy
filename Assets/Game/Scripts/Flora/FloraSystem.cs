@@ -1087,6 +1087,7 @@ namespace Punchy.Flora
             {
                 if (l.Count == 0 || l.ModelCount == 0)
                     continue;
+                KeepImpostorMaterial(l);
                 var s = l.Settings;
                 var draws = l.ModelCount * Draws;
                 Culling.SetInt(DrawCountId, draws);

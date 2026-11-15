@@ -755,7 +755,9 @@ namespace Punchy.Fauna
                             s.Task == CreatureTask.Messenger;
                 // Settlements' animals are used to people: they let them come close (not predators, though).
                 // (A-88 row 2: not the sea folk's lake fish, though: a school scatters from a swimmer overhead.)
-                var tame = s.Leash > 0f && !b.Upright && s.SwimAbove <= 0f ? 0.3f : 1f;
+                // (A-117: and so is a stable horse out on the road, Leash 0 while it travels: a player walking by
+                // shouldn't throw its rider.)
+                var tame = (s.Leash > 0f || s.Task == CreatureTask.Travel) && !b.Upright && s.SwimAbove <= 0f ? 0.3f : 1f;
 
                 var away = s.Position.xz - player.xz;
                 var playerDistance = math.distance(s.Position, player);   // (3D: high overhead is far)
@@ -1825,7 +1827,7 @@ namespace Punchy.Fauna
                 else if (s.Task == CreatureTask.Fish && s.Mode == CreatureMode.Work && s.Stage >= 1)
                     s.Held = !OnPier(in s) ? HeldItem.Rod : s.Stage == PierCarry ? HeldItem.OreSack : s.Stage == PierNets || s.Stage == PierSetDown ? HeldItem.None : HeldItem.Rod;
                 // A traveller has its staff by day, a lantern after dark.
-                else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work)
+                else if (s.Task == CreatureTask.Travel && s.Mode == CreatureMode.Work && b.Hands)
                     s.Held = Night > 0.5f ? HeldItem.Lantern : HeldItem.Staff;
                 // Reading a message just taken from a messenger bird. (The bird's own letter, Messenger sees to.)
                 else if (s.Mode == CreatureMode.Idle && s.Stage == MessageRead && b.Hands)

@@ -31,3 +31,6 @@ Read before editing assets or scenes, driving the editor from the CLI, or commit
   Scene Backups" dialog that the CLI can't see (100 MB, no log). Delete that folder before restarting (W-108).
 - Closing Unity: if a "scene modified" dialog appears, save or discard through script (EditorSceneManager) before
   quitting. Never leave the dialog blocking.
+- After switching branches in an open editor, a Burst "Unable to create a SharedStatic" error means its Burst state
+  is stale: the island then bakes with 0 rivers, EvaluateJob throws NREs and the editor can crash. Restart the editor
+  and delete `Library/IslandCache` (#346).
