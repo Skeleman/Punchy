@@ -80,6 +80,24 @@ namespace Punchy.Fauna
         /// the owner found the legs going near horizontal; about 30° back from that).</summary>
         public const float LeapHipEase = 0.52f;
 
+        /// <summary>
+        /// A-114: an arm's shoulder (j 0) and elbow (j 1) away from standing for the hand at a PocketPlace (inwards is
+        /// +z on the right arm, so mirrored by side): the hip pocket at its own side, the belt pouch in front, the chest
+        /// of the coat across, up over the shoulder to the back, or just lower down by the side.
+        /// </summary>
+        static float3 PocketPose(PocketPlace place, float side, int j)
+        {
+            switch (place)
+            {
+                case PocketPlace.Hip: return j == 0 ? new float3(0.3f, 0f, -0.3f * side) : new float3(-1.25f, 0f, 0f);
+                case PocketPlace.Pouch: return j == 0 ? new float3(-0.45f, 0f, 0.5f * side) : new float3(-1.6f, 0f, 0f);
+                case PocketPlace.Chest: return j == 0 ? new float3(-0.55f, 0f, 0.6f * side) : new float3(-2f, 0f, 0f);
+                case PocketPlace.Shoulder: return j == 0 ? new float3(-2.4f, 0f, -0.35f * side) : new float3(-1.4f, 0f, 0f);
+                case PocketPlace.Low: return j == 0 ? new float3(0.3f, 0f, -0.2f * side) : float3.zero;
+                default: return float3.zero;
+            }
+        }
+
         /// <summary>A leaping run's hip at one extreme (gathered or in the leap): the run key's swing pushed out by
         /// gain, then its fore-and-aft swing (x) drawn LeapHipEase back towards the rest pose.</summary>
         public static float3 LeapHip(float3 idle, float3 key, float gain)
@@ -94,8 +112,11 @@ namespace Punchy.Fauna
         /// slope, each foot reaching for the ground, tipped with it, rolling heel to toe). Further off, where none of
         /// that shows, they keep to the body's plane, saving the ground samples.</param>
         /// <param name="seams">The seams between segments (MarkJoints): only where they can show, at the full capsule (A-97).</param>
+        /// <param name="pocket">A-114: an upright body's hand reaching to put an item away or take one out (drawn only,
+        /// from CreatureRenderSystem.PocketMove).</param>
         public static void Evaluate(ref CreatureBlob b, in CreatureState s, int coat, in TerrainSource terrain,
-                                    NativeArray<SegmentInstance> output, int offset, bool detail = true, bool seams = true)
+                                    NativeArray<SegmentInstance> output, int offset, bool detail = true, bool seams = true,
+                                    in PocketReach pocket = default)
         {
             var scale = s.Scale;
             // (Posed for the eased speed, so a sudden start or stop doesn't swap the pose under a planted foot.)
@@ -171,8 +192,15 @@ namespace Punchy.Fauna
             pitch += b.RunRock * run * move * math.sin(2f * math.PI * s.Phase);
 
             // Posture: lying lowers the body onto its belly; a bow or a lowered head tips the chest down.
-            var lying = math.min(b.StandHeight, b.FrontRadius * b.BodyFlatten * 0.9f);
+            // (A-118: a body on four folding legs lies on them, as high as they fold, its nose up by as much as its folded
+            // front legs stand taller than its hind ones; a hoofed one tips a little onto the side its hind legs fold to.
+            // "-oldlie" keeps the belly-height lie from before.)
+            var onFold = b.LiesOnFold && OldLie.Data == 0;
+            var lying = onFold ? b.LieHeight : math.min(b.StandHeight, b.FrontRadius * b.BodyFlatten * 0.9f);
             var height = math.lerp(b.StandHeight, lying, s.Lie) * scale;
+            if (onFold)
+                pitch -= b.LiePitch * s.Lie;
+            var lieSide = CreatureBlob.Trait(id, 21) >= 0f ? 1f : -1f;
             // (Lying across a slope the uphill hip would sit inside the flank, under the ground: raise the body by the
             // side slope times half its width. Nothing changes on flat ground.)
             if (!b.Upright && !aquatic && s.Lie > 0f)
@@ -199,32 +227,44 @@ namespace Punchy.Fauna
                 // (Legs out, leaning back a little on its hands; cross-legged or on a seat, sitting up. On a seat the
                 // hips are at the seat's height, which comes in Anchor.)
                 var seated = Seated(in s);
-                pitch += s.Sit * (0.5f - (seated || CrossLegged(in s) ? 0.05f : 0.25f));
+                pitch += s.Sit * (0.5f - (seated || CrossLegged(in s) || Riding(in s) ? 0.05f : 0.25f));
                 var hips = seated ? math.max(s.Anchor.y - s.Position.y, 0f) + 0.1f * scale : 0.16f * scale;
                 height = math.lerp(height + s.Sit * b.StandHeight * scale * 0.3f, hips, s.Sit);
                 pitch -= 1.5f * s.Lie;
             }
-            // Climbing a trunk or sitting up tall (up), diving or hanging head down in a web (down).
-            pitch -= s.Vertical * math.PI * 0.47f;
+            // Climbing a trunk or sitting up tall (up), diving or hanging head down in a web (down). Folk are upright
+            // already: climbing, they only lean into the face a little (ClimbPose has the limbs, A-101).
+            if (b.Upright && s.Vertical > 0f)
+                pitch += 0.12f * s.Vertical;
+            else
+                pitch -= s.Vertical * math.PI * 0.47f;
             var still = 1f - move;
             var breath = 0.5f + 0.5f * math.sin(s.Clock * (s.Curl > 0.5f ? 1.3f : 2.2f));
             height += breath * 0.01f * scale * still * (0.3f + s.Lie);
             // Folk out swimming, in water deep enough: lying forward at the surface (their head held up, below).
+            // Diving (A-102 row 2: how far under its floating height it is, 0..1 by half a metre down), the head
+            // comes down in line with the body.
             var swimming = 0f;
+            var under = 0f;
             if (b.Upright && s.Mode == CreatureMode.Swim)
             {
                 var water = terrain.SampleGround(s.Position.xz);
                 if (water.HasWater)
+                {
                     swimming = math.smoothstep(b.StandHeight * scale * 0.6f, b.StandHeight * scale * 0.9f, water.WaterSurface - water.Height);
+                    under = math.saturate((water.WaterSurface - 0.24f * scale - s.Position.y) / (0.5f * scale));
+                    if (!math.isfinite(under))
+                        under = 0f;
+                }
                 pitch += 1.35f * swimming;
                 height = math.lerp(height, 0.05f * scale, swimming);
             }
 
             // Idle actions that move the whole body: a shake rolls it, lizard push-ups bob it, sniffing dips it.
             var act = ActionEnvelope(s.ActionTime);
-            var roll = 0f;
+            var roll = onFold && b.Hooves ? -lieSide * CreatureBlob.LieTip * s.Lie : 0f;
             if (s.Action == IdleAction.Shake)
-                roll = act * 0.45f * math.sin(s.Clock * 28f);
+                roll += act * 0.45f * math.sin(s.Clock * 28f);
             else if (s.Action == IdleAction.HeadBob)
                 height += act * 0.35f * b.StandHeight * scale * math.abs(math.sin(s.Clock * 9f));
             else if (s.Action == IdleAction.Sniff)
@@ -238,7 +278,7 @@ namespace Punchy.Fauna
             }
             else if (s.Action == IdleAction.Shiver)
             {
-                roll = act * 0.035f * math.sin(s.Clock * 57f);
+                roll += act * 0.035f * math.sin(s.Clock * 57f);
                 pitch += act * (b.Upright ? 0.1f : 0f);
             }
             else if (s.Action == IdleAction.Hunch)
@@ -248,6 +288,15 @@ namespace Punchy.Fauna
                 else
                     height -= act * 0.15f * b.StandHeight * scale;
             }
+            // A-103 row 3: a turtle child's belly-slide: down flat on its front, head up (ActionPose has the limbs).
+            else if (s.Action == IdleAction.Slide)
+            {
+                pitch += act * 1.45f;
+                height = math.lerp(height, 0.16f * scale, act);
+            }
+            // A-103 row 2b: a sea folk out of the water stoops, more as it walks (it trudges, uncomfortable).
+            if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
+                pitch += 0.14f + 0.08f * move;
 
             // A player's roll: a forward somersault (a full turn of the body), tucked up off the ground as it goes over.
             if (s.Roll > 0f)
@@ -269,7 +318,12 @@ namespace Punchy.Fauna
                 : sprint * 0.08f * scale * (0.5f + 0.5f * math.cos(4f * math.PI * s.Phase)));
             // Hanging head down in a web, the body sits right at its anchor (the web's centre).
             var hang = s.Mode == CreatureMode.Web || s.Mode == CreatureMode.Roost ? math.saturate(-s.Vertical) : 0f;
-            var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - up - hang), 0f) - forward * lift * up;
+            // (Folk climbing stay upright, their hips at standing height over their feet on the face.)
+            var rootUp = b.Upright ? 0f : up;
+            var rootPos = new float3(s.Position.x, ground, s.Position.z) + new float3(0f, lift * (1f - rootUp - hang), 0f) - forward * lift * rootUp;
+            // (Folk on a ladder climb it hand over hand, straight up; on any other face, reaching for holds.)
+            var onLadder = b.Upright && up > 0f && WorldClimbs.At(s.Position + forward * 0.5f * scale, 0.6f, out var climbGrade) &&
+                           climbGrade == Climbing.Ladder;
             // A snake on the ground or swimming: its body starts on its serpentine track (below), where the chain joins the
             // head, not on the straight line it travels. Laid out from the line instead, the whole body swung from side
             // to side about it as each wave passed through, a wag that quickened with speed. (The head itself keeps to the
@@ -383,6 +437,9 @@ namespace Punchy.Fauna
                     if (s.Mode == CreatureMode.Held)
                         fold = math.max(fold, 0.85f);
                 }
+                // A-118: the share of the fold that is lying down (LieFold: hind legs forward under the belly, a hoofed
+                // animal's knees forward), the rest sitting, bowing or carried (the older fold).
+                var lieShare = folds && onFold ? math.min(fold, (1f - (1f - s.Lie) * (1f - s.Lie)) * (1f - s.Fly)) : 0f;
                 // A leg busy with an idle action (pawing, scratching) isn't planted.
                 var busyLeg = UsedByAction(ref part, in s) || PetsWithPaw(ref part, in s, b.Hands);
                 var gaitMove = part.Role == LimbRole.Leg ? move * (1f - s.Fly) : move;
@@ -564,6 +621,23 @@ namespace Punchy.Fauna
                             a.x += s.Stage == ChatListen ? 0.22f * math.max(0f, math.sin(s.Clock * 4.5f)) * math.saturate(math.sin(s.Clock * 0.8f) * 3f)
                                                          : 0.07f * math.sin(s.Clock * 6.3f);
                     }
+                    // At a notice board (A-116): the head going slowly along the sheets and down them; the one pointing a
+                    // notice out raises its right hand to it now and then, and lowers it again (the lean is the brain's Bow).
+                    if (b.Upright && s.Mode == CreatureMode.Sit && (s.Stage == BoardRead || s.Stage == BoardPoint))
+                    {
+                        var t = s.Clock + (s.Individual % 64) * 0.37f;
+                        if (part.Role == LimbRole.Head && j == 0)
+                        {
+                            a.x += 0.1f + 0.07f * math.sin(t * 0.45f);
+                            a.z += 0.3f * math.sin(t * 0.8f) * (s.Stage == BoardPoint ? 0.5f : 1f);
+                        }
+                        if (s.Stage == BoardPoint && part.Role == LimbRole.Arm && part.Side > 0f && j <= 1)
+                        {
+                            var raise = math.smoothstep(0.25f, 0.65f, math.sin(t * 0.6f) * 0.5f + 0.5f);
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f * raise);
+                            a += (j == 0 ? new float3(-1.4f, 0f, -0.12f) : new float3(-0.25f, 0f, 0f)) * raise;
+                        }
+                    }
                     // One of the folk at a hive: the stick hand up over the head jabbing at the comb, the other half up
                     // to shield the face; running off with it, that free arm flapping at the bees.
                     if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Work && j <= 1)
@@ -597,6 +671,19 @@ namespace Punchy.Fauna
                     }
                     if (b.Upright && s.Held == HeldItem.Letter && part.Role == LimbRole.Head)
                         a.x += 0.3f;
+                    // Pinning a sheet to a notice board (A-116 row 2): both arms reaching up and out to the board's face,
+                    // the sheet held flat in them, then the hands pressing it on; the head up to it, not bent.
+                    if (b.Upright && s.Mode == CreatureMode.Sit && s.Stage == BoardPin)
+                    {
+                        if (part.Role == LimbRole.Arm && j <= 1)
+                        {
+                            var press = 0.06f * math.sin(s.Clock * 5f + part.Side);
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f);
+                            a += j == 0 ? new float3(-1.55f - press, 0f, part.Side * 0.18f) : new float3(-0.55f + press, 0f, 0f);
+                        }
+                        if (part.Role == LimbRole.Head && j == 0)
+                            a.x -= s.Held == HeldItem.Letter ? 0.4f : 0.15f;
+                    }
                     // A sack of ore carried in both arms against the chest.
                     if (part.Role == LimbRole.Arm && s.Held == HeldItem.OreSack)
                     {
@@ -614,16 +701,23 @@ namespace Punchy.Fauna
                         a += HairSway(in s, j, run);
                     a += TaskPose(ref part, in s, j);
                     if (swimming > 0f)
-                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j), swimming);
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j, under), swimming);
                     if (b.Upright && s.Sit > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, in s, j), s.Sit);
                     if (b.Upright && s.Lie > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + LiePose(ref part, in s, j), s.Lie);
+                    if (b.Upright && up > 0f)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + ClimbPose(ref part, in s, j, onLadder), up);
                     if (b.Upright && part.Role == LimbRole.Arm && j <= 1 && s.Mode == CreatureMode.Sit && s.Stage >= HearthStand && s.Stage <= HearthSeat)
                         a = HearthPose(ref part, in s, j, a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle]);
                     // (Upright bodies have no idle actions of their own, but players' bodies take interaction poses.)
                     if (s.Action != IdleAction.None && (!b.Upright || s.Action >= IdleAction.Pet))
                         a += ActionPose(ref part, in s, j, act, b.Hands);
+                    // A-114: the hand to a pocket, pouch, chest or shoulder and back, putting an item away or taking one
+                    // out. Eased to the place itself, not added, so the arm is in the same spot whatever the item when it
+                    // shows or hides there.
+                    if (b.Upright && pocket.Amount > 0f && part.Role == LimbRole.Arm && j <= 1 && (pocket.Side == 0 || pocket.Side * part.Side > 0f))
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + PocketPose(pocket.Place, part.Side, j), pocket.Amount);
                     // An upright body's elbow bends one way only (negative pitch, forward): never past straight, nor
                     // folded beyond 150°, however much swing, sprint or pose is added up.
                     if (b.Upright && part.Role == LimbRole.Arm && j == 1)
@@ -638,7 +732,7 @@ namespace Punchy.Fauna
                     if (seg < segHidden.Length)
                         segHidden[seg] = hidden;
                     if (fold > 0f)
-                        a.x += Fold(j, part.SegmentCount) * fold;
+                        a.x += CreatureBlob.LieFold(j, part.SegmentCount, hind, b.Hooves) * lieShare + CreatureBlob.SitFold(j, part.SegmentCount) * (fold - lieShare);
                     // Flying: legs swept back along the belly, feet tucked; nose up (flaring to land, or climbing
                     // away), they come down and forward to meet the ground.
                     var tuck = s.Fly * (1f - math.saturate(s.Vertical * 2f));
@@ -662,7 +756,7 @@ namespace Punchy.Fauna
                 // rests on the ground under it, wherever that is (on a slope too), rather than the leg running into it.
                 var laid = b.Upright && part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 3 &&
                             part.FirstSegment + part.SegmentCount <= MaxSegments
-                    ? math.max(s.Sit * (CrossLegged(in s) || Seated(in s) ? 0f : 1f), s.Lie) : 0f;
+                    ? math.max(s.Sit * (CrossLegged(in s) || Seated(in s) || Riding(in s) ? 0f : 1f), s.Lie * (Riding(in s) ? 0f : 1f)) : 0f;
                 if (laid > 0.01f)
                 {
                     var fs = part.FirstSegment + part.SegmentCount - 1;
@@ -686,7 +780,7 @@ namespace Punchy.Fauna
                 }
 
                 if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
-                    detail && !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && (!b.Upright || s.Sit + s.Lie < 0.3f))
+                    detail && !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && s.Mode != CreatureMode.Ride && (!b.Upright || s.Sit + s.Lie < 0.3f))
                 {
                     // Where the ground would be under this foot if it were the flat, sloped plane the body is
                     // standing on, versus where it really is: bend the leg by the difference.
@@ -749,6 +843,25 @@ namespace Punchy.Fauna
                     }
                 }
 
+                // A-118: folded hind legs lie to the side rather than inside the belly: a hoofed animal's both to the side it
+                // tips onto (the leg on that side out flat beside the belly, the other under it toward that side), others
+                // each a little out to its own side (a dog's or a cat's beside its hips).
+                if (lieShare > 0.001f && hind && part.FirstSegment + part.SegmentCount <= MaxSegments)
+                {
+                    var outward = part.Socket.x >= 0f ? 1f : -1f;
+                    var ahead = math.mul(rootRot, new float3(0f, 0f, 1f));
+                    var angle = b.Hooves ? lieSide * CreatureBlob.HindRoll(outward == lieSide) : outward * 0.35f;
+                    var q = quaternion.AxisAngle(ahead, angle * lieShare);
+                    for (int j = 0; j < part.SegmentCount; j++)
+                    {
+                        var seg = part.FirstSegment + j;
+                        segPos[seg] = hip + math.mul(q, segPos[seg] - hip);
+                        segRot[seg] = math.mul(q, segRot[seg]);
+                    }
+                    pos = hip + math.mul(q, pos - hip);
+                    rot = math.mul(q, rot);
+                }
+
                 // A four-legged body lying down: its folded legs are longer than the lowered body is high, so on their own
                 // they run down into the ground. Each is swung about the hip (front legs forward, hind legs forward under
                 // the belly, failing that back, then out to the side) by the least angle that brings its lowest point up
@@ -769,8 +882,12 @@ namespace Punchy.Fauna
                     var bestLow = LowestLegPoint(ref b, ref part, ref segPos, ref segRot, quaternion.identity, hip, h0, grad, scale);
                     var bestAxis = float3.zero;
                     var bestT = 0f;
+                    var depth0 = bestLow;
                     for (int k = 1; k <= 48 && bestLow < 0f; k++)
                     {
+                        // (A-118: a hind leg folded on the lie never swings back: that laid it out straight behind.)
+                        if (k > 12 && k <= 24 && hind && onFold && folds)
+                            continue;
                         // 12 steps of 0.13 rad each way: forward, then back, then rolled out to the side, then in under the body.
                         var t = (1 + (k - 1) % 12) * 0.13f;
                         var axis = k <= 12 ? -side : k <= 24 ? side : k <= 36 ? ahead * outward : -ahead * outward;
@@ -801,7 +918,13 @@ namespace Punchy.Fauna
                         best = quaternion.AxisAngle(bestAxis, hi);
                     }
                     var weight = math.smoothstep(0.01f, 0.15f, lieFold);
-                    var turn = math.slerp(quaternion.identity, best, weight);
+                    // (A-118: a leg folded on the lie barely dips at most, and the first angle that frees a point under the hip
+                    // is a large one, so swinging it the moment it touches made the legs jump near the end of lying down. Its
+                    // swing fades in with the dip over the hip's radius and a tenth of the standing height instead; the lift
+                    // below covers a dip that shallow.)
+                    var shallow = b.Segments[part.FirstSegment].RadiusStart * scale + (onFold && folds ? 0.1f * b.StandHeight * scale : 0f);
+                    var swingWeight = onFold && folds ? weight * math.smoothstep(0f, shallow, -depth0) : weight;
+                    var turn = math.slerp(quaternion.identity, best, swingWeight);
                     for (int j = 0; j < part.SegmentCount; j++)
                     {
                         var seg = part.FirstSegment + j;
@@ -812,11 +935,11 @@ namespace Punchy.Fauna
                     rot = math.mul(turn, rot);
                     // (No angle frees the ball of the hip itself, which the belly rests on, nor quite all of a long leg on a
                     // slope, judged on a plane: lift what is left against the real ground up into the flank, at most the hip's
-                    // own radius, so no leg stays in the ground.)
+                    // own radius (a leg folded on the lie: the shallow dip above), so no leg stays in the ground.)
                     var left = LowestLegOnGround(ref b, ref part, ref segPos, ref segRot, in terrain, s.Position.y, scale);
                     if (left < 0f)
                     {
-                        var rise = new float3(0f, math.min(-left, b.Segments[part.FirstSegment].RadiusStart * scale) * weight, 0f);
+                        var rise = new float3(0f, math.min(-left, shallow) * weight, 0f);
                         for (int j = 0; j < part.SegmentCount; j++)
                             segPos[part.FirstSegment + j] += rise;
                         pos += rise;
@@ -1109,6 +1232,16 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Arm && joint == 1) return new float3(-1.4f * e, 0f, 0f);
                     if (part.Role == LimbRole.Ear || part.Role == LimbRole.Tail) return new float3(0.7f * e, 0f, 0f);
                     break;
+                case IdleAction.Slide:
+                    // A-103 row 3, on its front: head and neck lifted to see ahead, arms back along its sides, legs
+                    // straight out behind, the feet kicking a little.
+                    if (part.Role == LimbRole.Head) return new float3(-0.8f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Neck) return new float3(-0.5f * e / n, 0f, 0f);
+                    if (part.Role == LimbRole.Arm && joint == 0) return new float3(0.25f * e, 0f, -0.15f * e * part.Side);
+                    if (part.Role == LimbRole.Arm && joint == 1) return new float3(-0.15f * e, 0f, 0f);
+                    if (part.Role == LimbRole.Leg && joint == 0) return new float3(0.1f * e * math.sin(t * 40f + part.Side), 0f, 0f);
+                    if (part.Role == LimbRole.Leg && joint == 1) return new float3(0.3f * e * math.max(0f, math.sin(t * 40f + part.Side)), 0f, 0f);
+                    break;
                 case IdleAction.ShieldEyes:
                     // Bat folk from a light (#35): the right arm raised and folded so the forearm lies across the eyes
                     // (the elbow out to the side), the head bowed and turned a little away, the left hand up at the chest.
@@ -1175,8 +1308,21 @@ namespace Punchy.Fauna
         public const byte MinerAtFace = 101;
         /// <summary>Sitting-mode stages at the town's fire: standing by it, sitting on the ground by it, on a seat near it.</summary>
         public const byte HearthStand = 5, HearthGround = 6, HearthSeat = 7;
+
+        /// <summary>The work pose a hermit's Stage at work stands for: its garden (2) and its biome chores (3 broom, 4
+        /// shovel, 6 rope, 7 sand shovel; A-106 row 2, posed as the job FolkJobs.Shown reads) tend, 5 hammers, the rest chop.</summary>
+        static CreatureTask HermitTask(byte stage) =>
+            stage == 5 ? CreatureTask.Hammer : stage == 2 || stage == 3 || stage == 4 || stage == 6 || stage == 7 ? CreatureTask.Tend : CreatureTask.Chop;
         /// <summary>Sitting-mode stage of a child sitting in a play ring on a green (with its stick or stone).</summary>
         public const byte PlayRing = 8;
+        /// <summary>Play-mode stage of a sea folk child running after a fish (A-103 row 3): no partner playing back.</summary>
+        public const byte ChaseFish = 9;
+        /// <summary>Sitting-mode stages, standing, at a town's notice board (A-116): reading it (the head going along the
+        /// sheets, leant in), and pointing a notice out to the one beside it, reading it aloud.</summary>
+        public const byte BoardRead = 10, BoardPoint = 11;
+        /// <summary>Sitting-mode stage, standing close in at a town's notice board, pinning a new sheet up (A-116 row 2):
+        /// both hands up against the board, holding the sheet (HeldItem.Letter) until it goes up.</summary>
+        public const byte BoardPin = 12;
         /// <summary>Idle-mode stages of one of the townsfolk a messenger bird has come to: waiting for it (the forearm
         /// up for it to land on), taking the message from its leg, reading it.</summary>
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
@@ -1207,7 +1353,7 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 SwingBody(ref CreaturePart part, in CreatureState s, int joint)
         {
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? HermitTask(s.Stage) : s.Task;
             if (s.Task == CreatureTask.Tend)
                 return TendBody(ref part, in s, joint);
             if (job != CreatureTask.Chop && job != CreatureTask.Hammer && !(job == CreatureTask.Mine && s.Stage == MinerAtFace))
@@ -1239,7 +1385,7 @@ namespace Punchy.Fauna
             if (!torso && !head)
                 return float3.zero;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
-            switch (FolkJobs.Of(in s))
+            switch (FolkJobs.Shown(in s))
             {
                 case FolkJob.Baker:
                     return new float3(torso ? 0.28f + 0.08f * (Knead(t, true) + Knead(t, false) - 1f) : 0.3f, 0f, 0f);
@@ -1247,6 +1393,9 @@ namespace Punchy.Fauna
                     return new float3(torso ? 0.55f : 0.35f, 0f, 0f);
                 case FolkJob.WellKeeper:
                     return new float3(torso ? -0.12f - 0.05f * Haul(t, true) : -0.15f, 0f, 0f);
+                case FolkJob.FireTender:
+                    // Upright, head bowed a little over the flame.
+                    return new float3(torso ? 0.04f : 0.22f, 0f, 0f);
                 default:
                     return float3.zero;
             }
@@ -1264,6 +1413,14 @@ namespace Punchy.Fauna
             return new float3(0f, 0f, -0.75f *math.clamp(1.5f * math.sin(t * 0.32f), -1f, 1f));
         }
 
+        /// <summary>A-106: where a sweeper is in its broom stroke (0..1, one stroke there and back), so the ash puffs
+        /// (WorkDust) land on the stroke.</summary>
+        public static float SweepPhase(in CreatureState s) => math.frac((s.Clock + (s.Individual % 100) * 0.13f) * 0.55f);
+
+        /// <summary>A-106: where a shoveller is in its scoop, lift and toss (0..1; the toss is at about 0.7), shared with
+        /// WorkDust and the gear.</summary>
+        public static float ShovelPhase(in CreatureState s) => math.frac((s.Clock + (s.Individual % 100) * 0.13f) * 0.3f);
+
         static float3 TaskPose(ref CreaturePart part, in CreatureState s, int joint)
         {
             if (part.Role == LimbRole.Arm && joint <= 1 && s.Mode == CreatureMode.Hunt && s.Task == CreatureTask.Hunt)
@@ -1273,6 +1430,16 @@ namespace Punchy.Fauna
                 return LookAbout(in s);
             if (s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None)
                 return float3.zero;
+            // (A-115: a lamplighter on its round walks easy, its pole in the right hand (the staff's arm); at a lamp it
+            // raises the pole up to it, the arm high and nearly straight, the left hand on its hip.)
+            if (s.Task == CreatureTask.Tend && (s.Stage == FolkJobs.RoundWalk || s.Stage == FolkJobs.RoundReach))
+            {
+                if (s.Stage != FolkJobs.RoundReach || part.Role != LimbRole.Arm || joint > 1)
+                    return float3.zero;
+                var up = math.smoothstep(0f, 0.35f, s.StageTime);
+                return part.Side > 0f ? new float3(joint == 0 ? -2.1f * up : 0.55f * up, 0f, 0f)
+                                      : new float3(joint == 0 ? 0.25f * up : -1.1f * up, 0f, part.Side * 0.35f * up);
+            }
             // (Swinging an axe, a hammer or a pick, the whole body goes into it: SwingBody.)
             if (part.Role != LimbRole.Arm || joint > 1)
                 return SwingBody(ref part, in s, joint);
@@ -1282,7 +1449,7 @@ namespace Punchy.Fauna
             var right = part.Side > 0f;
             var t = s.Clock + (s.Individual % 100) * 0.13f;
             // (A hermit's chores take a woodcutter's or a tender's pose: its stage says which.)
-            var job = s.Task == CreatureTask.Hermit ? (s.Stage == 2 || s.Stage == 3 ? CreatureTask.Tend : s.Stage == 5 ? CreatureTask.Hammer : CreatureTask.Chop) : s.Task;
+            var job = s.Task == CreatureTask.Hermit ? HermitTask(s.Stage) : s.Task;
             switch (job)
             {
                 case CreatureTask.Hammer:
@@ -1307,7 +1474,7 @@ namespace Punchy.Fauna
                     return new float3(joint == 0 ? -0.45f - 1.9f * raise : -0.9f + raise * (0.1f - 0.9f * beckon), 0f, 0f);
                 }
                 case CreatureTask.Tend:
-                    switch (FolkJobs.Of(in s))
+                    switch (FolkJobs.Shown(in s))
                     {
                         case FolkJob.Baker:
                         {
@@ -1323,6 +1490,38 @@ namespace Punchy.Fauna
                             // Hauling the rope hand over hand: each hand reaches up and pulls down in turn.
                             var reach = Haul(t, right);
                             return new float3(joint == 0 ? -0.9f - 1.3f * reach : -0.5f + 0.25f * reach, 0f, 0f);
+                        }
+                        case FolkJob.FireTender:
+                        {
+                            // (A-103) Conjuring the spirit fire: both hands raised before the chest, palms out, slowly
+                            // circling round the flame between them (the right a half turn behind the left), now and then
+                            // lifting together as the flame is fed.
+                            var circle = t * 0.7f + (right ? math.PI : 0f);
+                            var feed = math.smoothstep(0.75f, 0.9f, 0.5f + 0.5f * math.sin(t * 0.21f));
+                            return new float3(joint == 0 ? -1.05f - 0.12f * math.sin(circle) - 0.3f * feed : -0.75f + 0.18f * math.cos(circle), 0f, 0f);
+                        }
+                        case FolkJob.AshSweeper:
+                        {
+                            // (A-106) Sweeping ash: both hands low on the broom, short strokes side to side (the lower
+                            // hand reaches further).
+                            var stroke = math.sin(SweepPhase(in s) * 2f * math.PI);
+                            return new float3(joint == 0 ? (right ? -0.35f : -0.6f) - 0.22f * stroke : -0.3f + 0.1f * stroke, 0f, 0f);
+                        }
+                        case FolkJob.SnowShoveller:
+                        case FolkJob.SandClearer:
+                        {
+                            // (A-106) Shovelling: push the blade in low, lift the load, toss it aside, back down.
+                            var p = ShovelPhase(in s);
+                            var lift = math.smoothstep(0.4f, 0.62f, p) * (1f - math.smoothstep(0.8f, 0.96f, p));
+                            var toss = math.smoothstep(0.66f, 0.74f, p) * (1f - math.smoothstep(0.74f, 0.88f, p));
+                            var low = right ? 0f : 0.15f;
+                            return new float3(joint == 0 ? -0.45f + low - 0.85f * lift - 0.5f * toss : -0.3f - 0.45f * lift + 0.35f * toss, 0f, 0f);
+                        }
+                        case FolkJob.Roofer:
+                        {
+                            // (A-106) Tying the roof down: hauling the rope up at the eave hand over hand, arms high.
+                            var reach = Haul(t * 0.8f, right);
+                            return new float3(joint == 0 ? -1.5f - 0.9f * reach : -0.35f + 0.2f * reach, 0f, 0f);
                         }
                         default:
                             return new float3(joint == 0 ? -0.65f + 0.22f * math.sin(t * 1.5f + (right ? 0f : 1.4f)) : -0.55f, 0f, 0f);
@@ -1363,6 +1562,26 @@ namespace Punchy.Fauna
         /// </summary>
         static float3 SitPose(ref CreaturePart part, in CreatureState s, int joint)
         {
+            // A-104: riding. Astride a four-legged mount: thighs down and apart round its barrel, shins down its flanks,
+            // hands forward on its neck. On an upright one's shoulders: thighs forward and wide round its head, shins
+            // down its chest, hands holding its head.
+            if (Riding(in s))
+            {
+                var shoulders = s.Stage == (byte)RidePose.Shoulders;
+                switch (part.Role)
+                {
+                    case LimbRole.Leg:
+                        return shoulders
+                            ? (joint == 0 ? new float3(-1.35f, part.Side * 0.55f, 0f) : joint == 1 ? new float3(1.45f, 0f, 0f) : float3.zero)
+                            : (joint == 0 ? new float3(-0.75f, part.Side * 0.6f, 0f) : joint == 1 ? new float3(1.0f, 0f, 0f) : float3.zero);
+                    case LimbRole.Arm:
+                        return shoulders
+                            ? (joint == 0 ? new float3(-1.9f, 0f, part.Side * 0.35f) : joint == 1 ? new float3(-1.0f, 0f, 0f) : float3.zero)
+                            : (joint == 0 ? new float3(-0.8f, 0f, part.Side * 0.1f) : joint == 1 ? new float3(-0.5f, 0f, 0f) : float3.zero);
+                    default:
+                        return float3.zero;
+                }
+            }
             // On a seat: thighs out level along it, shins down to the ground, hands on the thighs.
             if (Seated(in s))
                 switch (part.Role)
@@ -1432,6 +1651,9 @@ namespace Punchy.Fauna
         /// <summary>Sitting on a seat (a bench, a log, a stump...), at the height in Anchor, rather than on the ground.</summary>
         static bool Seated(in CreatureState s) => s.Mode == CreatureMode.Sit && (s.Stage == 4 || s.Stage == HearthSeat);
 
+        /// <summary>A-104: riding another creature (how, a RidePose, in Stage).</summary>
+        static bool Riding(in CreatureState s) => s.Mode == CreatureMode.Ride;
+
         /// <summary>Whether this one sits on the ground cross-legged rather than with its legs out (fixed for life).</summary>
         static bool CrossLegged(in CreatureState s) => CreatureBlob.Trait(s.Individual, 29) > 0.1f;
 
@@ -1456,11 +1678,41 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// A-101: folk climbing a face (s.Vertical up): hands up on the holds and feet on the face, the reaching hand and
+        /// the stepping foot crossing (right hand with left foot) through the climb's gait. On a ladder (ladder), hands
+        /// on the rungs at head height and the knees drawn up in short steps, straight up.
+        /// </summary>
+        static float3 ClimbPose(ref CreaturePart part, in CreatureState s, int joint, bool ladder)
+        {
+            var reach = math.sin(2f * math.PI * s.Phase) * part.Side;
+            switch (part.Role)
+            {
+                case LimbRole.Arm:
+                    if (ladder)
+                        return joint == 0 ? new float3(-2.0f - 0.3f * reach, 0f, part.Side * 0.15f) : joint == 1 ? new float3(-1.0f + 0.35f * reach, 0f, 0f) : float3.zero;
+                    return joint == 0 ? new float3(-2.6f - 0.35f * reach, 0f, part.Side * 0.35f) : joint == 1 ? new float3(-0.55f + 0.3f * reach, 0f, 0f) : float3.zero;
+                case LimbRole.Leg:
+                {
+                    // (The foot opposite the reaching hand steps up: thigh lifted, knee bent.)
+                    var step = 0.5f - 0.5f * reach;
+                    var thigh = ladder ? -0.5f - 0.5f * step : -0.45f - 0.6f * step;
+                    var knee = ladder ? 0.7f + 0.8f * step : 0.6f + 1.0f * step;
+                    return joint == 0 ? new float3(thigh, 0f, part.Side * (ladder ? 0.05f : 0.2f)) : joint == 1 ? new float3(knee, 0f, 0f) : float3.zero;
+                }
+                case LimbRole.Head:
+                    // (Looking up the face for the next hold.)
+                    return new float3(-0.35f, 0f, 0f);
+                default:
+                    return float3.zero;
+            }
+        }
+
+        /// <summary>
         /// Breaststroke, for a body lying forward in the water: the arms reach out ahead, sweep round and out, and come
         /// back in under the chest bent; the legs draw up and kick back out together, a beat behind; the head held up
-        /// to see ahead.
+        /// to see ahead, or (under, 0..1) in line with the body when diving.
         /// </summary>
-        static float3 SwimPose(ref CreaturePart part, in CreatureState s, int joint)
+        static float3 SwimPose(ref CreaturePart part, in CreatureState s, int joint, float under)
         {
             var p = 2f * math.PI * s.Phase;
             switch (part.Role)
@@ -1475,9 +1727,9 @@ namespace Punchy.Fauna
                     return joint == 0 ? new float3(-0.45f * draw, part.Side * 0.25f * draw, 0f) : joint == 1 ? new float3(1.3f * draw, 0f, 0f) : float3.zero;
                 }
                 case LimbRole.Neck:
-                    return new float3(-0.75f / math.max(part.SegmentCount, 1), 0f, 0f);
+                    return new float3(-0.75f * (1f - 0.85f * under) / math.max(part.SegmentCount, 1), 0f, 0f);
                 case LimbRole.Head:
-                    return new float3(-0.9f, 0f, 0f);
+                    return new float3(-0.9f * (1f - 0.85f * under), 0f, 0f);
                 default:
                     return float3.zero;
             }
@@ -1572,15 +1824,6 @@ namespace Punchy.Fauna
                 }
             }
             return low;
-        }
-
-        static float Fold(int joint, int count)
-        {
-            if (count == 1)
-                return 0.9f;
-            if (count == 2)
-                return joint == 0 ? 1.1f : -2.2f;
-            return joint == 0 ? 1f : joint == 1 ? -2.1f : joint == 2 ? 1.4f : 0f;
         }
 
         /// <summary>

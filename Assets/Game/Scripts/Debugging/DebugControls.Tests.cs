@@ -93,7 +93,96 @@ namespace Punchy.Debugging
             climbSince = Time.time;
         }
 
+        /// <summary>The player's climbing skill now (A-101), for the climb tests' log lines; -1 with no body yet.</summary>
+        int ClimbSkillNow()
+        {
+            using var bodyQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+            return bodyQuery.TryGetSingleton<PlayerBody>(out var body) ? body.ClimbSkill : -1;
+        }
+
         static string V(float v) => v.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>A band as "-climbband" takes it: x,y,z,ox,oz,halfwidth,height,grade.</summary>
+        static string ClimbBandArg(in ClimbBand band)
+        {
+            static string F(float v) => v.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+            return $"{F(band.Base.x)},{F(band.Base.y)},{F(band.Base.z)},{F(band.Out.x)},{F(band.Out.y)},{F(band.HalfWidth)},{F(band.Height)},{band.Grade}";
+        }
+
+        static bool ParseClimbBand(string text, out ClimbBand band)
+        {
+            band = default;
+            var parts = text.Split(',');
+            if (parts.Length != 8)
+                return false;
+            var v = new float[7];
+            for (int i = 0; i < 7; i++)
+                if (!float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v[i]) || !float.IsFinite(v[i]))
+                    return false;
+            if (!byte.TryParse(parts[7], out var grade))
+                return false;
+            band = new ClimbBand
+            {
+                Base = new float3(v[0], v[1], v[2]), Out = math.normalizesafe(new float2(v[3], v[4]), new float2(0f, 1f)),
+                HalfWidth = math.clamp(v[5], 0.1f, 10f), Height = math.clamp(v[6], 0.5f, 60f),
+                Grade = (byte)math.clamp((int)grade, (int)Climbing.Ladder, (int)Climbing.Most)
+            };
+            return true;
+        }
+
+        /// <summary>
+        /// Shows a marked band on its wall (cosmetic, test only): grade 1 a ladder (two rails, a rung every 0.3 m), else
+        /// vines, strands of stem hung with leaves, a little uneven, across its width. Plain boxes in the items' material.
+        /// </summary>
+        void MarkClimbBand(in ClimbBand band)
+        {
+            if (climbMarkMaterial == null)
+                climbMarkMaterial = Resources.Load<Material>("ItemMaterial");
+            climbMarkBlock ??= new MaterialPropertyBlock();
+            var across = new float3(-band.Out.y, 0f, band.Out.x);
+            var outward = new float3(band.Out.x, 0f, band.Out.y);
+            var basePoint = band.Base;
+            var facing = Quaternion.LookRotation(new Vector3(-band.Out.x, 0f, -band.Out.y));
+            var top = band.Height - 0.5f;
+            void Box(float x, float o, float y, float3 size, Color colour, float roll = 0f)
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                Destroy(go.GetComponent<Collider>());
+                go.name = "ClimbBandMark";
+                go.transform.SetPositionAndRotation(basePoint + across * x + outward * o + new float3(0f, y, 0f), facing * Quaternion.Euler(0f, 0f, roll));
+                go.transform.localScale = size;
+                var r = go.GetComponent<MeshRenderer>();
+                if (climbMarkMaterial != null)
+                    r.sharedMaterial = climbMarkMaterial;
+                climbMarkBlock.SetColor(ClimbMarkColorId, colour);
+                r.SetPropertyBlock(climbMarkBlock);
+                climbMarks.Add(go);
+            }
+            if (band.Grade == Climbing.Ladder)
+            {
+                var wood = new Color(0.42f, 0.28f, 0.15f);
+                for (int s = -1; s <= 1; s += 2)
+                    Box(s * 0.25f, 0.12f, top * 0.5f + 0.25f, new float3(0.07f, top + 0.5f, 0.07f), wood);
+                for (var y = 0.3f; y < top + 0.1f; y += 0.3f)
+                    Box(0f, 0.12f, y, new float3(0.5f, 0.05f, 0.05f), wood * 0.9f);
+                return;
+            }
+            var random = new Unity.Mathematics.Random((0x51ED1EAFu ^ (uint)math.abs((int)(band.Base.x * 7f + band.Base.z * 13f))) | 1u);
+            var strands = math.max((int)(band.HalfWidth * 2f / 0.4f), 2);
+            for (int s = 0; s < strands; s++)
+            {
+                var x = -band.HalfWidth + (s + 0.5f) * band.HalfWidth * 2f / strands + random.NextFloat(-0.08f, 0.08f);
+                // (Hung from the top, some strands shorter.)
+                var length = top * random.NextFloat(0.75f, 1f);
+                Box(x, 0.04f, top - length * 0.5f, new float3(0.05f, length, 0.04f), new Color(0.2f, 0.3f, 0.12f), random.NextFloat(-2f, 2f));
+                for (var y = top - 0.15f; y > top - length; y -= random.NextFloat(0.22f, 0.38f))
+                {
+                    var side = random.NextBool() ? 1f : -1f;
+                    Box(x + side * 0.07f, 0.06f, y, new float3(0.14f, 0.09f, 0.03f),
+                        Color.HSVToRGB(random.NextFloat(0.22f, 0.32f), random.NextFloat(0.5f, 0.7f), random.NextFloat(0.35f, 0.55f)), side * random.NextFloat(20f, 45f));
+                }
+            }
+        }
 
         float climbNextJump;
 
@@ -105,9 +194,52 @@ namespace Punchy.Debugging
         static bool climbHolding;
         /// <summary>"-place wall": a wall climber's test (up, along, down), and the last time it logged.</summary>
         static bool wallRequest, climbWall;
+        /// <summary>"-place climb": the grade of the band it marks on the wall (0: a bare wall test).</summary>
+        static byte climbBandGrade;
+        /// <summary>The climb test's wall height (m), for where it lets go on a drop lap.</summary>
+        float climbWallTop;
+        /// <summary>The marked bands' markings (vines, a ladder), cleared with the shot.</summary>
+        readonly List<GameObject> climbMarks = new();
+        static readonly int ClimbMarkColorId = Shader.PropertyToID("_BaseColor");
+        Material climbMarkMaterial;
+        MaterialPropertyBlock climbMarkBlock;
         float wallLogAt, wallLastAt, climbHomeY;
         int wallStage;
         float3 wallLast;
+
+        /// <summary>"-climbwatch" (A-101 row 1, the joined-client check): every second, how high each other player's
+        /// body stands and how far it is into the climb pose (CreatureState.Vertical, driven by NetPlayerLook.Climbing),
+        /// and once, the first time one is seen up a climb (posed and over a metre above the lowest it was seen).</summary>
+        void ClimbWatch()
+        {
+            if (System.Array.IndexOf(LaunchArgs, "-climbwatch") < 0 || queryWorld == null || !queryWorld.IsCreated ||
+                Time.time < climbWatchAt)
+                return;
+            climbWatchAt = Time.time + 1f;
+            var em = queryWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureState>());
+            using var states = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            for (int i = 0; i < states.Length; i++)
+            {
+                var s = states[i];
+                if (!math.all(math.isfinite(s.Position)))
+                    continue;
+                // (From the lowest it has been seen: the first sight may be partway up a climb.)
+                if (!climbWatchFrom.HasValue || s.Position.y < climbWatchFrom.Value)
+                    climbWatchFrom = s.Position.y;
+                var rise = s.Position.y - climbWatchFrom.Value;
+                Debug.Log($"DebugControls: climb watch: other player {i} at ({V(s.Position.x)}, {V(s.Position.y)}, {V(s.Position.z)}), " +
+                          $"{V(rise)} m over the lowest seen, climb pose {V(s.Vertical)}");
+                if (!climbWatchSaw && s.Vertical > 0.8f && rise > 1f)
+                {
+                    climbWatchSaw = true;
+                    Debug.Log($"DebugControls: climb watch: SAW A CLIMB, other player {i} posed {V(s.Vertical)} at {V(rise)} m up");
+                }
+            }
+        }
+        float climbWatchAt;
+        float? climbWatchFrom;
+        bool climbWatchSaw;
 
         void ClimbTest()
         {
@@ -116,9 +248,12 @@ namespace Punchy.Debugging
                 return;
             // (The camera stays turned to the climb, so the stick reads forward going out and back coming home.)
             PlayerInputSystem.TestCamera = math.normalizesafe(climbTarget.Value - climbHome, new float2(0f, 1f));
-            var cycle = climbWall ? 28f : 20f;
+            // (A marked band, "-place climb": a slower human, on a wall up to 6 m: longer up and down.)
+            var banded = climbWall && climbBandGrade > Climbing.None;
+            var cycle = climbWall ? (banded ? 40f : 28f) : 20f;
             var phase = math.fmod(Time.time - climbSince, cycle);
-            var toward = phase < (climbWall ? 10f : 12f);
+            var lap = (int)((Time.time - climbSince) / cycle);
+            var toward = phase < (climbWall ? (banded ? 16f : 10f) : 12f);
             // (A wall: aimed a metre past the rim, so the body keeps pushing into it rather than stopping short.)
             var goal = toward ? climbTarget.Value + (climbWall ? math.normalizesafe(climbTarget.Value - climbHome) : float2.zero) : climbHome;
             var to = goal - player.Position.xz;
@@ -133,7 +268,7 @@ namespace Punchy.Debugging
                 // Each time it takes hold: where the trunk it holds stands, against the spot logged for it, and which side
                 // of it the player is on (to settle which side it climbs).
                 if (!climbHolding)
-                    Debug.Log($"DebugControls: climb test: took hold of a trunk at ({V(motion.TrunkBase.x)}, {V(motion.TrunkBase.z)}), radius {V(motion.TrunkRadius)}, " +
+                    Debug.Log($"DebugControls: climb test: skill {ClimbSkillNow()}, took hold of a trunk at ({V(motion.TrunkBase.x)}, {V(motion.TrunkBase.z)}), radius {V(motion.TrunkRadius)}, " +
                               $"{V(math.distance(motion.TrunkBase.xz, climbTarget.Value))} m from the spot logged; player at ({V(player.Position.x)}, {V(player.Position.z)}), " +
                               $"on its {(math.abs(math.cos(motion.TrunkAngle)) > math.abs(math.sin(motion.TrunkAngle)) ? (math.cos(motion.TrunkAngle) > 0f ? "east" : "west") : (math.sin(motion.TrunkAngle) > 0f ? "north" : "south"))} side");
                 climbHolding = true;
@@ -147,19 +282,23 @@ namespace Punchy.Debugging
                 var wm = queryWorld.EntityManager.GetComponentData<PlayerMotion>(wallSelf);
                 var look = math.normalizesafe(PlayerInputSystem.TestCamera ?? new float2(0f, 1f), new float2(0f, 1f));
                 // (Early in the climb, 1.5-3.5 s after -place wall: it reaches the top in about 4 s.)
-                var sideways = phase >= 1.5f && phase < 3.5f && wm.OnWall;
+                // (Not up a ladder, "-place ladder:": a ladder is climbed straight.)
+                var sideways = !climbOnLadder && phase >= 1.5f && phase < 3.5f && wm.OnWall;
                 if (sideways)
                     PlayerInputSystem.TestMove = new float2(look.y, -look.x);
                 // Up / top-out / step-down events, each logged once per cycle.
                 if (phase < 0.5f)
                     wallStage = 0;
                 var rise = player.Position.y - climbHomeY;
-                if (wallStage == 0 && wm.OnWall && rise > 0.5f)
+                // (Up and over: a metre, or most of a shorter climb, a mine's drop ladder.)
+                var upBy = math.min(0.5f, climbWallTop * 0.4f);
+                var overBy = math.min(1f, climbWallTop * 0.6f);
+                if (wallStage == 0 && (wm.OnWall || wm.OnTrunk) && rise > upBy)
                 {
                     wallStage = 1;
-                    Debug.Log($"DebugControls: wall test: UP, on the wall {V(rise)} m above the start at {V(phase)} s");
+                    Debug.Log($"DebugControls: wall test: UP, on the {(wm.OnTrunk ? "round wall" : "wall")} {V(rise)} m above the start at {V(phase)} s");
                 }
-                if (wallStage <= 1 && !wm.OnWall && wm.Grounded && rise > 1f && toward)
+                if (wallStage <= 1 && !wm.OnWall && wm.Grounded && rise > overBy && toward)
                 {
                     wallStage = 2;
                     Debug.Log($"DebugControls: wall test: TOP-OUT, standing on the top {V(rise)} m above the start at {V(phase)} s");
@@ -169,10 +308,22 @@ namespace Punchy.Debugging
                     wallStage = 3;
                     Debug.Log($"DebugControls: wall test: STEP-DOWN, over the edge and on the wall at {V(rise)} m at {V(phase)} s");
                 }
-                if (wallStage == 3 && !toward && !wm.OnWall && wm.Grounded && rise < 0.5f)
+                if (wallStage == 3 && !toward && !wm.OnWall && wm.Grounded && rise < upBy)
                 {
                     wallStage = 4;
                     Debug.Log($"DebugControls: wall test: DOWN, back on the ground at {V(phase)} s");
+                }
+                // (A marked band, every other lap: partway down, jump lets go and it drops to the ground.)
+                if (banded && (lap & 1) == 1 && wallStage == 3 && wm.OnWall && rise > 0.8f && rise < climbWallTop * 0.6f)
+                {
+                    wallStage = 5;
+                    PlayerInputSystem.TestJump = true;
+                    Debug.Log($"DebugControls: wall test: DROP, let go of the wall {V(rise)} m up at {V(phase)} s");
+                }
+                if (wallStage == 5 && !wm.OnWall && wm.Grounded)
+                {
+                    wallStage = 6;
+                    Debug.Log($"DebugControls: wall test: DROP, landed {V(rise)} m above the start at {V(phase)} s");
                 }
                 if (Time.time >= wallLogAt)
                 {
@@ -183,7 +334,7 @@ namespace Punchy.Debugging
                     var dtLog = math.max(Time.time - wallLastAt, 0.01f);
                     wallLast = player.Position;
                     wallLastAt = Time.time;
-                    Debug.Log($"DebugControls: wall test: test move {PlayerInputSystem.TestMove}, {V(distance)} m from the rim; stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
+                    Debug.Log($"DebugControls: wall test: skill {ClimbSkillNow()}, test move {PlayerInputSystem.TestMove}, {V(distance)} m from the rim; stick {stick}, OnWall {wm.OnWall}, grounded {wm.Grounded}, player at ({V(player.Position.x)}, {V(player.Position.y)}, {V(player.Position.z)}), vertical {V(step.y / dtLog)} m/s, along {V(math.length(step.xz) / dtLog)} m/s");
                 }
             }
             if (toward && climbJumps && distance > 0.5f && distance < 2f && Time.time >= climbNextJump)
@@ -225,6 +376,29 @@ namespace Punchy.Debugging
                 Debug.LogWarning($"DebugControls: no playable body '{name}'");
             else
                 avatars.SetLocalSpecies(index);
+        }
+
+        /// <summary>
+        /// "-climbskill N" (A-101): the player's ClimbSkill held at N (-1 lets go), from the next body on and for the body
+        /// it's in now, its climb speed with it (a skill 5 body scurries, Climbing.BaseSpeed). Letting go takes effect with
+        /// the next body (FaunaDirector works the species' skill out from its blob).
+        /// </summary>
+        void SetClimbSkill(int skill)
+        {
+            Climbing.SkillOverride = math.clamp(skill, -1, Climbing.Most);
+            if (Climbing.SkillOverride < 0 || queryWorld == null || !queryWorld.IsCreated)
+                return;
+            var em = queryWorld.EntityManager;
+            using var bodyQuery = em.CreateEntityQuery(typeof(PlayerBody));
+            if (!bodyQuery.TryGetSingletonEntity<PlayerBody>(out var bodyEntity))
+                return;
+            var body = em.GetComponentData<PlayerBody>(bodyEntity);
+            var director = FindAnyObjectByType<FaunaDirector>();
+            var species = director != null && director.PlayerSpecies != null ? director.PlayerSpecies.Body : null;
+            body.ClimbSkill = (byte)Climbing.SkillOverride;
+            body.ClimbSpeed = Climbing.BaseSpeed(body.ClimbSkill, species != null ? species.Climbing : 0f);
+            em.SetComponentData(bodyEntity, body);
+            Debug.Log($"DebugControls: climb skill {body.ClimbSkill}, climb speed {body.ClimbSpeed:0.00}");
         }
 
         void ActionTest()
@@ -398,6 +572,12 @@ namespace Punchy.Debugging
             if (wallFovWas > 0f && Camera.main != null)
                 Camera.main.fieldOfView = wallFovWas;
             wallFovWas = 0f;
+            foreach (var mark in climbMarks)
+                if (mark != null)
+                    Destroy(mark);
+            climbMarks.Clear();
+            ClimbBands.Clear();
+            ClimbLedges.Clear();
             huntShotTaken = false;
             huntShotLogged = false;
             staleHunter = huntHunter;

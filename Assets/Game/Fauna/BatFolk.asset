@@ -431,3 +431,4 @@ MonoBehaviour:
     Value: -0.4
     Rival: 0
   RegardToAll: -0.3
+  Vision: 1

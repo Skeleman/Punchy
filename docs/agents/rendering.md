@@ -2,6 +2,15 @@
 
 Read before changing any shader, material or render setting.
 
+- **Far views come first (Zach, 2026-11-13).** The aim is an island seen whole, grounded in nature. Judge a rendering
+  change from far as well as near: from a summit, the coast and the air, at noon, dusk and under cloud. Haze is
+  atmosphere (distance and height), not a curtain at the draw edge. Every visual hand-over (mesh, impostor, far form,
+  gone) is picked by `DetailPolicy.ScreenSize` with hysteresis; a fixed-metre visual range is a bug.
+- **One lighting path.** Don't assemble lighting in a forward pass by hand. Cascades, the flora shadow cache, the wide
+  shadow map, cloud shadow, glow lights, wetness and `PunchyAtmosphere` come from the shared includes in the shared
+  order. A new term goes into the shared code so every surface gets it; a new surface shader is rare and is agreed
+  first.
+
 - **Every opaque custom shader needs a `DepthNormals` pass** (as well as `DepthOnly` and `ShadowCaster`). SSAO
   uses depth + normals, so URP builds the camera depth texture from the depth-normals prepass; anything without
   the pass is missing from it, and effects that read depth (heat haze, soft particles, SSAO) treat it as the
@@ -58,3 +67,6 @@ Read before changing any shader, material or render setting.
   hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
   downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,
   barely glazes, and pools only in its deepest spots.
+- The sun's real-time shadow filter is set at run time by `Rendering/SunShadowFilter.cs` (wide at High and above, the
+  Shadows setting with four cascades; the scene's own value at Medium and Low; `-sunshadowfilter scene|low|medium|high`). With the narrow filter the cascades'
+  edges crawl as the sun turns (R-20, #286). Sunny day types show it; overcast ones hide it, so test under `Sunny`.

@@ -73,7 +73,7 @@ namespace Punchy.Fauna
         public static bool CanPet(ref CreatureBlob b, in CreatureState s) =>
             !b.Upright && b.Habitat != Habitat.Swims && s.Fly < 0.5f && !s.Gone &&
             s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Web && s.Mode != CreatureMode.Burrow &&
-            s.Mode != CreatureMode.Roost && s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Held;
+            s.Mode != CreatureMode.Roost && s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Ride;
 
         /// <summary>
         /// The most anyone can lift, kg (#16). One figure for every carrier for now: a placeholder for a Strength stat.
@@ -94,7 +94,7 @@ namespace Punchy.Fauna
 
         /// <summary>Folk who are about on the ground, not working at something fixed, held or gone.</summary>
         static bool CanTouchUpright(in CreatureState s) =>
-            !s.Gone && s.Fly < 0.5f && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet &&
+            !s.Gone && s.Fly < 0.5f && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet && s.Mode != CreatureMode.Ride &&
             s.Mode != CreatureMode.Climb && s.Mode != CreatureMode.Sleep;
 
         /// <summary>How long a carried one puts up with it, as a share of a light one's time: a full armful a third as long.</summary>
@@ -194,7 +194,7 @@ namespace Punchy.Fauna
                     break;
 
                 case InteractAct.Startle:
-                    if (s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Puppet || s.Gone || b.Upright)
+                    if (s.Mode == CreatureMode.Held || s.Mode == CreatureMode.Puppet || s.Mode == CreatureMode.Ride || s.Gone || b.Upright)
                         break;
                     Bolt(ref s, ref b, terrain, player, ref rng);
                     break;

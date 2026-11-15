@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: TurtleChild
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 11400000, guid: 250f6345971c49d3a86c691e7183264f, type: 2}
+  VariantScale: 0.55
+  VariantHead: 1.45
+  VariantThickness: 1.2
+  VariantLegs: 0.85
+  Coats:
+  - Name: Sky-blue robe, olive skin
+    Base: {r: 0.56, g: 0.72, b: 0.86, a: 1}
+    Accent: {r: 0.46, g: 0.52, b: 0.32, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  - Name: Moss robe, grey-green skin
+    Base: {r: 0.48, g: 0.6, b: 0.4, a: 1}
+    Accent: {r: 0.4, g: 0.48, b: 0.38, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  - Name: Berry robe, olive skin
+    Base: {r: 0.62, g: 0.34, b: 0.42, a: 1}
+    Accent: {r: 0.48, g: 0.5, b: 0.32, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  - Name: Snow robe, pale skin
+    Base: {r: 0.86, g: 0.88, b: 0.9, a: 1}
+    Accent: {r: 0.58, g: 0.6, b: 0.44, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  Size: {x: 1, y: 1.1}
+  Weight: 25
+  HairColors: []
+  Parts: []
+  WalkSpeed: 1.3
+  RunSpeed: 4.5
+  WanderRadius: 10
+  IdleTime: {x: 2, y: 8}
+  Active: 0
+  Grazing: 0
+  Thirst: 0
+  Playfulness: 0.85
+  Child: 1
+  Laziness: 0.05
+  Hunger: 0
+  ChaseTime: 10

@@ -187,7 +187,8 @@ namespace Punchy.Items
             ref var blob = ref em.GetComponentData<CreatureBody>(body).Blob.Value;
             var wears = blob.Upright && blob.Hands;
             var held = wears ? HeldFor(hand) : HeldItem.None;
-            var bits = wears ? WornBits(head, back) : (byte)0;
+            // (A player's eyewear bits are NetAvatars', kept as they are: A-103 row 5.)
+            var bits = (byte)((wears ? WornBits(head, back) : 0) | (s.Worn & CreatureWorn.Eyes));
             if (s.Held == held && s.Worn == bits)
                 return;
             s.Held = held;

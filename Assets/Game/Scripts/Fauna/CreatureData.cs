@@ -22,6 +22,12 @@ namespace Punchy.Fauna
         public float WalkStride, RunStride;
         /// <summary>Height of the body's centre above the ground when standing (from the idle pose).</summary>
         public float StandHeight;
+        /// <summary>A-118: height of the body's centre above the ground lying down, on its folded legs or its belly,
+        /// whichever needs more (m, at size 1), and how far its nose tips up then (radians) when its folded front legs
+        /// stand taller than its hind ones.</summary>
+        public float LieHeight, LiePitch;
+        /// <summary>A-118: it stands on two front and two hind legs that fold under it (LieFold), and lies on them.</summary>
+        public bool LiesOnFold;
         /// <summary>Where its mouth is, at the end of its head, from the body's centre in the body's frame (m, at size 1,
         /// idle pose); HasMouth false for a body with no head part.</summary>
         public float3 Mouth;
@@ -62,6 +68,10 @@ namespace Punchy.Fauna
         /// keen it is on walks to the surface (SurfaceTrips, a Decide weight).</summary>
         public bool ShunsLight;
         public float SurfaceTrips;
+        /// <summary>Turtle folk (A-103): a joined client reads its replicated task as an igloo job (FolkJobs.FromTurtleTask).</summary>
+        public bool TurtleJobs;
+        /// <summary>Sea folk (A-103): water of any depth is walkable ground; it stays on the bottom and never swims.</summary>
+        public bool WalksBed;
         /// <summary>Its town guards' kit (helmet, weapon) and the colours of their armour and sash (linear).</summary>
         public GuardKit GuardKit;
         public float4 GuardArmour, GuardSash;
@@ -96,8 +106,8 @@ namespace Punchy.Fauna
         public bool Slithers;
         /// <summary>Walks on hooves (CreatureSpecies.Hooves): a clop on hard ground.</summary>
         public bool Hooves;
-        /// <summary>What a player in this body can climb (CreatureSpecies.ClimbsAs, or from Crawls and Climbing).</summary>
-        public ClimbAbility ClimbsAs;
+        /// <summary>Its climbing skill (Climbing, 0-5): CreatureSpecies.ClimbSkill, or from Crawls, Climbing and hands.</summary>
+        public byte ClimbSkill;
         /// <summary>Its answer to someone emoting near it (CreatureSpecies.EmoteReaction, Default worked out).</summary>
         public EmoteReaction Reaction;
         /// <summary>Tunnels through the ground (CreatureSpecies.Tunnels): a sand or snow worm.</summary>
@@ -110,6 +120,10 @@ namespace Punchy.Fauna
         public bool Disguised;
         /// <summary>Its taste in weather (A-71): what makes it uncomfortable and what shelter it seeks.</summary>
         public ComfortProfile Comfort;
+        /// <summary>A-102 breath (Breath): never runs short under water (fish, water and sea folk); else how long it
+        /// holds its breath (s, CreatureSpecies.HoldBreath or Breath.DefaultHold).</summary>
+        public bool BreathesWater;
+        public float HoldBreath;
 
         public BlobArray<CreaturePart> Parts;
         public BlobArray<CreatureSegment> Segments;
@@ -130,6 +144,48 @@ namespace Punchy.Fauna
             var r = scale / mid;
             return Weight * r * r * r;
         }
+
+        /// <summary>
+        /// A-118: the joint angle (pitch, radians) a leg hanging beneath a four-legged body adds at one joint when it is
+        /// fully folded lying down; positive swings back. Front legs fold back under the chest; a hoofed animal's with
+        /// the knee forward and the cannon folded flat beneath the forearm. Hind legs fold forward under the belly, the
+        /// thigh forward, the shank back down to the hock on the ground and the foot forward again, so no hind leg
+        /// ever lies straight out behind.
+        /// </summary>
+        public static float LieFold(int joint, int count, bool hind, bool hooves)
+        {
+            if (hind)
+            {
+                if (count == 1)
+                    return -0.9f;
+                if (count == 2)
+                    return joint == 0 ? -0.9f : 1.8f;
+                if (count == 3)
+                    return joint == 0 ? -0.9f : joint == 1 ? 1.5f : -1.4f;
+                return joint == 0 ? -0.9f : joint == 1 ? 1.3f : joint == 2 ? -1.9f : 0.3f;
+            }
+            if (hooves && count >= 3)
+                return joint == 0 ? 0.55f : joint == 1 ? -1.85f : joint == 2 ? 2.8f : 0f;
+            return SitFold(joint, count);
+        }
+
+        /// <summary>The older fold, still used for sitting and for a carried animal's tucked legs: each leg's
+        /// first joint back, the next forward, the next back.</summary>
+        public static float SitFold(int joint, int count)
+        {
+            if (count == 1)
+                return 0.9f;
+            if (count == 2)
+                return joint == 0 ? 1.1f : -2.2f;
+            return joint == 0 ? 1f : joint == 1 ? -2.1f : joint == 2 ? 1.4f : 0f;
+        }
+
+        /// <summary>A-118: how far a hoofed animal's folded hind leg rolls out about the hip, lying (radians toward the
+        /// side it lies on): the leg on that side out flat beside the belly, the other under the belly toward it.</summary>
+        public static float HindRoll(bool downside) => downside ? 1f : 0.5f;
+
+        /// <summary>A-118: a hoofed animal lying tips this far onto the side its hind legs fold to (radians).</summary>
+        public const float LieTip = 0.12f;
 
         public static float Trait(uint individual, int trait) =>
             math.hash(new uint2(individual, (uint)trait * 2654435761u + 17u)) / (float)uint.MaxValue * 2f - 1f;
@@ -397,7 +453,12 @@ namespace Punchy.Fauna
         /// weather is bad), then waiting there facing Focus (1) till the weather lets up or its time runs out. What the
         /// shelter is (a ShelterNeed bit) rides in TargetHeight.
         /// </summary>
-        Shelter
+        Shelter,
+        /// <summary>
+        /// A-104: riding another creature (Riding): no mind of its own while it rides, put on its mount's seat each frame
+        /// (RideSystem). How it sits (a RidePose) is in Stage; what it rides is in Holder (minus the mount's ghost id).
+        /// </summary>
+        Ride
     }
 
     /// <summary>What a worker does at its post (posed by CreatureAnimator).</summary>
@@ -472,6 +533,8 @@ namespace Punchy.Fauna
         public float Night;
         /// <summary>The time of day, 0 to 24 (18 at sunset).</summary>
         public float Hour;
+        /// <summary>Whole days since the start (the cycle's count, shared world state): the notice board's posts.</summary>
+        public int Day;
     }
 
     /// <summary>
@@ -496,6 +559,9 @@ namespace Punchy.Fauna
     public static class CreatureWorn
     {
         public const byte Hat = 1, Pack = 2;
+        /// <summary>A-103 row 5: a player's eyewear (Eyewear): a small dark pair of glasses, or chunky glow goggles. Eyes
+        /// is both, the bits NetAvatars owns (Items' gear keeps them).</summary>
+        public const byte Glasses = 4, Goggles = 8, Eyes = Glasses | Goggles;
     }
 
     public enum HeldItem : byte
@@ -618,6 +684,11 @@ namespace Punchy.Fauna
         /// the usual swim just under the surface. Set at spawn (FaunaDirector.SpawnLakeFish).</summary>
         public float SwimAbove;
         /// <summary>
+        /// A-103: a folk's own door where no Door anchor marks one (a turtle folk's igloo tunnel): xz the spot it steps in
+        /// from, y unused, w the outward yaw. Zero for none (FindDoor then looks for anchors). Set at spawn; local, not sent.
+        /// </summary>
+        public float4 OwnDoor;
+        /// <summary>
         /// Two folk stopped to talk (CreatureBrainSystem.Chatting; local, host only, not sent): seconds before this one
         /// starts or joins another talk; its part in one (1 started it, 2 the one it stopped, 3 a child standing by);
         /// what it was doing before, to carry on after (ChatWalk 1 walking: ChatResume its target; 2 on its way to its
@@ -676,7 +747,9 @@ namespace Punchy.Fauna
         public bool Gone;
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
-        /// <summary>Who is petting or carrying it (see Interactions.HolderId; 0 = nobody).</summary>
+        /// <summary>Who is petting or carrying it, or what it rides (A-104). Positive: its holder (Interactions.HolderId).
+        /// Negative: it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world, which has no
+        /// ghosts). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
@@ -721,6 +794,15 @@ namespace Punchy.Fauna
         // activity that meets them; what it decides to do next is weighted by them. Only the brain reads them (#58:
         // moved here from CreatureState); what others see is CreatureState.Cue.
         public float Hunger, Thirst, Tired, Lonely;
+        /// <summary>A-102 breath (Breath): how much of it is used up under water (0 full, 1 empty; 0 by default, so a
+        /// new creature starts full), and whether, having emptied it, it is making for the surface until it has caught
+        /// some back. Brain only, like the needs.</summary>
+        public float BreathUsed;
+        public bool Gasping;
+        /// <summary>A-102 row 2, folk out swimming: how far under their floating height they are (m), how far they are
+        /// making for (0: up to the surface), and how long before they turn again (s: a rest at the surface, or a water
+        /// breather's time at a depth). Brain only (clients see the dive in Position and Vertical).</summary>
+        public float Dive, DiveTo, DiveWait;
         /// <summary>A-71: how uncomfortable the weather has made it (0..1: builds while out of its comfort, fades in
         /// comfort or shelter), why (the worst reason last seen), and how hard the weather pressed at the last check.</summary>
         public float Discomfort, ComfortPressure;
@@ -729,6 +811,9 @@ namespace Punchy.Fauna
         /// looks for shelter again after a search that found none (s).</summary>
         public ShelterNeed Cover;
         public float ShelterRetry;
+        /// <summary>A-121 row 2: how far past a lit fire's flames it keeps (m): its species' and its own shyness, or the
+        /// distance where the fire's heat gets too much for it. Set at each comfort check.</summary>
+        public float FireKeep;
         /// <summary>A-71 row 6: the player it's following on a lead quest (their Holder id, Interactions.HolderId; 0 for
         /// none) and how long before it gives up (s). Set by Follow.Start and Follow.Stop on the host.</summary>
         public int FollowHolder;
@@ -900,8 +985,6 @@ namespace Punchy.Fauna
             root.ColdBlooded = species.ColdBlooded;
             root.Hooves = species.Hooves;
             root.Tunnels = species.Tunnels;
-            root.ClimbsAs = species.ClimbsAs != ClimbAbility.None ? species.ClimbsAs
-                          : species.Crawls ? ClimbAbility.AnySurface : species.Climbing > 0f ? ClimbAbility.Trees : ClimbAbility.None;
             root.Reaction = species.EmoteReaction != EmoteReaction.Default ? species.EmoteReaction
                           : species.Friendly ? EmoteReaction.Wags : species.FleeDistance > 0f ? EmoteReaction.Flees : EmoteReaction.Ignores;
             root.Habitat = species.Habitat;
@@ -936,6 +1019,8 @@ namespace Punchy.Fauna
             root.Wades = species.Wades;
             root.ShunsLight = species.ShunsLight;
             root.SurfaceTrips = species.ShunsLight ? species.SurfaceTrips : 0f;
+            root.TurtleJobs = species.TurtleJobs;
+            root.WalksBed = species.WalksBed;
             root.Roosts = species.Roosts;
             root.Friendly = species.Friendly;
             root.CrossesWater = species.CrossesWater && species.Habitat == Habitat.Land;
@@ -954,11 +1039,15 @@ namespace Punchy.Fauna
             root.Breaches = species.Breaches && species.Habitat == Habitat.Swims;
             root.RaidsHives = species.RaidsHives;
             root.Hands = species.Parts.Exists(p => p != null && p.Limb != null && p.Limb.Role == LimbRole.Arm);
+            root.ClimbSkill = Climbing.SpeciesSkill(species.ClimbSkill, species.Crawls, species.Climbing, root.Hands);
             root.Child = variant.Child;
             root.SeenFrom = species.SeenFrom * sizeScale * size;
             root.Rooted = species.Rooted;
             root.Disguised = species.Disguised;
             root.Comfort = ComfortProfiles.For(variant, home ?? new Vector2(-1f, -1f));
+            root.BreathesWater = species.BreathesWater || species.Habitat == Habitat.Swims;
+            root.HoldBreath = species.HoldBreath > 0f ? species.HoldBreath
+                : Breath.DefaultHold(root.Upright && root.Hands, root.CrossesWater, species.Habitat);
             root.Nests = species.Nests;
             root.WebSize = species.WebSize * sizeScale * size;
             root.FlightHeight = new float2(species.FlightHeight.x, math.max(species.FlightHeight.x, species.FlightHeight.y));
@@ -1207,6 +1296,79 @@ namespace Punchy.Fauna
             for (int i = 0; i < b.Parts.Length; i++)
                 chain |= b.Parts[i].FollowGround && b.Parts[i].Parent < 0;
             b.Slithers = legs == 0 && chain;
+            MeasureLie(ref b);
+        }
+
+        /// <summary>
+        /// A-118: how high the body lies. Each leg that folds (hanging beneath a four-legged body) is posed fully folded
+        /// (CreatureBlob.LieFold, a hoofed hind leg rolled under the belly as it lies) and its lowest point below the
+        /// body's centre found: the body's front and rear must lie at least that high, and at least on the belly. The
+        /// body lies at the mean of the two, its nose tipped up by the difference over the span between the hips and
+        /// shoulders. (Before, it lay on the belly's radius alone: long legs had no room under it and sprawled.)
+        /// </summary>
+        static void MeasureLie(ref CreatureBlob b)
+        {
+            var belly = b.FrontRadius * b.BodyFlatten * 0.9f;
+            float front = 0f, hind = 0f, frontZ = 0f, hindZ = 0f, sideX = 0f;
+            int fronts = 0, hinds = 0;
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var part = ref b.Parts[i];
+                if (b.Upright || part.Role != LimbRole.Leg || part.Parent >= 0 || math.mul(part.Rest, new float3(0f, 0f, 1f)).y >= -0.7f)
+                    continue;
+                var isHind = part.Socket.z < 0f;
+                sideX = math.max(sideX, math.abs(part.Socket.x));
+                var pos = part.Socket;
+                var rot = part.Rest;
+                var low = 0f;
+                for (int s = 0; s < part.SegmentCount; s++)
+                {
+                    var seg = part.FirstSegment + s;
+                    var a = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle];
+                    a.x += CreatureBlob.LieFold(s, part.SegmentCount, isHind, b.Hooves);
+                    rot = math.mul(rot, quaternion.EulerZXY(a));
+                    var start = pos;
+                    pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length));
+                    var end = pos;
+                    if (isHind && b.Hooves)
+                    {
+                        var roll = quaternion.AxisAngle(new float3(0f, 0f, 1f), CreatureBlob.HindRoll(false));
+                        start = part.Socket + math.mul(roll, start - part.Socket);
+                        end = part.Socket + math.mul(roll, end - part.Socket);
+                    }
+                    var r = math.max(b.Segments[seg].RadiusStart, b.Segments[seg].RadiusEnd) * b.Segments[seg].Flatten;
+                    low = math.max(low, math.max(-start.y, -end.y) + r);
+                }
+                if (isHind)
+                {
+                    hind = math.max(hind, low);
+                    hindZ += part.Socket.z;
+                    hinds++;
+                }
+                else
+                {
+                    front = math.max(front, low);
+                    frontZ += part.Socket.z;
+                    fronts++;
+                }
+            }
+            // (Only a body on four folding legs or more lies on the fold; birds and the rest lie on the belly as before.)
+            b.LiesOnFold = fronts >= 2 && hinds >= 2;
+            if (!b.LiesOnFold)
+            {
+                b.LieHeight = math.min(b.StandHeight, belly);
+                b.LiePitch = 0f;
+                return;
+            }
+            front = math.min(b.StandHeight, math.max(belly, front));
+            hind = math.min(b.StandHeight, math.max(b.RearRadius * b.BodyFlatten * 0.9f, hind));
+            frontZ /= fronts;
+            hindZ /= hinds;
+            var tilt = (front - hind) / math.max(frontZ - hindZ, 0.05f);
+            // (The body pitches about its centre, not midway between the hips and shoulders, so the height there is
+            // what puts both at their heights; a hoofed body also tips onto one side, dropping its low-side legs.)
+            b.LieHeight = math.min(b.StandHeight, front - frontZ * tilt + (b.Hooves ? math.sin(CreatureBlob.LieTip) * sideX : 0f));
+            b.LiePitch = math.atan(tilt);
         }
 
         /// <summary>End of a body-attached part's chain in the body frame, at one key pose.</summary>

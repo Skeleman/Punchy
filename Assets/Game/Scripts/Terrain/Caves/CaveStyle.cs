@@ -58,6 +58,9 @@ namespace Punchy.Terrain
         [Tooltip("W-138 row 4c: the lamp road tunnels hang on their walls in place of the Torch: a Fixture kit species, " +
                  "lit as its Fixture Style says (a Wall Lantern is a lantern turned low). None = the Torch.")]
         public Punchy.Flora.FloraSpecies TunnelLamp;
+        [Tooltip("W-147: the ladder pieces (a Ladder kit species, its variants by height) dug caves stand up their shafts " +
+                 "and down drops in their passages. None = no ladders.")]
+        public Punchy.Flora.FloraSpecies Ladder;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
@@ -240,6 +243,10 @@ namespace Punchy.Terrain
             foreach (var style in CaveStyleTable.Collect(types))
                 if (style.TunnelLamp != null && !species.Contains(style.TunnelLamp))
                     species.Add(style.TunnelLamp);
+            // W-147: ladders after those, for the same reason.
+            foreach (var style in CaveStyleTable.Collect(types))
+                if (style.Ladder != null && !species.Contains(style.Ladder))
+                    species.Add(style.Ladder);
             return species;
         }
     }
