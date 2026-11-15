@@ -7980,3 +7980,16 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **BENCH:** bench job 94 (this branch) is still queued. The merge adds no per-frame work.
 - Next: W-172 row 2 (#277).
 - Issue for the log-bark row above: #359.
+
+## Land world/world-pack again after cliff-kit (W-168, #345): ready for PR
+
+- **Branch:** world/world-pack e9302eb9 = origin/main 509022e4 (cliff kit, PR #386) merged in, pushed. It merges
+  clean onto main. Ready for PR (rule 31).
+- **Conflicts:** IslandV2.cs and IslandCache.cs only, where both sides add a blob. I kept both. The cliff kit bakes
+  after the scarps and the cave sockets bake after it, so the sockets stay last. Both are reset, freed and copied
+  with the other blobs. The island file goes to Format 3, so any file main wrote (cliff kit but no sockets) is
+  rebuilt instead of misread. TerrainSource auto-merged.
+- **Checks:** clean compile; full suite 41/41; landmarks 117 hash 689D5348, game hash FA8F24B1 (unchanged).
+- **Shares:** one island file and one bake order for every baked blob. Parallel found but not folded in: none.
+- **BENCH:** none. The merge adds no per-frame work.
+- Next: water/truth once you've merged this, then waterfall-sheets and log-bark. W-172 row 2 (#277) in between.
