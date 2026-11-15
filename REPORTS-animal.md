@@ -4978,3 +4978,14 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Host/client: shape comes from the species blob on every machine; no ghost field.
 - Risks: arms in a swing (Chop) not checked in the lab.
 - NEXT: row 2, dog and canine faces.
+
+## 2026-11-14 A-123 row 2: dog and canine faces (#356)
+- DONE (verified, edit-mode turntable): fauna/body-reads eb699fc1. Data only.
+  - Dog: the muzzle is longer and slimmer and sticks out (Snout scale 1.9, thickness 0.8). The dark nose sits on its tip; it was half sunk in the snout. The eyes sit apart on the skull, forward and up; they were buried in it.
+  - Wolf, RedFox, FennecFox, EmberFox and MarshDog each gain a small dark nose at the FoxHead tip: an Eye-limb part, as the dog's nose already was. MarshDog's eyes move outward.
+- Numbers (ModelLab.EyeReport, depth in eye radii: 1 just touching, 0 half sunk, below -1 buried): Dog nose -0.84 -> 0.64, eyes -1.13 -> 0.42. MarshDog eyes -0.51 -> 0.26. Wolf 0.42 and RedFox 0.39 unchanged. The new noses sit at -0.4 to -0.5, set into the tip like a real nose.
+- Shots: D:/Unity/PunchyMilestones/A-123/row2-faces2m-before.jpg / -after.jpg and row2-faces8m-before.jpg / -after.jpg. Each shows Dog, Wolf, RedFox and MarshDog front, side and 3/4; full PNGs are in gallery/. Zach's read is the pass.
+- Suite: 39 passed, 17 skipped; the one failure was the fauna pin. Re-pinned 3530F2AD -> 6C032AE3 for the moved sockets and the new nose parts. Landmarks unchanged at 117 689D5348.
+- Host/client: species data on every machine.
+- Risks: Coyote and ArcticFox are variants and inherit their base species' nose. BoneHound was not changed.
+- NEXT: row 3, feathers.
