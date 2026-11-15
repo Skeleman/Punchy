@@ -134,7 +134,11 @@ namespace Punchy.Flora
         [Tooltip("A structure-kit building fallen to ruin (#24): walls broken down from one corner, roof gone but a few " +
                  "rafters, floors showing, rubble, moss and ivy. Bark is the stone, Accent the moss.")] KitRuin,
         [Tooltip("W-63: a weathered, barkless log lying along X, Height long (Thickness its radius), with snapped branch stubs " +
-                 "and a root flare at one end (Bark, bleached). Driftwood on gravel bars, or a fallen log across a narrows.")] Driftwood
+                 "and a root flare at one end (Bark, bleached). Driftwood on gravel bars, or a fallen log across a narrows.")] Driftwood,
+        [Tooltip("A-117: a stable. A lean-to shed of stalls with hay at the back, a railed paddock in front with its gate " +
+                 "gap at +Z, a trough and hay bales (Accent the hay). Height is the back wall; Height times Spread its width.")] Stable,
+        [Tooltip("A-117: a hitching rail: two posts and a rail along X (Height the posts', times Spread the rail), a trough " +
+                 "in front and a hay bale (Accent).")] HitchRail
     }
 
     /// <summary>

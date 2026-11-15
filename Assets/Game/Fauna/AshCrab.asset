@@ -12,10 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
   m_Name: AshCrab
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
-  ColdBlooded: 1
   VariantOf: {fileID: 0}
   VariantScale: 1
+  VariantHead: 1
+  VariantThickness: 1
+  VariantLegs: 1
   BodyLength: 0.13
+  Gallop: 0
   BodyRadius: 0.05
   BodyTaper: 1
   BodyFlatten: 0.45
@@ -35,7 +38,9 @@ MonoBehaviour:
     Weight: 1
   Size: {x: 0.9, y: 1.1}
   Weight: 0.3
+  HairColors: []
   Coat: 4
+  FurLength: 0
   Parts:
   - Limb: {fileID: 11400000, guid: daa6a7393dd4acf4aa2e08d9c40192b5, type: 2}
     Parent: -1
@@ -46,6 +51,8 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: daa6a7393dd4acf4aa2e08d9c40192b5, type: 2}
     Parent: -1
     Socket: {x: 0.85, y: -0.2, z: 0.75}
@@ -55,6 +62,8 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: daa6a7393dd4acf4aa2e08d9c40192b5, type: 2}
     Parent: -1
     Socket: {x: 0.45, y: -0.2, z: -0.9}
@@ -64,6 +73,8 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: daa6a7393dd4acf4aa2e08d9c40192b5, type: 2}
     Parent: -1
     Socket: {x: 0.85, y: -0.2, z: -0.75}
@@ -73,6 +84,8 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: a1d891ab1d4ac3b4f9d5854c2a03c668, type: 2}
     Parent: -1
     Socket: {x: 1, y: 0, z: 0.45}
@@ -82,6 +95,8 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: a1d891ab1d4ac3b4f9d5854c2a03c668, type: 2}
     Parent: -1
     Socket: {x: 1, y: 0, z: -0.45}
@@ -91,6 +106,8 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 1
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: -1
     Socket: {x: 1, y: 0.9, z: 0.25}
@@ -100,6 +117,8 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 0.6
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: -1
     Socket: {x: 1, y: 0.9, z: -0.25}
@@ -109,23 +128,88 @@ MonoBehaviour:
     MirrorPhase: 0.5
     Scale: 0.6
     Thickness: 1
+    StyleGroup: 0
+    FurLength: 0
   WalkSpeed: 0.5
   RunSpeed: 3
   Bob: {x: 0, y: 0}
   BobsPerCycle: {x: 2, y: 2}
   RunRock: 0
+  Upright: 0
   LeglessStride: {x: 0.6, y: 0.9}
   WanderRadius: 6
   IdleTime: {x: 1, y: 6}
   FleeDistance: 3
+  FleeGas: 0
   TurnRate: 220
+  SeenFrom: 0
   GroupSize: {x: 3, y: 6}
   NearWater: 0
+  Habitat: 0
+  SwimDepth: 0.6
+  Leaps: 0
+  BreathesWater: 0
+  HoldBreath: 0
+  Vision: 0
   Active: 2
   Grazing: 0.5
   Thirst: 0.05
   Playfulness: 0.1
+  Child: 0
   Laziness: 0.3
   Hunts: []
   Hunger: 0.3
   ChaseTime: 10
+  Aggression: {x: 0.2, y: 0.5}
+  HuntAggression: 0
+  Idles: 2048
+  Fidgets: 0.5
+  Climbing: 0
+  SpinsWebs: 0
+  WebSize: 0.6
+  Burrows: 0
+  CaveDweller: 0
+  ChamberFolk: 0
+  Blind: 0
+  Wades: 0
+  ShunsLight: 0
+  SurfaceTrips: 0
+  TurtleJobs: 0
+  WalksBed: 0
+  Crawls: 0
+  ColdBlooded: 1
+  Role: 0
+  Hooves: 0
+  ClimbSkill: -1
+  EmoteReaction: 0
+  Tunnels: 0
+  Voice: 0
+  CaveAffinity: 0
+  Roosts: 0
+  Friendly: 0
+  LavaDweller: 0
+  FireTemper: 5
+  Haunts: 0
+  CrossesWater: 0
+  Nests: 0
+  DrawnToLight: 0
+  Hawks: 0
+  DrivenOff: 0
+  GuardKit: 0
+  GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
+  GuardSash: {r: 0.62, g: 0.12, b: 0.1, a: 1}
+  Rooted: 0
+  Disguised: 0
+  FlightHeight: {x: 8, y: 18}
+  FlySpeed: 7
+  PlayerFlySpeed: 0
+  PlayerJump: 0
+  FlapRate: 6
+  Glide: 0
+  Perching: 0.6
+  Soars: 0
+  Breaches: 0
+  RaidsHives: 0
+  Regard: []
+  RegardToAll: 0
+  Calls: []

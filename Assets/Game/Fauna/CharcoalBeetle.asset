@@ -18,6 +18,7 @@ MonoBehaviour:
   VariantThickness: 1
   VariantLegs: 1
   BodyLength: 0.07
+  Gallop: 0
   BodyRadius: 0.034
   BodyTaper: 1.15
   BodyFlatten: 0.72
@@ -33,6 +34,8 @@ MonoBehaviour:
   Size: {x: 0.9, y: 1.1}
   Weight: 0.006
   HairColors: []
+  Coat: 0
+  FurLength: 0
   Parts:
   - Limb: {fileID: 11400000, guid: 3ecb190472011a641862f4ffbcaca104, type: 2}
     Parent: -1
@@ -44,6 +47,7 @@ MonoBehaviour:
     Scale: 0.5
     Thickness: 0.6
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: 3ecb190472011a641862f4ffbcaca104, type: 2}
     Parent: -1
     Socket: {x: 0.9, y: -0.35, z: 0}
@@ -54,6 +58,7 @@ MonoBehaviour:
     Scale: 0.55
     Thickness: 0.6
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: 3ecb190472011a641862f4ffbcaca104, type: 2}
     Parent: -1
     Socket: {x: 0.9, y: -0.35, z: -0.45}
@@ -64,6 +69,7 @@ MonoBehaviour:
     Scale: 0.55
     Thickness: 0.6
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: ac5fabc5c8da29a4982cc42b138970eb, type: 2}
     Parent: -1
     Socket: {x: 0, y: 0.05, z: 1}
@@ -74,6 +80,7 @@ MonoBehaviour:
     Scale: 0.32
     Thickness: 0.9
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: c82284c495bfffb42a9414aef5c217e9, type: 2}
     Parent: -1
     Socket: {x: 0.3, y: 0.35, z: 1}
@@ -84,6 +91,7 @@ MonoBehaviour:
     Scale: 0.32
     Thickness: 0.5
     StyleGroup: 0
+    FurLength: 0
   - Limb: {fileID: 11400000, guid: 8db8692701365314db1a0b5e9ab1cbd1, type: 2}
     Parent: -1
     Socket: {x: 0.5, y: 0.35, z: 0.98}
@@ -94,6 +102,7 @@ MonoBehaviour:
     Scale: 0.45
     Thickness: 1
     StyleGroup: 0
+    FurLength: 0
   WalkSpeed: 0.3
   RunSpeed: 1.2
   Bob: {x: 0, y: 0}
@@ -104,6 +113,7 @@ MonoBehaviour:
   WanderRadius: 4
   IdleTime: {x: 3, y: 15}
   FleeDistance: 1.5
+  FleeGas: 0
   TurnRate: 200
   SeenFrom: 0
   GroupSize: {x: 1, y: 1}
@@ -111,6 +121,9 @@ MonoBehaviour:
   Habitat: 0
   SwimDepth: 0.6
   Leaps: 0
+  BreathesWater: 0
+  HoldBreath: 0
+  Vision: 0
   Active: 2
   Grazing: 0.2
   Thirst: 0
@@ -120,6 +133,8 @@ MonoBehaviour:
   Hunts: []
   Hunger: 0.3
   ChaseTime: 10
+  Aggression: {x: 0.2, y: 0.5}
+  HuntAggression: 0
   Idles: 2048
   Fidgets: 0.5
   Climbing: 0
@@ -127,16 +142,31 @@ MonoBehaviour:
   WebSize: 0.6
   Burrows: 0
   CaveDweller: 0
+  ChamberFolk: 0
+  Blind: 0
+  Wades: 0
+  ShunsLight: 0
+  SurfaceTrips: 0
+  TurtleJobs: 0
+  WalksBed: 0
   Crawls: 0
   ColdBlooded: 1
+  Role: 0
+  Hooves: 0
+  ClimbSkill: -1
+  EmoteReaction: 0
+  Tunnels: 0
+  Voice: 0
   CaveAffinity: 0
   Roosts: 0
   Friendly: 0
   LavaDweller: 0
+  FireTemper: 5
   Haunts: 0
   CrossesWater: 0
   Nests: 0
   DrawnToLight: 0
+  Hawks: 0
   DrivenOff: 0
   GuardKit: 0
   GuardArmour: {r: 0.55, g: 0.57, b: 0.6, a: 1}
@@ -145,10 +175,14 @@ MonoBehaviour:
   Disguised: 0
   FlightHeight: {x: 8, y: 18}
   FlySpeed: 7
+  PlayerFlySpeed: 0
+  PlayerJump: 0
   FlapRate: 6
   Glide: 0
   Perching: 0.6
   Soars: 0
   Breaches: 0
   RaidsHives: 0
+  Regard: []
+  RegardToAll: 0
   Calls: []
