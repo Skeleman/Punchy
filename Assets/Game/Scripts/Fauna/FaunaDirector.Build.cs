@@ -203,6 +203,10 @@ namespace Punchy.Fauna
                                  Punchy.Flora.FloraPlacement.CellSize(flora.Trees.TileSize, flora.Trees.CellSize))
                     : new float3(0.7f, 2f, 4.5f);
                 floraBlob = Punchy.Flora.FloraPlacement.Build(palette, cells, floraSpecies, obstacles: true, grownShapes: pendingShapes);
+                // A-115: the lamplighters' rounds, on every machine (each lamp's lit state comes from the clock and them).
+                lampBlob = LampRoutes.Build(ref floraBlob.Value, source, (Cycle != null ? Cycle.DayLengthMinutes : 24f) * 60f / 24f);
+                LampRoutes.Set(lampBlob);
+                stages.Append(' ').Append(LampRoutes.LastLog);
                 if (simWorld != null)
                 {
                     // (A-73: where fishing folk stand on the wharves, from the same grown shapes.)
@@ -217,6 +221,7 @@ namespace Punchy.Fauna
                     simWorld.EntityManager.SetName(floraEntity, "Flora Lookup");
                     simWorld.EntityManager.AddComponentData(floraEntity, new Punchy.Flora.FloraLookup { Blob = floraBlob });
                     simWorld.EntityManager.AddComponentData(floraEntity, new WharfSpotLookup { Blob = wharfBlob });
+                    simWorld.EntityManager.AddComponentData(floraEntity, new LampRouteLookup { Blob = lampBlob });
                 }
                 if (pendingShapes != null)
                     stages.Append(" (shapes waited ").Append(shapeFrames).Append(" frames)");

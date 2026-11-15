@@ -344,7 +344,7 @@ namespace Punchy.Fauna
             /// work, once fed up with the weather), not holding, a cave or rock dweller (the sky can't reach those),
             /// rooted, disguised or haunting.</summary>
             bool MaySeekShelter(in CreatureState s, ref CreatureBlob b) =>
-                (Free(s.Mode) || s.Mode == CreatureMode.Sit && s.Stage == 0 || s.Mode == CreatureMode.Work && M.Discomfort > 0.55f) &&
+                (Free(s.Mode) || s.Mode == CreatureMode.Sit && s.Stage == 0 || s.Mode == CreatureMode.Work && M.Discomfort > 0.55f && !LampRoundOn(in s)) &&
                 !CaveWalker(in s, ref b) && !OnPier(in s) &&
                 !b.Rooted && !b.Disguised && !b.Haunts;
         }
