@@ -7891,3 +7891,11 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Checks:** landmarks 117, hash 689D5348 (#301 pin unchanged), game hash FA8F24B1. PlayMode suite
   `completed: 40/40 passed` after the last code change.
 - Next: merge origin/main into this tree, compile, suite (coordinator order), then the land list.
+
+## Main check after #377-#382 (coordinator order): no break
+
+- origin/main 903dcb5c merged into world/playtest-1114 (now 29adc54f, pushed) with no conflicts. Clean compile (no
+  script errors), PlayMode suite `completed: 40/40 passed`, landmarks 117 hash 689D5348, game hash FA8F24B1.
+- world/playtest-1114 (W-172 row 1, #301) is ready for PR on top of current main.
+- Next: land cliff-kit, world-pack, water/truth, waterfall-sheets, log-bark, then the rest of W-172; W-166 row 2
+  (#336) follows W-172, per the supervisor.
