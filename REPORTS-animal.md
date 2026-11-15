@@ -5210,3 +5210,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Solo/host/client: spawn counts are server-side; clients get the same ghosts.
 - Shares: the one RideLife ChildCandidate path (main's), now with the household check. No parallel.
 - NEXT: fauna/one-population is ready for PR. lying-legs merge next. The fauna editor hung on Burst SharedStatic twice after a branch switch; restarted by my PID only.
+
+## 11-15 landing list: fauna/lying-legs merged with main (#298 follow-up) - done (verified)
+- fauna/lying-legs 66432c1a. CreatureAnimator.cs conflict: the lying-leg rise now reaches max(shallow dip, own radius + lying height), so main's height term and the branch's reach both stay.
+- Fingerprint pin in WorldTests passes as on main (no limb data change). Full PlayMode suite 40/40.
+- Solo/host/client: pose only, drawn from replicated state; all three the same.
+- Editor: Burst SharedStatic hang after the branch switch again; killed my own PID, the fauna editor is now PID 25700.
+- Shares: the one CreatureAnimator lying path (LowestLegOnGround). No parallel.
+- NEXT: landing list done except far-life (waits on the rule 11 ask above). fauna/lying-legs is ready for PR. Starting A-125 (#360) on fauna/swimmer-splash.
