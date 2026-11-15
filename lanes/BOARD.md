@@ -13,7 +13,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits (new) | Row 1 audit and design note, after world-pack lands |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r2 | #336 | world | next | - | Wood, shared includes, test |
+| W-166 r2 | #336 | materials | active | world/material-library (tree Punchy-materials) | Wood library, shared includes, test |
 | A-126 r2-4 | #367 | fauna | active | fauna/playtest-1114 527e2f14 | Ledge hands, shimmy prompt, steer ridden animals |
 | A-108 r2 | #298 | fauna | next | fauna/far-life d0524eaa | Rule 11 answered YES 11-15: fauna makes the 3 world-file edits on the merge |
 | A-113 | no issue | fauna | ready? | flora/tree-variety f92b1fef | Merge main in, re-pin, hand off |
@@ -24,12 +24,12 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-25 r3 | #302 | render | ready? | render/far-lights 5fe0ce36 | Land before R-38 row 2 |
 | R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
 | R-34 r2 | #332 | render | ready | render/stone-trial 298f2084 | Base rock from the stone function, wet adds shine (Zach 11-15) |
-| R-39 | #401 #402 #302 #269 | render | next | render/playtest-1115 (new) | After R-38 |
+| R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance |
 | P-38 | #372 | player | ready | player/take-items 487dd137 | Merge main in, hand off, supervisor PRs |
 | P-33 | #266 | player | blocked | player/fishing ef77443b | Fishing playtest build; row 4 waits on Zach's feel notes |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
 | P-39 | #397 #398 | player | next | - | Menus d-pad/stick, Start/Select, facing prompts |
-| P-40 | #396 | player | next | - | Dismount on size change, jump off |
+| P-40 | #396 | player-2 (supervisor agent) | active | player/dismount (tree Punchy-docs) | Dismount on size change, jump off |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | active | player/take-items 487dd137, player/fishing ef77443b | Land take-items then fishing on main; rods in start pack and at docks |
