@@ -43,8 +43,13 @@ CAPS=$(ls "$RD"/*.rdc 2>/dev/null | xargs -n1 cygpath -w | tr '\n' ';')
 [ -n "$CAPS" ] && RD_CAPS="$CAPS" RD_OUT="$(cygpath -w "$R/$Q-passes.txt")" RD_MAXDEPTH=6 RD_TOPDRAWS=15 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
 echo "qrenderdoc rc=$?"; strays >/dev/null
 for t in $(ls "$R"/q-$Q-*-cs100-1.raw 2>/dev/null | xargs -n1 basename | sed 's/^q-//; s/\.raw$//'); do
+  # (The editor needs BProfileTools in the project; build() copies it in and out, so do the same here, as q104 does.)
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
   ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
       -raws "$WW\\q-$t.raw" -out "$WW\\$t.txt" -keep LightBudget -logFile "$W/analyze-$t.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
   [ -f "$R/$t.txt" ] && rm -f "$R/q-$t.raw"
   echo "== $t"; grep -i "LightBudget\|Glow\|Light" "$R/$t.txt" | head -12
 done

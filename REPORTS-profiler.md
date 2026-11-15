@@ -2,6 +2,23 @@
 
 Newest first.
 
+## Job 78: night town light cost (main 3b192717, shelf build), 2026-11-15 (q120.sh, q120a.sh): glow can't be isolated on main; Resolve has no marker; Ultra's 2 fps lows are SurfaceGlow's world bake landing in the window
+**Setup:** the R-25 town (2988.8,-920) at midnight, Clear, `-lightlog`: from the square facing north, and 200 m south of it facing north. Medium and Ultra, 1920x1080, uncapped, 3 measured games each (the first with the Profiler on), then one RenderDoc frame per view. The shelf build (3b19271) carried the profiler runner (runnercheck.py).
+
+| view | preset | GPU ms (3 rounds) | main thread ms | 1% low fps | `[lights]` |
+|---|---|---|---|---|---|
+| square | Medium | 14.4, 14.0, 14.0 | 17.4, 14.6, 14.1 | 11-19 | requests 84, **glow slots 16/16**, real 0/6, dropped 18, indoor 11 |
+| 200 m out | Medium | 13.3, 13.2, 13.0 | 15.4, 12.6, 13.3 | 29-38 | requests 53, glow slots 3/16, dropped 0 |
+| square | Ultra | 22.9, 21.6, 23.9 | 31.7, 25.5, 30.9 | ~2 | requests 97, **glow slots 16/16**, real 0/8, dropped 38 |
+| 200 m out | Ultra | 23.3, 22.8, 22.8 | 28.5, 23.5, 22.6 | ~2 | requests 54, glow slots 11/16, dropped 0 |
+
+- **Glow pass: not measurable as asked.** Glow.hlsl's loop runs inside each lit shader (no pass of its own in RenderDoc), and main has no switch to turn the slots off (`LightBudget.GlowSlots` is a const 16). Square vs 200 m out (16 vs 3 slots) is ~0.9 ms GPU at Medium, but the views differ in everything else too. **Ask:** a `-glowslots N` switch (render lane) would price it in one A/B.
+- **`LightBudget.Resolve`:** no Profiler marker by that name (the analysis kept every "LightBudget" sample and found none), so it's either inlined or under 0.03 ms. If it needs a number, a ProfilerMarker around it would give one.
+- **Ultra's ~2 fps 1% lows are not the lights:** each Ultra game has a burst of 0.3-0.54 s frames 1-5 s into the measured part (e.g. 398, 393, 493, 519, 522 ms at 55-59 s, another 539 ms at 66 s). The Profiler puts **SurfaceGlow:WorldBakeJob (Burst) at 2.5-3.4 s on the workers in those frames** (FarScanJob 0.3-0.4 s), with Mono.JIT up to 2.8 s; median frames are 22-26 ms. That's start-up work in the measured window again (job 64), worst at Ultra. **Flag for the render lane: SurfaceGlow's world bake is a multi-second worker job that stalls frames when it lands.**
+- **Flags (Glow > 0.5 ms GPU, Resolve > 0.2 ms main):** neither can be checked without the two asks above.
+
+Cost: laptop total $895 (laptop session e163d8ab; 0 builds (shelf), 12 games, 4 RenderDoc frames, 4 analyses).
+
 ## Job 77: W-155 scarps, rows 1 (world/scarps feab6870 = B) and 1b (4b38a42c = C) vs main 697e565f (A), 2026-11-14 (q119.job): bake within 250 ms; 1b's canyon chunks take 3.4 s to apply (frames up to 810 ms); my rim pose missed the wall
 **Setup:** Profile builds, Medium, 1920x1080, uncapped, noon, Clear, arms rotated, 3 rounds.
 

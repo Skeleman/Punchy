@@ -788,7 +788,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Added 11-14: if the job hasn't started, also run row 1b (`world/scarps` 4b38a42c) as C in the same rounds (ABCA
   order is fine). If B was already taken, run only C against the same A.
 
-## Job 78 (2026-11-14, RUNNING 11-15 (q120.sh); supervisor, audit 11-13, #311): night town light cost
+## Job 78 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md (q120.sh; needs -glowslots and a Resolve marker); supervisor, audit 11-13, #311): night town light cost
 - Main (latest). Profile build, 1920x1080, Medium and Ultra, uncapped, midnight, Clear, `-weatherseed 4`.
 - The largest town at night, 300 frames from the square and 300 from 200 m out: GPU ms, main ms, and the samples
   for the glow pass (Glow.hlsl loop) and `LightBudget.Resolve`; count active glow slots and light requests.
