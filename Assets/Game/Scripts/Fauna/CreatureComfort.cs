@@ -30,6 +30,10 @@ namespace Punchy.Fauna
         public byte Race;
         /// <summary>False for anything that never minds the weather (fish, ghosts, rooted plants).</summary>
         public bool Minds;
+        /// <summary>A-121 row 2: how wide a berth it gives a lit fire, as a share of the fire's heat reach (0 none, 1
+        /// all of it), before its own personality; and whether it likes a fire's heat however hot (cinder kin).</summary>
+        public float FireShy;
+        public bool LovesFire;
     }
 
     /// <summary>The weather and climate at one point, as comfort reads it (Comfort.WeatherAt).</summary>
@@ -232,7 +236,17 @@ namespace Punchy.Fauna
         /// sun and half the wind; shade the sun; water the dry heat and much of the heat; a fire warms it.
         /// </summary>
         public static float Pressure(in ComfortProfile p, uint individual, in ComfortWeather w, float night, bool underground,
-                                     ShelterNeed cover, out ComfortKind kind)
+                                     ShelterNeed cover, out ComfortKind kind) =>
+            Pressure(in p, individual, in w, night, underground, cover, 0f, out kind);
+
+        /// <summary>The heat above which this individual is too hot (its range's top, its own shift and tolerance).</summary>
+        public static float HotLine(in ComfortProfile p, uint individual) =>
+            p.Heat.y + 0.05f * CreatureBlob.Trait(individual, 7102) + math.max(p.Tolerance * (1f + 0.4f * CreatureBlob.Trait(individual, 7101)), 0f);
+
+        /// <param name="fireHeat">A-121 row 2: the heat the fires near it add (FireSpots.HeatAt), sheltering by one or
+        /// not. A fire-lover's fire never makes it too hot.</param>
+        public static float Pressure(in ComfortProfile p, uint individual, in ComfortWeather w, float night, bool underground,
+                                     ShelterNeed cover, float fireHeat, out ComfortKind kind)
         {
             kind = ComfortKind.None;
             if (!p.Minds || Off.Data != 0)
@@ -249,8 +263,13 @@ namespace Punchy.Fauna
             var watered = (cover & ShelterNeed.Water) != 0;
             if (watered)
                 heat = math.min(heat - 0.12f, math.lerp(heat, 0.45f, 0.6f)); // (a dip, or a well's wet stones, cools a lot)
+            var warmed = heat + fireHeat;
+            if (p.LovesFire && fireHeat > 0f)
+                warmed = math.max(heat, math.min(warmed, p.Heat.y + shift));
+            // (Sheltering at a hearth indoors, with no listed flame by it, still warms as before.)
             if ((cover & ShelterNeed.Fire) != 0)
-                heat = math.max(heat, math.min(heat + 0.35f, 0.6f));
+                warmed = math.max(warmed, math.min(heat + 0.35f, 0.6f));
+            heat = warmed;
             // How much of each kind of sky still reaches it.
             var wetness = roofed ? 0f : tree ? 0.35f : 1f;
             var storminess = roofed ? 0f : tree ? 0.6f : 1f;
@@ -360,6 +379,15 @@ namespace Punchy.Fauna
                     Race = race.Id, Heat = new float2(race.Heat.x, race.Heat.y), Rain = race.Rain, Snow = race.Snow, Storm = race.Storm,
                     Bright = race.Bright, Wind = race.Wind, Dry = race.Dry, Tolerance = 0.08f, Seeks = race.Seeks, Minds = true
                 };
+            // A-121 row 2: its way with a lit fire. Folk use fires; friendly animals keep a short way off; cold-blooded ones
+            // bask a few metres out (and seek one out when cold); other wild animals keep well away.
+            var temper = variant.FireTemper != FireTemper.Auto ? variant.FireTemper : s.FireTemper;
+            if (temper == FireTemper.Auto)
+                temper = race != null ? FireTemper.Ignores : s.Friendly ? FireTemper.Wary : s.ColdBlooded ? FireTemper.Basks : FireTemper.Shy;
+            p.FireShy = temper switch { FireTemper.Shy => 0.75f, FireTemper.Wary => 0.25f, FireTemper.Basks => 0.35f, _ => 0f };
+            p.LovesFire = temper == FireTemper.Loves;
+            if (temper is FireTemper.Basks or FireTemper.Loves)
+                p.Seeks |= ShelterNeed.Fire;
             // Nothing that swims, never moves or is a ghost minds the weather.
             if (s.Habitat == Habitat.Swims || s.Rooted || s.Disguised || s.Haunts || s.Tunnels || s.LavaDweller)
                 p.Minds = false;

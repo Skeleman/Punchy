@@ -14,7 +14,7 @@ namespace Punchy.Fauna
         public static readonly SharedStatic<ShelterCounts> Shelters = SharedStatic<ShelterCounts>.GetOrCreate<ShelterCountsKeyV3>();
         struct ShelterCountsKeyV3 { }
         /// <summary>(Rock: of those started, how many went to a big rock's lee or overhang, A-72 row 6.)</summary>
-        public struct ShelterCounts { public int ThisFrame; public long Started, Arrived, NotFound, Indoors, Posed, Rock; }
+        public struct ShelterCounts { public int ThisFrame; public long Started, Arrived, NotFound, Indoors, Posed, Rock, FireBacked, FireDrawn; }
         /// <summary>At most this many shelter searches a frame, over every creature (each looks up trees, anchors, caves).</summary>
         const int ShelterSearchesPerFrame = 8;
 
@@ -156,17 +156,33 @@ namespace Punchy.Fauna
                         }
                     }
                 }
-                // A fire: a hearth or a camp's fire, a step back from it.
+                // A fire: a lit one from the heat list (A-121 row 2), else a hearth or a camp's fire, a step back from it
+                // (and outside the berth this one keeps from flames).
                 if ((wanted & ShelterNeed.Fire) != 0)
                 {
-                    var fire = NearestAnchor(AnchorKind.Hearth, at, 40f);
-                    if (fire < 0)
-                        fire = NearestAnchor(AnchorKind.Camp, at, 40f);
+                    var fire = -1;
+                    var flame = float2.zero;
+                    var back = rng.NextFloat(1.4f, 2f);
+                    if (Fires.On && Fires.Nearest(at, 40f, Night, out var lit))
+                    {
+                        flame = lit.Position.xz;
+                        back = math.max(back, lit.Radius + M.FireKeep + 0.6f);
+                        fire = 0;
+                    }
+                    else
+                    {
+                        fire = NearestAnchor(AnchorKind.Hearth, at, 40f);
+                        if (fire < 0)
+                            fire = NearestAnchor(AnchorKind.Camp, at, 40f);
+                        if (fire >= 0)
+                        {
+                            flame = Terrain.Anchors.Value.Anchors[fire].Position.xz;
+                            back = math.max(back, M.FireKeep + 1.4f);
+                        }
+                    }
                     if (fire >= 0)
                     {
-                        ref var set = ref Terrain.Anchors.Value;
-                        var flame = set.Anchors[fire].Position.xz;
-                        var spot = flame + math.normalizesafe(at - flame, new float2(0f, 1f)) * rng.NextFloat(1.4f, 2f);
+                        var spot = flame + math.normalizesafe(at - flame, new float2(0f, 1f)) * back;
                         // (Cold, a fire is worth twice the walk of a door or a cave.)
                         var d = math.distance(at, spot) * (M.DiscomfortKind == ComfortKind.Cold ? 0.5f : 1f);
                         if (d < best)
@@ -344,7 +360,7 @@ namespace Punchy.Fauna
             /// work, once fed up with the weather), not holding, a cave or rock dweller (the sky can't reach those),
             /// rooted, disguised or haunting.</summary>
             bool MaySeekShelter(in CreatureState s, ref CreatureBlob b) =>
-                (Free(s.Mode) || s.Mode == CreatureMode.Sit && s.Stage == 0 || s.Mode == CreatureMode.Work && M.Discomfort > 0.55f) &&
+                (Free(s.Mode) || s.Mode == CreatureMode.Sit && s.Stage == 0 || s.Mode == CreatureMode.Work && M.Discomfort > 0.55f && !LampRoundOn(in s)) &&
                 !CaveWalker(in s, ref b) && !OnPier(in s) &&
                 !b.Rooted && !b.Disguised && !b.Haunts;
         }
