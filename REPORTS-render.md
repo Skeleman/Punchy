@@ -415,3 +415,32 @@ with main d95e7ff1); compiles, no suite run yet.
   cloud-shift difference (grey means no change).
 - Asks: none. Merge when convenient.
 - NEXT: R-20 row 1 (High-only 4096 map and wide filter, new branch from origin/main).
+
+## R-20 row 1 (#286): wide sun-shadow filter and 4096 map at High and above (2026-11-14)
+
+- DONE: render/shadow-high, from origin/main 4df85493, two commits:
+  - aacca6ac: SunShadowFilter.cs (ported from 1a380545). The sun's soft-shadow filter is High when the Shadows
+    setting casts four cascades (High and Ultra); Medium and Low keep the scene's own (Low). `-sunshadowfilter
+    scene|low|medium|high` overrides it. One line in docs/agents/rendering.md.
+  - 59377453: GraphicsSettings.cs, 6 lines under the Job 71 exception: the sun's shadow map is 4096 at four
+    cascades, else the asset's 2048. Set at run time on the pipeline asset, put back on quit (and on leaving
+    play mode in the editor). No second pipeline asset, no asset file change.
+- Checks:
+  - Presets in play: Low and Medium give 2048 and filter Low; High and Ultra give 4096 and filter High. After
+    leaving play the asset reads 2048 and `git status` is clean.
+  - Still camera at the stable yard, High, noon, world frozen (time scale 0, so NPCs hold still), sun moved by
+    its held 0.1-degree steps (R-32). Pixels changed (>4 levels, 960x540) on the three step frames:
+    before (2048, scene filter) 947 / 593 / 3113, after 148 / 152 / 2466 (total 4677 -> 2820). The near
+    shadows (tower, roofs, stair) nearly stop moving. The third step's remaining change sits on far roofs in the
+    last cascade, and is the same in both.
+  - With the clock running the frame pairs are dominated by walking NPCs and the sun's real turn, so they were
+    not used as the measure.
+  - Slow walk (camera sliding 0.3 m per frame, sun held): no swimming in either; after, the edges are softer.
+  - Editor against player: R-32 row 1 already compared them (the crawl is the sun turning in both; the editor's
+    2560x1600 game view shows each texel step over more pixels). An A/B of this row in a player needs a build.
+  - No shader changed, so no NaN probe. Suite after the last change: `completed: 40/40 passed`.
+- Shots (milestones folder R-20): `R20-row1-sunstep-before-after.png` (top before, bottom after; right, what one
+  sun step changed, x10), `R20-row1-walk-before-after.png`.
+- Asks: BENCH job for the cost of the 4096 map plus the wide filter at High (rule 21, not timed here). Merge when
+  convenient.
+- NEXT: R-32 row 2 (grass in every shadow tier), then rows 3-4, from a new branch off origin/main.
