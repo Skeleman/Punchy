@@ -837,7 +837,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   director; the `[members]` line's legs and full counts (about 27 on legs expected at the centre).
 - Pass (rule 23): B no worse than A on main thread at both views; report the saving.
 
-## Job 84 (2026-11-14, RUNNING 11-15, chained after 83 (q126.job; spots chosen by the profiler, see the spec); fauna lane, A-113 rows 1-3, #313): denser, more varied temperate woods
+## Job 84 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md, chained after 83; needs the lane's spots for a clean rerun (q126.job; spots chosen by the profiler, see the spec); fauna lane, A-113 rows 1-3, #313): denser, more varied temperate woods
 - main 1746d62a (A) vs `flora/tree-variety` ac7880fc (B). Profile builds, 1920x1080, Medium, uncapped, 10:00, Clear,
   `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: inside a temperate wood with willow by water and a beech grove in view; a 30 m rise over mixed wood; a far

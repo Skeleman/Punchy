@@ -2,6 +2,23 @@
 
 Newest first.
 
+## Job 84: A-113 denser, more varied temperate woods (flora/tree-variety ac7880fc = B vs main 1746d62a = A), 2026-11-15 (q126.job): FAIL in the oak grove (+0.7 ms GPU); my other spots aren't good temperate-wood views
+**Setup:** Medium, 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds. A from the shelf, B built here. The card names its spots only in the lane's shots (no coordinates), so I chose: inside the oak grove (`-place OakGrove`), the lakeshore meadow (`-benchspot 470,1840`), 30 m over (1740,3390), and 280 m over (2200,-2600) facing R-22's fly300 target. Shots: results/sheets/woods.jpg.
+
+| view | A GPU | B GPU | **delta** | A main | B main |
+|---|---|---|---|---|---|
+| oak grove, inside | 12.6 | 13.3 | **+0.70 FAIL** | 11.13 | 11.37 |
+| lakeshore meadow | 13.43 | 13.27 | -0.17 | 12.13 | 12.17 |
+| 30 m up at (1740,3390) | 18.67 | 17.97 | -0.70 | 11.37 | 12.07 |
+| far, 280 m up | 9.53 | 10.0 | +0.47 | 10.60 | 10.10 |
+
+- **The oak grove is the real reading: +0.7 ms GPU** (rounds 13.2-13.4 vs 12.5-12.7), with B's denser, more varied trees in frame (the sheet shows the added broadleaf crowns). Main thread +0.24.
+- **My other three spots don't test the change well** (the shots show it): the lakeshore meadow has no willow or wood in view; the 30 m spot is over a coastal meadow with scattered trees (B reads -0.7 there, and B's main thread is +0.7); the far view looks over a red-pine plain, not temperate wood (+0.47). I'd not use them for the verdict. **The lane's shot poses (a willow bank, a beech grove, a 30 m rise over mixed wood) as `-benchspot` lines would make a clean rerun.**
+- **Name to trim (per the card):** with only the grove reading clean, I can't split it by species. Willow LOD0 (~20k tris) is the card's first suspect, but no willow was in my frames.
+- **Impostor bake at load:** layer 1 (60 of 214 models) 6.6 ms on B vs 5.9 ms on A, over 5 frames; slowest model 3.75 vs 3.32 ms. Shadow cache: no line in these logs.
+
+Cost: laptop total $917 (laptop session e163d8ab; 1 build, 24 games).
+
 ## Job 83: A-110 row 5 far town folk on low-rate brains (fauna/one-population f1747057 = B vs row 4 3d0c8df2 = A), 2026-11-15 (q125.job): PASS, small saving
 **Setup:** shelf builds (runner checked), Medium, 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds. Views: town 73 centre (`-benchspot 2972,-885,0`) and 200 m north facing it (`-benchspot 2972,-685,180`). Then one Profiler-captured centre game per arm.
 
