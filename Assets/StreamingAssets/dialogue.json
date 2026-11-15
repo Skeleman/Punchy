@@ -499,6 +499,7 @@
         { "text": "Well enough. My {kin_word} {kin_name} had us up half the night, mind.", "kin": "child", "weight": 0.4 },
         { "text": "Can't complain. {kin_name}, my {kin_word}, does the complaining for both of us.", "kin": "partner", "weight": 0.4 },
         { "text": "Not so good. I keep thinking of my {kin_word} {kin_name}.", "gone": true, "weight": 0.6 },
+        { "text": "Fine. {pet_name}, our {pet_kind}, kept me up chasing something in the dark.", "pet": true, "weight": 0.4 },
         "Can't complain.",
         { "text": "Very well, thank you!", "mood": "Cheerful", "gesture": "Cheer" },
         { "text": "Never better. Lovely day for it.", "mood": "Cheerful", "when": "day" },
@@ -645,6 +646,9 @@
         { "text": "My {kin_word} {kin_name} and I get on. Mostly. On good days.", "kin": "inlaw" },
         { "text": "My {kin_word} {kin_name} borrowed my boots. That was a year ago.", "kin": "sibling" },
         { "text": "Seen my {kin_word} {kin_name} about? Tell them supper's on.", "kin": "partner" },
+        { "text": "Our {pet_kind} {pet_name} rules the house, really. We just live in it.", "pet": true },
+        { "text": "There's us, and there's {pet_name}, our {pet_kind}. Don't tell the others, but {pet_name}'s my favourite.", "pet": true, "warmth": ["mid", "high"] },
+        { "text": "If you see a {pet_kind} answering to {pet_name}, send it home. It knows the way, it just won't.", "pet": true },
         { "text": "We lost my {kin_word} {kin_name}. The house is too quiet now.", "gone": true, "weight": 2 },
         { "text": "I still set a place for my {kin_word} {kin_name}. Silly, I know.", "gone": true, "weight": 2, "warmth": ["mid", "high"] },
         { "text": "My {kin_word} {kin_name} is gone. Don't ask me more than that.", "gone": true, "weight": 2, "mood": "Grumpy" }

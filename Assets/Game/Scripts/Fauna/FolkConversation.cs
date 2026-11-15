@@ -555,6 +555,8 @@ namespace Punchy.Fauna
                 return false;
             if ((l.Kin != null || l.Gone) && !HasKin(who, l))
                 return false;
+            if (l.Pet && (who.House == null || who.House.Pet == null))
+                return false;
             return string.IsNullOrEmpty(l.When) || DialogueArchive.InHours(l.When, who.State.Hour);
         }
 
@@ -584,6 +586,13 @@ namespace Punchy.Fauna
                         text = text.Replace("{kin_name}", who.House.NameOf(m)).Replace("{kin_word}", who.House.WordFor(who.Member, m));
                         break;
                     }
+            }
+            if (text.IndexOf("{pet_", StringComparison.Ordinal) >= 0)
+            {
+                var house = ctx.Who.House;
+                if (house == null || house.Pet == null)
+                    return null;
+                text = text.Replace("{pet_name}", house.PetName).Replace("{pet_kind}", house.PetWord);
             }
             if (text.IndexOf("{quest}", StringComparison.Ordinal) >= 0)
             {
@@ -819,6 +828,9 @@ namespace Punchy.Fauna
             /// with nobody else at home), or null; Gone: it's about a member who has died.</summary>
             public string[] Kin;
             public bool Gone;
+            /// <summary>A-120: a line about the household's pet ({pet_name}, {pet_kind}), said only by a folk whose house
+            /// keeps one.</summary>
+            public bool Pet;
             /// <summary>How many things it's keyed on (traits, conditions): a more particular line is more likely.</summary>
             public int Keys;
         }
@@ -927,6 +939,7 @@ namespace Punchy.Fauna
                 Ends = o["ends"] != null && (bool)o["ends"],
                 Kin = Strings(o["kin"]),
                 Gone = o["gone"] != null && (bool)o["gone"],
+                Pet = o["pet"] != null && (bool)o["pet"],
             };
             line.OfferKind = OfferOf((string)o["offer"], out line.OfferId);
             if (o["response"] != null && Enum.TryParse((string)o["response"], true, out BeastResponse response))
@@ -963,7 +976,7 @@ namespace Punchy.Fauna
                 line.Keys++;
             if (line.Groups != null)
                 line.Keys++;
-            if (line.Kin != null || line.Gone)
+            if (line.Kin != null || line.Gone || line.Pet)
                 line.Keys++;
             return line;
         }
