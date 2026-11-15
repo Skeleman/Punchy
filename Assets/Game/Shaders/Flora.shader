@@ -34,6 +34,7 @@ Shader "Punchy/Flora"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
             #include "Flora.hlsl"
+            #include "Stone.hlsl"
             #include "Grounding.hlsl"
             #include "Metal.hlsl"
             #include "Glow.hlsl"
@@ -336,7 +337,10 @@ Shader "Punchy/Flora"
                 // it stays; the bark's own grain (below) does the work.
                 bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
                 near *= bark ? 0.35 : 1;
-                if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
+                // R-34 trial (off by default): boulders and built stone (not timber, not living plants) take the shared
+                // stone look (Stone.hlsl) in place of the relief here. No marker tells built stone from plaster yet.
+                bool stone = part == 0 && !wood && input.living < 0.5 && PunchyStoneOn() && _PunchyCaveDetailReady > 0;
+                if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0 && !stone)
                 {
                     float3 q = input.positionWS * 0.9;
                     float3 w = pow(abs(n), 4);
@@ -432,6 +436,13 @@ Shader "Punchy/Flora"
                 }
                 // Wet darkens. Bark and leaves (items 27-28) soak it up, so they darken more and shine far less (below).
                 albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
+                half stoneWet = 0, crevice = 0;
+                half3 stoneN0 = n;
+                if (stone)
+                {
+                    stoneWet = PunchyStoneWet();
+                    PunchyStoneSurface(input.positionWS, footprint, stoneWet, wet, albedo, n, crevice);
+                }
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
@@ -475,6 +486,8 @@ Shader "Punchy/Flora"
                 // surfaces have a little smoothness), so rocks fade into the same sky-tinted haze as the land. Metal
                 // and crystal too: dark ones (obsidian) otherwise stay black specks on a distant hazy slope. Up close
                 // dry stone, wood and plaster stay matte (rain adds its own sheen below).
+                if (stone && stoneWet > 0)
+                    color += SampleSH(reflect(-v, n)) * PunchyStoneFresnel(n, v, crevice, stoneWet) * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
@@ -599,6 +612,18 @@ Shader "Punchy/Flora"
                 // highlight of wet stone or planks (on them it read as shiny plastic and showed up the evergreens' facets).
                 bool damp = bark || leafy;
                 half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5);
+                if (stone && stoneWet > 0)
+                {
+                    // The wet trial stone's own two lobes, from the sun and the lantern, in place of the wet gloss.
+                    color += light.color * shadow * PunchyStoneSpec(n, stoneN0, v, light.direction, crevice, stoneWet) * ao;
+                    if (_PunchyLantern.w > 0)
+                    {
+                        float3 toLantern = _PunchyLantern.xyz - input.positionWS;
+                        float reachL = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+                        color += _PunchyLanternColor.rgb * _PunchyLantern.w * reachL * PunchyStoneSpec(n, stoneN0, v, normalize(toLantern), crevice, stoneWet) * ao;
+                    }
+                    gloss = 0;
+                }
                 if (gloss > 0)
                 {
                     half3 h = normalize(light.direction + v);

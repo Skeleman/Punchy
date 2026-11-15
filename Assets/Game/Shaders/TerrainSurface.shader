@@ -48,6 +48,7 @@ Shader "Punchy/Terrain Surface"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            #include "Stone.hlsl"
             // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
             float2 _PunchyWindDirection;
             half _PunchyWind;
@@ -601,6 +602,22 @@ Shader "Punchy/Terrain Surface"
                           * (1 + rockGrain * 0.6) * (1 + rockMottle * 0.7) * (1 - rockLedge * 0.45);
                     albedo = lerp(albedo, rock, rockFace);
                 }
+                // R-34 trial (off by default): steep faces take the shared stone look (Stone.hlsl) on top of the beds and
+                // ledges above. Its footprint from the same reference pixels as R-19's fades (screen size, not metres).
+                half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
+                half3 stoneN0 = normalWS;
+                [branch] if (rockFace > 0.001 && PunchyStoneOn() && _PunchyCaveDetailReady > 0)
+                {
+                    float ppmS = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                    stoneOn = rockFace;
+                    stoneWet = PunchyStoneWet();
+                    half3 stoneAlbedo = albedo, stoneN = normalWS;
+                    PunchyStoneSurface(input.positionWS, max(distance, 0.01) / ppmS, stoneWet, wet, stoneAlbedo, stoneN, stoneCrevice);
+                    albedo = lerp(albedo, stoneAlbedo, rockFace);
+                    normalWS = normalize(lerp(normalWS, stoneN, rockFace));
+                    inputData.normalWS = normalWS;
+                    inputData.bakedGI = SampleSH(normalWS) + PunchyGlowLight(input.positionWS, normalWS) + PunchyGlowWorld(input.positionWS, normalWS);
+                }
                 albedo *= rockShade;
                 albedo *= 1 - burrowDarken;
                 albedo = lerp(albedo, half3(0.33, 0.26, 0.20), saltDirt);
@@ -630,12 +647,21 @@ Shader "Punchy/Terrain Surface"
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
+                // (The wet trial stone brings its own shine below, in place of rain's sheen.)
+                surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle));
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
                 surface.emission = input.emission * _EmissionScale;
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
+                [branch] if (stoneOn * stoneWet > 0)
+                {
+                    Light stoneSun = GetMainLight(inputData.shadowCoord);
+                    half3 stoneV = inputData.viewDirectionWS;
+                    color.rgb += (stoneSun.color * stoneSun.shadowAttenuation * PunchyStoneSpec(normalWS, stoneN0, stoneV, stoneSun.direction, stoneCrevice, stoneWet)
+                                + SampleSH(reflect(-stoneV, normalWS)) * PunchyStoneFresnel(normalWS, stoneV, stoneCrevice, stoneWet)) * stoneOn * (1 - puddle);
+                }
 
                 // Puddles read like the rivers (W-43b): looking down, a dark see-through film over the ground (a cool
                 // tint, like the water body); at grazing angles the live sky, by the water's Fresnel, off a surface

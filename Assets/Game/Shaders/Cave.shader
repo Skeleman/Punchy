@@ -86,6 +86,7 @@ Shader "Punchy/Cave"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            #include "Stone.hlsl"
 
             Varyings Vert(CaveAttributes input)
             {
@@ -396,6 +397,21 @@ Shader "Punchy/Cave"
                 // Slick ice: the deep, clear tone of the rock and a mirror gloss.
                 rock = lerp(rock, s1.rgb * 0.8, slick * 0.7);
                 gloss = lerp(gloss, 0.97, slick);
+                // R-34 trial (off by default): bare walls and dressed stone take the shared stone look (Stone.hlsl), its
+                // wet trial's lobes replacing the gloss highlight. Not ice, nor the ground's share.
+                half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
+                half3 stoneN0 = n;
+                float stoneFootprint = length(fwidth(p));
+                [branch] if (PunchyStoneOn() && _PunchyCaveDetailReady > 0 && dressed < 1.5)
+                {
+                    stoneOn = (1 - terrain) * (1 - slick);
+                    stoneWet = PunchyStoneWet();
+                    half3 stoneRock = rock, stoneN = n;
+                    PunchyStoneSurface(p, stoneFootprint, stoneWet, damp, stoneRock, stoneN, stoneCrevice);
+                    rock = lerp(rock, stoneRock, stoneOn);
+                    n = normalize(lerp(n, (float3)stoneN, stoneOn));
+                    gloss *= 1 - stoneOn * stoneWet;
+                }
                 // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
                 half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
                 half3 albedo = lerp(rock, ground, terrain);
@@ -416,13 +432,15 @@ Shader "Punchy/Cave"
                 half3 light = SampleSH(n) * lerp(_Darkness, 1, openness);
                 // R-36: cloud shadow only where the sky is overhead; one read, shared with the terrain share below.
                 half cloudShadow = 0;
+                half3 shine = 0;
                 if (openness > 0.001)
                 {
                     cloudShadow = PunchyCloudShadow(p);
                     Light sun = GetMainLight(TransformWorldToShadowCoord(p));
                     light += sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness * (1 - cloudShadow);
+                    [branch] if (stoneOn * stoneWet > 0)
+                        shine += sun.color * sun.shadowAttenuation * openness * (1 - cloudShadow) * PunchyStoneSpec(n, stoneN0, view, sun.direction, stoneCrevice, stoneWet) * stoneOn;
                 }
-                half3 shine = 0;
                 half3 through = 0;
 
                 // Lanterns and other lights work everywhere: diffuse, highlights on polished, wet or crystal rock, and
@@ -435,6 +453,8 @@ Shader "Punchy/Cave"
                     float3 h = normalize(l.direction + view);
                     shine += lit * pow(saturate(dot(n, h)), shininess) * saturate(gloss + metallic * 0.6 + facets * 0.8) * glint;
                     through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, l.direction)));
+                    [branch] if (stoneOn * stoneWet > 0)
+                        shine += lit * PunchyStoneSpec(n, stoneN0, view, l.direction, stoneCrevice, stoneWet) * stoneOn;
                 LIGHT_LOOP_END
 
                 // Glowing things nearby (molten pools, glowing plants): their light falling off over its reach, brightest
@@ -464,6 +484,8 @@ Shader "Punchy/Cave"
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
                 // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
                 color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);
+                [branch] if (stoneOn * stoneWet > 0)
+                    color += SampleSH(reflect(-view, n)) * lerp(_Darkness, 1, openness) * PunchyStoneFresnel(n, view, stoneCrevice, stoneWet) * stoneOn;
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
                     color = lerp(color, PunchyAtmosphere(color, p), openness);
