@@ -829,7 +829,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   and FloraImpostor from the build log.
 - Pass (rule 23): a pure move, so B within +0.1 ms GPU of A at every view, Medium; no new variants.
 
-## Job 83 (2026-11-14, NEXT on the laptop, chained after 82 (q125.job); folk lane, A-110 row 5): far town folk on low-rate brains
+## Job 83 (2026-11-14, RUNNING 11-15, chained after 82 (q125.job); folk lane, A-110 row 5): far town folk on low-rate brains
 - `fauna/one-population` 3d0c8df2 (A, row 4) vs f1747057 (B, row 5). Profile builds, 1920x1080, Medium, uncapped,
   10:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: town 73 centre `-benchspot 2972,-885`; and 200 m north `-goto 2972,-685` facing the town (most members far).
@@ -837,7 +837,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   director; the `[members]` line's legs and full counts (about 27 on legs expected at the centre).
 - Pass (rule 23): B no worse than A on main thread at both views; report the saving.
 
-## Job 84 (2026-11-14, QUEUED after 83; fauna lane, A-113 rows 1-3, #313): denser, more varied temperate woods
+## Job 84 (2026-11-14, NEXT on the laptop, chained after 83 (q126.job; spots chosen by the profiler, see the spec); fauna lane, A-113 rows 1-3, #313): denser, more varied temperate woods
 - main 1746d62a (A) vs `flora/tree-variety` ac7880fc (B). Profile builds, 1920x1080, Medium, uncapped, 10:00, Clear,
   `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: inside a temperate wood with willow by water and a beech grove in view; a 30 m rise over mixed wood; a far

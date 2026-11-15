@@ -1,0 +1,19 @@
+# Job 84 (A-113 rows 1-3, #313): denser, more varied temperate woods. flora/tree-variety ac7880fc (B) vs main 1746d62a
+# (A, shelf). Medium, 10:00, Clear, 3 rounds. The card's spots are named only in the lane's shots (no coordinates), so:
+#  grove:  inside the oak grove (-place OakGrove)
+#  water:  the lakeshore meadow the supervisor uses (-benchspot 470,1840; willows grow only on stream and pond banks)
+#  rise:   30 m over the oak grove (a 3 m line at 0.2 m/s, 30 m up, from 1740,3390 east)
+#  far:    R-22's fly300 vantage: from (2200,-2600) toward (-1200,900), 280 m over the ground (3 m line, 0.2 m/s)
+# Load-time impostor bake and shadow cache lines come from the logs.
+Q=q126; TITLE="job 84 temperate woods"
+BUILDS="ac7880f 1746d62"
+VIEWS="grove water rise far"
+view() { case $1 in
+  grove) echo "-place OakGrove -benchstops here -benchhour 10 -benchweather Clear";;
+  water) echo "-goto 470,1840 -benchstops spot -benchspot 470,1840,0 -benchhour 10 -benchweather Clear";;
+  rise)  echo "-goto 1740,3390 -benchstops line -benchline 1740,3390,1743,3390,0.2,30 -benchhour 10 -benchweather Clear";;
+  far)   echo "-goto 2200,-2600 -benchstops line -benchline 2200,-2600,2197.9,-2597.8,0.2,280 -benchhour 10 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-ac7880f";; A) echo "Profile-1746d62";; esac; }
+ROUNDS=3; GFX=Medium; REF=A; BAR=0.3
+after() { for a in B A; do echo "$a: $(grep -a -h 'impostor bake.*done\|impostor.*baked\|\[shadowcache\]\|ShadowCache' $R/q-$Q-grove-$a-cs100-1.log | head -3 | cut -c1-160 | tr '\n' ' ')"; done; }
