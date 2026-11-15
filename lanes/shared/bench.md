@@ -16,7 +16,7 @@
 - **Build shelf (Zach 11-14):** the main PC builds Profile-<commit> ahead of the laptop and parks it as
   `Profile-<commit>.zip` on the draft GitHub release `bench-builds` (writers only; never publish it).
   `lanes/profiler/scripts/shelf.sh`: job.sh calls `shelf.sh get` before each build, so a shelved build is downloaded
-  (about 100 MB) instead of built; a missing one is built as before. Same build as `build()` (BProfileTools.BuildDev,
+  (about 100 MB) instead of built; a missing one is built as before. Same build as `build()` with the runner from `b/bench-stress` (BProfileTools.BuildDev,
   Unity 6000.5.8f1, the `.bench2-<commit>` marker). `shelf.sh ls` lists it; the supervisor prunes finished jobs.
   Queued "main (latest)" jobs share one main commit so one build serves them all. q*.sh scripts that call build()
   directly can call `shelf.sh get <commit> "$P"` first.

@@ -5,7 +5,7 @@
 #   shelf.sh get <commit7> <project> [outdir]   laptop: unzip into <project>/Builds if on the shelf; exit 1 if not
 #   shelf.sh put <commit7>...                   main PC: build in D:/Unity/Punchy-release, zip, upload
 #   shelf.sh ls | rm <commit7>...               list / prune
-# A shelf build is the same as build() in Tools/bench/lib.sh (BProfileTools.BuildDev, same Unity 6000.5.8f1) and
+# A shelf build is the same as build() in b/bench-stress Tools/bench/lib.sh (the runner, not main's) (BProfileTools.BuildDev, same Unity 6000.5.8f1) and
 # carries the .bench2-<commit> marker, so build() then skips it.
 REL=bench-builds; REPO=Skeleman/Punchy
 cmd=$1; shift
@@ -25,7 +25,7 @@ put)
   export PUNCHY=/d/Unity/Punchy-release UNITY=/c/Unity/6000.5.8f1/Editor/Unity.exe HOME_BRANCH=${HOME_BRANCH:-rc/v0.14.0}
   T=/d/Unity/PunchyBench/shelf; mkdir -p $T/zips
   git -C $PUNCHY fetch -q origin
-  rm -rf $T/tools && mkdir -p $T/tools && git -C $PUNCHY archive origin/main Tools/bench | tar -x -C $T/tools
+  rm -rf $T/tools && mkdir -p $T/tools && git -C $PUNCHY archive origin/b/bench-stress Tools/bench | tar -x -C $T/tools
   B=$T/tools/Tools/bench; mkdir -p $B/results; . "$B/lib.sh"
   for c in "$@"; do
     [ -f D:/Unity/PunchyBench/HOLD ] && { log "HOLD: stopping before $c"; exit 3; }
