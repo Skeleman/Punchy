@@ -28,6 +28,7 @@ echo $$ > "$R/.lock/pid"; echo "$Q $TITLE (since $(date +%T))" > "$R/.lock/job"
 trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
 for c in $BUILDS; do
   o=$(eval echo "\${OUT_$c:-Profile-$c}")
+  [ -n "${DRY:-}" ] || [ -f "$P/Builds/$o/.bench2-$c" ] || "$S/shelf.sh" get $c "$P" $o || true   # the main PC's shelf first
   build $c BuildDev $o || { echo "build $o failed"; exit 1; }
 done
 keepawake

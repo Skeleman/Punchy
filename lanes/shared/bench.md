@@ -13,6 +13,13 @@
   editor or player runs (the HOLD file, `unity.md`). Pass: within noise or under about 2% of frame ms; otherwise
   the job goes to the laptop. Reports are marked "main PC, provisional". Laptop only: budget and preset decisions,
   water, lights, clouds, two-machine tests, LOD reach.
+- **Build shelf (Zach 11-14):** the main PC builds Profile-<commit> ahead of the laptop and parks it as
+  `Profile-<commit>.zip` on the draft GitHub release `bench-builds` (writers only; never publish it).
+  `lanes/profiler/scripts/shelf.sh`: job.sh calls `shelf.sh get` before each build, so a shelved build is downloaded
+  (about 100 MB) instead of built; a missing one is built as before. Same build as `build()` (BProfileTools.BuildDev,
+  Unity 6000.5.8f1, the `.bench2-<commit>` marker). `shelf.sh ls` lists it; the supervisor prunes finished jobs.
+  Queued "main (latest)" jobs share one main commit so one build serves them all. q*.sh scripts that call build()
+  directly can call `shelf.sh get <commit> "$P"` first.
 - **Profiler's own fixes:** it may fix perf, crash and stall bugs it found and measured, in any file, on a
   `b/fix-*` branch from current main, when the file is not held by a running card, the fix is small (no features,
   no redesign) and it ships with before and after numbers. The supervisor reviews and merges.

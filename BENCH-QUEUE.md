@@ -741,6 +741,14 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pass (rule 23, card row 3): B at most +0.5 ms GPU over A at the town view, Medium. C - B is item 6's saving; if
   it saves nothing, item 6 is dropped alone.
 
+## Build shelf (supervisor 11-14, Zach asked: more of your time on games, less on builds)
+- Pull coordination first: job.sh now downloads a build from the draft release `bench-builds` before building it
+  (`lanes/profiler/scripts/shelf.sh`, how it works in lanes/shared/bench.md). Needs `gh` logged in, as for PRs.
+- Main for jobs 78, 79, 80 and 87 is now **3b192717** (it includes #348, so 87's start ledger is there); 88's B is
+  the same build. Being shelved now on the main PC: 3b19271, 4df8549 (88 A), d0524ea (81 B). Job 77 builds as before.
+- If a shelved build misbehaves (won't start, wrong identity in app.info), delete it, build it yourself, and say so in
+  your report; I'll stop shelving until it's fixed.
+
 ## Job 77 (2026-11-14, QUEUED after 76; supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
 - Main 697e565f (A) vs `world/scarps` feab6870 (B). Profile builds, 1920x1080, Medium, uncapped, noon, Clear,
   `-weatherseed 4`, ABBA, 3 rounds.

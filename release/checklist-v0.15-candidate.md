@@ -13,7 +13,7 @@ line if you already saw it there.
 - [ ] **Climbing**: ladders on docks, roofs and in mines; folk climb ladders and marked walls; ledge hang and shimmy.
 - [ ] **Fishing**: fish notice the bobber; catches depend on the water.
 - [ ] **Harsh-place work**: hermit chores and talk in harsh biomes.
-- [ ] **Shadows**: one shadow darkness at every distance (no darker or lighter bands as you look farther out). Near shadow edges flicker less when you walk, and at High and Ultra they hold still as the sun moves; note any that still crawl, with place, time and preset.
+- [ ] **Shadows**: one shadow darkness at every distance (no darker or lighter bands as you look farther out). Shadows no longer crawl as the sun moves: the sun now moves in small steps (every preset), and at High and Ultra a wider filter softens each step. Note any that still crawl or hop, with place, time and preset.
 - [ ] **Cliffs and steep slopes** read as layered rock with beds and slabs at High and above (Low and Medium keep colour and grain).
 - [ ] **Putting items away**: folk reach to a pocket, pouch, coat or over the shoulder when they put an item away or take one out.
 - [ ] **Animals lying down** fold their legs under them (horses, deer, cattle); no leg sticks out straight behind.
