@@ -3632,3 +3632,6 @@ Zach's question: do behaviours, animation and the other creature logic run as la
 - BrainJob runs as 4.0 executions a frame in every capture. Whether that's the chunk count is a guess from the profile (creature chunks are large; CreatureState is about 50 fields). The Entities Systems window's chunk count for the creature query would confirm it before doing row 1b.
 - Fishing village 3 is bound by both the GPU (15.5 ms) and the main thread (15.3 ms). Rows 1 and 2 remove most of its main-thread excess.
 - Cost: 16 calls, peak 250k context, $1.24
+
+- World (W-164 row 2, world/level-gardens c378a480): island and landmark pins unchanged (117, 689D5348); only the
+  ground under the HermitHut garden at 140, -536 changes. BENCH job 90 queued for the ground-pass cost.

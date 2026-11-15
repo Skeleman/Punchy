@@ -867,3 +867,13 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Report: B's world ready against A's, and frame times while B finishes behind the view at boost 2. This sizes
   LoadBoostBehind (provisional 2) and the load-boost cap. Pass: B's world ready comes no later than A's on any start;
   no hole visible in the first view.
+
+## Job 90 (2026-11-14, QUEUED after 89; world lane, W-164 row 2, #334): garden beds in the ground pass
+- world/level-gardens c378a480 (B) vs main 3b192717 (A). Profile builds, 1920x1080, Medium and High, uncapped,
+  12:00, Clear. Island and landmark pins are unchanged (117 landmarks, 689D5348); only the ground under the
+  HermitHut garden moves.
+- TerrainSource.SampleHeight and SampleGround now take one more landmark cell lookup per sample (beds, after
+  settlements). Record from each Player.log: island bake total and the terrain chunk stage, `[start]` world ready,
+  and the worst chunk-apply ms per frame during the first stream.
+- Then 60 s at `-benchspot 140,22,-548,30` (the hermit garden, looking at the hill) and at the default spawn: CPU
+  and GPU ms. Pass: bake within +0.2 s, chunk stage within +3 %, frame within rule 23.

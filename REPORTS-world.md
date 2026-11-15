@@ -7600,3 +7600,41 @@ Branch world/waterfall-sheets, commits f42cfaba (merge main afea013c) and 21b228
 - **Card gap:** the row 2 town-garden shot can't be taken while v3 has no towns. I'll shoot the one hermit garden
   (gentle and steep cases from tilting the same type on a test spot), unless the supervisor wants it otherwise.
 - Next: W-164 row 2 on world/level-gardens.
+
+## W-164 row 1 corrected: 12 gardens, 1 on a slope
+
+- **Correction:** the row 1 numbers above came from a stale island cache left in my editor by older code (2697
+  landmarks, no towns, hash 554A21E4). Re-measured on a fresh bake of main's island (117 landmarks, pins 689D5348,
+  towns 1-6 present). "Before" is the ground without beds (TerrainSource's unbedded height at each fence corner).
+
+| # | Garden | Where (x, z) | Bed y | Half | Slope | Uphill under | Downhill over |
+|---|---|---|---|---|---|---|---|
+| 1 | HermitHut 0 ring garden (folk-test plot, EmberForest) | 140.0, -536.2 | 16.9 | 3.10 m | 14.6 deg | 1.88 m | 0.40 m |
+| 2-7 | Town 1 plots (six, desert village) | x 2931-3042, z -891 to -955 | 9.0-9.4 | 2.99-3.23 m | 0.0 | 0.00 | 0.00 |
+| 8-12 | Town 4 plots (five) | x -2484 to -2566, z -1467 to -1577 | 10.0-12.5 | 3.27-3.48 m | 0.0 | 0.00 | 0.00 |
+
+- Only one plot is wrong; town gardens sit on Landscaping pads levelled to the plot, as row 1 expected. There is no
+  "worst ten": one bad plot and eleven at zero. No biome list places gardens.
+
+## W-164 row 2: level garden beds (world/level-gardens c378a480)
+
+- **What:** landmark types bake a Beds list (LandmarkData.LandmarkBedData, from Garden props with a Count, sized
+  from the species footprint plus 0.4 m). TerrainSource applies beds last, in SampleHeight and at the end of
+  SampleGround, towards its unbedded height at the bed centre, so it is idempotent and a heightmap load stays
+  right. New Terrain/Landmarks/LandmarkBeds.cs holds the shape: flat to the fence corners plus 0.4 m, then a ring
+  (up to 3 m, kept inside the landmark footprint) that steps back to the hillside in 0.6 m terraces and ends in a
+  short steep edge: a cut bank uphill, a kerb on the fill side. The garden is placed at its spot's height as before,
+  which is now the bed height.
+- **Card cases:** gentle and steep are the same code (level bed plus terraced ring); the one sloped plot on the
+  island is 14.6 deg, which gets three treads on its uphill cut. No plot needed moving. Crops stand on the bed.
+- **Result:** probe after: 12 gardens, 0 with a corner more than 0.1 m under or over (hermit garden 0.00 / 0.00).
+- **Checks:** PlayMode suite 40/40 on the branch, landmark pins unchanged (117, 689D5348: beds move ground, not
+  landmarks), no re-pin. NaN lines in the editor log: 0. Folk Garden anchors are 2D spots (AnchorBaking), unchanged,
+  and the hermit is seen walking beside the bed in the after shot.
+- **Shots** (D:/Unity/PunchyMilestones/W-164/): before/after at 3 m front, 3 m side (uphill to the right) and 15 m
+  of the hermit garden; town 1 garden at 3 m and 15 m (after only; its before is identical, 0.00). The before
+  shots were taken on the stale cache but at the same spot and with the same numbers (1.88 / 0.40), so they stand.
+  Lighting differs (time of day). No steep or gentle extra case exists to shoot.
+- **Cost:** one extra landmark cell lookup per ground sample. BENCH job 90 queued; profiler told (island/landmark
+  pins unchanged, ground under one garden moves).
+- Next: W-166 row 1.
