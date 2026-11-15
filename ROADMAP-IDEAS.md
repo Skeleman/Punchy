@@ -67,8 +67,9 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   horses out of town stables (A-117).
 - **Climbable colossi (#276, A-107).** Shipped: graded climbable sections, carried as the colossus walks.
 - **Sand and snow worms.** Shipped: breaching snow worm and sand worm colossi (A-84, Z-28).
-- **Climbing (A-101).** Shipped: one climbing model, ladders, marked walls, ledge hang. In flight: ladders for
-  creatures (A-126); cave routes wait on W-144.
+- **Climbing (A-101).** Shipped: one climbing model, ladders, marked walls, ledge hang. Shipped: brisk ladders
+  (A-126 row 1, PR #383). In flight: A-126 rows 2-4 (ledge hands, shimmy prompt, steering ridden animals); cave routes
+  climb by the cliff method (W-162).
 - **Fishing (A-100, P-33).** Shipped: catch tables, fish notice the bobber. In flight: player fishing (P-33).
 - **Individual builds and gaits (A-124).** In flight.
 - **Gold variants.** Shipped: 1 in 400.
