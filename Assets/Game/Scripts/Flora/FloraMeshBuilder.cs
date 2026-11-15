@@ -67,6 +67,12 @@ namespace Punchy.Flora
         /// </summary>
         public bool Wood;
         /// <summary>
+        /// A piece lying down with its bark on (W-170: a fallen log, driftwood, a woodpile's logs): while set, plain bark
+        /// (not wood, seams, veins or strata) is marked Bark + 0.005 and carries its grain's axis like Wood does, so the
+        /// flora shader runs the bark's furrows along the piece instead of up the plant's own upright axis.
+        /// </summary>
+        public bool BarkAlong;
+        /// <summary>
         /// A built surface's look (W-99), while non-zero: 1 planks, 2 shingles, 3 thatch (StructureKit.KitSurface), 4 a
         /// shingle course laid as geometry (FloraGenerator.RoofCourses: the shader draws only its tiles), 5 a sawn log end
         /// (FloraGenerator.LogEnd: fine end-grain noise only). Bark built while it's set is marked as wood too, and the
@@ -103,6 +109,7 @@ namespace Punchy.Flora
             data.Clear();
             indices.Clear();
             Wood = false;
+            BarkAlong = false;
             Surface = 0;
             Unfounded = false;
             unfounded.Clear();
@@ -118,13 +125,16 @@ namespace Punchy.Flora
             var wood = (Wood || Surface > 0) && part == FloraPart.Bark && !BarkVeins && !BarkSeams && !BarkStrata;
             if (wood)
                 c.a = grainCode + Mathf.Clamp(Surface, 0, 5) * 0.02f;
+            var along = BarkAlong && !wood && part == FloraPart.Bark && !BarkVeins && !BarkSeams && !BarkStrata;
+            if (along)
+                c.a = grainCode;
             if (Unfounded)
                 unfounded.Add(positions.Count);
             positions.Add(p);
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.02f : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.02f : along ? 0.005f : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -221,7 +231,7 @@ namespace Punchy.Flora
         {
             if (path.Count < 2 || sides < 3)
                 return;
-            if (Wood)
+            if (Wood || BarkAlong)
                 GrainAlong(path[path.Count - 1] - path[0]);
             var firstVertex = positions.Count;
             var firstIndex = indices.Count;
@@ -293,7 +303,7 @@ namespace Punchy.Flora
                         Color color, FloraPart part, float ao = 1f, float boxiness = 0f, float noiseScale = 1f)
         {
             var (verts, tris) = Icosphere.Get(detail);
-            if (Wood)
+            if (Wood || BarkAlong)
                 GrainAlong(Longest(radii, rotation));
             var firstVertex = positions.Count;
             var firstIndex = indices.Count;
@@ -385,7 +395,7 @@ namespace Punchy.Flora
         /// <summary>A flat-shaded box (planks, walls, roof slabs, counters), centred and rotated.</summary>
         public void Box(Vector3 centre, Vector3 size, Quaternion rotation, Color color, FloraPart part, float ao = 1f)
         {
-            if (Wood)
+            if (Wood || BarkAlong)
                 GrainAlong(Longest(size, rotation));
             var half = size * 0.5f;
             Vector3[] faces = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
@@ -417,7 +427,7 @@ namespace Punchy.Flora
         public void BandedBox(Vector3 centre, Vector3 size, Quaternion rotation, Color color, FloraPart part,
                               IReadOnlyList<float> contacts, float band, float dark)
         {
-            if (Wood)
+            if (Wood || BarkAlong)
                 GrainAlong(Longest(size, rotation));
             var half = size * 0.5f;
             float Ao(float y)
@@ -544,7 +554,7 @@ namespace Punchy.Flora
             var along = to - from;
             if (along.sqrMagnitude < 1e-6f)
                 return;
-            if (Wood)
+            if (Wood || BarkAlong)
                 GrainAlong(along);
             var rotation = Quaternion.LookRotation(along.normalized, Mathf.Abs(along.normalized.y) > 0.95f ? Vector3.forward : Vector3.up);
             Box((from + to) * 0.5f, new Vector3(width, thickness, along.magnitude), rotation, color, part, ao);
@@ -915,7 +925,7 @@ namespace Punchy.Flora
         /// </summary>
         public int Sheet(Vector3 corner, Vector3 u, Vector3 v, int nu, int nv, Color color, FloraPart part, float ao = 1f)
         {
-            if (Wood)
+            if (Wood || BarkAlong)
                 GrainAlong(u.sqrMagnitude >= v.sqrMagnitude ? u : v);
             var first = positions.Count;
             var n = Vector3.Cross(u, v).normalized;

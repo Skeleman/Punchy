@@ -438,9 +438,11 @@ namespace Punchy.Flora
                     var a = new Vector3(-length * 0.5f + ends, y, z);
                     var e = new Vector3(length * 0.5f + ends, y, z);
                     b.Wood = stripped;
+                    b.BarkAlong = !stripped;   // the rest keep bark furrowed along them (W-170)
                     b.Tube(new List<Vector3> { a, e }, new List<float> { r0, r1 }, sides,
                            stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark, FloraPart.Bark);
                     b.Wood = false;
+                    b.BarkAlong = false;
                     LogEnd(g, a, -1f, r0, sides, stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark);
                     LogEnd(g, e, 1f, r1, sides, stripped ? Color.Lerp(bark, LogSapwood, 0.55f) : bark);
                 }

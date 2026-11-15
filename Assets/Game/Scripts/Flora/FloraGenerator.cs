@@ -358,10 +358,11 @@ namespace Punchy.Flora
                     }
                 }
                 // Built things stand rigid in the wind (benches, halls, palisades swayed like plants, Z-11); a garden's
-                // plants still move, and cloth has its own motion (Flora.hlsl).
+                // plants still move, and cloth has its own motion (Flora.hlsl). Things lying on the ground never sway
+                // (W-170): a log in a storm stays put.
                 if (shapeOnly)
                     break;
-                var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
+                var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden || Lying(species.Form) ? 0f : species.Flexibility;
                 builder.Sway(g.Height, flexibility);
                 model.Pending[lod] = builder;
             }

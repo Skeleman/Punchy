@@ -140,8 +140,11 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
             var bend = g.Range(-0.04f, 0.04f);
             var first = b.VertexCount;
+            // Bark furrows along the log (W-170), not round it.
+            b.BarkAlong = true;
             b.Tube(new List<Vector3> { new Vector3(-0.9f, r, 0f), new Vector3(0f, r, bend), new Vector3(0.9f, r, 0f) },
                    new List<float> { r * 0.95f, r, r * 0.92f }, g.Sides(9, 6, 4), g.Bark, FloraPart.Bark);
+            b.BarkAlong = false;
             b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
             // Pale sawn ends.
             if (g.Lod < 2)
@@ -168,11 +171,16 @@ namespace Punchy.Flora
             var bend = g.Range(-0.08f, 0.08f) * len;
             var sides = g.Sides(9, 6, 4);
             var first = b.VertexCount;
+            // Bark furrows along the log and each stub (W-170).
+            b.BarkAlong = true;
             b.Tube(new List<Vector3> { new Vector3(-len * 0.5f, r * 1.1f, 0f), new Vector3(0f, r, bend), new Vector3(len * 0.5f, r * 0.8f, bend * 0.3f) },
                    new List<float> { r * 1.15f, r, r * 0.6f }, sides, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
             if (g.Lod >= 2)
+            {
+                b.BarkAlong = false;
                 return;
+            }
             // Root stubs flare out of the thick end, some up in the air.
             for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
             {
@@ -191,6 +199,7 @@ namespace Punchy.Flora
                 b.Tube(new List<Vector3> { from, from + dir * (r + g.Range(0.15f, 0.5f)) }, new List<float> { r * 0.3f, r * 0.15f },
                        g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
             }
+            b.BarkAlong = false;
         }
 
         /// <summary>A sawn stump to sit on, its pale top 0.42 m up.</summary>

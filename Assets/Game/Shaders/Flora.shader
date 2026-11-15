@@ -222,9 +222,10 @@ Shader "Punchy/Flora"
                 nointerpolation half4 ground : TEXCOORD5;
                 float2 baseHeight : TEXCOORD6;   // height above the base, instance scale
                 // Wood's grain (Z-30): the point in the plant's own frame, and which of its axes the grain runs along
-                // (FloraMeshBuilder.Wood: the vertex colour's alpha on wood, 0.25 X, 0.5 Y, 0.75 Z).
+                // (FloraMeshBuilder.Wood: the vertex colour's alpha on wood, 0.25 X, 0.5 Y, 0.75 Z); yzw that axis in
+                // the world, for lying bark's furrows (W-170: FloraMeshBuilder.BarkAlong).
                 float3 grainPos : TEXCOORD7;
-                nointerpolation half grainAxis : TEXCOORD8;
+                nointerpolation half4 grainAxis : TEXCOORD8;
                 float4 moss : TEXCOORD9;   // FloraMossData: cover (2: not moss), point in the plant's frame
                 // Items 27-28: 1 on a model that moves (a living plant: its Bark is bark), 0 on FLORA_STATIC ones (rocks, logs).
                 nointerpolation half living : TEXCOORD10;
@@ -244,7 +245,11 @@ Shader "Punchy/Flora"
                 o.baseHeight = float2(v.positionWS.y - v.plant.position.y, v.plant.scale);
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 o.grainPos = input.positionOS;
-                o.grainAxis = input.color.a;
+                // The grain's axis turned with the plant (its yaw; lying pieces aren't tilted onto the ground).
+                half code = round(input.color.a * 4);
+                float3 axisOS = code < 1.5 ? float3(1, 0, 0) : code < 2.5 ? float3(0, 1, 0) : float3(0, 0, 1);
+                float yc = cos(v.plant.yaw), ys = sin(v.plant.yaw);
+                o.grainAxis = half4(input.color.a, axisOS.x * yc - axisOS.z * ys, axisOS.y, axisOS.x * ys + axisOS.z * yc);
                 o.moss = FloraMossData(input);
 #ifdef FLORA_STATIC
                 o.living = 0;
@@ -295,7 +300,7 @@ Shader "Punchy/Flora"
                 float3 facetOS = normalize(cross(ddy(input.grainPos), ddx(input.grainPos)) + 1e-9);
                 // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
                 bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
-                int look = wood ? (int)round((input.grainAxis - round(input.grainAxis * 4) * 0.25) / 0.02) : 0;
+                int look = wood ? (int)round((input.grainAxis.x - round(input.grainAxis.x * 4) * 0.25) / 0.02) : 0;
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
                 // (PunchyWeathering). Timber takes only a little of it: its stone-like courses read as plaster (W-99).
                 bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
@@ -306,7 +311,7 @@ Shader "Punchy/Flora"
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
                 if (detail && wood)
-                    albedo *= look == 0 ? PunchyWoodGrain(input.grainPos, input.grainAxis, footprint)
+                    albedo *= look == 0 ? PunchyWoodGrain(input.grainPos, input.grainAxis.x, footprint)
                                         : look == 5 ? PunchyLogEnd(input.grainPos, footprint)
                                         : PunchySurface(look, input.grainPos, facetOS, footprint, input.color.rgb);
                 // Cloth: a linen weave (W-99).
@@ -334,8 +339,10 @@ Shader "Punchy/Flora"
                 near *= wood ? (look == 3 ? 0.35 : 0.15) : 1;
                 // A living plant's bark (items 27-28): the rock relief read as lumpy wet clay on trunks. Only a trace of
                 // it stays; the bark's own grain (below) does the work.
-                bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
-                near *= bark ? 0.35 : 1;
+                // Lying bark (W-170: marked Bark + 0.005) takes the same furrows, run along the piece.
+                bool barkAlong = part == 0 && frac(input.extra.x) > 0.002 && frac(input.extra.x) < 0.009 && !built && !rockTint;
+                bool bark = part == 0 && !built && !rockTint && !wood && !strata && !barkAlong && input.living > 0.5;
+                near *= bark || barkAlong ? 0.35 : 1;
                 if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
                 {
                     float3 q = input.positionWS * 0.9;
@@ -353,22 +360,41 @@ Shader "Punchy/Flora"
                 // laid out round the plant's own upright axis (its frame: the angle round it, and the height). Whole
                 // numbers of furrows round, so no seam; their path wanders with height. Fades by screen size alone (rule 20):
                 // out once a furrow would be under a few pixels wide, from its own pixel footprint, so no fixed metres.
-                if (detail && bark)
+                // Lying bark (W-170) is laid out round its grain axis instead: the angle round it from the surface's own
+                // facing (the pieces don't sit on the plant's origin), the height along it from the point on that axis.
+                if (detail && (bark || barkAlong))
                 {
                     float3 gp = input.grainPos;
-                    float ang = atan2(gp.z, gp.x);
+                    float ang, height;
+                    float3 a = float3(0, 1, 0);
+                    if (barkAlong)
+                    {
+                        a = SafeNormalize(float3(input.grainAxis.yzw));
+                        float3 nW = SafeNormalize(input.normalWS);
+                        float3 e1 = normalize(abs(a.y) > 0.5 ? float3(1, 0, 0) - a * a.x : float3(0, 1, 0) - a * a.y);
+                        float3 e2 = cross(e1, a);
+                        ang = atan2(dot(nW, e2), dot(nW, e1));
+                        half code = round(input.grainAxis.x * 4);
+                        height = code < 1.5 ? gp.x : code < 2.5 ? gp.y : gp.z;
+                    }
+                    else
+                    {
+                        ang = atan2(gp.z, gp.x);
+                        height = gp.y;
+                    }
                     float2 ring = float2(cos(ang), sin(ang));
                     float furrows = 5 + floor(r * 4);
-                    half wander = PunchyValueNoise(ring * 1.7 + float2(gp.y * 0.8, r * 17.0)) - 0.5;
-                    float phase = ang * furrows + wander * 3.0 + gp.y * 0.12;
+                    half wander = PunchyValueNoise(ring * 1.7 + float2(height * 0.8, r * 17.0)) - 0.5;
+                    float phase = ang * furrows + wander * 3.0 + height * 0.12;
                     half furrow = 1 - smoothstep(0.0, 0.5, abs(sin(phase)));
-                    half fibre = 0.5 + 0.5 * sin(phase * 4 + PunchyValueNoise(float2(gp.y * 6.0, ang * 0.5 + r * 9.0)) * 4.0);
+                    half fibre = 0.5 + 0.5 * sin(phase * 4 + PunchyValueNoise(float2(height * 6.0, ang * 0.5 + r * 9.0)) * 4.0);
                     // Plates break across now and then, so the ridges aren't endless rails.
-                    half crack = smoothstep(0.78, 0.92, PunchyValueNoise(ring * 3.1 + float2(gp.y * 3.3, 4.7)));
+                    half crack = smoothstep(0.78, 0.92, PunchyValueNoise(ring * 3.1 + float2(height * 3.3, 4.7)));
                     half grainFade = (1 - smoothstep(0.35, 0.9, length(fwidth(ring)) * furrows));
                     albedo *= lerp(1, (1 - max(furrow, crack) * 0.5) * (0.92 + 0.16 * fibre), grainFade);
-                    // The furrows' sides catch the light: lean the normal round the trunk with the ridge's slope.
-                    float3 around = normalize(float3(-n.z, 0, n.x) + 1e-5);
+                    // The furrows' sides catch the light: lean the normal round the trunk (or the log) with the ridge's
+                    // slope. (Upright, cross(n, a) is the trunk's own (-n.z, 0, n.x).)
+                    float3 around = normalize(cross(n, a) + 1e-5);
                     n = normalize(n + around * cos(phase) * sign(sin(phase)) * 0.35 * grainFade);
                 }
                 if (part == 1)

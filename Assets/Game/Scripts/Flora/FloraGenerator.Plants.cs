@@ -563,6 +563,12 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>
+        /// Forms built lying on the ground (W-170): seat logs, fallen logs and driftwood, bedrolls. They're rigid (no sway,
+        /// so they take the static variant) and their bark runs along the piece (FloraMeshBuilder.BarkAlong).
+        /// </summary>
+        public static bool Lying(FloraForm form) => form is FloraForm.Log or FloraForm.Driftwood or FloraForm.Bedroll;
+
         /// <summary>Forms people can climb onto and stand on (their tops go into PropSupport).</summary>
         public static bool Standable(FloraForm form) => Founded(form) || form switch
         {
