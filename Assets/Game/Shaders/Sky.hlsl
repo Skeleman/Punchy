@@ -1202,10 +1202,11 @@ half3 PunchyUnderwaterShafts(float3 camera, float3 dir, float distance)
     // (Into water the light bends towards the vertical; held a little off flat so the trace back stays short.)
     float3 down = refract(-toLight, float3(0, 1, 0), 0.75);
     down.y = min(down.y, -0.3);
-    // (Item 39: the shafts fan out from one point up through the Snell window, not along parallel rays, so they converge
-    // on a vanishing point overhead and spread around you. Held a little above the surface along the way to the light.)
-    float3 toSource = -down / max(length(down), 1e-3);
-    float3 source = camera + toSource * ((_PunchyUnderwaterSurface.x - camera.y + 30) / max(toSource.y, 0.3));
+    // (Item 39 wants them converging overhead and spreading round you. R-38 row 4: they did that from a point tied to
+    // the camera, so swimming slid every stripe across the screen. Now each point is traced up the one refracted ray,
+    // fixed in the world: parallel shafts, which perspective still draws converging on the light through the Snell
+    // window, and which stay put as you swim.)
+    float2 slope = down.xz / -down.y;   // across per metre up
     float reach = min(distance, 40);
     float stepLength = reach / steps;
     float t = _PunchyClock;
@@ -1217,8 +1218,8 @@ half3 PunchyUnderwaterShafts(float3 camera, float3 dir, float distance)
         float below = _PunchyUnderwaterSurface.x - q.y;
         if (below <= 0)
             continue;
-        // Where the line from this point up to the source crosses the surface.
-        float2 at = q.xz + (source.xz - q.xz) * saturate(below / max(source.y - q.y, 1));
+        // Where the ray from this point back up towards the light crosses the surface.
+        float2 at = q.xz - slope * below;
         float a = PunchyValueNoise(at * 0.42 + float2(t * 0.11, t * 0.05));
         float b = PunchyValueNoise(at * 0.71 - float2(t * 0.07, -t * 0.09) + 5.3);
         float shaft = smoothstep(0.3, 0.62, a * b * 2);
