@@ -109,3 +109,9 @@ Closed 2026-11-03 with Zach's OK: #11 #45 #54 #55 #56
 | #359 | world | W-170 lying logs: rigid, bark furrows along the log; row 2 nothing wooden sways (garden fences) |
 | #360 | fauna | A-125 fish and dolphins splash on exit and entry, sized by body; droplets and foam from the serpent kit |
 | #361 | world | W-171 fence kit: runs round any outline, styles by culture; gardens, pens, yards on it, any size |
+| #365 | world | W-172 v0.15 playtest: water strips, cave water source, built pieces, tunnel mouths and variety, horse-size caves |
+| #366 | render | R-38 v0.15 playtest: window lights, far light pop, far light map filtering, underwater shafts, touch water |
+| #367 | fauna | A-126 brisk ladders, planted-hand ledge pull-up, shimmy prompt, steer ridden animals |
+| #368 | folk | A-127 turtle robes follow legs, sea folk upright, no drifting up with breath left |
+| #369 | player | P-37 no loading screen, no body glow + starting torch, seamless interiors phase 1 |
+| #370 | roadmap | small-animal passages, river-carved tunnels |

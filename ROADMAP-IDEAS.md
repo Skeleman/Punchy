@@ -29,6 +29,10 @@ Standing: the aim and its priorities are in COORDINATION.md. The layout is a tes
 - **Plant fidelity (#21)** experiments. **Cluster culling (#270)** waits for profiler numbers; individual
   billboards come first.
 
+- **Small-animal passages (#370, 11-14):** cave passages only small animals can fit through, leading to secret rooms.
+- **River-carved tunnels (#370, 11-14):** rivers that cut tunnels through a cliff, with a channel or ledge you can follow inside.
+- **Tunnel variety (11-14):** dead ends, chambers with a bench or a camper, side branches, roots and mushrooms. Carded as W-172 row 5.
+
 ## Settlements
 - **Castle walls (#254).** Modular walls, towers, a gatehouse with a working, synced portcullis, interior halls.
   Rings a city or stands alone; the ruined form is the "old fort" dungeon.
