@@ -2,6 +2,21 @@
 
 Newest first.
 
+## Job 83: A-110 row 5 far town folk on low-rate brains (fauna/one-population f1747057 = B vs row 4 3d0c8df2 = A), 2026-11-15 (q125.job): PASS, small saving
+**Setup:** shelf builds (runner checked), Medium, 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds. Views: town 73 centre (`-benchspot 2972,-885,0`) and 200 m north facing it (`-benchspot 2972,-685,180`). Then one Profiler-captured centre game per arm.
+
+| view | A GPU | B GPU | A main | B main | **main delta** |
+|---|---|---|---|---|---|
+| town centre | 13.67 | 13.43 | 12.50 | 12.30 | **-0.20** |
+| 200 m north | 12.53 | 12.27 | 11.57 | 11.60 | +0.03 |
+
+- **Rule 23 (B no worse than A on the main thread at both views): PASS.** The saving is small: -0.2 ms main at the centre, nothing from 200 m.
+- **Brains (Profiler, centre):** on the workers Brain.Tick 1.69 -> **1.56 ms** and Brain.Advance 0.69 -> 0.64 ms per frame (-8%); on the main thread CreatureBrainSystem 0.06 on both, FaunaDirector.Update 0.73 -> 0.69, FaunaDirector.Residents 0.17 -> 0.20. CreatureMind has no marker of its own; it's inside Brain.Tick.
+- **`[members]` line:** not in these logs (neither build printed one), so the legs/full counts aren't here. If it needs a switch to log, say which.
+- (Both captures' first ~25 s are loading: CaveSocketSystem up to 1.3-1.6 s a frame, FaunaDirector.Update 0.43 s in one frame on A. Not part of the comparison.)
+
+Cost: laptop total $912 (laptop session e163d8ab; 0 builds (shelf), 14 games, 2 analyses).
+
 ## Job 82: R-23 row 2 one surface lighting path (render/one-surface 88719cc9 = B vs main 3eeb72d4 = A), 2026-11-15 (q124.job): PASS
 **Setup:** shelf builds (runner checked), 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds, Medium and High. Views: the desert town (`-benchspot -342,560,0`), the R-25 town (2988.8,-920, yaw 0), the summit far view (-2496,294,960, yaw 55). No row 3 arm C had landed when it started.
 
