@@ -4776,6 +4776,45 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Clean-up: PlayArgs cleared, editor closed by PID, my client closed by PID, no Punchy.exe of mine running.
 - NEXT: A-115.
 
+## A-118
+
+## 2026-11-14 A-118 row 1: four-legged animals lie on folded legs (#329)
+- DONE (verified): fauna/lie-height ba618bbf (3331f30f is the row, then a merge of main 4006cab3, then the fingerprint re-pin). This row is for life and detail.
+  - Each species' lying height and pitch now come from its folded legs (CreatureData.MeasureLie: LieHeight, LiePitch, LiesOnFold on the blob). The body sits at least as high as the folded legs, pitched about its centre.
+  - Hoofed animals (deer, horse, camel, bison, elk, caribou, sheep, goats, pig, pronghorn, bone stag): forelegs tuck under the chest with the knees forward. Hind legs fold under and to one side. The body tips a little onto that side (CreatureBlob.LieTip).
+  - Dogs, cats, wolves and bears keep their sphinx and side poses.
+  - In CreatureAnimator, a hind leg on the fold skips the backward swing. The ground swing of a folded leg fades in with how far it dips, which removed the late leg jump while lying down.
+  - Splayed species (lizards, spiders, scorpions, beetles, frogs, hares) are unchanged.
+- Probe: TestHooks.LieExtension. It reports the largest leg extension while lying (1 = straight), the backward reach, and the largest per-step joint jump (pop, in body lengths) over a full lie-down.
+  - Before: every four-legged species had ext 0.90-0.95, so legs were near straight, with pops of 1.3-2.5 body lengths.
+  - After:
+
+    | Species | ext | back | pop |
+    |---|---|---|---|
+    | Horse | 0.44 | 0.17 | 0.037 |
+    | Deer | 0.44 | 0.17 | 0.035 |
+    | Bison | 0.44 | 0.18 | 0.029 |
+    | Camel | 0.44 | 0.14 | 0.046 |
+    | BoneStag | 0.44 | 0.17 | 0.037 |
+    | Dog | 0.46 | 0.00 | 0.020 |
+    | Cat | 0.46 | 0.00 | 0.020 |
+    | Bears | 0.47 | n/a | 0.010 |
+
+  - Pops for the rest: AshElk and Caribou 0.031, Sheep and StaticRam 0.030, MountainGoat 0.029, MudPig 0.021, Pronghorn 0.036, Wolf 0.029.
+  - No leg is near straight. NaN 0 for all 124 species.
+  - Monkey pops 0.207 (a climber, not on the fold). OcotilloMimic pops 8.784, which it did before this change too.
+- Ground clearance (lowest leg point over the whole lie): Horse 0.029, Deer 0.024, Camel 0.032, BoneStag 0.024, AshElk 0.023, Pronghorn 0.021, Dog 0.030, Cat 0.025, Grizzly 0.014, MountainGoat 0.009 m. Bison (-0.018) and MudPig (-0.004) dip by about a centimetre. That error comes from the probe estimating from segment ends.
+- Shots (not viewed): D:/Unity/PunchyMilestones/A-118/before-* and after-* for Horse, Deer, Bison (the cow/ox stand-in), Dog, Cat and Camel (the largest four-legged species), each side and three-quarter. All 12 after shots were taken with no BAD flag. I viewed only small check shots in my scratchpad.
+- Host and client: the player build hosted with `-pose Horse:lie` and the editor joined.
+  - The client world held 541-614 creatures, 9-19 of them lying. The ones on the fold had LieHeight 0.08-0.57. NaN 0.
+  - Players 2 on both sides.
+  - 0 exceptions on the host. The client had only one UIElements EvaluateChain trace, which is not from my code.
+  - Lying is cosmetic, derived from the CreatureState.Lie that already replicates, so there is no new ghost field.
+- Suite (editor closed, on the merged tree): 39 passed / 1 failed / 17 skipped. The one failure was Fauna_Fingerprint. **Re-pinned B2A5823C to E483FBF0**: the blob gained LieHeight, LiePitch and LiesOnFold, and no placement moved. Landmarks 117 689D5348. After the re-pin Fauna_Fingerprint passes on its own.
+- Build Succeeded, 0 errors (Builds/Windows; client and host on loopback only).
+- Clean-up: PlayArgs cleared, editor closed by PID, no Punchy.exe of mine running.
+- NEXT: A-121 (#342: fires block walkers and give heat), then A-119 (#339: a rider and its mount share one LOD size).
+
 ## A-115
 
 ## 2026-11-14 A-115 row 1: a lamplighter lights each town street by street (#315)
@@ -4790,3 +4829,30 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - BENCH line wanted (rule 21): SurfaceGlow far-map rescan now also fires when LitCount changes (at most once a second during dusk/dawn windows); cost of the extra rescans in a big town at dusk.
 - Risks: distant FloraImpostor lantern glass isn't darkened yet (far lamps off a lit impostor read lit early). In the near shot a sign stands in front of the lantern at that angle.
 - NEXT: A-115 row 2 (role lines, kids follow, hurry in rain).
+
+## A-121
+
+## 2026-11-14 A-121 row 1: walkers keep out of fires (#342)
+- DONE (verified, solo): fauna/fire-heat 20efe9be, from main 5140b48e. This row is for life and detail.
+  - FireSpots (new, Fauna): one per-area list of ground flames (landmark Flame effects: campfires, open hearths, braziers, beacon fires; burning forest patches). Built on the main thread and read by the brain job; no new ghost field.
+  - Walkable turns down a flame's circle (plus 0.2 m) and a lava pool's shallow rim, so path picks, wander targets and flee runs keep clear.
+  - Advance (CreatureBrainSystem.Fire.cs): anything already in a fire walks straight out; a step into one slides round its edge; a target inside a fire moves to its edge.
+  - A look-ahead blocked only by a fire now steers along the fire's edge (SteerRoundFire) instead of stopping or pausing, so walkers go round. The first build stopped them about 1.9 m short and they gave up the walk.
+  - A player body can still walk into fire, as the card asks (heat comes in row 2).
+- Probe: FireWatch (editor only) counted creature positions inside a flame's radius, every frame, within 25 m of the fire. Columns: frames / fires / creature-frames within 3 m / inside / folk inside / distinct / body touching / deepest m. Off = FireSpotSystem.On false.
+
+| Site | Off | On |
+|---|---|---|
+| HumanVillage square | 5022 1 7343 11 11 1 12 0.36 | 5210 1 2961 0 0 0 0 0; after steer fix 4683 1 12406 0 0 0 0 0 |
+| CampsiteSnow | 3688 1 3724 6 6 1 9 0.12 | 3989 1 3989 0 0 0 0 0 |
+| CampsiteSwamp | 4097 1 3246 0 0 0 0 0 | 4604 1 4666 0 0 0 0 0 |
+| GoblinCamp | 4597 1 10108 16 16 1 18 0.54 | 4993 1 6918 0 0 0 0 0; after steer fix 4674 1 19651 0 0 0 0 0 |
+| CampsiteForest | 4355 1 5231 0 0 0 0 0 | 4478 1 4478 0 0 0 0 0 |
+
+- Forced crossing: a villager set 5 m before the village fire with its target 5 m beyond. It went round at 0.94 m and 1.17 m from the fire centre (flame radius about 0.7) and reached the far side both times.
+- Shots (not viewed, rule 12b): D:/Unity/PunchyMilestones/A-121/village-round-fire-1..5.png, a villager walking round the village fire from the side, at 17:30 and a quarter of normal speed. The tracked positions above match the strip. goblin-camp-1..3.png are weaker: most goblins were asleep.
+- Suite (editor closed): 40 passed / 0 failed / 17 skipped. Fauna fingerprint E483FBF0, unchanged. Landmarks 117 689D5348.
+- Host/client: no new wire state. Every machine builds FireSpots from the same landmark data. The host steers simulated creatures, and clients see the replicated positions.
+- BENCH line wanted (rule 21): FireSpotSystem build cost at load, and the brain job cost of the extra Fires.Near checks in Walkable/Advance in a busy town at dusk (village, about 24 creatures within 50 m), compared with main.
+- Risks: lava rims use the water glow test (depth under 0.3 m, glow over 0.5); this probe did not cover a lava field.
+- NEXT: A-122 (#352, door sound) on fauna/door-sound, as the coordinator ordered, then A-121 row 2 (heat), then A-119.
