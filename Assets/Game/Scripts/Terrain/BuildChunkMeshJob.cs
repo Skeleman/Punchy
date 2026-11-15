@@ -95,6 +95,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<GroundContacts.Table> Contacts;
         public float4 ContactStrength, ContactReach;
         public float ContactPixelsPerMetre;
+        /// <summary>W-155: clay view (launch flag -clay): every vertex takes one flat grey surface.</summary>
+        public bool Clay;
         /// <summary>Output: (min, max) local Y of the terrain mesh, for bounds.</summary>
         public NativeArray<float2> HeightRanges;
         /// <summary>Output: (min, max) Y of the water mesh; x &gt; y when the chunk has no water.</summary>
@@ -149,6 +151,8 @@ namespace Punchy.Terrain
                 var surface = Source.SampleSurface(world, ground, normal);
                 if (shaded)
                     surface.Albedo *= shade[z * v + x];
+                if (Clay)
+                    surface = ScarpClay.Surface();
                 vertex.SetSurface(surface);
                 // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
                 if (ground.HasWater)
@@ -159,6 +163,18 @@ namespace Punchy.Terrain
                 // W-56: the sunken temple's entrance cut, widened a step so no terrain hangs over it (its coping covers the edge).
                 if (request.Lod <= 1 && Source.Landmarks.IsCreated)
                     cave = math.min(cave, Source.TempleCut(world) - step);
+                // W-155: a scarp's stepped strip is left to its skin mesh. The strip is cut away like a cave mouth, and
+                // the vertices in it carry the level run-on of the rim or the foot, so the cut edges land on both.
+                if (request.Lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, world, step, h, out var strip, out var stripY))
+                {
+                    cave = math.min(cave, strip);
+                    if (strip < 0f)
+                    {
+                        vertex.Position.y = stripY;
+                        minY = math.min(minY, stripY);
+                        maxY = math.max(maxY, stripY);
+                    }
+                }
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 // W-98: how far this point sits below the ground round it (rings at 2.5 m and 6 m), so rain puddles
                 // gather in the dips (TerrainSurface.shader) rather than anywhere flat. Only near (puddles fade far off).
