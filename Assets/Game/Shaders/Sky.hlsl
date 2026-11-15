@@ -32,7 +32,7 @@ float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 of
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12)
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12), 2048 weather, cloud and wetness maps read plain bilinear, hard cloud shadow edge (before R-20 row 4)
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)
@@ -52,6 +52,22 @@ float4 _PunchyClimate;         // map-wide average: coverage, darkness, cloud ba
 
 float2 PunchyMapUV(float2 worldXZ) { return (worldXZ - _PunchyWeatherRect.xy) * _PunchyWeatherRect.zw; }
 
+// R-20 row 4: the weather, cloud and wetness maps are coarse (64 m texels) and read bilinear, which bends every contour at the
+// texel lines; sharpened into cloud edges and shadow edges those bends showed as big square and diamond pixels. Still
+// one tap: the read point is moved inside its texel so the blend between texels eases in and out (quintic), smooth
+// across the texel lines. Keep the size in step with WeatherField.Resolution. (-skyoff 2048: plain bilinear.)
+#define PUNCHY_WEATHER_MAP_SIZE 256.0
+float2 PunchyMapSmoothUV(float2 uv)
+{
+    if (((uint)_PunchySkyOff & 2048u) != 0)
+        return uv;
+    float2 st = uv * PUNCHY_WEATHER_MAP_SIZE - 0.5;
+    float2 i = floor(st);
+    float2 f = st - i;
+    f = f * f * f * (f * (f * 6 - 15) + 10);
+    return (i + f + 0.5) / PUNCHY_WEATHER_MAP_SIZE;
+}
+
 // 1 well inside the weather maps, fading to 0 over their outer 15%. Beyond the maps the weather is the generic
 // map-wide average, rather than the edge pixels smeared out to the horizon.
 float PunchyMapInside(float2 uv)
@@ -63,21 +79,21 @@ float PunchyMapInside(float2 uv)
 half4 PunchyWeatherAt(float2 xz)
 {
     float2 uv = PunchyMapUV(xz);
-    half4 local = SAMPLE_TEXTURE2D_LOD(_PunchyWeatherMap, sampler_PunchyWeatherMap, uv, 0);
+    half4 local = SAMPLE_TEXTURE2D_LOD(_PunchyWeatherMap, sampler_PunchyWeatherMap, PunchyMapSmoothUV(uv), 0);
     return lerp(half4(_PunchyClimate.xy, 0, 0), local, PunchyMapInside(uv));
 }
 
 half2 PunchyWetnessAt(float2 xz)
 {
     float2 uv = PunchyMapUV(xz);
-    return SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, uv, 0).rg * PunchyMapInside(uv);
+    return SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, PunchyMapSmoothUV(uv), 0).rg * PunchyMapInside(uv);
 }
 
 // Cloud shape at a world position: base (m), thickness (m), anvil strength (0..1), anvil top (m).
 float4 PunchyCloudShapeAt(float2 xz)
 {
     float2 uv = PunchyMapUV(xz);
-    float4 local = SAMPLE_TEXTURE2D_LOD(_PunchyCloudMap, sampler_PunchyCloudMap, uv, 0);
+    float4 local = SAMPLE_TEXTURE2D_LOD(_PunchyCloudMap, sampler_PunchyCloudMap, PunchyMapSmoothUV(uv), 0);
     return lerp(float4(_PunchyClimate.zw, 0, 0), local, PunchyMapInside(uv)) * float4(4000, 9000, 1, 12000);
 }
 
@@ -153,7 +169,7 @@ float2 PunchyCloudStyleAt(float2 xz)
     if (((uint)_PunchySkyOff & 512u) != 0)
         return float2(0, 0.3);
     float2 uv = PunchyMapUV(xz);
-    float2 local = SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, uv, 0).ba;
+    float2 local = SAMPLE_TEXTURE2D_LOD(_PunchyWetnessMap, sampler_PunchyWetnessMap, PunchyMapSmoothUV(uv), 0).ba;
     return lerp(float2(0, 0.3), local, PunchyMapInside(uv));
 }
 
@@ -668,7 +684,11 @@ half PunchyCloudShadow(float3 positionWS)
     half4 weather = PunchyWeatherAt(mapXZ);
     punchyCloudStyle = PunchyCloudStyleAt(p.xz);
     float density = PunchyCloudDensity(p, weather, PunchyCloudShapeAt(mapXZ), 0);
-    return saturate(density * 3) * lerp(0.5, 0.95, saturate(shape.y / 3000));
+    // R-20 row 4: the edge eases in and out rather than starting at a hard line, and widens with the cloud's height
+    // above the ground: the sun is half a degree across, so a cloud's penumbra grows about 9 m per km of height.
+    float edge = ((uint)_PunchySkyOff & 2048u) != 0 ? 1.0 / 3.0 : (1.0 / 3.0) * (1 + max(height - positionWS.y, 0) * 0.00025);
+    float dark = ((uint)_PunchySkyOff & 2048u) != 0 ? saturate(density * 3) : smoothstep(0, edge, density);
+    return dark * lerp(0.5, 0.95, saturate(shape.y / 3000));
 }
 
 // R-36: what a lit colour keeps of the sun's share once the sky over it has its say. skyOverhead is how much open sky
