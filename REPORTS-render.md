@@ -537,3 +537,23 @@ with main d95e7ff1); compiles, no suite run yet.
   blue), so with this branch the blue moon becomes the shadow light in those benches. The profiler should
   re-baseline or pin a non-blue day. (2) Should I take the ease to 0.8 and re-clip as a follow-up row?
 - NEXT: R-34 row 1 (wet-stone switch, default off; sheet to the coordinator first).
+
+### R-32 rows 3-4 follow-up: hand-over ease 0.8 - NOT DONE (swap step)
+- Branch `render/blue-moon-shadow-2`, commit 4b349531 (WeatherSystem.cs: `BlueMoonHandOverEase` 0.5 -> 0.8, and
+  the comment now says what the ease can't do). Not merged. Stopped tuning as asked.
+- Checks:
+  - Same town clip, 120 frames. Swap-frame mean change 3.2 against a clip median of 0.85 (p95 0.88), so it is
+    still a visible step. The mean colour barely moves (R +0.4, G +0.7, B +0.7), but the diff map splits:
+    walls, roofs and the tree line brighten, the flat ground darkens. 15.5% of pixels go up by more than 8 levels
+    and 11% go down. By thirds of the frame (top to bottom) the step is 3.7 / 7.0 / 7.2.
+  - Reading: one scalar on the main light can't match both the extra slot's wrapped term on flat ground and its
+    near-equal strength on faces toward the moon. A real fix would keep both lights' shares continuous, e.g.
+    crossfade the extra slot's intensity across the fade rather than easing the main light. I haven't tried it.
+  - Suite after the last code change: `completed: 40/40 passed`. A comment-only edit followed, and the compile
+    after it is clean (0 `error CS`). NaN was measured at 0.5 (0 bad); the ease doesn't touch any division.
+- Shots (milestones folder R-32): `after-bluemoonrise-handover.mp4` and `after-handover-strip.png` (frames 17,
+  27, 37, 46, 47 (swap), 57, 77) are replaced by the 0.8 run.
+- Asks: should the crossfade fix become a card row, or is the soft step acceptable for a one-in-ten night?
+  Noted: BENCH-QUEUE note 93 (profiler pins an ordinary night in the three bench scripts, plus a blue-night
+  baseline). I'm not touching the bench scripts.
+- NEXT: R-34 row 1 (wet-stone switch, default off; sheet to the coordinator first).
