@@ -5097,3 +5097,10 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - fauna/individual-builds @ HEAD (pushed): it sits on top of body-reads, so I merged the now-merged fauna/body-reads in rather than main directly. No conflicts. Pin 43D1F778 holds, landmarks 117 689D5348, suite 40/40. Merge body-reads (#356) first, then this branch.
 - Shares: no new system. This merges existing branches.
 - NEXT: fauna/style-parity, then A-126 rows 2-4 (row 4 steering will reuse the player's own body control path, per rule 33).
+
+## Style parity (fauna/style-parity, ff848d73) - #358 context, no own issue - done (verified), ready for PR
+- CreatureBlob.Style now runs math.hash through SpawnTable.Scramble before `% count` (supervisor option a).
+- Check: model of math.hash(uint2) over 10k odd ids: before, an even count drew only every other option; after, 2 options 50/50 and 4 options ~25% each.
+- Fingerprint DDE01A70, unchanged: Style is drawn per individual at runtime and is not baked, so no re-pin. Suite 40/40. No shot (a number check).
+- Risk: existing individuals may show different hair or limb styles, which is the intended change.
+- Shares: SpawnTable.Scramble, the one avalanche step, reused rather than copied; callers are HairColor and the CreatureAnimator limb StyleGroups.
