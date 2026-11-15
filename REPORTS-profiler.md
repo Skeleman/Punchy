@@ -2,6 +2,24 @@
 
 Newest first.
 
+## Job 81: A-108 row 2 herds' far form (fauna/far-life d0524eaa = B, `-herdlog`, vs main 697e565f = A), 2026-11-15 (q123.job): FAIL at the summit vantage (+1.1 ms GPU, +1.2 ms main at Medium); hand-over clean
+**Setup:** shelf builds (runner checked), 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds, Medium and High. Views: the summit vantage (`-benchspot -2496,294,960,55`), standing 130 m from the town-e herd (`-benchspot 3570.2,-973.1,99`), and the walk in at 6 m/s from 460 m to 35 m from the herd (`-hitchms 30`). Then one Profiler-captured walk per arm.
+
+| view | preset | A GPU | B GPU | **delta** | A main | B main | **delta** |
+|---|---|---|---|---|---|---|---|
+| summit vantage | Medium | 8.77 | 9.87 | **+1.10** | 12.03 | 13.23 | **+1.20** |
+| herd, 130 m | Medium | 8.73 | 8.7 | -0.03 | 10.13 | 10.53 | +0.40 |
+| walk in | Medium | 9.53 | 9.6 | +0.07 | 10.47 | 10.97 | +0.50 |
+| summit vantage | High | 12.57 | 13.3 | +0.73 | | | |
+| herd, 130 m | High | 12.4 | 12.67 | +0.27 | | | |
+| walk in | High | 13.07 | 13.37 | +0.30 | | | |
+
+- **Rule 23 (B within +0.3 GPU and +0.3 main at Medium): FAIL at the vantage** (GPU +1.1, rounds 9.7-10.2 vs 8.7-8.9; main +1.2), where "Herds: drawn 89 members 302" are in view. Main thread is also +0.4-0.5 at the herd and on the walk (just over the bar).
+- **Where the main thread goes (Profiler walk, Medium):** CreatureRenderSystem self **0.60 ms/frame on B vs 0.19 on A** (+0.41; GatherHerds/WriteHerds have no markers of their own, so they show inside it). FaunaDirector.Comfort the same on both (0.18-0.19); FaunaDirector.Update 0.03 on B. So the herd drawing is the main-thread cost, not the director.
+- **Wake frame:** no frame on B's walks stands out near the hand-over: frames over 30 ms are fewer on B (57 in 6 walks) than A (80), up to 81 ms on both, spread along the whole walk (streaming). Nothing points at an 11-animal wake spike; a marker around the wake would catch it if it's under 30 ms.
+
+Cost: laptop total $906 (laptop session e163d8ab; 0 builds (shelf), 38 games, 2 analyses).
+
 ## Job 80: streaming spikes (main 3b192717, shelf build), 2026-11-15 (q122.sh): yes, streaming systems spike in the same frames (terrain chunks with colossus builds most often); cave route not measured
 **Setup:** Medium, 1920x1080, uncapped, noon, Clear; per route one Profiler-captured game (BProfileTools `-over 8`) and two plain games. Routes: the W-138 north portal (-1596,1164), a 100 m walk north at 4 m/s on the surface road (the bench can't walk inside a bore); `-benchstops townjump` (800 m out from the biggest town, jumped into its middle: #288's flora boost); and `hereentry` into wet cave c13 (1572,8,-2635).
 
