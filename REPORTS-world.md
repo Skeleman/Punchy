@@ -7913,3 +7913,17 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   scarp walls are cliffs too but get no kit pieces or ledges (the kit only looks at sea cliff and mesa faces). Follow-up
   for W-162 (one climbing path): let the kit dress scarp faces.
 - Next: world/world-pack.
+
+## Land world/world-pack (W-168, #345): ready for PR
+
+- **Branch:** world/world-pack f3c28fca = origin/main merged in, pushed. Ready for PR (rule 31).
+- **Conflicts:** IslandV2.cs (reset, bake order, free list) and IslandCache.cs (both sides moved Format to 2).
+  Resolved as a union. The scarps (W-155) are cut into the finished ground first, then the cave sockets (W-168) are
+  read from the finished caves and ground. SocketsMs is still timed, and both blobs are cleared and freed. Format
+  stays 2, and its comment now names both changes.
+- **Checks:** clean compile; PlayMode suite `completed: 41/41 passed`; landmarks 117 hash 689D5348, game hash FA8F24B1.
+  Scarps bake the same as on main (2: ridge canyon wall, river cut bank).
+- **Shares:** extends the island bake's "bake last on the finished ground" step and the island file's blob list.
+  Parallel found but not folded in: TerrainSource.Equals (SameIsland) compares Scarps but not CaveSockets, and it
+  didn't on world-pack before this merge either. That's a small follow-up; I'll fold it into the next world-pack touch.
+- Next: water/truth.
