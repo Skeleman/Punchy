@@ -334,6 +334,9 @@ namespace Punchy.Fauna
         public float JointPhaseStep;
         /// <summary>Segments bend to lie on the ground.</summary>
         public bool FollowGround;
+        /// <summary>A-127: clothing over a leg (a robe's panels). Each segment is drawn where the same segment of the
+        /// body's leg on its side is (CreatureAnimator.FollowLegs), so the leg can't poke through it.</summary>
+        public bool FollowsLeg;
         /// <summary>Style option group (0 = always shown), this part's option in it, and how many options it has.</summary>
         public int StyleGroup, StyleIndex, StyleCount;
         /// <summary>A leg's give: how much further its hip-to-ankle span can stretch beyond the standing pose (m, at
@@ -1146,6 +1149,7 @@ namespace Punchy.Fauna
                     Spring = limb.Spring,
                     JointPhaseStep = limb.JointPhaseStep,
                     FollowGround = limb.FollowGround,
+                    FollowsLeg = limb.FollowsLeg,
                     Side = side,
                     StyleGroup = slot.StyleGroup,
                     StyleIndex = StyleIndex(species, e.SlotIndex),

@@ -966,6 +966,7 @@ namespace Punchy.Fauna
                 endPos.Add(pos);
                 endRot.Add(rot);
             }
+            FollowLegs(ref b, ref segPos, ref segRot, ref segHidden);
 
             var golden = Golden(ref b, in s);
             for (int seg = 1; seg < b.Segments.Length && seg < MaxSegments; seg++)
@@ -990,6 +991,42 @@ namespace Punchy.Fauna
             }
             if (seams && NoSeams.Data == 0)
                 MarkJoints(ref b, output, offset);
+        }
+
+        /// <summary>
+        /// A-127: clothing over the legs (a turtle folk's robe panels, CreaturePart.FollowsLeg) moves with them: each
+        /// panel segment is put where the same segment of the body's leg on its side is (its last segment past the
+        /// leg's end), so a stride swings the panel with the thigh instead of the leg walking through it. Run after
+        /// every part is posed, so it takes the leg's final pose (foot placement, sitting, lying).
+        /// </summary>
+        static void FollowLegs(ref CreatureBlob b, ref FixedList4096Bytes<float3> segPos, ref FixedList4096Bytes<quaternion> segRot,
+                               ref FixedList512Bytes<bool> segHidden)
+        {
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var panel = ref b.Parts[i];
+                if (!panel.FollowsLeg)
+                    continue;
+                // The body's leg on the same side.
+                var leg = -1;
+                for (int k = 0; k < b.Parts.Length && leg < 0; k++)
+                    if (b.Parts[k].Role == LimbRole.Leg && b.Parts[k].Parent < 0 && b.Parts[k].Side == panel.Side)
+                        leg = k;
+                if (leg < 0)
+                    continue;
+                ref var l = ref b.Parts[leg];
+                for (int j = 0; j < panel.SegmentCount; j++)
+                {
+                    var seg = panel.FirstSegment + j;
+                    var from = l.FirstSegment + math.min(j, l.SegmentCount - 1);
+                    if (seg >= segPos.Length || from >= segPos.Length)
+                        break;
+                    segPos[seg] = segPos[from];
+                    segRot[seg] = segRot[from];
+                    if (seg < segHidden.Length && from < segHidden.Length && segHidden[from])
+                        segHidden[seg] = true;
+                }
+            }
         }
 
         /// <summary>
