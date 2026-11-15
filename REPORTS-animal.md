@@ -5129,3 +5129,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Other robed folk: none. TurtleRobe is the only robe limb. Two other cloth pieces don't follow the legs and weren't changed: the PoseGear apron (CreatureRenderSystem.PoseGear.cs) and the ogre guard cape (PoseGuard.cs).
 - Shares: extended the shared limb data (LimbType -> CreaturePart) and the CreatureAnimator segment pass with a generic FollowsLeg flag, so any species can hang skirt, kilt or robe panels on its legs as data. Parallels not folded in: the apron and the cape above, which are drawn by separate gear paths.
 - NEXT: row 3 (no upward drift under water).
+
+## 11-15 A-126 row 2 (#367): hands stay planted during the ledge pull-up - done (verified)
+- fauna/playtest-1114 add32f44 (main merged in). CreatureAnimator.cs: a mantling upright body crouches and leans over its hands, so the hand IK holds on the rim; it releases at u 0.75-0.95 (MantleHold).
+- Hand strip (Human, `-place ledge:lip`): drift while rising was 109 cm, now 2.8-3.3 cm. Hands are fixed from u 0.16 to 0.77. Lip test PASS. The test now retries its stage-5 jump, because one jump could fall short.
+- Shots: PunchyMilestones/A-126/a126-mantle-0..3.png (side-on, u 0.2/0.45/0.7/0.88). Legs stay below the rim while crouched.
+- Risk: remote avatars take their Anchor from looks.Rim ahead of their current position, so their hands may drift with the body. Solo/host verified, client unchecked.
+- Shares: extends the one Climbing/mantle hand IK in CreatureAnimator (all upright bodies). No parallel found.
+- NEXT: row 3 shimmy prompt, then row 4 ride steering.
