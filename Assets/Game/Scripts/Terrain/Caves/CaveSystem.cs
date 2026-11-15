@@ -201,6 +201,7 @@ namespace Punchy.Terrain
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
         static readonly int FloraInCaveId = Shader.PropertyToID("_FloraInCave");
         static readonly int UnderRockId = Shader.PropertyToID("_UnderRock");
+        static readonly int LatticeFieldId = Shader.PropertyToID("_LatticeField");
         static Texture2D detail;
 
         void OnEnable()
@@ -355,6 +356,9 @@ namespace Punchy.Terrain
             if (caveWater != null)
                 Destroy(caveWater);
             caveWater = null;
+            if (landmarkWater != null)
+                Destroy(landmarkWater);
+            landmarkWater = null;
             ReleaseBatFolk();
             ReleaseRooms();
             Shader.SetGlobalVector(LanternId, Vector4.zero);
@@ -439,7 +443,11 @@ namespace Punchy.Terrain
         // Comparers made once: List.Sort(Comparison) wraps the delegate in a new comparer on every call, every frame.
         static readonly Comparer<(float distance, int pool)> PoolsByDistance =
             Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
-        static Mesh lavaPoolMesh;
+        /// <summary>
+        /// Lava pools' look (rgb, murk): the water shader's lava path (glow y = 1) makes it glow and creep. W-148 row 4:
+        /// on the cave water lattice like any pool, fitted to its basin (it was a shared disc mesh).
+        /// </summary>
+        static readonly float4 LavaPoolLook = new float4(1f, 0.33f, 0.05f, 0.2f);
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
         /// <summary>
@@ -447,25 +455,12 @@ namespace Punchy.Terrain
         /// the shader's opacity turns the pool into a hard-edged slab that reads as snow), so the rim still fades into the
         /// bed and it lies still, well under the thick-and-oily threshold (0.55); the whiteness comes from the colour and a
         /// self-glow, which also shows it where nobody carries a light. The glow's hue swirl only trades blue for green, which stays near white.
-        /// W-17: toned down (the pool read as a milky blob); the shader also darkens and thins the middle (_SoftRim).
+        /// W-17: toned down (the pool read as a milky blob).
         /// W-61: milkier again (#35: a milky-white look): a warm bone white instead of the blue-grey, murk 0.24 (still under 0.3).
+        /// W-148: drawn as ordinary cave water with this look (no soft-rim draw): it swims, wades and splashes like water.
         /// </summary>
         static readonly float4 WhitePoolWater = new float4(0.88f, 0.88f, 0.84f, 0.24f);
         const float WhitePoolGlow = 0.12f;
-        /// <summary>_SoftRim = 1 for white pool draws (the water shader fades them out towards the disc's rim).</summary>
-        static MaterialPropertyBlock softRimProps;
-        static MaterialPropertyBlock SoftRimProps
-        {
-            get
-            {
-                if (softRimProps == null)
-                {
-                    softRimProps = new MaterialPropertyBlock();
-                    softRimProps.SetFloat("_SoftRim", 1f);
-                }
-                return softRimProps;
-            }
-        }
         /// <summary>
         /// "-whitepools": every cave water pool is drawn as white pool water (a debug override: W-18 bat folk chambers
         /// carry their own white pools in TerrainSource.BatFolk). Drawing only, so it changes nothing that is baked.
@@ -479,16 +474,16 @@ namespace Punchy.Terrain
         }
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
-        /// <summary>Per pool: drawn last frame (DetailPolicy.Within holds it; only lava pools are drawn here).</summary>
+        /// <summary>Per pool: its glow handed on last frame (DetailPolicy.Within holds it; only lava pools glow).</summary>
         bool[] poolDrawn = System.Array.Empty<bool>();
         EntityQuery configQuery;
 
         /// <summary>
         /// Draws cave water with the terrain's own water material: pools and streams baked like chunk water
-        /// (CaveSystem.Water, W-134; each tile drawn only while big enough on screen), lava pools with one shared disc
-        /// mesh (lava is its lava path) while within LoadRadius and a couple of pixels wide (DetailPolicy.CaveWaterPixels,
-        /// held by DetailPolicy.Within, W-135). Hands the drawn lava pools' glow to LightBudget so the cave shader can
-        /// light the walls round them warmly without real lights.
+        /// (CaveSystem.Water, W-134; each tile drawn only while big enough on screen), lava pools among them in the lava
+        /// look (W-148 row 4). Hands the lava pools' glow, while within LoadRadius and a couple of pixels wide
+        /// (DetailPolicy.CaveWaterPixels, held by DetailPolicy.Within, W-135), to LightBudget so the cave shader can light
+        /// the walls round them warmly without real lights.
         /// </summary>
         void DrawPools(in TerrainSource source, float3 camPos)
         {
@@ -513,22 +508,10 @@ namespace Punchy.Terrain
             DrawCaveWater(source, camPos, water);
             if (nearPools.Count == 0)
                 return;
-            if (lavaPoolMesh == null)
-                lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
             nearPools.Sort(PoolsByDistance);
             foreach (var (_, i) in nearPools)
             {
                 ref var pool = ref set.Pools[i];
-                if (water != null)
-                {
-                    var rp = new RenderParams(water)
-                    {
-                        worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
-                        shadowCastingMode = ShadowCastingMode.Off,
-                        receiveShadows = false
-                    };
-                    Graphics.RenderMesh(rp, lavaPoolMesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
-                }
                 var reach = LavaLight;
                 reach.w = pool.Radius * 5f + 4f;
                 // (LightBudget decides by its on-screen reach whether it takes a glow slot: refactor 3.1.)
@@ -584,6 +567,7 @@ namespace Punchy.Terrain
             else
                 caveWater.CopyPropertiesFromMaterial(water);
             caveWater.SetFloat(UnderRockId, 1f);
+            caveWater.SetFloat(LatticeFieldId, 1f);
             return caveWater;
         }
         /// <summary>One draw per run of the same model and LOD: its mesh, and its index in plantArgs.</summary>
@@ -863,107 +847,38 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
-        /// towards the rim), in the given look and lava amount.
+        /// A basin's water (a fountain's or a well's, FloraSystem): a flat polygon of the given sides and radius in the
+        /// terrain's water vertex layout, corner s where an upright FloraMeshBuilder.Tube's ring vertex s lies, so it fills
+        /// the basin's wall ring for ring (W-148: it was a disc). Still, one depth throughout, in the given look.
         /// </summary>
-        internal static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
-
-        /// <summary>The same disc with a self-glow too (toxic pools): glow x, lava y.</summary>
-        static Mesh MakePoolMesh(float4 look, float2 glow)
+        internal static Mesh MakeBasinMesh(float radius, int sides, float depth, float4 look)
         {
-            const int rings = 6, spokes = 32;
-            var vertices = new List<WaterVertex> { Vertex(float2.zero) };
-            for (int r = 1; r <= rings; r++)
-                for (int s = 0; s < spokes; s++)
-                {
-                    var a = s / (float)spokes * math.PI * 2f;
-                    vertices.Add(Vertex(new float2(math.cos(a), math.sin(a)) * r / rings));
-                }
-            var indices = new List<int>();
-            for (int s = 0; s < spokes; s++)
+            sides = math.max(sides, 3);
+            var vertices = new List<WaterVertex>(sides + 1) { Vertex(float2.zero) };
+            for (int k = 0; k < sides; k++)
             {
-                indices.Add(0); indices.Add(1 + (s + 1) % spokes); indices.Add(1 + s);
+                var a = k * math.PI * 2f / sides;
+                vertices.Add(Vertex(new float2(-math.sin(a), -math.cos(a)) * radius));
             }
-            for (int r = 1; r < rings; r++)
-                for (int s = 0; s < spokes; s++)
-                {
-                    int a = 1 + (r - 1) * spokes + s, b = 1 + (r - 1) * spokes + (s + 1) % spokes;
-                    int c = a + spokes, d = b + spokes;
-                    indices.Add(a); indices.Add(b); indices.Add(c);
-                    indices.Add(b); indices.Add(d); indices.Add(c);
-                }
-            var mesh = new Mesh { name = "Cave pool" };
+            var indices = new List<int>(sides * 3);
+            for (int k = 0; k < sides; k++)
+            {
+                indices.Add(0); indices.Add(1 + k); indices.Add(1 + (k + 1) % sides);
+            }
+            var mesh = new Mesh { name = "Basin water" };
             mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
             mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
             mesh.SetIndices(indices, MeshTopology.Triangles, 0);
-            mesh.bounds = new Bounds(Vector3.zero, new Vector3(2f, 1f, 2f));
+            mesh.bounds = new Bounds(Vector3.zero, new Vector3(radius * 2f, 1f, radius * 2f));
             return mesh;
 
             WaterVertex Vertex(float2 xz) => new WaterVertex
             {
                 Position = new float3(xz.x, 0f, xz.y),
-                Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
+                Data = new float4(0f, 0f, depth, 0f),
                 Look = look,
-                Glow = glow
+                Glow = float2.zero
             };
-        }
-
-        // ------------------------------------------------------------------------------------------- landmark pools
-
-        /// <summary>A landmark's pool, drawn as a smooth disc (the terrain's water grid leaves it out).</summary>
-        struct LandmarkPool
-        {
-            public float3 Centre;
-            public float Radius;
-            public Mesh Mesh;
-        }
-
-        readonly List<LandmarkPool> landmarkPools = new List<LandmarkPool>();
-        BlobAssetReference<LandmarkSetBlob> landmarkPoolsFrom;
-
-        /// <summary>
-        /// Draws every landmark pool (oases, hot springs, toxic pools, crater lava) within LoadRadius with the terrain's
-        /// water material: a disc a tenth wider than the pool, so its rim tucks under the gentle bank, in the water look
-        /// the terrain would give it there. A small pool spanned only a few quads of the terrain's water grid, which
-        /// left a ragged edge. One mesh per pool, built when the landmarks change.
-        /// </summary>
-        void DrawLandmarkPools(in TerrainSource source, float3 camPos)
-        {
-            if (!source.Landmarks.IsCreated || configQuery.IsEmpty)
-                return;
-            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
-            if (water == null)
-                return;
-            if (landmarkPoolsFrom != source.Landmarks)
-            {
-                ReleaseLandmarkPools();
-                landmarkPoolsFrom = source.Landmarks;
-                ref var set = ref source.Landmarks.Value;
-                for (int i = 0; i < set.Instances.Length; i++)
-                {
-                    ref var type = ref set.Types[set.Instances[i].Type];
-                    for (int p = 0; p < type.PoolCount; p++)
-                    {
-                        LandmarkSampling.Pool(ref set, i, p, out var centre, out var radius);
-                        var look = source.WaterLook(centre.xz, source.SampleGround(centre.xz).Biomes, out var glow);
-                        var mesh = MakePoolMesh(look, glow);
-                        mesh.name = "Landmark pool";
-                        landmarkPools.Add(new LandmarkPool { Centre = centre, Radius = radius * 1.1f, Mesh = mesh });
-                    }
-                }
-            }
-            foreach (var pool in landmarkPools)
-            {
-                if (math.distance(pool.Centre, camPos) > LoadRadius + pool.Radius)
-                    continue;
-                var rp = new RenderParams(water)
-                {
-                    worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
-                    shadowCastingMode = ShadowCastingMode.Off,
-                    receiveShadows = true
-                };
-                Graphics.RenderMesh(rp, pool.Mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
-            }
         }
 
         // ------------------------------------------------------------------------------------------- drips
@@ -1306,13 +1221,6 @@ namespace Punchy.Terrain
 
         Punchy.Flora.FloraSystem flora;
 
-        void ReleaseLandmarkPools()
-        {
-            foreach (var pool in landmarkPools)
-                Destroy(pool.Mesh);
-            landmarkPools.Clear();
-            landmarkPoolsFrom = default;
-        }
 
         // The frame timer and its section marks, reused so Update allocates nothing (W-117 GC).
         readonly System.Diagnostics.Stopwatch frameClock = new System.Diagnostics.Stopwatch();
