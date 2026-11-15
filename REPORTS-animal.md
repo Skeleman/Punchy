@@ -5227,3 +5227,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - No debug key (input belongs to the player lane): the file watch covers live editing. Solo/host/client: local text only, nothing sent; each machine reads its own file.
 - Shares: LiveJsonFile + JsonProblems are the one reloader/validator for hand-edited JSON; DialogueArchive and WeatherLines both moved onto it (their own copies of the poll are gone). Parallel not folded in: quests.json (FolkConversation.LoadQuests has its own stamp check) and stats.json (PlayerStats) could join; quests.json isn't folk-owned.
 - NEXT: row 2, moving the hard-coded folk lines (beast topic labels, quest phrasings) into dialogue.json.
+
+## 11-15 A-129 row 2 (#393): quest phrasings and beast topic labels in dialogue.json - done (verified)
+- folk/dialogue-archive d51ab1ff. conversation.quests (find, clear, bring, bringMany, other; slots {item} {items} {creature} {creatures} {count}) now gives a quest's words, built when asked, so a hand edit shows straight away. An animal player's topic labels (meet/bye) come from beastTalk.topics. The code copies are only a fallback for a missing file or key. The shared TalkBook parse checks both keys: an unknown quest kind, a non-text value or bad slots is named by path and line.
+- Number check, no shot: new test Archive_QuestWordsAndBeastLabels (each said form is the file's entry with slots filled, none left open). The shipped archive names 0 problems; quests=5, beast labels=2. FolkConversationTests 8/8, full PlayMode suite 42/42. The reload hook skips the new quests block.
+- Build check (supervisor ask, before PR): a development build into the tree's Builds/Windows was started at the stop call. Editing dialogue.json beside the exe in a running build is NOT yet done, so the build path is still UNVERIFIED.
+- Solo/host/client: local text only, nothing sent.
+- Shares: TalkBook parse ("quests", "topics" for any section) on LiveJsonFile/JsonProblems. Parallel not folded in: the hermit lines live in WorkSets assets (FolkWorkSets.AloneLinesFor); Plural() stays in code (grammar, not lines).
+- NEXT (stopped for v0.16): the build check, then row 3 (dialogue-options design note, drafted, not posted). Not ready for PR until the build check passes.
