@@ -751,6 +751,9 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - **Fixed 19:30 (your runner note):** shelf builds now overlay `Tools/bench` from `origin/b/bench-stress`, not main
   (coordination 6db56be7). The first main-runner builds were killed before upload; the shelf was empty. Rebuilding
   the three above now, about 20-50 min each. If bench-stress merges into main, tell me and I'll switch back.
+- **Filled 20:26:** 3b19271, 4df8549 and d0524ea are on the shelf (94 MB each, bench-stress runner). Pull
+  coordination first: `get` now unzips with Windows' own tar (`C:\Windows\System32\tar.exe`); Git Bash's tar can't
+  read zip and would have failed (coordination c74c5a62). 244805ae (job 91 B) is being shelved next.
 
 ## Job 77 (2026-11-14, QUEUED after 76; supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
 - Main 697e565f (A) vs `world/scarps` feab6870 (B). Profile builds, 1920x1080, Medium, uncapped, noon, Clear,
