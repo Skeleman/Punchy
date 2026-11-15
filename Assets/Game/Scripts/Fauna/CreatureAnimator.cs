@@ -1355,6 +1355,16 @@ namespace Punchy.Fauna
                 return LookAbout(in s);
             if (s.Mode != CreatureMode.Work || s.Stage == 0 || s.Task == CreatureTask.None)
                 return float3.zero;
+            // (A-115: a lamplighter on its round walks easy, its pole in the right hand (the staff's arm); at a lamp it
+            // raises the pole up to it, the arm high and nearly straight, the left hand on its hip.)
+            if (s.Task == CreatureTask.Tend && (s.Stage == FolkJobs.RoundWalk || s.Stage == FolkJobs.RoundReach))
+            {
+                if (s.Stage != FolkJobs.RoundReach || part.Role != LimbRole.Arm || joint > 1)
+                    return float3.zero;
+                var up = math.smoothstep(0f, 0.35f, s.StageTime);
+                return part.Side > 0f ? new float3(joint == 0 ? -2.1f * up : 0.55f * up, 0f, 0f)
+                                      : new float3(joint == 0 ? 0.25f * up : -1.1f * up, 0f, part.Side * 0.35f * up);
+            }
             // (Swinging an axe, a hammer or a pick, the whole body goes into it: SwingBody.)
             if (part.Role != LimbRole.Arm || joint > 1)
                 return SwingBody(ref part, in s, joint);

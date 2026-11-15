@@ -322,10 +322,9 @@ namespace Punchy.Fauna
             culling.Complete();
             CreatureSnapshotSystem.WaitTicks += System.Diagnostics.Stopwatch.GetTimestamp() - waitStart;
             keepFlags.Dispose();
-            // (A-114: what each body last held, forgotten now and then so the gone don't pile up; those still in view
-            // just start afresh, with no move.)
-            if ((poseFrame & 1023) == 0)
-                pocketSeen.Clear();
+            // (A-114: what each body last held, with the gone pruned now and then so they don't pile up.)
+            if ((poseFrame & 255) == 0)
+                PrunePockets(poseFrame, (float)SystemAPI.Time.ElapsedTime);
             if (pocketStarted[0] > 0)
             {
                 PocketStarts += pocketStarted[0];
