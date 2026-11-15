@@ -103,7 +103,10 @@ namespace Punchy.Fauna
                 if (math.distance(s.Position.xz, stand) > 0.4f)
                 {
                     s.Target = stand;
-                    targetSpeed = Hour > due ? run : walk;
+                    // (Late, or out in the rain: at a run. The sky itself, not its discomfort, so a hardy one hurries too.)
+                    var sky = Comfort.WeatherAt(s.Position.xz);
+                    var wet = sky.Rain + sky.Storm > 0.3f;
+                    targetSpeed = Hour > due || wet ? run : walk;
                     moving = true;
                     if (s.Stage != FolkJobs.RoundWalk)
                     {
@@ -125,6 +128,89 @@ namespace Punchy.Fauna
                     s.StageTime = 0f;
                 }
                 return true;
+            }
+
+            /// <summary>Out on its round: it doesn't break off for shelter, it hurries through the rain (row 2).</summary>
+            static bool LampRoundOn(in CreatureState s) =>
+                s.Job == (byte)FolkJob.Lamplighter && s.Mode == CreatureMode.Work && s.Stage >= FolkJobs.RoundWalk;
+
+            /// <summary>How far off a child spots the lamplighter on its round and tags along (m).</summary>
+            const float TrailReach = 20f;
+
+            /// <summary>
+            /// Row 2: some evenings a child at a loose end trails the lamplighter round the town, a few steps behind,
+            /// watching each lamp come on. Which evenings is rolled from the child and the day, so it's not every
+            /// child every night. Host only, as the rest of the brain; clients see it walk. False when it isn't.
+            /// </summary>
+            bool TrailLamplighter(ref CreatureState s, ref CreatureBlob b, float dt, float walk, float run, ref float targetSpeed,
+                                  ref bool moving, ref float desiredLook)
+            {
+                if (!HasLamps || !b.Child || Hour < 17f || Hour > 22.5f)
+                    return false;
+                // (Sat about the square counts: in the evening that's where the children are.)
+                var loose = s.Mode == CreatureMode.Wander || s.Mode == CreatureMode.Play || s.Mode == CreatureMode.Sit ||
+                            s.Mode == CreatureMode.Idle && s.Stage < CreatureAnimator.MessageWait;
+                if (!loose)
+                    return false;
+                // (Roughly a day at the default day length (24 min): about two evenings in five.)
+                var day = (uint)(Now / 1440f);
+                if (math.hash(new uint2(s.Seed, day * 2654435761u + 77u)) % 5u >= 2u)
+                    return false;
+                if (!FindLamplighter(s.Position.xz, out var leader))
+                    return false;
+                // (Up from its seat first, so it doesn't sit back down in the street when the round moves off.)
+                if (s.Mode == CreatureMode.Sit)
+                    SetMode(ref s, CreatureMode.Wander);
+                var to = leader.xz - s.Position.xz;
+                var distance = math.length(to);
+                var dir = distance > 1e-3f ? to / distance : new float2(0f, 1f);
+                var lookAt = math.clamp(WrapAngle(math.atan2(to.x, to.y) - s.Yaw), -1.2f, 1.2f);
+                var gap = 2.5f + b.BodyLength * s.Scale * 0.5f;
+                if (distance > (s.Speed > 0.2f ? gap + 0.3f : gap + 2f))
+                {
+                    // (A step to the side by the child's seed, so two of them don't walk in each other's tracks.)
+                    var side = new float2(dir.y, -dir.x) * ((s.Seed & 1u) == 0u ? 0.8f : -0.8f);
+                    s.Target = leader.xz - dir * (gap - 1f) + side;
+                    targetSpeed = distance > gap + 6f ? run : walk;
+                    moving = true;
+                    desiredLook = lookAt * 0.4f;
+                }
+                else
+                {
+                    TurnTowards(ref s, ref b, leader.xz, dt);
+                    desiredLook = lookAt * 0.6f;
+                }
+                return true;
+            }
+
+            /// <summary>The nearest lamplighter out on its round within TrailReach of p.</summary>
+            bool FindLamplighter(float2 p, out float3 position)
+            {
+                position = default;
+                var best = TrailReach * TrailReach;
+                var found = false;
+                var c = Cell(p);
+                var r = (int)math.ceil(TrailReach / CellSize);
+                for (int z = -r; z <= r; z++)
+                for (int x = -r; x <= r; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var o = States[j];
+                        if (o.Gone || !LampRoundOn(in o))
+                            continue;
+                        var d = math.distancesq(o.Position.xz, p);
+                        if (d < best)
+                        {
+                            best = d;
+                            position = o.Position;
+                            found = true;
+                        }
+                    } while (Grid.TryGetNextValue(out j, ref it));
+                }
+                return found;
             }
         }
     }

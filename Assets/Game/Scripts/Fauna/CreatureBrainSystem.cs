@@ -816,6 +816,7 @@ namespace Punchy.Fauna
                 // Following a player (Follow.Start) takes the place of its own mode while it lasts.
                 // (So does a fish come over to a bobber: A-100 row 2.)
                 if (!Following(ref s, ref b, ref rng, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook) &&
+                    !TrailLamplighter(ref s, ref b, dt, walk, run, ref targetSpeed, ref moving, ref desiredLook) &&
                     !Lured(self, ref s, ref b, ref rng, dt, walk, run, threatened, ref targetSpeed, ref moving, ref custom))
                 switch (s.Mode)
                 {

@@ -178,7 +178,16 @@
         { "text": "Three today, plump ones!", "trade": "PoolFisher", "mood": "Cheerful" },
         { "text": "The drips scare them off.", "trade": "PoolFisher", "mood": "Grumpy" },
         { "text": "Feel the ripples, not the light.", "trade": "PoolFisher" },
-        { "text": "The pool gives what it gives.", "trade": "PoolFisher" }
+        { "text": "The pool gives what it gives.", "trade": "PoolFisher" },
+        { "text": "Every lamp in town, every night. My knees know each one.", "trade": "Lamplighter" },
+        { "text": "Long way round tonight. It's always the long way round.", "trade": "Lamplighter", "when": "evening" },
+        { "text": "Cold creeps in through the gloves by the last lamp.", "trade": "Lamplighter" },
+        { "text": "Wind off the hills bites at this hour.", "trade": "Lamplighter", "when": "night" },
+        { "text": "That one by the well never stays lit. Never.", "trade": "Lamplighter", "mood": "Grumpy" },
+        { "text": "Lit it twice already. If it goes out again, it can stay dark.", "trade": "Lamplighter", "mood": "Grumpy" },
+        { "text": "Watch them come on, street by street. Never gets old.", "trade": "Lamplighter", "mood": "Cheerful" },
+        { "text": "Out they go at first light, one by one.", "trade": "Lamplighter", "when": "dawn" },
+        { "text": "Rain's the worst. Wet wicks and wet feet.", "trade": "Lamplighter" }
       ]
     },
     "Human": {
