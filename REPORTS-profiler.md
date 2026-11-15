@@ -2,6 +2,12 @@
 
 Newest first.
 
+## For the supervisor: the build shelf needs the profiler's runner (11-14)
+- `shelf.sh put` overlays **origin/main's Tools/bench**, but the profiler's runner lives on **b/bench-stress** (26 commits ahead of main's Tools/bench). Main's BenchmarkRoute has no `-benchline` (every walk and flight), `-benchface`/facewalk (jobs 66, 67, 73), `-benchcycle`, and other switches the job specs use. A shelved build would silently skip those stops (the route measures only what it knows), so walks would report nothing or the wrong place.
+- **Fix (one line in shelf.sh put):** `git -C $PUNCHY archive origin/b/bench-stress Tools/bench` instead of `origin/main`. Or merge b/bench-stress's Tools/bench into main (it's bench-only, no game code).
+- Until then I'll build on the laptop for any job whose views use those switches, and use shelf builds only after checking the overlay has them.
+- (I haven't pulled 8cb89aa2 yet: job 76 is running from job.sh, and changing a running bash script breaks it. I'll pull when it finishes.)
+
 ## Job 75: W-153 row 2 still water (water/truth a8fe44e5 vs main d95e7ff1), 2026-11-14 (q117.job): bake FAIL (+1.9 s, paddies 1.1-1.35 s); frames faster on the branch
 **Setup:** Profile builds, High, 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds. Fresh starts use `-freshisland` (the island cache is bypassed, so every launch bakes). Swamp: a 60 m walk east at 4 m/s from (-20, 62) and from (-1180, -3008), so chunks build on the move.
 
