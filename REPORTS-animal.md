@@ -5184,3 +5184,21 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Fauna-side conflicts (CreatureAnimator.cs, FaunaDirector.cs) are mine and get resolved on the merge.
 - Ask: OK for me to make these three world-file edits on the far-life merge (rule 11), or should the world lane do them? A cache format bump forces one island rebake for everyone.
 - Shares: the one island cache and TerrainSource blob set (herds just add a blob). No parallel found.
+
+## 11-15 A-128 row 1 (#392): worn cloth drapes clear of the legs - done (verified)
+- folk/cloth-legs 00c92ff3 (from main 37750588). New shared PoseJob.Drape (CreatureRenderSystem.Drape.cs) swings a cloth piece out toward its face just far enough to clear every leg and trunk segment under it, seating a top piece on the body first, and never swings it inward. It is used by PoseGuard.Hanging (ogre guard cape, sash tails) and the PoseGear apron, now a bib plus skirt (GearParts 8 -> 9, extras start at slot 6). Model Lab now draws the kit (PoseKit), so poses and shots show it.
+- Look change: a smith's apron now reaches the knee (was waist-short), and the skirt rides in front of the striding thigh. The ogre cape now covers the hunched back: before, the black breastplate showed through as a hole from behind. Its upper half flares about 35 deg off the hump and the lower half hangs straight, so from the side it reads a little stiff, like a heavy hide. Sash tails drape the same way.
+- Shots (walk, cycle 0/0.25/0.5/0.75; rows front/side/back): D:/Unity/PunchyMilestones/A-128/strip-smith-before.png, strip-smith-after.png, strip-ogre-before.png, strip-ogre-after.png; 3/4 check smith-after-34.png. No leg pokes through at any cycle.
+- Fingerprint: not re-run. The change is render-only: limb data and blobs are untouched (GearParts only sizes render buffers), so no re-pin is expected.
+- Solo/host/client: the kit is cosmetic, drawn from replicated state (Task, Held, Speed, Yaw), so all three look the same.
+- Risk: the cape flare is capped at max(hang, 1.2 rad). A very broad new body could still flare wide.
+- Shares: Drape is the one cloth-over-body helper for the kit (Hanging + apron), the kit's counterpart of CreatureAnimator.FollowLegs for robe panels. Parallel: the two still differ (FollowLegs bends limb-data panels, Drape aims render pieces). They could share the clearance maths if a third cloth path appears.
+- NEXT: row 2 design note below.
+
+## 11-15 A-128 row 2 (#392): PoseGear carried items vs HeldPoseSystem - design note, no code
+- Today there are two "what's in its hands" paths. (a) HeldItem kit: an enum on CreatureState, drawn as SegmentInstances in PoseJob (PoseGear/PoseGuard) along the hand's posed line, with per-item arm poses in CreatureAnimator (e.g. the OreSack arm offsets at about line 699) and Pocket.cs for put-away places. (b) HeldPoseSystem: a real creature entity clamped between the carrier's hands each frame, with arms opened by CreatureState.CarryWidth (IdleAction.Carry in CreatureAnimator).
+- Overlap: both answer the same questions: which hand(s), where the grip is on the posed body, and how far the arms open around the load. The OreSack hard-codes a both-arms hug, and the animal carry derives the same hug from CarryWidth. Pocket.PocketSide is a third copy of the "which hand" answer.
+- Recommendation: keep two drawers (kit pieces vs a moved entity: they are genuinely different), but share one grip layer. (1) A HandGrip(ref blob, output, side) -> pose helper in PoseJob that both PoseGear and HeldPoseSystem's body pose call. (2) A two-handed kit item sets a load width the way a carried animal does, so the OreSack (and later crates, the player's inventory items) open the arms through IdleAction.Carry rather than its own offsets. (3) PocketSide becomes the single side table, read by both.
+- Fits the coming shared item definitions (CLAUDE.md "items use the shared definitions"): a HeldItem entry would carry its side, width and grip, so a new carried thing is data. Cost is small: about 3 files, render and pose only, no net change.
+- Shares: names HandGrip as the shared grip layer for HeldItem kit + HeldPoseSystem; folds in Pocket.PocketSide. Not done here (design only).
+- NEXT: folk/cloth-legs is ready for PR (A-128 rows 1-2). Queue empty: next card from STATE.md.
