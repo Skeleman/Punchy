@@ -730,7 +730,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Record: main-thread ms walking the swamp round (-20, 62) and (-1180, -3008), where terrain chunks sample the pools (run-time Terrace no longer calls BaseHeight; expected no slower).
 - Pass: bake within +0.5 s of main; frame cost within noise.
 
-## Job 76 (2026-11-14, RUNNING 11-14 (q118.job, q118b.job); render lane, for R-25 row 3, #302): far lights within budget
+## Job 76 (2026-11-14, REPORTED 11-14 in REPORTS-profiler.md (q118, q118b); render lane, for R-25 row 3, #302): far lights within budget
 - Main 697e565f (A) vs `render/far-lights` 17177829 (B), and B with item 6 dropped: `render/far-lights` 768ff9ae
   (C, flora as on B but grass, pebbles and the temple back on the Forward+ cluster variant). Profile builds,
   1920x1080, Medium and High, uncapped, 22:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.

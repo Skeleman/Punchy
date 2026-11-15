@@ -2,6 +2,27 @@
 
 Newest first.
 
+## Job 76: R-25 far lights (render/far-lights 17177829 = B, 768ff9ae = C, vs main 697e565f = A), 2026-11-14 (q118, q118b): PASS (B +0.50 / +0.13 at the town, Medium); item 6 saves nothing (C isn't cheaper than B)
+**Setup:** Profile builds, 1920x1080, uncapped, 22:00, Clear, `-weatherseed 4`, `-lightlog`, arms rotated, 3 rounds, Medium and High. A is the card's main 697e565f = the branches' base d95e7ff1 plus #307 (colossus climbing; nothing at these views). Beacon: a 3 m line toward it at 0.2 m/s, 40 m over the ground, from (2044, -1261).
+
+| view | preset | A | B | B `-farlights 0` | C (item 6 dropped) | B - A | C - B |
+|---|---|---|---|---|---|---|---|
+| town, yaw 0 | Medium | 13.57 | 14.07 | 13.77 | 14.1 | **+0.50** | +0.03 |
+| town, yaw 201 | Medium | 12.23 | 12.37 | 12.43 | 12.6 | **+0.13** | +0.23 |
+| town, yaw 0 | High | 17.23 | 17.5 | 17.33 | 17.5 | +0.27 | 0.00 |
+| town, yaw 201 | High | 16.17 | 16.77 | 17.0 | 17.3 | +0.60 (A's rounds 15.1-16.9) | +0.53 |
+| campfire, 12 m | Medium | 11.97 | 12.3 | — | 12.47 | +0.33 | +0.17 |
+| campfire, 12 m | High | 14.87 | 15.33 | — | 15.47 | +0.47 | +0.13 |
+| beacon, 1 km, 40 m up | Medium | 15.37 | 14.7 | — | 14.2 | -0.67 (A's round 1 16.5) | -0.50 |
+| beacon, 1 km, 40 m up | High | 19.03 | 19.3 | — | 19.07 | +0.27 | -0.23 |
+
+(GPU ms, mean of 3 rounds.)
+- **Pass (B <= +0.5 ms over A at the town, Medium): PASS**, +0.50 facing north and +0.13 facing 201. The far lights themselves (B vs B `-farlights 0`) are ~0.3 ms of that at yaw 0, ~0 at 201. Main thread within +0.05-0.3 ms.
+- **Item 6 (C - B): no saving.** C reads equal or up to +0.2 ms slower at the town and the campfire at Medium; only the beacon reads lower, inside its own noise. **Per the card: drop item 6 alone.**
+- **`[lights]` at the town, B:** "requests 147, glow slots 16/16, real 16/16, dropped 65, indoor 11 (detail 1.0)": the 16 glow slots are full and 65 requests are dropped.
+
+Cost: laptop total $887 (laptop session e163d8ab; 3 builds, 84 games).
+
 ## For the supervisor: the build shelf needs the profiler's runner (11-14)
 - `shelf.sh put` overlays **origin/main's Tools/bench**, but the profiler's runner lives on **b/bench-stress** (26 commits ahead of main's Tools/bench). Main's BenchmarkRoute has no `-benchline` (every walk and flight), `-benchface`/facewalk (jobs 66, 67, 73), `-benchcycle`, and other switches the job specs use. A shelved build would silently skip those stops (the route measures only what it knows), so walks would report nothing or the wrong place.
 - **Fix (one line in shelf.sh put):** `git -C $PUNCHY archive origin/b/bench-stress Tools/bench` instead of `origin/main`. Or merge b/bench-stress's Tools/bench into main (it's bench-only, no game code).
