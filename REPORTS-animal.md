@@ -4989,3 +4989,32 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Host/client: species data on every machine.
 - Risks: Coyote and ArcticFox are variants and inherit their base species' nose. BoneHound was not changed.
 - NEXT: row 3, feathers.
+
+## A-120
+
+### Row 1: household pets (done, verified) - fauna/folk-pets ba2daaf7
+- Probe (seed default, 160 houses): 89 keep a pet. ArcticFox 12, Cat 8, Chicken 7, CollaredLizard 12, Dog 31, Frog 5, Lizard 14. Per town:
+  - OgreCamp: dog 4, hen 1.
+  - HumanVillage: lizard 26 (desert biome).
+  - GoblinCamp: dog 9, hen 4.
+  - DwarfHold: dog 11, fox 7 (tundra wins over the dwarf beetle).
+  - ElfGrove: dog 4, cat 4.
+  - Fishing villages: cats, dogs, frogs and a hen.
+  - Turtle villages: igloo fox 1 to 2 each.
+  - SeaFolk: dome frog 3.
+  - Hermit hut: hen.
+  - No stables or goats came up on this seed.
+- Pet's day (the OgreCamp 5, clock paused at each hour):
+  - 00:30: all 5 asleep by their beds (0.5 to 1.4 m).
+  - 08:30: waking. One dog following its folk (e169, 2.6 m behind) and dropped it when they went in.
+  - 15:00: a dog follows on its own roll for 133 s, 8.9 m from its bed. The rest potter within the 6 m leash.
+  - 21:30 (Night 1): all walk back and are asleep by their beds within about 30 s.
+- NaN 0 in every sample.
+- Talk: "our dog Moss" and the like, filled from the household on every machine.
+- Shot: D:/Unity/PunchyMilestones/A-120/a120-r1-pet-day.png (OgreCamp dog by the tents).
+- Network: host or solo only. HouseholdPet is never sent; pet, name and Individual are seed-derived. No new ghost fields.
+- Cost: once per second, with a lazy 16 m grid over 3x3 cells round each pet. It is only built on a follow roll (1/240 per pet per s).
+- Risks:
+  - The dwarf beetle is shadowed by the tundra check at DwarfHold.
+  - Bat folk have no Households, so they get no pet.
+- NEXT: row 2. Folk petting animals; Holder = folk needs a rule 11 check.
