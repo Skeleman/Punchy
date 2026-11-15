@@ -7754,3 +7754,62 @@ the Creature and Colossus calls go through fauna and the ItemMeshes calls throug
 Colours stay (unify only); placement and hashes don't move. Cost goes to BENCH (one branch per family in the
 fragment, as today).
 - Next: W-167 row 1.
+
+## W-167 row 1: tower sizes audit (no code; for the supervisor to confirm)
+
+Read from the code at origin/main 3b192717 (world tree) and the species assets. Guide: a spiral stair needs 2.5-3 m
+clear inside, straight flights about 4 m; storeys 3-3.5 m; walls 0.4-1 m. The player steps 0.4 m and stands 1.7 m.
+"Clear" is the inside diameter (or side) less the walls. Where a tower is drawn as a solid box, the clear figure is
+what it would have if hollowed with the kit's 0.4 m wall (StructureKit.Thick).
+
+**Who has towers:** only the elf grove (ElfGroveLayout) uses KitHouse, ElfTower and ElfSpire, so the kit corner
+tower appears in elf towns (TowerChance 0.35) and in kit ruins (Ruin.asset, human trim, TowerChance 0.18). The inn
+turns towers off. Other freestanding towers: the beacon fixture (FixtureBeacon), the sea folk spire and the salt
+tower (a landform). The hermit crab colossus's lighthouse is fauna's and only a prop.
+
+| Type | Outer footprint | Wall | Clear inside | Height | Storeys it implies | Spiral fits? | Straight? | Door, windows, stair today |
+|---|---|---|---|---|---|---|---|---|
+| Kit corner tower (elf KitHouse) | square, side 0.42 x min(width, depth) = 2.0-3.6 m (house 6-8.5 m wide, depth 0.8-1.05 x) | solid box | 1.2-2.8 m | house eaves + 1-1.8 storeys: 6.8-16.3 m (storey 3.4) | 2-4, but no floor bands (one cornice at the top) | only when side >= 3.3 m (min(w, d) >= 7.9 m, about one tower in ten) | never | **no door**; 0.28 x 0.9 m slits on all four faces every storey from 2.0 m (they read as storeys, not as a stair); centred on the house corner, so a quarter stands inside the house; crenels or a 5-tier pyramid roof |
+| Kit corner tower, ruined (Ruin, human trim) | side 1.6-2.8 m (ruin 4.8-6.7 m wide) | solid box | 0.8-2.0 m | 6-11.4 m before decay (storey 3) | 2-3 | never | never | as above, cut down by decay |
+| ElfTower (FloraForm.Tower) | round, radius 2.9-4.3 m (foot flare 1.35 r, top 0.85 r): 5.3-7.8 m across mid-wall | tube, about 0.3 m | 4.4-6.8 m at the eaves | walls 6.5-9.6 m, roof peak 10.5-15.5 m | 2-3 balcony rings at walls/(floors+1): 2.2-3.2 m apart | yes, roomily | yes (most) | porch door 1.25 x min(0.4 walls, door) at the foot; 5 windows 0.7 m above each ring, all at the same height round the tower; no window follows a stair; tall Foliage roof, no hatch |
+| ElfSpire (FloraForm.Tower) | round, radius 2.6-3.0 m: 4.6-5.5 m across mid-wall | about 0.3 m | 3.8-4.6 m at the eaves | walls 9.9-11.8 m, peak 16-19 m | 2-3 rings, 2.5-3.9 m apart | yes | no | as ElfTower |
+| Beacon (FixtureBeacon) | 5 m square (core 3 m + 1 m outside stair) | solid core | 2.2 m if hollow | deck 10.4 m, fire 11.2 m | 3 (slits every 3.6 m) | outside stair already, 0.28 m rises round the core | - | **door at the foot of a solid core** (leads nowhere), slits in a solid shaft, rails on the stair; the outside stair reads correctly |
+| Sea folk spire | round whorls, radius 1.8-2.6 m at the foot, 0.2 x that at the tip | solid | 2.8-4.4 m at the foot only; under 1 m at the lamp gallery | 26-32 m | none (whorls every 2.2 m) | no, above the first whorl | no | no door (sea folk swim); 4 lamp windows at 0.84 h; reads as a shell, not a building |
+| Salt tower (landform) | radius 7.5 m column | solid salt | - | landmark height | - | outside spiral steps (0.3 m rises), summit 8 m | - | a climbed rock, not a building; already the outside-stair model |
+
+**What reads wrong:**
+1. **Kit corner towers are too thin and have no door.** At 2-3.6 m side, nine in ten could not hold any stair, and
+   no door or upper door joins them to the house; slits at every storey on all four faces say "floors" but nothing
+   says "stair".
+2. **Elf towers are big enough but say nothing about a stair:** the rings sit 2.2 m apart on short towers (below a
+   storey), every window is at a ring, and the roof is leaves with no hatch or gallery.
+3. **The beacon's door opens into a solid 3 m core** (2.2 m clear if hollow: too small for an inside stair, and it
+   doesn't need one: the outside stair is the way up). Its slits light nothing.
+4. **The sea folk spire** has no door and needs none: it is a swim-round shell, like a pinnacle.
+
+**Proposed size rules (silhouette kept):**
+- **Kit corner tower:** side = max(0.42 x min(width, depth), 3.4 m) (2.6 m clear: a spiral), capped at 0.55 x
+  min(width, depth) so it stays a corner tower, not a second house; when the house is too small for 3.4 m inside that
+  cap (min(w, d) < 6.2 m), make it a **stair turret**: 2.4 m side with a ladder or an outside stair and a roof hatch,
+  or skip the tower. Height = eaves + 1-1.8 storeys, rounded to whole storeys so the top floor lines up. A door from
+  the house's upper floor (UpperDoor on the shared wall) and a ground door on its outer face; a floor band (cornice
+  course) at every storey; slits stepped up one face along the stair (one per quarter turn, rise 0.75 x Storey per
+  face) plus one window a storey on the street face; crenelled top gets a hatch box, the pyramid gets a dormer.
+  Ruined towers follow the same sizes (rubble keeps the rule).
+- **ElfTower and ElfSpire:** keep the radii (both fit a spiral; ElfSpire may go slimmer: Spread down to 0.26 at the
+  same height, r >= 2.1 m, still 3 m clear at the eaves). Rings become storeys: n = floor(walls / 3.2), rings at
+  k x walls / n, so they are 3.2-3.5 m apart; one window per storey on the door side and a spiral line of small
+  windows between the rings (a quarter turn per window); a balcony door on the top ring. Roof drawn as thatch or
+  shingle (W-166's Thatch family, not Foliage); add a small hatch or lantern gallery under the eaves on the tallest.
+- **Beacon:** keep the outside stair (it is the model for slender towers). Make the foot door a store-room door into
+  a hollowed bottom storey (core 3 m, 2.2 m clear: a room, no stair) or drop it; move the slits to sit just above the
+  outside stair's treads, as lamp niches on the stair line.
+- **Sea folk spire:** stays solid with no door (a pinnacle by the card's rule); optionally a swim-in arch at the
+  lake-bed foot into one room (2.8-4.4 m clear), no stair.
+- **Salt tower, colossus lighthouse:** no change (landform; fauna prop).
+- **Every tower with a door:** clear inside >= 2.6 m (spiral) or an outside stair or ladder; storeys 3-3.5 m with a
+  band at each; windows on the stair line and at storey heights; a hatch, parapet or gallery at the top; rooms left
+  free for #254 halls and the player lane's interiors (the stair kept to one quadrant, the centre open).
+- **Placement:** kit towers at 3.4 m stick out up to 0.9 m further from the house corner, and ElfSpire slimming
+  shrinks its footprint: plots may shift, so row 2 re-pins the hashes and tells the profiler.
+- Next: W-169 (puddle edges at chunk borders), then W-165 row 1.
