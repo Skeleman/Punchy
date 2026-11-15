@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caafa1aa4ce26ac49b43f9bd4e4d1393, type: 3}
+  m_Name: SeaChild
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Fauna.CreatureSpecies
+  VariantOf: {fileID: 11400000, guid: d7e5f1e8e7ca4c22ac4b45f0ebecc429, type: 2}
+  VariantScale: 0.58
+  VariantHead: 1.5
+  VariantThickness: 1.2
+  VariantLegs: 0.85
+  Coats:
+  - Name: Shallows scales, coral fins
+    Base: {r: 0.4, g: 0.66, b: 0.7, a: 1}
+    Accent: {r: 0.95, g: 0.56, b: 0.44, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  - Name: Pearl scales, pink fins
+    Base: {r: 0.82, g: 0.84, b: 0.86, a: 1}
+    Accent: {r: 0.92, g: 0.6, b: 0.7, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  - Name: Sea-green scales, gold fins
+    Base: {r: 0.3, g: 0.6, b: 0.5, a: 1}
+    Accent: {r: 0.95, g: 0.78, b: 0.34, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  - Name: Lilac scales, teal fins
+    Base: {r: 0.56, g: 0.5, b: 0.72, a: 1}
+    Accent: {r: 0.3, g: 0.76, b: 0.7, a: 1}
+    AccentGlow: 0
+    Weight: 1
+  Size: {x: 0.9, y: 1.1}
+  Weight: 18
+  HairColors: []
+  Parts: []
+  WalkSpeed: 1.5
+  RunSpeed: 5
+  WanderRadius: 14
+  IdleTime: {x: 2, y: 8}
+  Active: 0
+  Grazing: 0
+  Thirst: 0
+  Playfulness: 0.85
+  Child: 1
+  Laziness: 0.05
+  Hunger: 0
+  ChaseTime: 10

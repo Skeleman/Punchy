@@ -136,6 +136,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>The archipelago off the dune coast (W-30, v2 only, baked after every place): islets raised out of the sea floor.</summary>
         public BlobAssetReference<ArchipelagoBlob> Archipelago;
+        /// <summary>The scarps (W-155, baked after every place): rim lines where the ground is cut to a true step, each drawn by a skin mesh.</summary>
+        public BlobAssetReference<ScarpSetBlob> Scarps;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>
@@ -467,6 +469,7 @@ namespace Punchy.Terrain
             var water = BaseHeight(siteA * PaddySize);
             var bed = water - TerraceDepth;
             var g = bed;
+            var steep = 0f;   // W-172: 0..1, how near this is to a border with a much higher or lower pool
             // Then a bank towards every neighbour whose border is close: the ground rises from this pool's bed to the
             // bank on top of the border (the same height from both sides, so the ground stays continuous).
             for (int j = 0; j < 9; j++)
@@ -475,11 +478,19 @@ namespace Punchy.Terrain
                 var e = (math.distance(p, s) - dA) * 0.5f * PaddySize;   // metres to that border (approx.)
                 if (e <= 0f || e > 6f)
                     continue;
-                var top = math.max(water, BaseHeight(s * PaddySize)) + TerraceBank;
+                var other = BaseHeight(s * PaddySize);
+                var top = math.max(water, other) + TerraceBank;
+                // W-172: a neighbour metres higher (a pool centre up a cliff) made a bank ridge standing as a spike.
+                // Both sides see the same step, so fading towards the border keeps the ground continuous.
+                steep = math.max(steep, math.smoothstep(TerraceStep - 2f, TerraceStep, math.abs(other - water)) * (1f - math.smoothstep(0f, 6f, e)));
                 var w = math.clamp((top - bed) * 0.8f, 1.2f, 6f);   // a tall riser is wider, so it isn't a wall
                 g = math.max(g, math.lerp(top, bed, math.smoothstep(0f, w, e)));
             }
             var bank = water + TerraceBank;
+            // W-172 (#301): paddies only on gentle, uncarved ground. On a steep slope a cell's level pool sat metres
+            // above the downhill ground (water strips standing in the air) and a neighbour's centre far up the slope
+            // made a bank spike; where a river or landmark had reshaped the ground the pool also undid that.
+            cover *= TerraceFit(xz, h) * (1f - steep);
             // Out towards the pond's edge the paddy blends back into the natural ground: a rim at bank height first,
             // so the pool ends against it, not in mid air.
             var rim = math.lerp(h, math.max(h, bank), math.smoothstep(0f, 0.3f, cover));
@@ -489,6 +500,23 @@ namespace Punchy.Terrain
                 level = water;
             return g;
         }
+
+        /// <summary>
+        /// W-172: 1 where the ground suits paddies, fading to 0 by the natural slope (over ~8 m) and by how far rivers or
+        /// landmarks have moved the ground (h) from the natural ground. Continuous in xz, so the fade has no seams.
+        /// </summary>
+        float TerraceFit(float2 xz, float h)
+        {
+            var b = BaseHeight(xz);
+            var slope = math.length(new float2(BaseHeight(xz + new float2(TerraceSlopeStep, 0f)) - b,
+                                               BaseHeight(xz + new float2(0f, TerraceSlopeStep)) - b)) / TerraceSlopeStep;
+            return (1f - math.smoothstep(TerraceSlopeMin, TerraceSlopeMax, slope)) * (1f - math.smoothstep(0.5f, 2f, math.abs(h - b)));
+        }
+
+        /// <summary>W-172: paddies fade out between these natural slopes (rise per metre), measured over this step (m).</summary>
+        public const float TerraceSlopeMin = 0.18f, TerraceSlopeMax = 0.32f, TerraceSlopeStep = 8f;
+        /// <summary>W-172: a border between pools further apart in level than this (m) has no paddies at it.</summary>
+        public const float TerraceStep = 4f;
 
         /// <summary>W-25: a paddy cell's centre, in cell units (jittered inside its grid square).</summary>
         static float2 PaddySite(int2 c)
@@ -655,7 +683,10 @@ namespace Punchy.Terrain
             return ShapeHeight(xz, shape);
         }
 
-        public float SampleHeight(float2 xz)
+        public float SampleHeight(float2 xz) => Beds(xz, Unbedded(xz));
+
+        /// <summary>The ground height before W-164's garden beds (what a bed levels to, at its centre).</summary>
+        float Unbedded(float2 xz)
         {
             // A loaded heightmap already contains carved channels and landmark shapes.
             if (UsesHeightmap)
@@ -673,6 +704,8 @@ namespace Punchy.Terrain
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
                 h = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, h, out _, out _, out _, out _);
+            if (Scarps.IsCreated)
+                h = ScarpSet.Shape(ref Scarps.Value, xz, h);
             return Settle(xz, Ponds(xz, shape, h));
         }
 
@@ -694,6 +727,31 @@ namespace Punchy.Terrain
         }
 
         float Settle(float2 xz, float h) => Settlements.IsCreated ? SettlementSampling.Height(ref Settlements.Value, xz, h) : h;
+
+        /// <summary>
+        /// W-164: landmarks' garden beds levelled into the ground (LandmarkBeds), after everything else, towards the
+        /// unbedded height at each bed's centre, so applying it again changes nothing and a garden set at its spot's
+        /// height sits flat.
+        /// </summary>
+        float Beds(float2 xz, float h)
+        {
+            if (!Landmarks.IsCreated || Landmarks.Value.Beds.Length == 0)
+                return h;
+            ref var set = ref Landmarks.Value;
+            var range = LandmarkSampling.CellRange(ref set, xz);
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var inst = ref set.Instances[set.Items[k]];
+                ref var type = ref set.Types[inst.Type];
+                for (int b = 0; b < type.BedCount; b++)
+                {
+                    ref var bed = ref set.Beds[type.FirstBed + b];
+                    if (LandmarkBeds.Reach(inst, type.Radius * inst.Scale, bed, xz, out var centre, out var distance, out var ring))
+                        h = LandmarkBeds.Level(h, Unbedded(centre), distance, bed.Radius, ring);
+                }
+            }
+            return h;
+        }
 
         /// <summary>Height plus biome, river and water information, computed together.</summary>
         public GroundSample SampleGround(float2 xz)
@@ -824,6 +882,9 @@ namespace Punchy.Terrain
                     ruleDepth = math.max(ruleDepth, fallWater - g.Height);
                 }
             }
+            // W-155: scarps cut the ground to a step along their rims (dry ground only: the bake keeps them above water).
+            if (Scarps.IsCreated && !UsesHeightmap)
+                g.Height = ScarpSet.Shape(ref Scarps.Value, xz, g.Height);
             // Biome ponds (a swamp's pools): water was decided above from the ground without them, so a pond is wet only
             // where it digs below the water level the biome already has (sea level in the lowlands).
             var dug = Ponds(xz, shape, g.Height, out var terrace);
@@ -852,7 +913,7 @@ namespace Punchy.Terrain
             else if (dug > g.Height)
                 g.Height = dug;   // a stepped pool's bank, a little above the ground
             // Settlements keep clear of water, so their levelling doesn't change the water rules above.
-            g.Height = Settle(xz, g.Height);
+            g.Height = Beds(xz, Settle(xz, g.Height));
 
             g.WaterSurface = water;
             g.Flow = flow;
@@ -1352,6 +1413,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
     }
 }

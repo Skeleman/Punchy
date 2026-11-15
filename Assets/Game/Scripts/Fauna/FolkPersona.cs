@@ -117,6 +117,8 @@ namespace Punchy.Fauna
         /// <summary>Bothered by the weather (FolkState.Weather says how).</summary>
         Weather = 128,
         Night = 256,
+        /// <summary>A water breather (the sea folk) out on dry land (A-103 row 2b): its talk grumbles about the dryness.</summary>
+        Dry = 512,
     }
 
     /// <summary>A folk's condition and the hour, worked out when it's spoken to (FolkState.Of).</summary>
@@ -162,6 +164,18 @@ namespace Punchy.Fauna
             if (weather != ComfortKind.None)
                 f |= FolkCondition.Weather;
             return new FolkState { Flags = f, Weather = weather, Hour = hour };
+        }
+
+        /// <summary>
+        /// A-103 row 2b: whether a lake bed walker (the sea folk) is out of the water, standing on dry land or wading no
+        /// deeper than its shins. Only asked for WalksBed bodies (one ground sample), so other folk pay nothing.
+        /// </summary>
+        public static bool OutOfWater(float3 position, bool walksBed, in TerrainSource terrain)
+        {
+            if (!walksBed)
+                return false;
+            var g = terrain.SampleGround(position.xz);
+            return !(g.HasWater && g.WaterSurface > position.y + 0.25f);
         }
 
         public override string ToString() => Weather != ComfortKind.None ? $"{Flags} ({Weather})" : Flags.ToString();

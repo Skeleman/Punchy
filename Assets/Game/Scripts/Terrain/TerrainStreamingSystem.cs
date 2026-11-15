@@ -91,6 +91,7 @@ namespace Punchy.Terrain
         /// <summary>W-136: the GroundContacts.Version + ContactShade.Version the loaded chunks were built with.</summary>
         int contactVersion;
         int buildFrames;
+        double buildStartedAt;   // W-168: when the batch in flight started (seconds since start)
 
         /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
         /// maps) can hold off rather than crowd it out.</summary>
@@ -156,6 +157,8 @@ namespace Punchy.Terrain
             if (materialId == BatchMaterialID.Null)
                 return;
 
+            if (Loading)
+                StartLedger.Tick();
             // Pick up the batch being built once it's done (or it has had long enough).
             if (building.Count > 0)
             {
@@ -232,6 +235,7 @@ namespace Punchy.Terrain
                 {
                     Loading = false;
                     UnityEngine.Debug.Log($"[stream] world ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start, {loaded.Count} chunks (load boost {(LoadBoostOn ? LoadBoost : 1)}x, {World.Name})");
+                    StartLedger.Report(loaded.Count, World.Name);
                 }
                 return;
             }
@@ -391,6 +395,7 @@ namespace Punchy.Terrain
         /// <summary>Starts building the first <paramref name="count"/> wanted chunks in the background.</summary>
         void StartBuild(in TerrainConfig config, in TerrainSource source, int count)
         {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             // Terrain meshes at [0, count), water meshes at [count, 2·count).
             buildData = Mesh.AllocateWritableMeshData(count * 2);
             buildRequests = new NativeArray<ChunkBuildRequest>(count, Allocator.Persistent);
@@ -439,13 +444,16 @@ namespace Punchy.Terrain
                 Contacts = GroundContacts.Contacts,
                 ContactStrength = ContactShade.Strength,
                 ContactReach = ContactShade.ReachScale,
-                ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail
+                ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail,
+                Clay = ScarpClay.On
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
             GroundContacts.Readers = buildHandle;   // freed only once this build is done reading them
             buildFrames = 0;
             Meshing = true;
             JobHandle.ScheduleBatchedJobs();
+            buildStartedAt = UnityEngine.Time.realtimeSinceStartupAsDouble;
+            StartLedger.Add("chunks start", clock.Elapsed.TotalMilliseconds, count);
         }
 
         const MeshUpdateFlags MeshFlags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
@@ -458,6 +466,10 @@ namespace Punchy.Terrain
             buildHandle.Complete();
             Meshing = false;
             var count = building.Count;
+            // W-168: the wait above is forced when the batch hit MaxBuildFrames, otherwise it is near 0.
+            var waited = clock.Elapsed.TotalMilliseconds;
+            StartLedger.Add(buildFrames >= MaxBuildFrames ? "chunks wait (forced)" : "chunks wait", waited);
+            StartLedger.Flight("chunks start", (UnityEngine.Time.realtimeSinceStartupAsDouble - buildStartedAt) * 1000.0);
 
             // Rebuilt chunks reuse their own meshes; new chunks take them from the pool.
             buildMeshes.Clear();
@@ -535,6 +547,7 @@ namespace Punchy.Terrain
                 loaded[item.Coord] = chunk;
             }
             DisposeBuild();
+            StartLedger.Add("chunks apply", clock.Elapsed.TotalMilliseconds - waited, count);
             if (first || clock.Elapsed.TotalMilliseconds > 250)
                 UnityEngine.Debug.Log($"[stream] batch of {count} chunks applied in {clock.Elapsed.TotalMilliseconds:F0} ms{(first ? " (first)" : "")}");
         }

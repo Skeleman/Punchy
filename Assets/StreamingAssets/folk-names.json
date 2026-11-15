@@ -1,9 +1,14 @@
 {
-  "_readme": "Folk's personal names (P-26), edited by hand. A folk's name is picked from this list by its Individual, so every machine calls it the same.",
-  "names": [
-    "Aldous", "Anneke", "Arlo", "Bram", "Brenna", "Cass", "Corin", "Dagny", "Dorrin", "Edda", "Elspeth", "Emmet",
-    "Fenna", "Finch", "Garrick", "Greta", "Hale", "Hestia", "Ilsa", "Ivo", "Jory", "Juna", "Kael", "Katrin",
-    "Lark", "Lorcan", "Maren", "Marek", "Nessa", "Nils", "Odo", "Orla", "Pell", "Perrin", "Quill", "Rhosyn",
-    "Roland", "Saoirse", "Sten", "Tamsin", "Tobin", "Ulla", "Vesna", "Wren", "Wystan", "Yara", "Yorick", "Zella"
+  "_readme": "Folk's personal names (P-26), edited by hand. A folk's sex and name are picked from its Individual (A-105), so every machine calls it the same: a feminine folk from feminine + either, a masculine one from masculine + either.",
+  "feminine": [
+    "Anneke", "Brenna", "Dagny", "Edda", "Elspeth", "Fenna", "Greta", "Hestia", "Ilsa", "Juna", "Katrin",
+    "Maren", "Nessa", "Orla", "Rhosyn", "Saoirse", "Tamsin", "Ulla", "Vesna", "Yara", "Zella"
+  ],
+  "masculine": [
+    "Aldous", "Arlo", "Bram", "Corin", "Dorrin", "Emmet", "Garrick", "Hale", "Ivo", "Kael", "Lorcan",
+    "Marek", "Nils", "Odo", "Pell", "Perrin", "Roland", "Sten", "Tobin", "Wystan", "Yorick"
+  ],
+  "either": [
+    "Cass", "Finch", "Jory", "Lark", "Quill", "Wren"
   ]
 }

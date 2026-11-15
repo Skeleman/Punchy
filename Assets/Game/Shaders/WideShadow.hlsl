@@ -12,8 +12,32 @@ float4 _WideShadowTex_TexelSize;
 float4x4 _WideShadowMatrix;   // world to the map's uv
 float4 _WideShadowFrontEye;   // xyz the map's near plane centre, w one over its depth
 float4 _WideShadowFrontSun;   // xyz the way the sunlight travelled when the map was laid
-float4 _WideShadowParams;     // x how much of the direct sunlight a wide shadow takes (0 = off)
+float4 _WideShadowParams;     // x how much of the direct sunlight a wide shadow takes (0 = off), y how far the
+                              // last redraw has blended in over the one before (1 = done, the old map isn't read)
 float4 _WideShadowFade;       // fades in over x..y (m from the camera): the real shadows' last quarter
+// R-16 row 3: the map before the last redraw, blended out over a second or two so far shadows slide instead of
+// jumping each time the map is laid again.
+TEXTURE2D_FLOAT(_WideShadowOldTex);
+float4x4 _WideShadowOldMatrix;
+float4 _WideShadowOldEye;
+float4 _WideShadowOldSun;
+
+// 0..1: how much of one map's texels round c stand between this point and the sun (four taps a texel apart).
+half PunchyWideTaps(TEXTURE2D_PARAM(map, mapSampler), float2 c, float3 positionWS, half3 normalWS, float4 eye, float3 sun)
+{
+    float facing = dot(normalWS, -sun);
+    if (facing < 0.05)
+        return 0;   // turned from the sun: dark from its own lighting already
+    float slope = min(sqrt(saturate(1 - facing * facing)) / facing, 8);
+    float along = (dot(positionWS - eye.xyz, sun) - (2 + 2 * slope)) * eye.w;
+    float t = _WideShadowTex_TexelSize.x;
+    half shade = 0;
+    shade += SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(-t, -t), 0).r < along ? 0.25 : 0;
+    shade += SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(t, -t), 0).r < along ? 0.25 : 0;
+    shade += SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(-t, t), 0).r < along ? 0.25 : 0;
+    shade += SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(t, t), 0).r < along ? 0.25 : 0;
+    return shade;
+}
 
 // 0..1: how much of the direct sunlight a cached caster takes from this point. normalWS scales the bias by the
 // slope against the sun (the map's texels are about 1.6 m and its terrain is lowered 1.5 m, so the bias is metres).
@@ -31,17 +55,13 @@ half PunchyWideShadow(float3 positionWS, half3 normalWS)
     fade *= smoothstep(0, 0.06, min(edge.x, edge.y));
     if (fade <= 0)
         return 0;
-    float facing = dot(normalWS, -_WideShadowFrontSun.xyz);
-    if (facing < 0.05)
-        return 0;   // turned from the sun: dark from its own lighting already
-    float slope = min(sqrt(saturate(1 - facing * facing)) / facing, 8);
-    float along = (dot(positionWS - _WideShadowFrontEye.xyz, _WideShadowFrontSun.xyz) - (2 + 2 * slope)) * _WideShadowFrontEye.w;
-    float t = _WideShadowTex_TexelSize.x;
-    half shade = 0;
-    shade += SAMPLE_TEXTURE2D_LOD(_WideShadowTex, sampler_WideShadowTex, c + float2(-t, -t), 0).r < along ? 0.25 : 0;
-    shade += SAMPLE_TEXTURE2D_LOD(_WideShadowTex, sampler_WideShadowTex, c + float2(t, -t), 0).r < along ? 0.25 : 0;
-    shade += SAMPLE_TEXTURE2D_LOD(_WideShadowTex, sampler_WideShadowTex, c + float2(-t, t), 0).r < along ? 0.25 : 0;
-    shade += SAMPLE_TEXTURE2D_LOD(_WideShadowTex, sampler_WideShadowTex, c + float2(t, t), 0).r < along ? 0.25 : 0;
+    half shade = PunchyWideTaps(TEXTURE2D_ARGS(_WideShadowTex, sampler_WideShadowTex), c, positionWS, normalWS, _WideShadowFrontEye, _WideShadowFrontSun.xyz);
+    if (_WideShadowParams.y < 1)
+    {
+        float2 o = mul(_WideShadowOldMatrix, float4(positionWS, 1)).xy;
+        half old = all(o > 0) && all(o < 1) ? PunchyWideTaps(TEXTURE2D_ARGS(_WideShadowOldTex, sampler_WideShadowTex), o, positionWS, normalWS, _WideShadowOldEye, _WideShadowOldSun.xyz) : 0;
+        shade = lerp(old, shade, _WideShadowParams.y);
+    }
     return shade * fade * _WideShadowParams.x;
 }
 

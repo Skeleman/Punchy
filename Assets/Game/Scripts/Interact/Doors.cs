@@ -208,6 +208,28 @@ namespace Punchy.Interact
             }
         }
 
+        /// <summary>Whether door <paramref name="door"/> (its index in the island's Door anchors) is open on this machine:
+        /// the host's word, or our own solo. Read-only, for anything that needs to know (A-98's sound occlusion).</summary>
+        public static bool IsOpen(int door) => instance != null && instance.open.Contains(door);
+
+        /// <summary>Whether the door nearest this point, within <paramref name="within"/> m of its anchor, is open (false
+        /// if no door is that near). For callers that know where a doorway is but not its index.</summary>
+        public static bool IsOpen(Vector3 doorPos, float within = 2f)
+        {
+            if (instance == null || !instance.TryTerrain(out var terrain))
+                return false;
+            ref var anchors = ref terrain.Anchors.Value.Anchors;
+            int best = -1;
+            var bestDistance = within;
+            for (int d = 0; d < instance.doorAnchors.Count; d++)
+            {
+                var distance = math.distance((float3)doorPos, anchors[instance.doorAnchors[d]].Position);
+                if (distance < bestDistance)
+                    (best, bestDistance) = (d, distance);
+            }
+            return best >= 0 && instance.open.Contains(best);
+        }
+
         /// <summary>Door anchor <paramref name="door"/>'s position and facing (out of the house), if the world has it.</summary>
         public static bool TryGetDoor(int door, out float3 position, out float2 facing)
         {
@@ -289,6 +311,8 @@ namespace Punchy.Interact
                 {
                     Debug.Log($"Doors: -usedoor {useDoorArg}");
                     Use(useDoorArg);
+                    if (TryGetDoor(useDoorArg, out var usedAt, out _))
+                        Debug.Log($"Doors: door {useDoorArg} IsOpen {IsOpen(useDoorArg)}, by position {IsOpen((Vector3)usedAt)}; door {useDoorArg + 1} IsOpen {IsOpen(useDoorArg + 1)}");
                     useDoorArg = -1;
                 }
             }
