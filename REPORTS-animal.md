@@ -4927,3 +4927,40 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - BENCH line wanted (rule 21): GameAudio.Occlusion average ms in a village with doors (HumanVillage, ear indoors and outdoors), compared with main.
 - Risks: a leaf counts as open if it is within 1.5 m of an open anchor (xz), so two doors less than 1.5 m apart would share a state. No kit has doors that close together.
 - NEXT: A-121 row 2 (fires give heat) on fauna/fire-heat, then A-119.
+
+## A-116
+
+## 2026-11-14 A-116 row 1: folk stop to read the notice board (#316)
+- DONE (verified, solo): fauna/notice-board-life e38e0b25, from main 3b192717. This row is for life and detail.
+  - New CreatureBrainSystem.Board.cs partial: grown townsfolk sometimes walk to their town's board (chance 0.25 per pick at hours 7-10.5, 0.07 otherwise), stand at one of the reader places along it (NoticeBoard.cs) and read. Some point a notice out to the one beside them and read it aloud (10 new "Board" lines in dialogue.json).
+  - The places are capped, so a crowd never blocks the board. A folk beaten to a place resettles at another one (Places.Resettle).
+  - New Sit stages BoardRead=10 and BoardPoint=11 (CreatureAnimator): the head scans the sheets, and the pointing arm is raised. These are not new ghost fields; they ride the existing Stage byte, as the messenger and chat stages do.
+- Numbers (town 0, hours 7.41-19.38, one game day): 9 visits, 1 pointing, at most 1 reader at a time. Readers cluster in the morning.
+  - These were measured before row 2's home-range rule (below), which is stricter, so the count may now be a little lower.
+- Shots: D:/Unity/PunchyMilestones/A-116/r1-reader-1..6.png (6-frame reader strip).
+- Host/client: derived from the brain on the host and replicated like every other folk Stage. Not run as two processes.
+- Suite: not run (the editor stayed open for row 2).
+- BENCH line wanted (rule 21): CreatureBrainSystem ms in a town at hours 7-10 with board visits, compared with main.
+- Risks: the "reader 8 m from the board" case seen here was the home-range clamp; row 2 fixes it.
+- NEXT: row 2.
+
+## 2026-11-14 A-116 row 2: folk pin sheets up on the board (#316)
+- DONE (verified, solo): fauna/notice-board-life 9a1694eb.
+  - NoticeBoard: each town gets a few posts a day (pin hour and slot), worked out from the shared day count (FaunaClock.Day is local, set from the synced DayNightCycle.Day) and the town's seed. Host and client show the same sheets, with no new ghost field.
+  - A sheet stays up for a while, then a new one replaces it.
+  - NoticeSheets draws the sheets as thin paper cards per slot, tinted and tilted per sheet. FaunaDirector ticks it, and DetailPolicy.ScreenSize hides them below 1.5 px.
+  - The poster is any eligible grown townsfolk. It walks from home holding a Letter, waits at the pin spot (Stage BoardPin=12) until the pin hour, the sheet appears, and it leaves about 3 s later.
+  - The poster is not a specific clerk or innkeeper. Sheets are cosmetic: none adds a Quests.cs offer, since that file belongs to the player lane.
+  - Fix found while verifying (it was also row 1's far readers): KeepToLeash clamps a walk to the edge of the folk's home range, so folk whose board spot lay outside their range stood reading or pinning at nothing, metres off. Board errands now start only when the spot is inside the range (InReach: distance to Home < Leash - 1.5).
+  - Fix: a reader whose place is next to the pin spot made the poster give way and walk off with the sheet. In Places.Contested, a poster now gives way only to another poster.
+- Numbers: exactly one poster per due sheet (day 2, town 0). It arrives about 0.6-0.75 game hours early and holds st12 until the sheet goes up (8.83, slot 5). In town 0, 4 of 8 grown folk are eligible; many have a leash of 7 m with homes 15-23 m from the board.
+- Shots: D:/Unity/PunchyMilestones/A-116/r2-c0-before, r2-c1-walk, r2-c2-pinning, r2-c3-pinned, r2-c4-leaving.png. The older r2-b* and r2-poster-* sets predate the fixes.
+- Host/client: sheets come from the day count and the clock on every machine. The poster's Stage replicates as usual. Not run as two processes.
+- Suite: not run.
+- BENCH line wanted (rule 21): NoticeSheets.Tick ms with all towns built; CreatureBrainSystem ms with posters, compared with main. Also from A-115 row 1: SurfaceGlow rescans when LitCount changes.
+- Risks:
+  - Quests.BuildBoards hard-codes the board at Centre + (4, 1.5); it could read NoticeBoard.OffsetX/Z (player lane's file).
+  - The hearth uses the same max(Leash,30)+20 reach (Places.cs ~930) and may have the same leash-edge issue; not fixed.
+  - A reader can point with nobody else reading, when a poster or a leaving folk counts as company. This is minor.
+  - Folk with a large leash may walk about 120 m to read; they give up after 60 s.
+- NEXT: A-120 household pets (#340) on fauna/folk-pets.
