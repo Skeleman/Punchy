@@ -7852,3 +7852,23 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   short by the pause.
 - **Next, once HOLD is gone:** seat log after shots, a storm check that no log moves, the full suite, then the
   proper W-170 row 1 handoff (tell render, BENCH request). After that: W-170 row 2.
+
+## W-170 row 1: lying logs lie still, bark along the grain (verified)
+
+- **Branch:** world/log-bark c5d49a53 (the commit pushed before the pause as "WIP, unverified"; the code is unchanged
+  and is now verified). Lying forms (Log, Driftwood, Bedroll: `FloraGenerator.Lying`) get flexibility 0, so they
+  take the static variant. Seat logs, driftwood and woodpile logs mark their bark `BarkAlong`; Flora.shader turns
+  those furrows round the piece's grain axis instead of Y, at the same screen-size fade. Upright trunks unchanged.
+- **Shots:** D:/Unity/PunchyMilestones/W-170/, before and after at 3 m and 10 m at noon for the seat log, woodpile,
+  gravel-bar driftwood and a fallen log (-711, 1979), and one forest shot (trees unchanged). The seat after shots
+  were taken in rain, so the ground looks different; the log is the same piece.
+- **Storm check:** storm forced over the camp, two shots a few seconds apart (w170-storm-a/b). Pixel diff over the
+  seat log 1.7% (rain streaks crossing it), woodpile 0.9%, the treetops 5.8%. The logs don't move.
+- **Checks:** Punchy/Flora 0 errors (3 old warnings from the shared includes). Full PlayMode suite 40/40 passed after
+  the last code change.
+- **Skipped:** fire pit logs stay as they were (they are small, upright-ish sticks in a cone, not lying pieces). Note
+  for render: a static upright Stump would go plain, since only BarkAlong pieces get the along-grain furrows.
+- **Render:** Flora.shader gains the BarkAlong branch (furrow axis from the grain; no new lighting or haze term).
+- **BENCH request:** job 94 (queued) on c5d49a53.
+- Next: W-172 (playtest fixes) on world/playtest-1114. W-170 row 2 (per-part sway, drafted) waits until after
+  W-172; then W-171.

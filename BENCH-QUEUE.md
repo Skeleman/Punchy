@@ -929,3 +929,13 @@ Take the queue in this order. Anything not changed here runs as written in its j
   and visual.sh pin `-moonphase 0.5 -bluemoondays 0` (full blue), so their night views would switch caster.
 - Ask: pin an ordinary night in those scripts (keep the big moon as caster, comparable with old runs) and take one
   blue-night baseline as its own row. Merged 11-14 as #363 (main 1a18ba61): apply now.
+
+## Job 94 (2026-11-15, QUEUED after 92; world lane, W-170 row 1): lying-log bark along the grain
+- Arm: world/log-bark c5d49a53 (B) against its base main (A). Profile builds, 1920x1080, Medium and High, uncapped,
+  Clear, noon, ABBA, 3 rounds.
+- What changed: Flora.shader gets a second bark-furrow path (furrows round the piece's grain axis, picked by a vertex
+  marker) on seat logs, driftwood and woodpile logs. Lying logs, driftwood and bedrolls now take the static variant
+  (no sway), which should save a little.
+- View: the camp at -2894,46.9,-653 (seat log, woodpile) from about 10 m, then a gravel bar at -2667,175.8,629.
+  Record: GPU ms and the Flora draw's GPU time if the profile build can split it.
+- Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
