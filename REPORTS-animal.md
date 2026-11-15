@@ -5019,6 +5019,22 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - Bat folk have no Households, so they get no pet.
 - NEXT: row 2. Folk petting animals; Holder = folk needs a rule 11 check.
 
+### Row 2: folk pet animals (done, verified solo/host) - fauna/folk-pets 84ac52e1 (wire: Holder encoding)
+- Modules: HouseholdPetSystem (Petters/Tend), new CreatureBrainSystem.Petting.cs, CreatureAnimator idle stages PetGo/PetCrouch/PetShoo, FolkPersona.BeastsOf, Interactions.FolkHolder/ByFolk, HeldPoseSystem (folk carriers on clients).
+- Counts at Elf Grove from 08:00 (go = walks over, crouch = reached it, petted = the pet took it), per folk per game hour:
+  - Run A, 4.57 game h: low (3 folk) go 0 shoo 0; mid (5) go 1, crouch 1, 0.044/h; high (5) go 3, crouch 3, petted 2, 0.131/h.
+  - Run B, 1.18 game h from 09:00: low (4) 0; mid (2) go 1, 0.42/h; high (4) go 2, petted 1, 0.42/h.
+- Fond/cold pair, same pet, run B: e123 (Beasts 0.93) went over once and crouched. e105 (0.09) did nothing.
+- Shoo: seen only with forced rolls (a 0.31 elf flaps, and the pet flees). None turned up on natural rolls in about 6 game hours, because few low-band folk stand near pets at Elf Grove.
+- Shots: D:/Unity/PunchyMilestones/A-120/a120-r2-pet-strip-1..3.png (3 m, crouched stroking a cat; forced rolls), a120-r2-shoo.png.
+- Fixes found while testing:
+  - PetFree also takes folk on the way to a seat (Sit stage 0), but never folk walking to work.
+  - The PetGo walk no longer caps Speed. Folk crawled and timed out before.
+- Network: Holder < 0 in Held or Petted is the folk's ghost id. The line is in multiplayer.md. No new ghost field. Client hand pose: checked in row 3.
+- Cost: inside HouseholdPetSystem's one per-second job, over folk in the lazy grid round each pet. No scan of all creatures. Not timed (rule 21).
+- Scope: household pets and players in animal bodies only. Wild animals aren't petted.
+- NEXT: row 3. A child carries the pet in and out.
+
 ## 2026-11-14 A-123 row 3: feathers (#356)
 - DONE (verified in play mode, -pose specimens at noon): fauna/body-reads 1ec8c459. Creature.shader, CreatureData.Looks, SurfaceLook.
   - The feather branch is split from scales (scales unchanged). Contour feathers lie in staggered rows of rounded vanes pointing back along the body, with a thin darker edge on each tip and no hard row seam. Wings and tails get longer, narrower flight feathers with a shaft. Thin parts keep at least 6 (flight 10) feathers around, so flat wings don't tile.
