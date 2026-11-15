@@ -704,3 +704,8 @@ with main d95e7ff1); compiles, no suite run yet.
 - Finding: under forced PartlyCloudy, cloud shadows on the ground are faint at every spot scanned (6 top views, scan/), so the edge change shows little. The big square/stair-step blocks seen from the air are static terrain geometry (unchanged with clouds, weather volumes and maps off: vol/sheet.jpg at 0,0) - world/scarp (W-162), not cloud shadow. Worth asking Zach which view showed him the squares.
 - Shares: extends the shared Sky.hlsl map reads (one fix serves sky march, cloud shadow, wetness, puddles); parked render/cloud-shadow-soft 560d14e7 not folded in (screen-size sharpness, also unmeasurable).
 - NEXT: R-30 row 1.
+
+## R-30 row 1 (#323) - leaf look exploration - started, stopped for v0.16 (not verified)
+- Branch `render/foliage-realism` (from main 40478293), WIP commit: FloraMeshBuilder leaf-trial helpers only (cards, normal-offset shells, sphere normals); nothing calls them yet, not compiled or shot.
+- Plan for resuming: mark cut-out foliage in vertex colour alpha (unused on foliage), cut in FloraMossClip so every pass (lit, shadow, depth, cache, impostor bake) matches; leaf-shaped 3D cell noise in the plant frame, fading to solid by pixel footprint (rule 20). Trials by `-leaftrial a|b|c`, one play session each; (d) as analysis plus atlas memory. Shoot with `-place tree:Oak` / Pine / Bush.
+- NEXT: resume R-30 row 1, then R-31, R-33, R-29, R-35.
