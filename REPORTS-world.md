@@ -7927,3 +7927,20 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   Parallel found but not folded in: TerrainSource.Equals (SameIsland) compares Scarps but not CaveSockets, and it
   didn't on world-pack before this merge either. That's a small follow-up; I'll fold it into the next world-pack touch.
 - Next: water/truth.
+
+## Land water/truth (W-153, #301): ready for PR
+
+- **Branch:** water/truth eaaab67f = origin/main merged in, pushed. Ready for PR (rule 31).
+- **Conflicts:** IslandV2.cs and TerrainSource.cs.
+  - Bake: the scarps (W-155) cut the finished ground first, then the paddies take their levels from it ("still water
+    last"). BuildPlaces keeps `paddies: false`. Paddies and Scarps are both cleared, freed and compared in SameIsland.
+  - Terrace: kept water/truth's baked-level pools (TerrainSource.Paddies.cs). Main's W-172 row 1 slope fade
+    (TerraceFit) worked on the old per-sample paddies. It's replaced here by the pools' slope gates, hillside low
+    pools and rims capped at 0.6 m.
+- **Checks:** clean compile; PlayMode suite `completed: 41/41 passed`; landmarks 117 hash 689D5348, game hash FA8F24B1.
+  W-172 scan (4 m grid, whole island): spikes above the natural ground 26 (main 32), water hanging over dry ground 236
+  (main 251; still/pond 233 vs 248). So the merge keeps row 1's gain and adds a little.
+- **Shares:** extends the island bake's "last on the finished ground" step and TerrainSource's one ground/water
+  query. Parallel found but not folded in: none new. The W-172 row 1 fix is folded in, not kept beside it.
+- **BENCH:** bench 75 already covered this branch's paddy cost. The merge adds no per-sample work.
+- Next: world/waterfall-sheets, then world/log-bark.
