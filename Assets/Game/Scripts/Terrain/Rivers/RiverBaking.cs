@@ -572,7 +572,7 @@ namespace Punchy.Terrain
             builder.Construct(ref target, source.ToArray());
         }
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct SampleCellsJob : IJobParallelFor
         {
             public TerrainSource Source;
@@ -603,7 +603,7 @@ namespace Punchy.Terrain
         /// below it. Filled hollows whose ground lies below their base level can't be drained by cutting a rim, so
         /// they hold water up to it: they become ponds (marked as lakes at the base level).
         /// </summary>
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct BaseLevelJob : IJob
         {
             public float SeaLevel;
@@ -642,7 +642,7 @@ namespace Punchy.Terrain
         /// Starting bed level per cell. River cells take the lowest ground across their channel and banks (so the
         /// water can't spill over a low bank); lake cells take the lake surface; everything else its own height.
         /// </summary>
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct BedStartJob : IJobParallelFor
         {
             public TerrainSource Source;
@@ -693,7 +693,7 @@ namespace Punchy.Terrain
         ///  3. water sits a quarter of the channel depth below the banks (lakes at their surface), then downstream-first
         ///     no river's water may be lower than the water it flows into, so it backs up to a lake's level ahead.
         /// </summary>
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct BedDownhillJob : IJob
         {
             public RiverSettings Settings;
@@ -751,7 +751,7 @@ namespace Punchy.Terrain
             float2 Point(int index) => Points[index];
         }
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct PriorityFloodJob : IJob
         {
             public int Resolution;
@@ -816,7 +816,7 @@ namespace Punchy.Terrain
             static int Dy(int n) => n < 3 ? -1 : n < 5 ? 0 : 1;
         }
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct FlowJob : IJob
         {
             public RiverSettings Settings;
@@ -865,7 +865,7 @@ namespace Punchy.Terrain
             }
         }
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct NearestSegmentsJob : IJob
         {
             public int Resolution;
@@ -939,7 +939,7 @@ namespace Punchy.Terrain
         /// sweep in bends many widths long. Narrow streams (up to NarrowWidth) keep their jitter exactly. A point stays
         /// within one cell of its cell's centre so the carve and the segment index still find it.
         /// </summary>
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct PathPointsJob : IJob
         {
             const float NarrowWidth = 12f, SigmaPerWidth = 1.5f, MaxSigma = 72f;
@@ -1005,7 +1005,7 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Finds the hollows the flood filled, and keeps the ones big and deep enough to be lakes.</summary>
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct LakeJob : IJob
         {
             public int Resolution;

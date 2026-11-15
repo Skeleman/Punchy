@@ -938,6 +938,26 @@ namespace Punchy.Fauna
                     Pause(ref s, ref b, ref rng);
                     return;
                 }
+                // (A-117: a stable horse, and the one fetching it, walk to WorkSpot round every wall (Stage 1) and wait
+                // there (Stage 2); FaunaDirector hands them the next waypoint (in through the gate, out through it, the
+                // town's streets) until the rider is up, then the horse is ridden on to the road (Stage 3) and along it
+                // (Stage 0). Led home from the road's end it is Stage 1 again, to its paddock.)
+                if (s.Stage == 1 || s.Stage == 2)
+                {
+                    var spot = new float3(s.WorkSpot.x, s.Position.y, s.WorkSpot.y);
+                    if ((s.Stage == 1 ? LeadOn(ref s, ref b, spot, walk, dt) : WalkOn(ref s, ref b, spot, 0f, dt)) < 0.6f)
+                        s.Stage = 2;
+                    return;
+                }
+                // (Stage 3: ridden through the streets a waypoint at a time, WorkSpot; at each it waits (Stage 2) for
+                // FaunaDirector to hand it the next or, at the last, the road (Stage 0), since the road walk below
+                // goes straight for the stretch and never round walls.)
+                if (s.Stage == 3)
+                {
+                    if (LeadOn(ref s, ref b, new float3(s.WorkSpot.x, s.Position.y, s.WorkSpot.y), walk * 1.15f, dt) < 0.8f)
+                        s.Stage = 2;
+                    return;
+                }
                 ref var set = ref Terrain.Settlements.Value;
                 var k = (int)s.TargetHeight;
                 if (k < 0 || k >= set.Streets.Length)

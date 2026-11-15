@@ -30,6 +30,9 @@ namespace Punchy.Fauna
         // shovelling snow from a door, shovelling drifted sand clear, tying a roof down against the storm, mending
         // armour and tools at a bench.
         AshSweeper, SnowShoveller, SandClearer, Roofer, Mender,
+        // A town's lamplighter (A-115): lights the street lights on its round at dusk, puts them out at dawn
+        // (LampRoutes). Works at its own stages (8 walking the round, 9 reaching up), which clients read the job from.
+        Lamplighter,
     }
 
     /// <summary>A folk's temper, for flavouring its lines: from its Individual hash, so every machine agrees.</summary>
@@ -120,7 +123,8 @@ namespace Punchy.Fauna
             (AnchorKind.Gate, FolkJob.Guard, CreatureTask.Patrol, 5, 0f),
         };
 
-        /// <summary>A-106: the task whose work loop a harsh-biome job uses (a mender hammers, the rest tend).</summary>
+        /// <summary>A-106: the task whose work loop a harsh-biome job uses (a mender hammers, the rest tend; A-115: so
+        /// does a lamplighter, at the first lamp of its round by day).</summary>
         public static CreatureTask TaskOf(FolkJob job) => job == FolkJob.Mender ? CreatureTask.Hammer : CreatureTask.Tend;
 
         /// <summary>
@@ -150,8 +154,12 @@ namespace Punchy.Fauna
             if (task != CreatureTask.Tend)
                 return FolkJob.None;
             return stage == 3 ? FolkJob.AshSweeper : stage == 4 ? FolkJob.SnowShoveller : stage == 6 ? FolkJob.Roofer :
-                   stage == 7 ? FolkJob.SandClearer : FolkJob.None;
+                   stage == 7 ? FolkJob.SandClearer : stage == RoundWalk || stage == RoundReach ? FolkJob.Lamplighter : FolkJob.None;
         }
+
+        /// <summary>A-115: a lamplighter's stages on its round (Work): walking to the next lamp, reaching up to it with
+        /// its pole. Past the harsh-biome stages (3 to 7), so a client knows the job from them.</summary>
+        public const byte RoundWalk = 8, RoundReach = 9;
 
         /// <summary>The job a bat folk would hold by each prop of its chamber (hut, rack, basket), and by its pool.</summary>
         public static FolkJob BatJob(BatFolkPropKind kind) =>

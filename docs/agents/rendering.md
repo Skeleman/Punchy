@@ -73,3 +73,6 @@ Read before changing any shader, material or render setting.
   async-compile placeholder: wait until `ShaderUtil.anythingCompiling` is false before a shot.
 - `DayNightCycle.TimeOfDay` can be set back to 12 while paused (sky sync from WorldSync); set it and `Evaluate()` again
   right before each capture and log the hour.
+- The sun's real-time shadow filter is set at run time by `Rendering/SunShadowFilter.cs` (wide at High and above, the
+  Shadows setting with four cascades; the scene's own value at Medium and Low; `-sunshadowfilter scene|low|medium|high`). With the narrow filter the cascades'
+  edges crawl as the sun turns (R-20, #286). Sunny day types show it; overcast ones hide it, so test under `Sunny`.

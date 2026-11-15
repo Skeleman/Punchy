@@ -60,6 +60,11 @@ namespace Punchy.EditorTools
         float phase, clock, playSpeed = 1f;
         double lastTick;
         float orbitYaw = 90f, orbitPitch = 12f, zoom = 1f;
+        Vector3 closeCentre;
+        float closeRadius;   // > 0 while CaptureClose frames a close-up
+        CreatureMode? modeOverride;
+        CreatureTask taskOverride;
+        byte stageOverride;
 
         int nudgeSlot, nudgeSegment, nudgeKey = 1;
         Vector2 scroll;
@@ -167,6 +172,196 @@ namespace Punchy.EditorTools
             var tex = w.preview.EndStaticPreview();
             File.WriteAllBytes(path, tex.EncodeToPNG());
             DestroyImmediate(tex);
+        }
+
+        /// <summary>A-123: renders a close-up of the loaded creature from <paramref name="yaw"/> (0 = from behind, 180 = from
+        /// the front) and <paramref name="pitch"/>, framed on a sphere at <paramref name="heightFrac"/> of the model's height
+        /// with <paramref name="radiusFrac"/> of that height as its radius, without the person beside it.</summary>
+        public static void CaptureClose(string path, int width, int height, float yaw, float pitch, float heightFrac, float radiusFrac)
+        {
+            var w = Open();
+            w.EnsurePreview();
+            w.Rebuild(false);
+            var b = w.bounds;
+            w.closeCentre = new Vector3(b.center.x, b.min.y + b.size.y * heightFrac, b.center.z);
+            w.closeRadius = math.max(b.size.y * radiusFrac, 0.05f);
+            float oldYaw = w.orbitYaw, oldPitch = w.orbitPitch;
+            w.orbitYaw = yaw;
+            w.orbitPitch = pitch;
+            try
+            {
+                CapturePreview(path, width, height);
+            }
+            finally
+            {
+                w.closeRadius = 0f;
+                w.orbitYaw = oldYaw;
+                w.orbitPitch = oldPitch;
+            }
+        }
+
+        /// <summary>A-123: poses the loaded creature in a mode and a worker task (names of <see cref="CreatureMode"/> and
+        /// <see cref="CreatureTask"/>; null or "" for the plain gait) at a stage and clock, as a scripting hook for shots and
+        /// checks. The gait (and its speed) still comes from <see cref="Pose"/>.</summary>
+        public static void PoseTask(string mode, string task, int stage, float clockSeconds)
+        {
+            var w = Open();
+            w.modeOverride = string.IsNullOrEmpty(mode) ? (CreatureMode?)null : (CreatureMode)Enum.Parse(typeof(CreatureMode), mode);
+            w.taskOverride = string.IsNullOrEmpty(task) ? CreatureTask.None : (CreatureTask)Enum.Parse(typeof(CreatureTask), task);
+            w.stageOverride = (byte)stage;
+            w.clock = clockSeconds;
+            w.playing = false;
+            w.spin = false;
+            w.Rebuild(false);
+        }
+
+        /// <summary>A-123: how each arm of the loaded creature, as posed now, meets its torso, one line per arm: the shoulder
+        /// (how far the arm's first joint sits outside the torso's surface, in arm radii: about 1 just touches, below 0 sinks
+        /// in) and the clearance of the rest of the arm (the least gap, in metres at scale 1, between the torso or body and the
+        /// upper arm's lower half, then the forearm and hand; negative cuts in).</summary>
+        public static string ArmReport()
+        {
+            var w = Open();
+            if (w.family != Family.Creature || !w.blob.IsCreated)
+                return "no creature";
+            ref var b = ref w.blob.Value;
+            var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+            var sb = new System.Text.StringBuilder();
+            try
+            {
+                var s = w.State(ref b);
+                CreatureAnimator.Evaluate(ref b, in s, 0, in w.flat, output, 0);
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var arm = ref b.Parts[i];
+                    if (arm.Role != LimbRole.Arm || arm.Parent < 0)
+                        continue;
+                    ref var torso = ref b.Parts[arm.Parent];
+                    int t0 = torso.FirstSegment, tn = torso.SegmentCount;
+                    var root = output[arm.FirstSegment];
+                    var shoulder = Surface(output, t0, tn, root.Position) / math.max(root.RadiusStart, 1e-4f);
+                    float upper = float.MaxValue, lower = float.MaxValue;
+                    for (int k = 0; k < arm.SegmentCount; k++)
+                    {
+                        var seg = output[arm.FirstSegment + k];
+                        for (int q = 0; q <= 6; q++)
+                        {
+                            var f = q / 6f;
+                            if (k == 0 && f < 0.5f)
+                                continue;
+                            var p = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length * f));
+                            // (Against the torso and the body under it: a hanging hand passes the hips.)
+                            var gap = math.min(Surface(output, t0, tn, p), Surface(output, 0, 1, p)) - math.lerp(seg.RadiusStart, seg.RadiusEnd, f);
+                            if (k == 0) upper = math.min(upper, gap);
+                            else lower = math.min(lower, gap);
+                        }
+                    }
+                    sb.Append($"arm{i} side {arm.Side:+0;-0} shoulder {shoulder:F2} upper {upper:F3} lower {lower:F3}; ");
+                }
+            }
+            finally
+            {
+                output.Dispose();
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>A-123 row 2: a close-up of the loaded creature's head (its first Head part, as posed now) from
+        /// <paramref name="distance"/> metres at scale 1 with a 30 degree lens; yaw 180 looks at it from in front of a
+        /// creature facing +z.</summary>
+        public static void CaptureHead(string path, int width, int height, float yaw, float pitch, float distance)
+        {
+            var w = Open();
+            w.EnsurePreview();
+            w.Rebuild(false);
+            if (w.family != Family.Creature || !w.blob.IsCreated)
+                return;
+            ref var b = ref w.blob.Value;
+            var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+            var centre = (float3)w.bounds.center;
+            try
+            {
+                var s = w.State(ref b);
+                CreatureAnimator.Evaluate(ref b, in s, 0, in w.flat, output, 0);
+                for (int i = 0; i < b.Parts.Length; i++)
+                    if (b.Parts[i].Role == LimbRole.Head)
+                    {
+                        var seg = output[b.Parts[i].FirstSegment + b.Parts[i].SegmentCount - 1];
+                        centre = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length));
+                        break;
+                    }
+            }
+            finally
+            {
+                output.Dispose();
+            }
+            w.closeCentre = centre;
+            w.closeRadius = distance * math.sin(math.radians(15f)) / math.max(w.zoom, 1e-3f);
+            float oldYaw = w.orbitYaw, oldPitch = w.orbitPitch;
+            w.orbitYaw = yaw;
+            w.orbitPitch = pitch;
+            try
+            {
+                CapturePreview(path, width, height);
+            }
+            finally
+            {
+                w.closeRadius = 0f;
+                w.orbitYaw = oldYaw;
+                w.orbitPitch = oldPitch;
+            }
+        }
+
+        /// <summary>A-123 row 2: how each eye-role part of the loaded creature sits on the part it hangs from, one entry per
+        /// part: how far its centre is outside that part's surface, in its own radii (1 = only touching, 0 = half sunk,
+        /// below -1 = buried).</summary>
+        public static string EyeReport()
+        {
+            var w = Open();
+            if (w.family != Family.Creature || !w.blob.IsCreated)
+                return "no creature";
+            ref var b = ref w.blob.Value;
+            var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+            var sb = new System.Text.StringBuilder();
+            try
+            {
+                var s = w.State(ref b);
+                CreatureAnimator.Evaluate(ref b, in s, 0, in w.flat, output, 0);
+                for (int i = 0; i < b.Parts.Length; i++)
+                {
+                    ref var eye = ref b.Parts[i];
+                    if (eye.Role != LimbRole.Eye || eye.Parent < 0)
+                        continue;
+                    ref var on = ref b.Parts[eye.Parent];
+                    var e = output[eye.FirstSegment];
+                    var depth = Surface(output, on.FirstSegment, on.SegmentCount, e.Position) / math.max(e.RadiusStart, 1e-4f);
+                    sb.Append($"eye{i} on {on.Role} {depth:F2}; ");
+                }
+            }
+            finally
+            {
+                output.Dispose();
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>How far <paramref name="p"/> is outside the nearest of the posed segments [first, first+count): each a
+        /// capsule tapered along its length and flattened in its local y, as Creature.shader draws it (near enough).</summary>
+        static float Surface(NativeArray<SegmentInstance> segs, int first, int count, float3 p)
+        {
+            var best = float.MaxValue;
+            for (int i = first; i < first + count; i++)
+            {
+                var s = segs[i];
+                var q = math.mul(math.inverse(s.Rotation), p - s.Position);
+                var len = math.max(s.Length, 1e-4f);
+                var t = math.saturate(q.z / len);
+                var r = math.lerp(s.RadiusStart, s.RadiusEnd, t);
+                var axial = q.z - t * len;
+                var radial = math.length(new float2(q.x, q.y / math.max(s.Flatten, 0.05f)));
+                best = math.min(best, math.length(new float2(radial, axial)) - r);
+            }
+            return best;
         }
 
         // ---------- lifecycle ----------
@@ -459,7 +654,9 @@ namespace Punchy.EditorTools
                 GaitSpeed = speed,
                 Phase = phase,
                 Clock = clock,
-                Mode = gait == Gait.Idle ? CreatureMode.Idle : CreatureMode.Wander,
+                Mode = modeOverride ?? (gait == Gait.Idle ? CreatureMode.Idle : CreatureMode.Wander),
+                Task = taskOverride,
+                Stage = stageOverride,
                 Seed = 1u
             };
         }
@@ -520,6 +717,12 @@ namespace Punchy.EditorTools
             framed.Encapsulate(person + new Vector3(0f, 1.8f, -0.3f));
             var centre = framed.center;
             var radius = math.max(framed.extents.magnitude, 1.2f);
+            var close = closeRadius > 0f;
+            if (close)
+            {
+                centre = closeCentre;
+                radius = closeRadius;
+            }
             var dist = radius / math.sin(math.radians(cam.fieldOfView * 0.5f)) * zoom;
             var rot = Quaternion.Euler(orbitPitch, orbitYaw, 0f);
             cam.transform.position = centre - rot * Vector3.forward * dist;
@@ -530,7 +733,8 @@ namespace Punchy.EditorTools
                 preview.DrawMesh(gridMesh, Matrix4x4.Translate(new Vector3(0f, ground + 0.002f, 0f)), lineMaterial, 0);
             if (family == Family.Creature && modelMesh != null)
                 preview.DrawMesh(modelMesh, Matrix4x4.identity, modelMaterial, 0);
-            preview.DrawMesh(humanMesh, Matrix4x4.Translate(person), modelMaterial, 0);
+            if (!close)
+                preview.DrawMesh(humanMesh, Matrix4x4.Translate(person), modelMaterial, 0);
             preview.Render(true);
         }
 
