@@ -2,6 +2,23 @@
 
 Newest first.
 
+## Job 79: cloud cost (main 3b192717, shelf build), 2026-11-15 (q121.job): clouds cost 0.0-0.4 ms GPU at Medium, up to ~0.8 at Ultra (2.4 at the Ultra shore, noisy)
+**Setup:** noon, 1920x1080, uncapped, arms rotated, 3 rounds, Medium and Ultra. Clouds off = `-skyoff 3` (Sky.hlsl's test bits: no cloud march, no far clouds). Views: the hilltop over the sea (-3460,2425, facing west: peak looking out) and the lake shore (-1624,-488) facing east, inland (the bench has no sea-beach pose; a lake shore stands in for "coast").
+
+| view | preset | Clear | Clear, clouds off | **cloud share** | Overcast | Overcast, clouds off | **cloud share** |
+|---|---|---|---|---|---|---|---|
+| peak | Medium | 9.03 | 8.93 | 0.10 | 8.63 | 8.6 | 0.03 |
+| shore | Medium | 22.8 | 22.4 | 0.40 | 23.0 | 22.6 | 0.40 |
+| peak | Ultra | 14.37 | 14.0 | 0.37 | 15.07 | 14.27 | **0.80** |
+| shore | Ultra | 37.0 (33.7-39.9) | 34.63 | 2.4 (noisy) | 37.13 | 36.13 | 1.0 |
+
+(GPU ms, mean of 3 rounds.)
+- **Medium:** the clouds are 0.0-0.4 ms of a 9-23 ms frame (under 2%). Clear vs Overcast differs by under 0.4.
+- **Ultra:** 0.4-0.8 ms at the peak; the shore's +2.4 under Clear comes from one 39.9 ms round (Overcast's share there is 1.0).
+- **Not the clouds:** the lake shore is heavy anyway (Medium 22-23 ms GPU; Ultra 35-37 ms GPU with CPU 73-85 ms and 1% lows near 1 fps), which is the water (jobs 29, 43) plus Ultra's start-up stalls (job 78), not the sky.
+
+Cost: laptop total $899 (laptop session e163d8ab; 0 builds (shelf), 48 games).
+
 ## Job 78: night town light cost (main 3b192717, shelf build), 2026-11-15 (q120.sh, q120a.sh): glow can't be isolated on main; Resolve has no marker; Ultra's 2 fps lows are SurfaceGlow's world bake landing in the window
 **Setup:** the R-25 town (2988.8,-920) at midnight, Clear, `-lightlog`: from the square facing north, and 200 m south of it facing north. Medium and Ultra, 1920x1080, uncapped, 3 measured games each (the first with the Profiler on), then one RenderDoc frame per view. The shelf build (3b19271) carried the profiler runner (runnercheck.py).
 
