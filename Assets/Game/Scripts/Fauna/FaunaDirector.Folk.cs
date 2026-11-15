@@ -307,6 +307,7 @@ namespace Punchy.Fauna
                 var ground = source.SampleGround(inst.Position).Biomes.Dominant();
                 var workSet = ground >= 0 && ground < biomes.Length ? FolkWorkSets.For(biomes[ground]) : null;
                 VillagePosts(source, inst.Position, radius, freeFolk, workSet, posts);
+                LamplighterPosts(i, freeFolk, posts);   // (A-115: one per lamp round, second in line)
                 var nextPost = 0;
                 jobCounts.Clear();
                 var stayFree = 0;
@@ -356,7 +357,7 @@ namespace Punchy.Fauna
                         if (job != FolkJob.None)
                             jobCounts[job] = (jobCounts.TryGetValue(job, out var had) ? had : 0) + 1;
                         var myHome = posted ? post.Stand : home;
-                        var myLeash = posted ? post.Task == CreatureTask.Patrol ? radius * 0.8f : 7f : leash;
+                        var myLeash = posted ? post.Task == CreatureTask.Patrol ? radius * 0.8f : post.Job == FolkJob.Lamplighter ? post.Reach : 7f : leash;
                         // (A-105: a folk takes the next free place in one of the landmark's houses.)
                         var slot = HousedFolk(index, out var child) ? TakeHouseSlot(i, child) : -1;
                         Enqueue(index, new float3(p.x, g.Height, p.y), SpawnTier.Settled, e =>
@@ -406,6 +407,8 @@ namespace Punchy.Fauna
             public FolkJob Job;
             public CreatureTask Task;
             public float2 Stand, Face;
+            /// <summary>A-115: a lamplighter's leash, out to the farthest lamp of its round.</summary>
+            public float Reach;
         }
 
         readonly List<Post> posts = new List<Post>();
@@ -483,6 +486,35 @@ namespace Punchy.Fauna
             }
             near.Dispose();
             used.Dispose();
+        }
+
+        /// <summary>
+        /// A-115 (#315): a lamplighter's post for each lamp round (LampRoutes) of this landmark's town: a big town's
+        /// lights are split between two. Each goes in second (after the village's first post, so even a small village
+        /// keeps its baker), stood a step from the round's first lamp facing it; its leash reaches the round's farthest
+        /// lamp. Posts are only taken while free folk are left, as before. No rng drawn.
+        /// </summary>
+        static void LamplighterPosts(int landmark, int free, List<Post> into)
+        {
+            if (free < 2 || !LampRoutes.Blob.IsCreated)
+                return;
+            ref var lamps = ref LampRoutes.Blob.Value;
+            var at = math.min(1, into.Count);
+            for (int r = 0; r < lamps.Routes.Length; r++)
+            {
+                var route = lamps.Routes[r];
+                if (route.Landmark != landmark || route.Count == 0)
+                    continue;
+                var first = lamps.Stops[route.First].Foot;
+                var reach = 0f;
+                for (int k = 0; k < route.Count; k++)
+                    reach = math.max(reach, math.distance(first, lamps.Stops[route.First + k].Foot));
+                into.Insert(at++, new Post
+                {
+                    Job = FolkJob.Lamplighter, Task = CreatureTask.Tend,
+                    Stand = LampRoutes.StandAt(first, first + new float2(0f, -1f)), Face = first, Reach = reach + 6f
+                });
+            }
         }
 
         static readonly List<(AnchorKind Kind, FolkJob Job, CreatureTask Task, int MinFree, float Beyond)> postOrder =

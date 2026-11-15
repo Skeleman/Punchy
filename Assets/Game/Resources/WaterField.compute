@@ -19,6 +19,14 @@ float _Courant2;
 // The surface's speed kept each step (the ripples die away), and its height kept (a dent left alone settles flat).
 float _Damping;
 float _Decay;
+// W-148 row 6: how thick the liquid is at each of the square's metre corners (0 water .. 1 lava; clamped, bilinear),
+// and at 1: how fast its waves run (times water's), and the speed and height a step keeps. Thinner liquid lies between
+// by its viscosity; water (0) steps exactly as before.
+Texture2D<float> _Viscosity;
+SamplerState sampler_linear_clamp;
+float _ThickSpeed;
+float _ThickDamping;
+float _ThickDecay;
 
 float2 Fetch(int2 p)
 {
@@ -37,8 +45,13 @@ void Step(uint3 id : SV_DispatchThreadID)
     // The outer 24 texels (3 m) soak the waves up, so nothing bounces back off the square's edge.
     float edge = (float)min(min(p.x, p.y), min(_Size - 1 - p.x, _Size - 1 - p.y));
     float absorb = saturate(edge / 24.0);
-    float next = c.x + (c.x - c.y) * _Damping * lerp(0.8, 1, absorb) + _Courant2 * laplacian;
     float2 at = (float2)p + 0.5;
+    // (The texel's place in metres across the square, read between the metre corners.)
+    float v = _Viscosity.SampleLevel(sampler_linear_clamp, (at / 8.0 + 0.5) / (_Size / 8.0 + 1), 0);
+    float speed = lerp(1, _ThickSpeed, v);
+    float damping = lerp(_Damping, _ThickDamping, v);
+    float decay = lerp(_Decay, _ThickDecay, v);
+    float next = c.x + (c.x - c.y) * damping * lerp(0.8, 1, absorb) + _Courant2 * speed * speed * laplacian;
     for (int i = 0; i < _SourceCount; i++)
     {
         float4 s = _Sources[i];
@@ -55,6 +68,6 @@ void Step(uint3 id : SV_DispatchThreadID)
         else
             next = lerp(next, -s.w * g, 0.4 * g);
     }
-    next *= _Decay * lerp(0.9, 1, absorb);
+    next *= decay * lerp(0.9, 1, absorb);
     _Dst[p] = float2(next, c.x);
 }
