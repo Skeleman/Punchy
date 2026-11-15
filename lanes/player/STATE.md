@@ -59,3 +59,5 @@ no machine paths or personal info. Never bare `git stash`.
 - player/netsim (P-31) merges clean with main: merge origin/main in, re-check `-netsim`, hand off; I open the PR.
 - player/fishing (P-33) conflicts with main: merge origin/main in after P-38; row 4 still waits on Zach's feel notes.
 - player/tools has 32 lines not in take-items: take them into P-38. armour, weapons, clothing, hair and items-* are covered by take-items.
+- Supervisor 11-15 (v0.16 playtest): **P-39**, menus and prompts. Row 1 (#397): with a menu up, the d-pad navigates and the stick keeps moving the character. Row 2 (#397): Start = out-of-world (settings, change character, multiplayer setup); Select = in-world in one menu system (items, quests, status; Stats move in). Row 3 (#398): every interaction prompt picks its target from the facing direction (cone in front), doors first. Solo, host, client.
+- Supervisor 11-15: **P-40 (#396)**, riding. Changing species dismounts you if you no longer fit the mount's 50% rule; Jump gets you off a ride you don't steer. Check with fauna's A-126 row 4 (#367) for the steering side.

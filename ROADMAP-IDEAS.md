@@ -118,3 +118,5 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): move more generation into a one-time bake shipped with the game so starts are faster (W-168, #345).
 - 11-14 (Zach): gear, dropped items and animal parts (horn, shell, hide) share the material library (W-166, #336).
 - 11-14 (Zach): one material library for everything, fur, feathers, scales and skin included, so furniture and gear can use them later (W-166, #336).
+- 11-15 (Zach): every building from kit pieces so collision is predictable (#399, W-173 row 3 note first).
+- 11-15 (Zach): Start for out-of-world things (settings, character, multiplayer), Select for in-world (items, quests, status, stats) (#397, P-39).
