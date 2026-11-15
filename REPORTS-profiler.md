@@ -2,6 +2,20 @@
 
 Newest first.
 
+## Job 82: R-23 row 2 one surface lighting path (render/one-surface 88719cc9 = B vs main 3eeb72d4 = A), 2026-11-15 (q124.job): PASS
+**Setup:** shelf builds (runner checked), 1920x1080, uncapped, noon, Clear, arms alternated, 3 rounds, Medium and High. Views: the desert town (`-benchspot -342,560,0`), the R-25 town (2988.8,-920, yaw 0), the summit far view (-2496,294,960, yaw 55). No row 3 arm C had landed when it started.
+
+| view | Medium A | Medium B | **delta** | High A | High B | delta | main thread Medium (A / B) |
+|---|---|---|---|---|---|---|---|
+| desert town | 11.4 | 11.33 | -0.07 | 13.17 | 12.93 | -0.23 | 13.50 / 13.53 |
+| town | 12.47 | 12.53 | +0.07 | 16.6 | 16.07 | -0.53 (A's rounds 15.9-17.2) | 12.43 / 12.53 |
+| summit | 9.03 | 8.9 | -0.13 | 12.73 | 12.63 | -0.10 | 12.37 / 12.33 |
+
+- **Rule 23 (a pure move: B within +0.1 ms GPU at Medium): PASS** at every view (-0.13 to +0.07); main thread within 0.1.
+- **Variant counts:** not taken. Shelf builds come without their build logs; a local build log (or the main PC's) would give TerrainSurface/Flora/FloraImpostor variant counts. Say if wanted and I'll build one arm here.
+
+Cost: laptop total $911 (laptop session e163d8ab; 0 builds (shelf), 36 games).
+
 ## Job 81: A-108 row 2 herds' far form (fauna/far-life d0524eaa = B, `-herdlog`, vs main 697e565f = A), 2026-11-15 (q123.job): FAIL at the summit vantage (+1.1 ms GPU, +1.2 ms main at Medium); hand-over clean
 **Setup:** shelf builds (runner checked), 1920x1080, uncapped, 10:00, Clear, arms alternated, 3 rounds, Medium and High. Views: the summit vantage (`-benchspot -2496,294,960,55`), standing 130 m from the town-e herd (`-benchspot 3570.2,-973.1,99`), and the walk in at 6 m/s from 460 m to 35 m from the herd (`-hitchms 30`). Then one Profiler-captured walk per arm.
 
