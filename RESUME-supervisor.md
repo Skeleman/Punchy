@@ -14,3 +14,8 @@ Next, in order:
    - player (offline account): P-39, P-40, fishing build.
    - profiler: job 96 (#400).
 3. Ask Zach: are the blocky squares seen from the air terrain shapes rather than cloud shadows (render note)? R-34 row 2 pick.
+
+Before step 1 (Zach 11-15, resumable queues): build lanes/BOARD.md, one line per card (id, issue, lane, status,
+branch@sha, next step). Add the rule to COORDINATION.md and the handoff skill: lanes update their BOARD line at each
+handoff; when usage runs low they WIP-commit to the lane branch and mark the card "resumable" with the exact next step.
+A one-shot check-in is scheduled for 02:07 on 11-16 in the supervisor session (lost if that session closes).
