@@ -25,7 +25,9 @@ None of these is on main (checked with merge-tree against origin/main). chemistr
 - player/armour, weapons: covered by take-items. player/tools: all but 32 lines; P-38 picks those up.
 - player/seamless: P-37 row 3 builds on it.
 
-## Probably superseded: delete after a look (needs Zach's OK)
+## Superseded: archived and deleted 11-15 (Zach OK)
+Each is kept as tag `archive/<branch>`. Owners check theirs on resume; restore with
+`git push origin archive/<branch>:refs/heads/<branch>`.
 light/forwardplus, b/r10-trims, b/r10-nocluster (R-10, redone in far-lights work); lod/screen-size (ScreenSize is on main);
 render/cloud-shadow-soft, shadow-still (R-20 row 2 parked); b/r12-trims, b/r12-warp-bake (looked wrong);
 b/water-rows-fixes, b/fix-waterfield-step, water/fine-grid (water trials); refactor/pose-by-size, fix/salt-ball-far-shadow;
