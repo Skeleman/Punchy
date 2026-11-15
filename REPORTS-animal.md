@@ -5145,3 +5145,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Controls line for the player lane (Keys tab), supervisor to pass on: "Hanging on a ledge: left/right shimmy, up climb onto it, down let go, jump leap off."
 - Shares: extends the one interaction prompt (InteractionInputSystem/UI.Prompts tokens). Parallel found: InputGlyphs.ActionToken skips composite parts, so a local MoveKey helper reads them. It could move into InputGlyphs (player lane).
 - NEXT: row 4, steering ridden animals through the player body path; a wire note comes before any ghost field.
+
+## 11-15 A-126 row 4 (#367): riders steer creatures no player controls - done (verified)
+- fauna/playtest-1114 527e2f14. On a creature, the rider moves, sprints and jumps with the creature's abilities (new PlayerBodyAbilities.Steered). The server's new SteeredMountSystem drives the creature from the rider's pose. A ridden player is still carried and steers itself (A-104).
+- Wire: no new ghost field. The steered creature goes as Puppet with Holder = the rider's HolderId over the existing CreatureNet fields. A client redraws its mount from PlayerRide. Rule 11 not triggered.
+- Steps: `-body Cat -rideplayer` solo or `-host`; a build joining with `-rideplayer` steers its own dog. Rider/mount pair: `-body Human -rideplayer mount -host` plus `-body Cat -rideplayer rider -join`.
+- Results: solo PASS (80 m, 12.0 m/s, seat offset 0.00 cm, 4 ways down ok). Host PASS (112 m). Client PASS (93 m, 13.7 m/s, jump 0.78 m; host sees holder 3 and the dog going 93 m, then back to Wander). Pair: carried, frames agree on both sides, NaN 0.
+- Also fixed: the -rideplayer test breaking on a second play without a domain reload (static ride counters). Jump is now pressed at 5 s and 10 s, since a steep climb hid the single jump.
+- Shares: PlayerBodyAbilities (player body + steered mounts, boats later). PlayerAvatarSystem.Drive reused for steered mounts. No parallel found.
+- NEXT: fauna/playtest-1114 is ready for PR (rows 1-4). Then the landing list, starting with flora/tree-variety.
