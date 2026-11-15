@@ -7964,3 +7964,18 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   but not folded in: none new.
 - **BENCH:** the rerun of bench 74 on 21b2281c is still pending. The merge adds no per-frame work.
 - Next: world/log-bark.
+
+## Land world/log-bark (W-170 row 1): ready for PR
+
+- **Branch:** world/log-bark b1c2ab17 = origin/main merged in (clean, no conflicts), pushed. Ready for PR (rule 31).
+- **Checks:** clean compile; landmarks 117 hash 689D5348, game hash FA8F24B1 (unchanged).
+  - Full suite: 39/40. Setup_SpawnRainAndShot hit "Deer not spawned within 30 s". The deer did spawn, just late, in
+    an editor that had been up a long time.
+  - In a fresh editor it passes alone. The branch touches only flora (FloraGenerator, FloraMeshBuilder, Flora.shader),
+    so I'm calling it a flake. The crow cave flight passed in this suite.
+  - Lane note: after a full suite with a failure, the editor sits in play mode for a while, and a filtered rerun
+    started then aborts ("cannot be used during play mode"). Wait for edit mode before rerunning.
+- **Shares:** bark goes through the one flora mesh builder and Flora.shader that all plants and props use. No
+  separate log path. Parallel found but not folded in: none.
+- **BENCH:** bench job 94 (this branch) is still queued. The merge adds no per-frame work.
+- Next: W-172 row 2 (#277).
