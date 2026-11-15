@@ -1244,7 +1244,8 @@ namespace Punchy.Terrain
                     // Past the hand-off the night map lights it in full, so it asks for no slot there.
                     if (night < 0.25f || Vector3.Distance(position, camPos) > handOff.y)
                         continue;
-                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
+                    // (A-115: a town's street light only once its lamplighter has lit it; LitAt is 1 for any other.)
+                    l = new Vector4(l.x, l.y, l.z, 0f) * (windowsOn * Punchy.Fauna.LampRoutes.LitAt(new float2(position.x, position.z)));
                     l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
                     Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, l);
                     continue;
