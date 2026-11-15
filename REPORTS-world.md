@@ -7573,3 +7573,30 @@ Branch world/waterfall-sheets, commits f42cfaba (merge main afea013c) and 21b228
   sizing before finishing, so the cap stays provisional until job 87 or 89 runs.
 - **BENCH request:** job 89 (queued) on a74f9c2a, plus job 87 as queued.
 - Next: W-164.
+
+## W-164 row 1: gardens on slopes, measured (no code)
+
+- **How:** an editor probe placed every garden (FloraForm.Garden) the way FloraPlacement does: landmark ring props
+  at their spots and town plots through PlotSpecies, then sampled TerrainSource.SampleHeight at the four corners of
+  each footprint. Island v3 on main 3b192717, landmark hash 554A21E4.
+- **Count:** 1 garden on the island. Garden.asset is listed by HermitHut and five settlement layouts (DwarfHold,
+  DwarfMiningCamp, ElfGrove, HumanMiningCamp, HumanVillage), but the v3 island has no settlements at the moment
+  (Settlements blob 1 KB, 0 towns, 0 plots), so no town gardens are placed. No biome list places gardens, and no other
+  form is a crop plot (Pen is an animal pen; paddies are terrain).
+
+| # | Garden | Where (x, z) | Bed y | Half width | Slope | Uphill corner under | Downhill corner over |
+|---|---|---|---|---|---|---|---|
+| 1 | HermitHut 0 ring garden (the folk-test plot, EmberForest ash hermit shelter) | 140.0, -536.2 | 16.9 | 3.10 m | 14.6 deg | 1.88 m | 0.40 m |
+
+- **Why it sinks:** a landmark ring garden is set at the ground height of its centre spot (FloraPlacement, the
+  landmark prop pass using `SampleHeight(spot)`), and the Founded skirt is only 1.6 m, so on a 14.6 deg slope the
+  uphill side is buried almost 2 m deep. Town gardens stand on Landscaping plots levelled to their pad, so once towns
+  return they should measure near 0.
+- **Row 2 plan:** landmark types bake a Beds list (like Trodden) from Garden props with a Count. TerrainSource levels
+  ground under each bed after Settle at both sampling sites (cut and fill, blended out as founded houses are), steps
+  it into terraces when the drop is large, and adds a short kerb on the fill side over 0.3 m. The garden then sits
+  at the bed height, and the folk Garden anchor follows the same spot. Ground and the landmark hash will change:
+  re-pin, BENCH line, profiler note.
+- **Card gap:** the row 2 town-garden shot can't be taken while v3 has no towns. I'll shoot the one hermit garden
+  (gentle and steep cases from tilting the same type on a test spot), unless the supervisor wants it otherwise.
+- Next: W-164 row 2 on world/level-gardens.
