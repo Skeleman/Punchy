@@ -414,10 +414,13 @@ Shader "Punchy/Cave"
                 // Daylight reaches only near the entrance. Openness is per vertex, so this branch is coherent: deep
                 // inside, whole wavefronts skip the sun's shadow taps.
                 half3 light = SampleSH(n) * lerp(_Darkness, 1, openness);
+                // R-36: cloud shadow only where the sky is overhead; one read, shared with the terrain share below.
+                half cloudShadow = 0;
                 if (openness > 0.001)
                 {
+                    cloudShadow = PunchyCloudShadow(p);
                     Light sun = GetMainLight(TransformWorldToShadowCoord(p));
-                    light += sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness;
+                    light += sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness * (1 - cloudShadow);
                 }
                 half3 shine = 0;
                 half3 through = 0;
@@ -503,12 +506,13 @@ Shader "Punchy/Cave"
                     groundSurface.occlusion = 1;
                     groundSurface.alpha = 1;
                     half3 groundColor = UniversalFragmentPBR(ground, groundSurface).rgb;
-                    half cloudShadow = PunchyCloudShadow(p);
-                    if (cloudShadow > 0)
+                    // R-36: the PBR call lights this share with the full sun; keep the sun's share only as far as the
+                    // sky is overhead (openness), cloud-shadowed, so a shallow cave's skin doesn't catch sunlight and
+                    // drifting cloud shadows through its roof.
                     {
                         Light sun = GetMainLight(ground.shadowCoord);
                         half direct = Luminance(sun.color) * saturate(dot(shape, sun.direction)) * sun.shadowAttenuation;
-                        groundColor *= 1 - cloudShadow * direct / max(direct + Luminance(ground.bakedGI), 1e-3);
+                        groundColor *= PunchySkyShade(cloudShadow, openness, direct, Luminance(ground.bakedGI));
                     }
                     groundColor *= lerp(ribs, 1, openness);
                     groundColor = lerp(groundColor, PunchyAtmosphere(groundColor, p), openness);
