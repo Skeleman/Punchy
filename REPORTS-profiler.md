@@ -2,6 +2,12 @@
 
 Newest first.
 
+## Job 86: R-28 row 2 cobble parallax (render/cobble-depth 4cd4edd8): NOT RUN, the branch can't build a player (Burst BC1091)
+- **Build error (twice, 11-15):** "Burst error BC1091: External and internal calls are not allowed inside static constructors: UnityEngine.Shader.PropertyToID", reached from `CreatureRenderSystem.CompactJob.Execute` (CreatureRenderSystem.Passes.cs:519) -> `CreatureRenderSystem.Decide` -> `DetailPolicy..cctor()` (DetailPolicy.cs:71).
+- **Cause:** 4cd4edd8 adds `static readonly int TerrainParallaxId = Shader.PropertyToID("_PunchyTerrainParallax");` to `DetailPolicy`, which Burst jobs read, so its static constructor now makes a managed call that Burst can't compile. Main's DetailPolicy has no such field (editor and Play mode don't Burst-compile ahead of time, so it only shows in a player build).
+- **Fix (render lane):** move the id (and the `Shader.SetGlobalFloat` that uses it) out of `DetailPolicy` into a class Burst never touches (e.g. GraphicsSettings or a small `TerrainParallax` static class), or look it up inline with `Shader.PropertyToID` where it's set. Then I'll run job 86 as specced (q128.job).
+- (The first try also hit a stale-script error, "Source file ... IslandV2Preview.cs could not be found", that a rebuild cleared; the BC1091 is the real one.)
+
 ## Job 87: where a start's time goes (main 3b192717 with the #348 start ledger, shelf build), 2026-11-15 (q129.job): CreatureRenderSystem is most of it (7-23 s of main thread before world ready), then CaveSocketSystem (~2.7 s, 1.2-1.5 s worst frame); chunk apply is small now
 **Setup:** High, 1920x1080, uncapped, noon, Clear. One warm-up launch, then per start 3 cache-hit launches and 1 `-freshisland` launch. Numbers from each Player.log's `[start]` ledger (main-thread ms summed from launch to `[stream] world ready` / worst single frame).
 
