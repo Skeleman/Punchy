@@ -656,7 +656,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pass (rule 23c, on at Medium): <= +0.3 ms GPU. Expected ~0.05-0.1 ms (one full-screen pass).
 - From now on (rule 24d): add `-sparkleprobe <label>` to any route you run when it costs nothing extra, and report a NaN count above 0 with its view.
 
-## Job 65a (2026-11-12, NEXT after job 56 (q107.sh: capture, pixel history, then Ultra with each setting at High), a short one before 62; supervisor answering 'say which'): RenderDoc pixel history on the Ultra hilltop NaN
+## Job 65a (2026-11-12, DEFERRED 11-14 (queue trim); was NEXT after job 56 (q107.sh: capture, pixel history, then Ultra with each setting at High), a short one before 62; supervisor answering 'say which'): RenderDoc pixel history on the Ultra hilltop NaN
 - You take the capture (R-18's owner is on the main PC). Your repro from REPORTS-profiler: Profile build of main, `-gfx Ultra`, hilltop spot -3460,2425,270, 18:00, Clear, weatherseed 4; pixel (1060, 224).
 - Pixel history on that pixel: name the draw (shader, pass, mesh or impostor), and the first event where it turns NaN. If you can, step to the Ultra setting that turns it on (flora shadows, far trees, flora detail) by switching one `-gfxset` at a time back to its High value.
 - Report in REPORTS-profiler under 'R-18'. No fix from your side; R-18 row 2 fixes it.
@@ -686,7 +686,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Spots are final (row 3b). B is main 2078f16c plus W-142 rows 1-3b, so the difference is only W-142.
 - Rule 23: Medium ≤ +0.3 ms GPU for all of W-142 together. Report the total and each effect's share if the profile names them.
 
-## Job 70 (2026-11-13, QUEUED after 69, low priority; supervisor, for A-101 row 1): joined-client flora build
+## Job 70 (2026-11-13, DEFERRED 11-14 (queue trim), low priority; supervisor, for A-101 row 1): joined-client flora build
 - (A) main vs (B) `fauna/route-climbing` a485b9a5. Build host plus a build joined client, High, uncapped.
 - Measure the joined client's island-load hitch: the time and the GC alloc of FaunaDirector's ladders-only flora blob build (B only), and the total load time on A vs B. Three loads each.
 
@@ -754,6 +754,28 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - **Filled 20:26:** 3b19271, 4df8549 and d0524ea are on the shelf (94 MB each, bench-stress runner). Pull
   coordination first: `get` now unzips with Windows' own tar (`C:\Windows\System32\tar.exe`); Git Bash's tar can't
   read zip and would have failed (coordination c74c5a62). 244805ae (job 91 B) is being shelved next.
+
+## Queue trim (supervisor 11-14 23:00; Zach: the profiler is days behind, do whatever helps)
+Take the queue in this order. Anything not changed here runs as written in its job.
+1. **One session, one build: jobs 78, 79, 80, 87 together** on shelved main 3b19271 (includes #348 for 87). There is
+   one arm, so no ABBA: 2 rounds per view or route is enough because they are report-only.
+2. **Jobs 88 and 91 as one ABC job, all three builds shelved:** A 4df8549, B 3b19271, C 244805a. Run town 73,
+   OakGrove and spawn at 12:00, and the lakeshore meadow `-benchspot 470,1840` at 16:00. Keep each job's own pass bar.
+3. **Job 81** as written, Medium only. B d0524ea is shelved; build only A 697e565f.
+4. **Job 82** as written, still Medium and High (it moves the lighting path).
+5. **Job 84:** B is now `b/bench-job84` c828df2a (ac7880fc merged onto 3b192717, bench only), so A is shelved main
+   3b19271 and only B is built.
+6. **Jobs 83, 85, 86** as written, Medium only (86's High was reference only).
+7. **Jobs 90 and 92 in one ABBA session against shelved A 3b19271**, Medium only. Arms: 90 B c378a480; 92 B2 9a1694eb
+   (already on 3b192717); 92 B1 is now `b/bench-job92b1` 6375c738 (a96f48d8 merged onto 3b192717, bench only).
+8. **Job 89** last, Medium only (start times).
+- **Medium only from now on**, unless a job's pass bar names High or says High is needed. Rule 23 is judged at Medium.
+- **Stop early:** if after 2 rounds an arm is outside its bar by more than twice the bar, or every view is inside half
+  the bar, stop and report. A clear fail gets re-run after the fix anyway.
+- **Deferred to a later list:** job 70 (A-101 joined-client flora, low priority) and job 65a (RenderDoc pixel history).
+- **Shelf:** after Zach's playtest I'll shelve the remaining arms on the main PC: 697e565f, 3eeb72d4, 88719cc9,
+  c828df2a, 1746d62a, 4cd4edd8, c378a480, 6375c738, 9a1694eb, 3d0c8df2, f1747057, 19012b1f, 13fbd5cf. `shelf.sh get`
+  is tried first anyway, so check the shelf before building anything yourself.
 
 ## Job 77 (2026-11-14, RUNNING 11-14 (q119.job; A, B and C); supervisor, for W-155 row 1, cliffs baseline): scarp bake and canyon chunks
 - Main 697e565f (A) vs `world/scarps` feab6870 (B). Profile builds, 1920x1080, Medium, uncapped, noon, Clear,
@@ -881,7 +903,7 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Then 60 s at `-benchspot 140,22,-548,30` (the hermit garden, looking at the hill) and at the default spawn: CPU
   and GPU ms. Pass: bake within +0.2 s, chunk stage within +3 %, frame within rule 23.
 
-## Job 91 (2026-11-14, QUEUED after 90; render lane, R-32 row 2, #328): grass blades in every shadow tier
+## Job 91 (2026-11-14, FOLDED into job 88 as arm C (queue trim); render lane, R-32 row 2, #328): grass blades in every shadow tier
 - main 244805ae (B, #355) vs main 3b192717 (A; on the shelf soon). Profile builds, 1920x1080, Medium and High,
   uncapped, 16:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: the lakeshore meadow `-benchspot 470,1840` facing the trees (dense grass with tree shadows 20-110 m);
