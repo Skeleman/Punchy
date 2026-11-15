@@ -472,6 +472,7 @@ namespace Punchy.Debugging
                     }
                 }
                 watchLast = p;
+                SplashShot(c);
                 // Every change of what it's doing, as it happens.
                 if (c.Mode != watchMode || c.Stage != watchStage)
                 {
@@ -494,7 +495,10 @@ namespace Punchy.Debugging
                         // (Off to the side of where it's heading, so its track crosses the view.)
                         var side = new float2(math.cos(c.Yaw), -math.sin(c.Yaw));
                         var xz = ((float3)look).xz + side * range;
-                        watchFromAt = new Vector3(xz.x, terrain.SampleHeight(xz) + watchFrom.Value.x, xz.y);
+                        // (Over water, from above the surface, not the bed.)
+                        var under = terrain.SampleGround(xz);
+                        var floor = under.HasWater ? math.max(under.Height, under.WaterSurface) : under.Height;
+                        watchFromAt = new Vector3(xz.x, floor + watchFrom.Value.x, xz.y);
                         Debug.Log($"DebugControls: watching from ({V(watchFromAt.Value.x)}, {V(watchFromAt.Value.y)}, {V(watchFromAt.Value.z)})");
                     }
                     PoseCamera(watchFromAt.Value, Quaternion.LookRotation(look - watchFromAt.Value));
@@ -763,6 +767,39 @@ namespace Punchy.Debugging
                 interactRequest = null;
                 ThirdPersonCamera.WatchTarget = null;
             }
+        }
+
+        // A-125: "-splashshot 6": up to that many shots of the watched swimmer crossing the water surface, out or in, each a
+        // quarter second after it crossed, when its ring has spread (Dolphin-out-1.png, Dolphin-in-2.png), with the swimmer
+        // splash totals so far in the log.
+        int splashShotsLeft;
+        bool splashWasWet, splashKnown;
+        float splashShotAt = -1f;
+        string splashShotName;
+
+        void SplashShot(in CreatureState c)
+        {
+            if (splashShotsLeft <= 0 || shotDir == null)
+                return;
+            if (splashShotAt >= 0f)
+            {
+                if (Time.unscaledTime < splashShotAt)
+                    return;
+                Shot(splashShotName);
+                var field = World.DefaultGameObjectInjectionWorld?.GetExistingSystemManaged<Punchy.Terrain.WaterPatchSystem>();
+                Debug.Log($"DebugControls: splash shot {splashShotName} (swimmer splashes in {field?.SwimmerSplashTotal.x}, out {field?.SwimmerSplashTotal.y})");
+                splashShotAt = -1f;
+                splashShotsLeft--;
+            }
+            var g = terrainQuery.GetSingleton<TerrainSource>().SampleGround(c.Position);
+            var wet = g.HasWater && c.Position.y < g.WaterSurface;
+            if (g.HasWater && splashKnown && wet != splashWasWet)
+            {
+                splashShotAt = Time.unscaledTime + 0.25f;
+                splashShotName = $"{watchSpecies}-{(wet ? "in" : "out")}-{++watchShots}.png";
+            }
+            splashWasWet = wet;
+            splashKnown = g.HasWater;
         }
     }
 }
