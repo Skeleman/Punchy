@@ -171,7 +171,10 @@ namespace Punchy.Terrain
                 for (int x = 0; x < n; x++)
                 {
                     var centre = PaddyCentre(new int2(x, z) - n / 2);
-                    self.SampleBiomes(centre, out _, out var shape);
+                    // (A biome map world's ponds read the map's sharp weights, not the blended shape: skip that sample.)
+                    var shape = default(BiomeWeights);
+                    if (!self.UsesBiomeMap)
+                        self.SampleBiomes(centre, out _, out shape);
                     self.PondDig(centre, shape, out var cover);
                     if (cover < PaddyMinCover)
                         continue;
