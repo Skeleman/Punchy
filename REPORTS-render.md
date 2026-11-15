@@ -475,3 +475,33 @@ with main d95e7ff1); compiles, no suite run yet.
   receiver pass drawn over blade pixels only (rule 21, not timed here). Merge when convenient.
 - NEXT: R-32 rows 3-4 (blue moon as the shadow light; blue-moon nights about one in ten), new branch from
   origin/main.
+
+## R-37 row 1 (#354): sun shadow bias test sheet - DONE (Zach picks; supervisor sets PC_RPAsset)
+- Branch `render/shadow-bias-test`, commit 2353f3d4 (one new file, off origin/main 244805ae). Not merged.
+  - Rendering/SunShadowBias.cs: `-shadowbias <d>` and `-shadownormalbias <n>` (or the statics, from eval) put the
+    biases on the scene's sun light for that run (light set to not use the pipeline's values). Same units as the
+    asset's. The asset is never written (the card said "set the active URP asset's"; this avoids touching the
+    supervisor-owned asset). Off unless a flag is given; the light gets its own values back on a sun change.
+- Checks:
+  - Three pairs (depth/normal 0.1/0.5 = the asset now, 0.2/0.25, 0.3/0) x noon and dusk (17:00, sun about 10 deg)
+    x three subjects: grass (lakeshore meadow 470,1840), crop-plot fence and house roof (town at 2972,-885).
+    Pinned camera, cycle paused, -weather Clear, 1920x1080.
+  - Each set has a control (the 0.1/0.5 still shot again after the other two). Pixels moved > 8 levels vs 0.1/0.5,
+    as mean levels (pair 0.2/0.25 | pair 0.3/0 | control): grass noon 3.0 | 3.5 | 3.2, grass dusk 3.0 | 4.0 | 4.4,
+    fence noon 2.0 | 1.7 | 2.2, fence dusk 1.9 | 1.9 | 2.2, roof noon 9.0 | 9.0 | 9.9 (clouds drifting over the
+    roof view), roof dusk 1.0 | 1.7 | 1.7. Every pair is within the control's noise (wind, walkers, clouds).
+  - Read per pair, on 1:1 crops: 0.1/0.5 (now): no acne, no visible peter-panning. 0.2/0.25: looks the same in
+    stills. 0.3/0: looks the same in stills; no acne at dusk even with zero normal bias. Thin casters (fence rails,
+    grass) keep their shadows in all three. So on these subjects the stills can't separate the pairs; the
+    edge break-up Zach asked about is a motion effect, and the clips are where to judge.
+  - Clips: the roof view at dusk, cycle running, 5 s game time at 20 fps (fixed capture rate, so every clip covers
+    the same sun steps; about 12 steps of 0.1 deg in 5 s, the shadow edges visibly move). Frame-to-frame pixels
+    moving > 20 levels (median per frame): 0.1/0.5 423, 0.2/0.25 850, 0.3/0 420. The 0.2/0.25 clip's higher count
+    is likely villagers walking through (not separated out); I wouldn't read it as worse.
+  - NaN: `-sparkleprobe` with Stop NaN off, 0.3/0 set, town view: 360 frames, other bad 0 (hot 8).
+  - Suite after the last change: `completed: 40/40 passed`.
+- Shots (milestones folder R-37): `R-37-sheet.png` (rows: subject x noon/dusk, columns: the three pairs),
+  the 18 stills as `<subject>-t<12|17>-d<depth>-n<normal>.png`, and the clips `roof-dusk-d<depth>-n<normal>.mp4`.
+- Asks: Zach's pick from the clips; the supervisor sets PC_RPAsset. My read: none of the three changes the look
+  in stills, so if he sees no difference in the clips, keep 0.1/0.5.
+- NEXT: R-32 rows 3-4 (blue moon as the shadow light, blue-moon nights about one in ten), new branch from origin/main.
