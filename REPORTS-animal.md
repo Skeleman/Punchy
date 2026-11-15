@@ -5162,3 +5162,10 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - No shot (the card asks for a count). Breath and swim state are host-only, and clients read positions from ghosts, so solo/host/client behave alike.
 - Shares: extends the one Breath meter (Breath.Head, used by creatures' Breathe and the breath/dive debug reports). Parallel found: SensesMovement keeps its own copy of the wading smoothstep, and Breath now mirrors it. They could share one helper later.
 - NEXT: folk/playtest-1114 is ready for PR (A-127 rows 1-3). Then folk/spawn-wait-fix (TestSceneSetup.Spawn waits on LogWatch line counts).
+
+## 11-15 Harness fix: TestSceneSetup.Spawn waits on LogWatch line counts - done (verified)
+- folk/spawn-wait-fix 1841e072 (from main 951605d9). LogWatch keeps lines across runs in one editor session, so a second run saw the same 'spawned' text as the last line and its wait for a new spawn failed. LogWatch gains Mark() (line count) and After(mark, texts...); Spawn marks first and waits for a matching line after the mark.
+- Proof: Follow_ArrivesWithinFourMetres_StopReleases run twice in one editor session, no reload between: 1/1 passed, then 1/1 passed. Second run's dog ended 2.7 m off, still following. No 'not spawned within 30 s'.
+- Tests only, no game code; solo/host/client unaffected.
+- Shares: the one shared PlayMode harness (LogWatch + TestSceneSetup.Spawn), used by every spawn-based test. No parallel found.
+- NEXT: folk/spawn-wait-fix is ready for PR. folk/playtest-1114 is ready for PR too (A-127 rows 1-3). Nothing else queued.
