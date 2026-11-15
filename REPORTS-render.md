@@ -613,3 +613,27 @@ with main d95e7ff1); compiles, no suite run yet.
   Cave (walls). It should become, or fold into, W-166's stone family include once that lands; W-166 has no code yet.
   "Built stone" is picked inside Flora (non-living, non-timber part 0) until W-166 states materials per kit piece.
 - NEXT: merge origin/main into render/stone-trial, then R-38 row 0 (sun step trial).
+
+## R-38 row 0 (#366): 0.1 s sun step trial, done (verified)
+
+- Branch `render/playtest-1114` (new from origin/main), commit cf8ef6e9, pushed. The supervisor can build it for Zach.
+- Launch flag `-sunstep <seconds>`: the shadow light steps by time instead of by angle. `-sunstep 0` steps every frame.
+  A jump of 2 degrees or more (sun to moon swap, clock set) is still taken at once. Without the flag, today's
+  0.1 degree step (about every 0.4 s) is unchanged. No Graphics setting yet: it is a trial flag. A setting can follow if
+  Zach keeps it.
+- Fauna owns WeatherSystem.cs. Only `SteppedLightDirection` and a new small `SunStepArg` reader beside it changed.
+  The call site needed no change.
+- Strips: 20 frames, 0.1 s of game time apart (fixed step), still camera, clock running from 17.55. The spot is the
+  village dip at -3212.6,1611.6. Default: D:/Unity/PunchyMilestones/R-38/default/strip. `-sunstep 0.1`:
+  D:/Unity/PunchyMilestones/R-38/step01/strip. Contact sheet: D:/Unity/PunchyMilestones/R-38/R-38-strip-contact.png.
+- Numbers (ground region, share of pixels changing by more than 2 grey levels frame to frame):
+  - Default: about 0.25% per frame, with a spike to about 0.37% every 4th frame. That spike is the 0.4 s shadow step.
+  - 0.1 s: about 0.36% on 3 frames of every 4 (one frame in 4 is skipped by the 1/30 s game step), and no spikes.
+  - Changes of more than 8 grey levels are grass and wind only, and match in both runs (about 0.1%).
+- Crawl note: near shadow edges (house base, cobbles) move by at most about 2 grey levels per step in both modes, so
+  neither mode shows visible crawl here at a low evening sun. Default gives a faint tick every 0.4 s. 0.1 s spreads
+  the same motion into a fainter shimmer on most frames. Not tested: a midday sun, or long shadows on flat ground.
+- Risk and cost: with 0.1 s, the shadow maps redraw about 4 times as often. Cost goes to BENCH (rule 21), not timed here.
+- Shares: this extends WeatherSystem's existing R-32 held shadow direction. It is the same function with a second
+  step rule, not a new system.
+- NEXT: land render/far-lights, audit-fixes, cobble-depth and one-surface on main, then R-38 rows 1-5.
