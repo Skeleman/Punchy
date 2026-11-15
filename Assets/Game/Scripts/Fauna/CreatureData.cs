@@ -916,7 +916,7 @@ namespace Punchy.Fauna
             foreach (var p in parts)
                 count += p.Slot.Limb.Segments.Count;
             var looks = new byte[count];
-            looks[0] = SurfaceLook.Of(species.Coat, SegmentSurface.Coat, species.FurLength);
+            looks[0] = Lie(SurfaceLook.Of(species.Coat, SegmentSurface.Coat, species.FurLength), LimbRole.Head);
             var cursor = 1;
             foreach (var p in parts)
                 foreach (var seg in p.Slot.Limb.Segments)
@@ -924,10 +924,17 @@ namespace Punchy.Fauna
                     var length = p.Slot.FurLength != FurLengthOverride.Default ? p.Slot.FurLength
                                : seg.FurLength != FurLengthOverride.Default ? seg.FurLength
                                : FurLengthOverride.Default;
-                    looks[cursor++] = SurfaceLook.Of(species.Coat, seg.Surface,
-                        length == FurLengthOverride.Default ? species.FurLength : SurfaceLook.Length(length));
+                    looks[cursor++] = Lie(SurfaceLook.Of(species.Coat, seg.Surface,
+                        length == FurLengthOverride.Default ? species.FurLength : SurfaceLook.Length(length)), p.Slot.Limb.Role);
                 }
             return looks;
+
+            // A-123 row 3: which way a feathered segment's feathers lie (the body counts as running towards the head).
+            static byte Lie(byte code, LimbRole role) =>
+                code != SurfaceLook.Feathers ? code
+                : role is LimbRole.Head or LimbRole.Neck ? (byte)(code | SurfaceLook.FeatherBody << 4)
+                : role is LimbRole.Wing or LimbRole.Tail ? (byte)(code | SurfaceLook.FeatherFlight << 4)
+                : code;
         }
 
         /// <summary>
