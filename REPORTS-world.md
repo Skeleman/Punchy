@@ -7813,3 +7813,31 @@ tower (a landform). The hermit crab colossus's lighthouse is fauna's and only a 
 - **Placement:** kit towers at 3.4 m stick out up to 0.9 m further from the house corner, and ElfSpire slimming
   shrinks its footprint: plots may shift, so row 2 re-pins the hashes and tells the profiler.
 - Next: W-169 (puddle edges at chunk borders), then W-165 row 1.
+
+## W-169 row 1: puddle hollows no longer stop at chunk borders (#357)
+
+Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl, TerrainSurface.shader; all CRLF).
+
+- **Cause:** each chunk LOD works out its own hollow depth (the ring sample in BuildChunkMeshJob). Near a border the
+  height morphs to the coarser LOD but the hollow didn't, and coarse chunks have no hollow at all. So the wet film
+  ended at the chunk's edge in a straight line.
+- **Fix:** every vertex now also carries the next-coarser LOD's hollow (soak.y), and `TerrainHollow` lerps the two by
+  the same morph t as the height (`TerrainMorph`), so the hollow changes along with the ground. Past LOD1
+  (`HollowMaxLod`) the hollow fades out by screen size before the first LOD that lacks it (rule 20). Pools stay
+  separate; porous ground, grass, flatness and rain rings are untouched.
+- **Mesh cost:** no new height samples, just one extra pass over the vertices in WriteMorphOffsets to copy the
+  coarser hollow. No BENCH request unless the profiler wants a bake number.
+- **Evidence** in D:/Unity/PunchyMilestones/W-169/. All shots: forced rain, noon, player at -1440,2770, so z=2560 is
+  the LOD0/1 border and z=2304 the LOD1/2 border.
+  - `row1_debugtint_top_before_after.png` is the clearest shot. The hollow field is tinted (blue dip, red bump).
+    Before, it ends in stepped chunk edges; after, it fades out in a smooth circle through the morph band.
+  - `row1_debugtint_player30m_*` and `row1_debugtint_l12_30m_*` show the same from 40 m and 30 m up.
+  - `row1_{top,l12_eye,l12_30m,l01_eye,l01_30m,player30m}_before_after.png` show the real look at eye level and at
+    30 m. This site is a rocky slope with few level hollows, so the real pairs barely differ. They show that nothing
+    broke; the debug pairs carry the proof.
+- **Checks:** Punchy/Terrain Surface has 0 errors (2 old warnings, not on these lines). Suite 40/40. Landmarks 117,
+  hash 689D5348 (game FA8F24B1), unchanged.
+- **Earlier layout flip:** one refresh showed a different layout at this site (a fungal forest where the current world
+  has high ground). After a fresh bake the world matches main's pins again, so that was a stale cached bake and not
+  this change.
+- Next: W-170 row 1 (log bark), W-170 row 2 (per-part sway), W-169 row 2, then W-171 before W-165.
