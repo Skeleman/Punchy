@@ -951,3 +951,4 @@ Take the queue in this order. Anything not changed here runs as written in its j
   Record: the town's load time (FaunaDirector blob bakes, ms and frame spikes), CreatureRenderSystem ms and draw calls
   with the town in view, and blob memory.
 - Pass: load +50 ms or less, frame +0.2 ms or less.
+- 11-15 note (supervisor): #385-#391 merged to main (37750588). Fauna fingerprint now 859112C9 (was DDE01A70 -> 43D1F778 with body-reads #385, then 859112C9 with the turtle robe panels #390; limb data only, no placement moved). Landmarks 117 689D5348 unchanged. Re-pin your baseline if a job compares it. The cliff kit (#386) adds pieces on sea cliffs and mesas, so a far-view cost check after it would be useful when the queue allows.
