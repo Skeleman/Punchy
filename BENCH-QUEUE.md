@@ -824,3 +824,12 @@ R-16 row 2 on `render/shadow-tiers` (1fcccf58): the full-screen cached far shado
 - Pass (rule 23): B within +0.1 ms terrain GPU of A at Medium (2 parallax steps); report High (3) for reference.
 
 - 11-14 note (supervisor): #341 merged to main (11ba8e42). Fauna fingerprint re-pinned E99E8FCB -> B2A5823C (stables and hitch rails are now obstacles); landmarks 689D5348 and layout 28DB5D55 unchanged. Re-pin your baseline if a job compares it.
+
+## Job 87 (2026-11-14, QUEUED after 86; world lane, W-168 row 1, #345): where a start's time goes
+- main afea013c (includes #348, the start ledger). Profile build, 1920x1080, High, uncapped, 12:00, Clear.
+- One warm-up launch, then per start 3 cache-hit launches and 1 `-freshisland` launch: default spawn, town
+  (`-place HumanVillage`), forest (`-place OakGrove`).
+- Record from each Player.log: the `[start]` line, launch to first frame, launch to `[stream] world ready`.
+- Report: the producer table per start (main-thread ms, worst frame, in-flight ms); whether the chunk apply, the
+  cave sockets (CaveSocketSystem), the colossus LOD builds and CreatureRenderSystem show in the top markers. No pass
+  bar: this picks what W-168 row 2 bakes.

@@ -88,3 +88,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-14: #319 merged (R-27): tree shadow cache takes its slope before skipping pixels (fewer specks along cache edges). Check: dusk in a forest, watch shadow edges at 50-150 m.
 - 11-14: #285 merged (steep terrain reads as layered rock, High up); #281 stays open for real overhangs and ledges.
 - 11-14: #347 merged (A-114): folk reach to a hip pocket, belt pouch, coat chest or over the shoulder to put an item away or take one out; drawn on each machine from the held item, nothing new on the wire. #314 closed. Check: watch a lamplighter or miner swap items; play as sea or turtle folk.
+- 11-14: #348 merged (W-168 row 1): a one-line start report ([start]) in the log at world ready; no visible change.
