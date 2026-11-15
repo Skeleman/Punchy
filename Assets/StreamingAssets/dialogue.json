@@ -484,6 +484,14 @@
       "gesture: an emote it makes (Wave, Bow, Cheer, Dance, Pet, LookAround...) or a word the talk window shows. offer: quest, item:<item name>, directions, rumour:<what about>, discount:<percent>, refuses. ends: true closes the talk. weight: default 1.",
       "family (A-105): kin is the household member a line is about, by what it is to the speaker: partner, child, parent, grandparent, grandchild, sibling, inlaw (one or a list), or none for a folk with nobody else at home. {kin_name} and {kin_word} name that member and what the speaker calls it (daughter, husband, grandmother). gone: true for a member who has died (the line misses them), false or left out for the living. A line with a kin slot and no kin key is about anyone living in the house."
     ],
+    "quests": {
+      "_readme": "A quest put in a few words, for {quest} in a line (when quests.json gives the quest no \"talk\" of its own). find: a lost thing; clear: beasts to drive off; bring / bringMany: things to fetch (one, or {count}); other: anything else. Slots: {item}, {items} (plural), {creature}, {creatures}, {count}.",
+      "find": "find the {item} I lost",
+      "clear": "drive off the {creatures}",
+      "bring": "bring me a {item}",
+      "bringMany": "bring me {count} {items}",
+      "other": "a little job"
+    },
     "topics": {
       "who": "Who are you?",
       "how": "How are you?",
@@ -806,6 +814,11 @@
       "predator": ["GilaMonster", "SwampSerpent", "BoneHound"],
       "awe": ["Roc", "SkySerpent", "SandWorm", "SnowWorm", "BoneStag", "CrystalHare", "Dolphin", "StaticRam"],
       "pet": ["Cat", "Puppy", "Dog"]
+    },
+    "topics": {
+      "_readme": "What an animal player can do in the talk window: go up to the folk (meet), or leave (bye).",
+      "meet": "(go up to them)",
+      "bye": "(wander off)"
     },
     "Any": {
       "pet": [

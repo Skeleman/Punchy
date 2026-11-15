@@ -97,6 +97,30 @@ namespace Punchy.Tests
         /// Target: 20 folk of one town (mixed trades, conditions and hours) feel distinct: at least 18 give a set of
         /// answers nobody else gives, and each topic has at least 6 different lines among them. Logs 10 folk x 3 topics.
         /// </summary>
+        /// <summary>
+        /// Target: the quest phrasings and an animal player's topic labels come from dialogue.json (A-129 row 2), with
+        /// every slot filled: each said form is the file's entry with its slots put in.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Archive_QuestWordsAndBeastLabels()
+        {
+            yield return null;
+            var w = Game.Hook<string[]>("ArchiveWords");
+            LogWatch.Measure("archive words:\n" + string.Join("\n", w));
+            for (int i = 0; i < 7; i++)
+            {
+                Assert.IsFalse(string.IsNullOrEmpty(w[i + 7]), $"dialogue.json has no entry for word {i}");
+                StringAssert.DoesNotContain("{", w[i], $"word {i} has an unfilled slot");
+            }
+            Assert.AreEqual(w[7].Replace("{item}", "silver key"), w[0]);
+            Assert.AreEqual(w[8].Replace("{creatures}", "crows"), w[1]);
+            Assert.AreEqual(w[9].Replace("{item}", "berry"), w[2]);
+            Assert.AreEqual(w[10].Replace("{count}", "5").Replace("{items}", "berries"), w[3]);
+            Assert.AreEqual(w[11], w[4]);
+            Assert.AreEqual(w[12], w[5]);
+            Assert.AreEqual(w[13], w[6]);
+        }
+
         [UnityTest]
         public IEnumerator Town_TwentyFolkDistinct()
         {

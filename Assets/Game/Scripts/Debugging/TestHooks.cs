@@ -533,7 +533,7 @@ namespace Punchy.Debugging
                     break;
                 }
                 foreach (var culture in (Newtonsoft.Json.Linq.JObject)bad["conversation"])
-                    if (!culture.Key.StartsWith("_") && culture.Key != "topics" && culture.Value is Newtonsoft.Json.Linq.JObject topics)
+                    if (!culture.Key.StartsWith("_") && culture.Key != "topics" && culture.Key != "quests" && culture.Value is Newtonsoft.Json.Linq.JObject topics)
                     {
                         foreach (var topic in topics)
                             if (topic.Value is Newtonsoft.Json.Linq.JArray talk)
@@ -561,6 +561,29 @@ namespace Punchy.Debugging
         }
 
         public static string ReloadError;
+
+        /// <summary>
+        /// The words that come from dialogue.json's conversation.quests and beastTalk.topics (A-129 row 2), next to the
+        /// file's own entries: [find, clear, bring, bringMany, other, beast meet label, beast bye label] as said, then the
+        /// same seven as the file has them (null where it leaves one out).
+        /// </summary>
+        public static string[] ArchiveWords()
+        {
+            var archive = DialogueArchive.Current;
+            var beast = FolkConversation.Topics(new FolkTalker { Beast = true });
+            string Label(string id) => System.Array.Find(beast, t => t.Id == id).Label;
+            string File(Dictionary<string, string> d, string key) => d != null && d.TryGetValue(key, out var v) ? v : null;
+            var quests = archive?.Talk?.Quests;
+            var labels = archive?.BeastTalk?.Labels;
+            return new[]
+            {
+                FolkConversation.QuestWords("find", "SilverKey", null, 1), FolkConversation.QuestWords("clear", null, "Crow", 1),
+                FolkConversation.QuestWords("bring", "Berry", null, 1), FolkConversation.QuestWords("bring", "Berry", null, 5),
+                FolkConversation.QuestWords("chat", null, null, 1), Label("meet"), Label("bye"),
+                File(quests, "find"), File(quests, "clear"), File(quests, "bring"), File(quests, "bringMany"), File(quests, "other"),
+                File(labels, "meet"), File(labels, "bye"),
+            };
+        }
 
         /// <summary>
         /// Every topic asked of made-up folk of every culture in dialogue.json (and of no culture), many individuals, at

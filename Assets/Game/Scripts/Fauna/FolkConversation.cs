@@ -94,7 +94,8 @@ namespace Punchy.Fauna
         /// <summary>Asking after its family (A-105 row 3): a topic dialogue.json adds, answered from its household.</summary>
         public const string Family = "family";
 
-        /// <summary>The topics in menu order, with their labels (dialogue.json's conversation.topics can relabel them).</summary>
+        /// <summary>The topics in menu order. The labels shown come from dialogue.json (conversation.topics, and
+        /// beastTalk.topics for an animal player's); these are only for a missing file or a topic it leaves out.</summary>
         public static readonly (string Id, string Label)[] AllTopics =
         {
             (Who, "Who are you?"),
@@ -205,7 +206,8 @@ namespace Punchy.Fauna
         /// goodbye); to an animal, going up to it and wandering off.</summary>
         public static Topic[] Topics(in FolkTalker who)
         {
-            var labels = DialogueArchive.Current?.Talk?.Labels;
+            var archive = DialogueArchive.Current;
+            var labels = who.Beast ? archive?.BeastTalk?.Labels : archive?.Talk?.Labels;
             var topics = new List<Topic>();
             foreach (var (id, label) in who.Beast ? BeastTopics : AllTopics)
             {
@@ -729,7 +731,8 @@ namespace Punchy.Fauna
         // ---- Quests ----
 
         static string[] questIds = Array.Empty<string>();
-        static string[] questTexts = Array.Empty<string>();
+        /// <summary>Per quest: its own "talk" words, or null, and its type, item, creature and count for QuestWords.</summary>
+        static (string Talk, string Type, string Item, string Creature, int Count)[] questParts = Array.Empty<(string, string, string, string, int)>();
         static DateTime questStamp;
 
         /// <summary>The quest this folk wants done (a quests.json id), or null: about half of folk have one.</summary>
@@ -744,7 +747,11 @@ namespace Punchy.Fauna
         static string QuestWords(string id)
         {
             var i = Array.IndexOf(questIds, id);
-            return i >= 0 && !string.IsNullOrEmpty(questTexts[i]) ? questTexts[i] : id;
+            if (i < 0)
+                return id;
+            var q = questParts[i];
+            var words = !string.IsNullOrEmpty(q.Talk) ? q.Talk : QuestWords(q.Type, q.Item, q.Creature, q.Count);
+            return string.IsNullOrEmpty(words) ? id : words;
         }
 
         static void LoadQuests()
@@ -759,17 +766,17 @@ namespace Punchy.Fauna
                     return;
                 questStamp = stamp;
                 var ids = new List<string>();
-                var texts = new List<string>();
+                var parts = new List<(string, string, string, string, int)>();
                 if (JObject.Parse(System.IO.File.ReadAllText(path))["quests"] is JArray qs)
                     foreach (var q in qs)
                         if (q is JObject o && o["id"] != null)
                         {
                             ids.Add((string)o["id"]);
                             // (A few words for the talk: "talk" if the quest has them, else from its type.)
-                            texts.Add((string)o["talk"] ?? QuestWords((string)o["type"], (string)o["item"], (string)o["creature"], o["count"] != null ? (int)o["count"] : 1));
+                            parts.Add(((string)o["talk"], (string)o["type"], (string)o["item"], (string)o["creature"], o["count"] != null ? (int)o["count"] : 1));
                         }
                 questIds = ids.ToArray();
-                questTexts = texts.ToArray();
+                questParts = parts.ToArray();
             }
             catch (Exception e)
             {
@@ -777,18 +784,36 @@ namespace Punchy.Fauna
             }
         }
 
-        /// <summary>A quest put in a few words: "bring me 5 berries", "find the key I lost", "drive off the crows".</summary>
-        static string QuestWords(string type, string item, string creature, int count)
+        /// <summary>
+        /// A quest put in a few words, by dialogue.json's conversation.quests (A-129 row 2): "find" ("find the {item} I
+        /// lost"), "clear" ("drive off the {creatures}"), "bring" / "bringMany" ("bring me {count} {items}") and "other".
+        /// QuestPhrases are only for a missing file or a key it leaves out.
+        /// </summary>
+        internal static string QuestWords(string type, string item, string creature, int count)
         {
             var thing = DialogueArchive.Spoken(item)?.ToLowerInvariant();
             var beast = DialogueArchive.Spoken(creature)?.ToLowerInvariant();
-            switch (type)
-            {
-                case "find" when thing != null: return $"find the {thing} I lost";
-                case "clear" when beast != null: return $"drive off the {Plural(beast)}";
-                default: return thing != null ? (count > 1 ? $"bring me {count} {Plural(thing)}" : $"bring me a {thing}") : "a little job";
-            }
+            var key = type == "find" && thing != null ? "find"
+                : type == "clear" && beast != null ? "clear"
+                : thing != null ? count > 1 ? "bringMany" : "bring"
+                : "other";
+            var phrases = DialogueArchive.Current?.Talk?.Quests;
+            if (phrases == null || !phrases.TryGetValue(key, out var phrase) || string.IsNullOrEmpty(phrase))
+                QuestPhrases.TryGetValue(key, out phrase);
+            return phrase
+                .Replace("{items}", thing != null ? Plural(thing) : "")
+                .Replace("{item}", thing ?? "")
+                .Replace("{creatures}", beast != null ? Plural(beast) : "")
+                .Replace("{creature}", beast ?? "")
+                .Replace("{count}", count.ToString());
         }
+
+        /// <summary>The quest phrases with no dialogue.json (the file's conversation.quests has the same keys).</summary>
+        public static readonly Dictionary<string, string> QuestPhrases = new Dictionary<string, string>
+        {
+            ["find"] = "find the {item} I lost", ["clear"] = "drive off the {creatures}", ["bring"] = "bring me a {item}",
+            ["bringMany"] = "bring me {count} {items}", ["other"] = "a little job",
+        };
 
         /// <summary>English plural, good enough for item and creature names: berry → berries, fish stays fish.</summary>
         static string Plural(string w) =>
@@ -843,6 +868,8 @@ namespace Punchy.Fauna
             public readonly Dictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             /// <summary>beastTalk: species name → group, overriding the one GroupOf works out.</summary>
             public readonly Dictionary<string, string> Groups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            /// <summary>conversation.quests: a quest in a few words, by kind (QuestWords).</summary>
+            public readonly Dictionary<string, string> Quests = new Dictionary<string, string>(StringComparer.Ordinal);
             public int Count
             {
                 get
@@ -890,6 +917,24 @@ namespace Punchy.Fauna
                         if (!g.Key.StartsWith("_") && problems.Strings(g.Value, g.Key) is string[] names)
                             foreach (var n in names)
                                 book.Groups[n] = g.Key;
+                    continue;
+                }
+                // (conversation: { "quests": { kind: "a few words with {item}, {items}, {creatures} or {count}" } }.)
+                if (pair.Key == "quests" && pair.Value is JObject quests)
+                {
+                    foreach (var q in quests)
+                        if (!q.Key.StartsWith("_"))
+                        {
+                            if (!QuestPhrases.ContainsKey(q.Key))
+                                problems.Add(q.Value, $"no quest kind called \"{q.Key}\" ({string.Join(", ", QuestPhrases.Keys)})");
+                            else if (q.Value.Type == JTokenType.String && ((string)q.Value).Trim().Length > 0)
+                            {
+                                problems.Slots(q.Value, (string)q.Value);
+                                book.Quests[q.Key] = (string)q.Value;
+                            }
+                            else
+                                problems.Add(q.Value, "a quest's words should be text");
+                        }
                     continue;
                 }
                 if (pair.Key == "topics" && pair.Value is JObject labels)
