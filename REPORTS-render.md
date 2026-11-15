@@ -637,3 +637,32 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shares: this extends WeatherSystem's existing R-32 held shadow direction. It is the same function with a second
   step rule, not a new system.
 - NEXT: land render/far-lights, audit-fixes, cobble-depth and one-surface on main, then R-38 rows 1-5.
+
+## Landing batch (supervisor task): old render branches on main, profiler branch review, archive tags
+
+- Ready for PR (origin/main merged in, compile clean, all Assets/Game shaders 0 errors, play smoke 0 errors):
+  - `render/one-surface` 086e56b1.
+  - `render/far-lights` 5fe0ce36. CaveSystem.cs keeps main's fuller `ReleaseLandmarkPools` (in CaveSystem.LandmarkWater.cs).
+    Street lamps go through `LampRoutes.LitAt` (A-115) once, in `AddStreetLight`, so far and near fixtures share it.
+    Night play at tod 21.5, about 3,870 frames: 0 errors, 2 warnings.
+  - `render/audit-fixes` 9cbf889b. WaterPatchSystem.cs: main's vents/knocks/viscosity kept, with HEAD's `Room` cap
+    and turn stats on top. 2,634 frames: 0 errors (spawn not near water, so the water path is only lightly run).
+- BLOCKED, `render/cobble-depth` (merge aborted, nothing pushed): it clashes with world's W-169 in BuildChunkMeshJob.cs,
+  TerrainSurface.hlsl and TerrainSurface.shader. Both use the terrain `Soak` vertex value (TEXCOORD4): R-28 makes it
+  half4 (porosity + under-paving colour), W-169 makes it half2 (porosity + coarser-LOD hollow depth). Keeping both
+  needs 5 values: a vertex format change in world-owned files. Decision needed: world packs it, or R-28 drops the
+  under-paving colour (rule 11).
+- Profiler branches: `b/fix-swapchain-stall` and `b/cloud-shadow-map` merge clean onto main together and compile
+  (30 shaders, 0 errors). swapchain: `-vsync`/`-maxqueued` flags, defaults as today. cloud-shadow-map: a 1024 RHalf
+  cloud shadow map baked every 2 frames, ON by default (`-cloudshadowmap 0` turns it off). It edits fauna's
+  WeatherSystem.cs, but merges clean with R-38 row 0 (cf8ef6e9).
+- Archive tags: covered on main: light/forwardplus, b/r10-trims, b/r10-nocluster (far-lights), lod/screen-size,
+  shadow-still, cloud-shadow-soft, b/r12-trims, r12-warp-bake, water/fine-grid, render/shadow-bias-test.
+  Not really covered:
+  - `b/water-rows-fixes`: far wave field (normals-only wakes past the fine field), wave fields on cave water, WaterTess
+    tessellation, and the Water shader split into pass/material includes. Bears on R-38 row 5 (#269).
+  - `b/fix-waterfield-step`: the wave field sleeping when idle, and step rate fixes. Nothing like it on main.
+  - R-20 row 1's 4096 sun shadow map: main is still 2048. Bears on the sun crawl (#286, R-38 row 0).
+- Shares: no new systems. far-lights folds near and far lamp lit-state into one `LampRoutes.LitAt` path; audit-fixes
+  folds its cap into main's source job. Parallel found, not folded: cobble-depth's terrain wetness vs W-169 puddle fade.
+- NEXT: R-38 rows 1-5.
