@@ -26,7 +26,8 @@ namespace Punchy.Fauna
     /// A-121: every fire the brain steers round, in 16 m cells so a creature looks only at the few by it (rule 24's
     /// per-area lists, not a scan of every flame per brain). Landmark flames (camp, hut, town and hold fires: they
     /// stay pits when unlit, so they always count) and, at night near a player, the burning roots and litter of a
-    /// burning forest. Built by FireSpotSystem; the containers belong to it and the brain only reads them.
+    /// burning forest. Built by FireSpotSystem; the containers belong to it and the brain only reads them. Row 2: the
+    /// same list is the heat-source list comfort reads (HeatAt): a lit fire warms whatever stands near it.
     /// </summary>
     public struct FireSpots : IComponentData
     {
@@ -47,11 +48,105 @@ namespace Punchy.Fauna
 
         public static int2 CellOf(float2 xz) => (int2)math.floor(xz / CellSize);
 
+        /// <summary>How lit a fire is at this darkness (0 dusk..1 night): a camp's fire is a cold pit by day. The same
+        /// ramp LandmarkEffectSystem draws its flames with.</summary>
+        public static float Lit(in FireSpot f, float night) =>
+            (f.Flags & NightOnly) == 0 ? 1f : math.saturate((night - 0.2f) / 0.3f);
+
+        /// <summary>How far past its flames a fire's heat is felt (m): a torch about 3.5, a campfire 5, a forest fire or
+        /// lava 6 (never past ListedPad, so the cell lists still find it).</summary>
+        public static float HeatReach(float heat) => math.clamp(3f + 2f * heat, 3f, ListedPad);
+
+        /// <summary>
+        /// A-121 row 2: the heat a fire of this heat adds to what a creature feels (on comfort's 0..1 scale) at
+        /// <paramref name="past"/> metres beyond its flames: a gentle warmth out to its reach (about +0.3 where folk sit,
+        /// a metre or so off), and a steep heat in the last metre, too hot for almost anything right at the edge.
+        /// </summary>
+        public static float Felt(float heat, float past)
+        {
+            past = math.max(past, 0f);
+            var near = math.saturate(1f - past / 1.2f);
+            return heat * (0.4f * math.saturate(1f - past / HeatReach(heat)) + 0.6f * near * near);
+        }
+
+        /// <summary>
+        /// The heat all lit fires add at xz (any fire, not only ground ones: a beacon warms too), and the heat and
+        /// distance past its flames of the one that adds the most (Heat 0 when none is near).
+        /// </summary>
+        public float HeatAt(float2 xz, float night, out FireSpot hottest, out float past)
+        {
+            hottest = default;
+            past = 0f;
+            if (!Cells.IsCreated || !Cells.TryGetFirstValue(CellOf(xz), out var i, out var it))
+                return 0f;
+            var sum = 0f;
+            var most = 0f;
+            do
+            {
+                var f = Spots[i];
+                var lit = Lit(f, night);
+                if (lit <= 0f)
+                    continue;
+                var beyond = math.distance(f.Position.xz, xz) - f.Radius;
+                var felt = Felt(f.Heat * lit, beyond);
+                sum += felt;
+                if (felt > most)
+                {
+                    most = felt;
+                    hottest = f;
+                    hottest.Heat *= lit;
+                    past = math.max(beyond, 0f);
+                }
+            } while (Cells.TryGetNextValue(out i, ref it));
+            return sum;
+        }
+
+        /// <summary>
+        /// The nearest lit ground fire within range of xz (cells ring by ring, so a cold creature can find a camp's
+        /// fire to sit by). Only for shelter searches, a few a frame: it looks at up to (2 range / 16 + 1)^2 cells.
+        /// </summary>
+        public bool Nearest(float2 xz, float range, float night, out FireSpot fire)
+        {
+            fire = default;
+            if (!Cells.IsCreated || Spots.Length == 0)
+                return false;
+            var lo = CellOf(xz - range);
+            var hi = CellOf(xz + range);
+            var best = range * range;
+            var found = false;
+            for (int x = lo.x; x <= hi.x; x++)
+                for (int z = lo.y; z <= hi.y; z++)
+                {
+                    if (!Cells.TryGetFirstValue(new int2(x, z), out var i, out var it))
+                        continue;
+                    do
+                    {
+                        var f = Spots[i];
+                        if ((f.Flags & Ground) == 0 || Lit(f, night) < 0.5f)
+                            continue;
+                        var d = math.distancesq(f.Position.xz, xz);
+                        if (d < best)
+                        {
+                            best = d;
+                            fire = f;
+                            found = true;
+                        }
+                    } while (Cells.TryGetNextValue(out i, ref it));
+                }
+            return found;
+        }
+
         /// <summary>
         /// The ground fire whose circle, widened by pad (at most ListedPad), holds xz: the one it is deepest in. False
         /// when there is none (or the list is off).
         /// </summary>
-        public bool Near(float2 xz, float pad, out FireSpot fire)
+        public bool Near(float2 xz, float pad, out FireSpot fire) => Near(xz, pad, 0f, 0f, out fire);
+
+        /// <summary>
+        /// As Near, but a lit fire is kept a further <paramref name="keep"/> metres off (A-121 row 2: a fire-shy
+        /// creature's berth, or the heat one can't bear). An unlit pit is only its own circle.
+        /// </summary>
+        public bool Near(float2 xz, float pad, float keep, float night, out FireSpot fire)
         {
             fire = default;
             if (!On || !Cells.IsCreated || !Cells.TryGetFirstValue(CellOf(xz), out var i, out var it))
@@ -63,7 +158,8 @@ namespace Punchy.Fauna
                 var f = Spots[i];
                 if ((f.Flags & Ground) == 0)
                     continue;
-                var reach = f.Radius + math.min(pad, ListedPad);
+                var extra = keep > 0f ? keep * Lit(f, night) : 0f;
+                var reach = f.Radius + math.min(pad + extra, ListedPad);
                 var depth = reach - math.distance(f.Position.xz, xz);
                 if (depth > deepest)
                 {

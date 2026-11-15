@@ -112,3 +112,7 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   stalls and hitching rails as buildings (FloraPlacement.IsBuilding). Town paths come from StreetRoute (Road == 0
   streets, then string-pulled where Clear). Riders().clearance should read 0 overlaps; Despawn at 170 m cuts a
   far ride short, and a lent horse's stable can be km away.
+- A-121: FireSpots is both the "keep out of the flames" list and the heat-source list (HeatAt) comfort reads. A
+  species' FireTemper (Auto: folk Ignores, friendly Wary, cold-blooded Basks, else Shy; set Loves by hand) and the
+  heat a creature can't bear give CreatureMind.FireKeep, a berth past the flame's edge (Fire.cs Berth/FireStep);
+  lovers drift to fires instead. Torches and lava are not heat sources yet. FireWatch (editor) Gather/Bands probes it.
