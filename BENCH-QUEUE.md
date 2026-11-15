@@ -855,7 +855,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   screen-size LOD) and ScarpSkinSystem; ground detail instance counts near the scarps (B leaves a bare margin).
 - Pass (rule 23): B within 0.3 ms GPU of A at each view, or name what to trim (debris LOD0 first).
 
-## Job 86 (2026-11-14, NEXT on the laptop, chained after 85 (q128.job); render lane, R-28 row 2, #312): cobble bevel parallax and stone normals
+## Job 86 (2026-11-14, RUNNING 11-15, chained after 85 (q128.job); render lane, R-28 row 2, #312): cobble bevel parallax and stone normals
 - main 1746d62a (A) vs `render/cobble-depth` 4cd4edd8 (B). Profile builds, 1920x1080, Medium and High, uncapped,
   12:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: desert town square `-benchspot -342,560`; town 73 centre `-benchspot 2972,-885`.
@@ -864,7 +864,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 
 - 11-14 note (supervisor): #341 merged to main (11ba8e42). Fauna fingerprint re-pinned E99E8FCB -> B2A5823C (stables and hitch rails are now obstacles); landmarks 689D5348 and layout 28DB5D55 unchanged. Re-pin your baseline if a job compares it.
 
-## Job 87 (2026-11-14, QUEUED after 86; world lane, W-168 row 1, #345): where a start's time goes
+## Job 87 (2026-11-14, NEXT on the laptop, chained after 86 (q129.job, main 3b192717); world lane, W-168 row 1, #345): where a start's time goes
 - main afea013c (includes #348, the start ledger). Profile build, 1920x1080, High, uncapped, 12:00, Clear.
 - One warm-up launch, then per start 3 cache-hit launches and 1 `-freshisland` launch: default spawn, town
   (`-place HumanVillage`), forest (`-place OakGrove`).

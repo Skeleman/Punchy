@@ -1,0 +1,23 @@
+# Job 87 (W-168 row 1, #345): where a start's time goes. Main 3b192717 (the supervisor's shared main for 78-80 and 87;
+# it includes #348, the start ledger), shelf build. High, noon, Clear. One warm-up launch (discarded), then per start
+# three cache-hit launches and (after) one -freshisland launch: default spawn, town (-place HumanVillage), forest
+# (-place OakGrove). Each log's [start] ledger, first-frame time and [stream] world ready time are printed at the end.
+Q=q129; TITLE="job 87 start ledger"
+BUILDS="3b19271"
+VIEWS="spawn town forest"
+view() { case $1 in
+  spawn)  echo "-benchstops here -benchhour 12 -benchweather Clear";;
+  town)   echo "-place HumanVillage -benchstops here -benchhour 12 -benchweather Clear";;
+  forest) echo "-place OakGrove -benchstops here -benchhour 12 -benchweather Clear";; esac; }
+ARMS="hit"
+arm() { case $1 in hit) echo "Profile-3b19271";; fresh) echo "Profile-3b19271 -freshisland";; esac; }
+ROUNDS=3; GFX=High
+before() { BENCHW=1920 BENCHH=1080 runcsv Profile-3b19271 $Q-warm 3b19271 s100 1 -gfx High -fpscap 0 $(view spawn); }
+after() {
+  for v in $VIEWS; do game High $v fresh 1; done
+  for f in $R/q-$Q-*-cs100-*.log; do
+    echo "== $(basename $f)"
+    grep -a -h '\[start\]' $f | head -20 | cut -c1-220
+    grep -a -h 'world ready at\|\[island\].*ready at' $f | head -3 | cut -c1-140
+  done
+}
