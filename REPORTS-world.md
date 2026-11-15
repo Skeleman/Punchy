@@ -7899,3 +7899,17 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - world/playtest-1114 (W-172 row 1, #301) is ready for PR on top of current main.
 - Next: land cliff-kit, world-pack, water/truth, waterfall-sheets, log-bark, then the rest of W-172; W-166 row 2
   (#336) follows W-172, per the supervisor.
+
+## Land world/cliff-kit (W-150, #281): ready for PR
+
+- **Branch:** world/cliff-kit 943ef37b = origin/main 903dcb5c merged in, pushed. Ready for PR (rule 31).
+- **Conflicts:** IslandV2.cs and TerrainSource.cs, both from scarps (#377) and the cliff kit each baking last.
+  Resolved as a union: scarps cut the finished ground first, then the cliff kit stands on it. Both are cleared,
+  freed and compared in SameIsland. The island file needs no format bump (its blob-count check already turns old
+  files away).
+- **Checks:** clean compile; PlayMode suite `completed: 40/40 passed`; landmarks 117 hash 689D5348, game hash
+  FA8F24B1. Bake: 2227 kit pieces in 1539 groups and 3506 ledges, the same as row 2; scarps bake as on main (2).
+- **Shares:** extends the cliff kit and WorldClimbs-style ledges. A parallel I found but didn't fold in: the two
+  scarp walls are cliffs too but get no kit pieces or ledges (the kit only looks at sea cliff and mesa faces). Follow-up
+  for W-162 (one climbing path): let the kit dress scarp faces.
+- Next: world/world-pack.
