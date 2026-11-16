@@ -303,6 +303,19 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>P-47: no two dungeon chests (the temple's, every cave's, the ruin rooms') share a container id, so a
+        /// chest RPC names one chest on every machine.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator DungeonChests_IdsUnique()
+        {
+            var problems = Game.Hook<string>("ChestIdClashes");
+            var line = LogWatch.Last("[chests]") ?? "no chests line";
+            LogWatch.Measure($"{line}; ids: {(problems == "" ? "no clashes" : problems)}");
+            Assert.AreEqual("", problems);
+            StringAssert.DoesNotContain(" 0 chests", line);
+            yield return null;
+        }
+
         /// <summary>P-46: the sunken temple's sockets are pinned (a hall torch too low for its prop dropped, clutter kept
         /// off chest spots). A layout change moves the hash: re-pin it and add a BENCH-QUEUE note.</summary>
         [UnityTest, Order(90)]
