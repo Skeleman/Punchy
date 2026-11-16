@@ -643,13 +643,15 @@ namespace Punchy.Weather
                     mainColor = Color.Lerp(Cycle.LightColor, DustColor(), s.Dust * 0.6f);
                 mainIntensity = baseSunIntensity * (Cycle != null ? Cycle.LightStrength : 1f) * (1f - 0.7f * s.Dust);
             }
-            // R-39 row 2 (#402, render): the night look on trial (Punchy.Settings.GlowLook, 1 unless picked) darkens the
+            // R-39 row 2 (#402, render): the night look (Punchy.Settings.GlowLook) darkens the
             // night's ambient and moonlight together, so glows read as light falling on things.
             var nightLook = Cycle != null ? Punchy.Settings.GlowLook.NightScale(Cycle.Night) : 1f;
             mainIntensity *= nightLook;
             blueLight *= nightLook;
             ambientScale *= nightLook;
             moonFloor *= nightLook;
+            // Zach (11-15) picked it with a darker night haze too (Sky.hlsl, PunchyAtmosphere).
+            Punchy.Settings.GlowLook.UploadNight(Cycle != null ? Cycle.Night : 0f);
             // R-32 row 3 (Zach 11-14): when the blue moon outshines the big moon it becomes the shadow-casting light.
             // URP casts shadows from the main light only, so the two swap places: the Sun light takes the blue moon's
             // direction and colour, and the big moon goes to Glow.hlsl's unshadowed extra term at its own strength.

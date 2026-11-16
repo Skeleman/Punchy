@@ -29,7 +29,7 @@ float4 _PunchyGlowWorldFire;       // rgb tonight's fire light (0 by day or off)
 TEXTURE2D(_PunchyGlowTown);        // R-10 row 4: the island's towns, lit windows and street lights summed (same rect as above)
 float4 _PunchyGlowTownParams;      // x strength x windows on (0 by day or off), y how hard dense towns level off, zw camera distance it fades in over (m)
 float4 _PunchyGlowTownColor;       // rgb the warm light of a lit town
-float4 _PunchyGlowLook;            // R-39 row 2: x glow brightness, y 1 / reach scale, z falloff power (GlowLook; 0: today's)
+float4 _PunchyGlowLook;            // R-39 row 2: x glow brightness, y 1 / reach scale, z falloff power (GlowLook)
 float4 _PunchyBlueLightDirection;  // xyz towards the blue moon
 float4 _PunchyBlueLightColor;      // rgb its light (linear; 0 when it gives none)
 // R-32 row 5: the main light's moon while it hands the shadows over (WeatherSystem), shaded like the blue moon's
@@ -133,8 +133,8 @@ half3 PunchyGlowWorld(float3 p, half3 n)
 half3 PunchyGlowLight(float3 p, half3 n)
 {
     half3 light = 0;
-    // R-39 row 2 (#402): the night look's falloff (GlowLook: x brightness, y 1 / reach scale, z power; unset is today's).
-    float4 look = _PunchyGlowLook.x > 0 ? _PunchyGlowLook : float4(1, 1, 2, 0);
+    // R-39 row 2 (#402): the night look's falloff (GlowLook: x brightness, y 1 / reach scale, z power).
+    float4 look = _PunchyGlowLook.x > 0 ? _PunchyGlowLook : float4(2.6, 1 / 1.15, 3, 0);
     for (int k = 0; k < _PunchyCaveHeatCount; k++)
     {
         float4 hc = _PunchyCaveHeatColor[k];

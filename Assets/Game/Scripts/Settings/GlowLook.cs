@@ -4,48 +4,39 @@ using UnityEngine;
 namespace Punchy.Settings
 {
     /// <summary>
-    /// R-39 row 2 (#402): night looks for glowing things to compare, so a glow (igloo runes, glowing mushrooms) reads as
-    /// light falling on the ground and walls round it. Each option darkens the night (the ambient and the moons) and
-    /// changes how a glow slot falls off (Glow.hlsl: brightness, reach and the falloff's power). Option 0 is today's look.
-    /// Picked with the launch flag "-glowlook n" or at run time (Option); the pick is Zach's (STOP point of the card).
+    /// R-39 row 2 (#402): the night look that lets a glow (igloo runes, glowing mushrooms, crystals) read as light
+    /// falling on the ground and walls round it. Zach picked this one (option 3 of the trial): darker nights (ambient,
+    /// moons and the far haze) and a bright pool close to each glow (Glow.hlsl: brightness, reach and falloff power).
     /// </summary>
     public static class GlowLook
     {
-        /// <summary>The look in use: 0 today, 1 dark nights only, 2 dark nights and a wider, brighter wash,
-        /// 3 darker nights and a bright pool close to each glow.</summary>
-        public static int Option;
-
-        /// <summary>Per option: x the night's ambient and moonlight kept, y glow brightness, z glow reach scale,
-        /// w the falloff's power (2 today: (1 - d / reach)^2).</summary>
-        static readonly float4[] Options =
-        {
-            new float4(1f, 1f, 1f, 2f),
-            new float4(0.5f, 1f, 1f, 2f),
-            new float4(0.5f, 1.6f, 1.3f, 2f),
-            new float4(0.35f, 2.6f, 1.15f, 3f),
-        };
-
-        public static float4 Current => Options[math.clamp(Option, 0, Options.Length - 1)];
+        /// <summary>The share of the night's ambient and moonlight kept at full night.</summary>
+        public const float NightKept = 0.35f;
+        /// <summary>The share of the night haze's brightness kept at full night (Sky.hlsl, PunchyAtmosphere).</summary>
+        public const float NightHazeKept = 0.5f;
+        /// <summary>Glow slot brightness, reach scale and falloff power ((1 - d / reach)^power; 1, 1, 2 before).</summary>
+        public const float Brightness = 2.6f, Reach = 1.15f, Power = 3f;
 
         /// <summary>How much of the night's light (ambient, moons) is kept at this much night (0 day, 1 full night).</summary>
-        public static float NightScale(float night) => math.lerp(1f, Current.x, math.saturate(night));
+        public static float NightScale(float night) => math.lerp(1f, NightKept, math.saturate(night));
+
+        /// <summary>How much of the haze's brightness is kept at this much night (0 day, 1 full night).</summary>
+        public static float NightHazeScale(float night) => math.lerp(1f, NightHazeKept, math.saturate(night));
 
         static readonly int GlowLookId = Shader.PropertyToID("_PunchyGlowLook");
+        static readonly int NightHazeId = Shader.PropertyToID("_PunchyNightHaze");
 
         /// <summary>Hands the falloff to the shaders (once a frame, CaveSystem).</summary>
-        public static void Upload()
-        {
-            var o = Current;
-            Shader.SetGlobalVector(GlowLookId, new Vector4(o.y, 1f / o.z, o.w, 0f));
-        }
+        public static void Upload() => Shader.SetGlobalVector(GlowLookId, new Vector4(Brightness, 1f / Reach, Power, 0f));
+
+        /// <summary>Hands the night's haze scale to the shaders (once a frame, WeatherSystem).</summary>
+        public static void UploadNight(float night) => Shader.SetGlobalFloat(NightHazeId, NightHazeScale(night));
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Init()
         {
-            var args = Punchy.Debugging.DebugControls.LaunchArgs;
-            var at = System.Array.IndexOf(args, "-glowlook");
-            Option = at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var n) ? n : 0;
             Upload();
+            UploadNight(0f);
         }
     }
 }
