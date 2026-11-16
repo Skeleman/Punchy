@@ -35,7 +35,8 @@ namespace Punchy.Debugging
         Gamepad pad;
         Entity dog, mount;
         string stayBody, dropBody, bigBody;
-        int dropped0, refound0, ended0;
+        int dropped0, refound0, ended0, refreshed0;
+        float steeredSize, catSize;
         readonly List<string> lines = new List<string>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -124,25 +125,35 @@ namespace Punchy.Debugging
                 }
                 PickBodies(avatars, MountKg(em));
                 Begin();
+                catSize = AbilitySize(em);
                 input.TestRide(mount);
             }
             if (At(t, 5f))
             {
                 Check("on the dog as a cat", riding);
+                steeredSize = AbilitySize(em);
                 if (stayBody != null)
                     SetBody(avatars, stayBody);
             }
             if (At(t, 8f))
             {
                 if (stayBody != null)
-                    Check($"still on as a {stayBody} (fits)", riding && RideFitSystem.Dropped == dropped0);
+                {
+                    Check($"still on as a {stayBody} (fits)", riding && PlayerRideSystem.Unfit == dropped0);
+                    // (P-43: its new body kept for getting down, the dog's abilities still the ones it moves with.)
+                    Check($"steering with the dog's abilities, {stayBody} body kept (size {AbilitySize(em):F2} vs {steeredSize:F2})",
+                          PlayerRideSystem.Refreshed > refreshed0 && AbilitySize(em) == steeredSize);
+                }
                 Shot("stays-on");
                 SetBody(avatars, dropBody);
             }
             if (At(t, 11f))
             {
-                Check($"down as a {dropBody} (too heavy: {RideFitSystem.LastReason})",
-                      !riding && RideFitSystem.Dropped == dropped0 + 1 && RideFitSystem.LastReason == RideRefusal.TooHeavy);
+                Check($"down as a {dropBody} (too heavy: {PlayerRideSystem.LastUnfit})",
+                      !riding && PlayerRideSystem.Unfit == dropped0 + 1 && PlayerRideSystem.LastUnfit == RideRefusal.TooHeavy &&
+                      PlayerRideSystem.LastOff == RideOff.Size);
+                Check($"own abilities back as a {dropBody} (size {AbilitySize(em):F2}; cat {catSize:F2}, dog {steeredSize:F2})",
+                      AbilitySize(em) != steeredSize && AbilitySize(em) != catSize);
                 Shot("dropped");
                 SetBody(avatars, "Cat");
             }
@@ -156,7 +167,14 @@ namespace Punchy.Debugging
             }
             if (At(t, 18f))
             {
-                Check("jump got down", !riding && PlayerRideSystem.Ended == ended0 + 1 && PlayerRideSystem.LastOff == RideOff.None);
+                // (A-126: steering a creature, jump is the creature's jump and only the button gets down; jump gets a
+                // rider off a player, checked in the pair run.)
+                Check("jump while steering kept it on", riding && PlayerRideSystem.Ended == ended0);
+                input.TestRide(Entity.Null);
+            }
+            if (At(t, 20f))
+            {
+                Check("the button got down", !riding && PlayerRideSystem.Ended == ended0 + 1 && PlayerRideSystem.LastOff == RideOff.None);
                 Finish("", pass);
             }
             last = t;
@@ -228,12 +246,12 @@ namespace Punchy.Debugging
                     Check("on the other player", riding);
                 if (At(t, 13f))
                 {
-                    Check("still on after its body grew (found again)", riding && RideFitSystem.Refound > refound0 && RideFitSystem.Dropped == dropped0);
+                    Check("still on after its body grew (found again)", riding && PlayerRideSystem.Refound > refound0 && PlayerRideSystem.Unfit == dropped0);
                     Shot("rider-stays-on");
                 }
                 if (At(t, 18f))
                 {
-                    Check($"down after its body shrank ({RideFitSystem.LastReason})", !riding && RideFitSystem.Dropped == dropped0 + 1);
+                    Check($"down after its body shrank ({PlayerRideSystem.LastUnfit})", !riding && PlayerRideSystem.Unfit == dropped0 + 1);
                     Shot("rider-dropped");
                 }
                 if (At(t, 29f))
@@ -276,8 +294,16 @@ namespace Punchy.Debugging
 
         void Begin()
         {
-            dropped0 = RideFitSystem.Dropped;
-            refound0 = RideFitSystem.Refound;
+            dropped0 = PlayerRideSystem.Unfit;
+            refound0 = PlayerRideSystem.Refound;
+            refreshed0 = PlayerRideSystem.Refreshed;
+        }
+
+        /// <summary>The size the player moves with (PlayerBody), -1 if none.</summary>
+        static float AbilitySize(EntityManager em)
+        {
+            using var query = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerBody>());
+            return query.TryGetSingleton<PlayerBody>(out var body) ? body.Size : -1f;
         }
 
         float MountKg(EntityManager em)
