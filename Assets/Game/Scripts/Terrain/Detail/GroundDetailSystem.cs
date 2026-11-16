@@ -129,7 +129,17 @@ namespace Punchy.Terrain
         float commandLineDensity = -1f;
         int MaxPebbles => (int)(TileSize * TileSize * PebblesPerSquareMetre);
 
+        // #259: a world swap unloads the subscene (and its terrain blobs) while the scene goes off, possibly before this
+        // script's OnDisable: finish the pending tile job as soon as the swap starts.
+        void OnEnable() => Punchy.Net.GameBootstrap.WorldsReplacing += DropPending;
+
         void OnDisable()
+        {
+            Punchy.Net.GameBootstrap.WorldsReplacing -= DropPending;
+            DropTiles();
+        }
+
+        void DropTiles()
         {
             DropPending();
             foreach (var t in tiles.Values)
@@ -146,7 +156,7 @@ namespace Punchy.Terrain
             // The world changed (re-bake): throw every tile away.
             if (!hasSource || !source.Equals(lastSource))
             {
-                OnDisable();
+                DropTiles();
                 lastSource = source;
                 hasSource = true;
             }
