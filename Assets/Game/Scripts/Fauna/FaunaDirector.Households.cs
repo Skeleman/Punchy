@@ -241,6 +241,7 @@ namespace Punchy.Fauna
         float nextHouseWatch;
         readonly HashSet<uint> housesSeen = new HashSet<uint>();
         readonly Dictionary<uint, bool> housesInside = new Dictionary<uint, bool>();
+        readonly HashSet<uint> housesInNow = new HashSet<uint>();
         int houseArrivals, houseWrongDoor;
         // (A-134 row 1 probe: the members seen going in at their own door, and lodgers going in, at a household's door.)
         readonly HashSet<uint> membersHome = new HashSet<uint>();
@@ -628,20 +629,32 @@ namespace Punchy.Fauna
                 houseQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
             }
             var states = houseQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            // (A-134 row 1: in, per individual, from any of its states: a member's figure in a room shares its
+            // Individual, so judged one state at a time it would flip in and out each pass. In is stage 2, when it has
+            // stepped through and stands 0.7 m in from the door it used, not the step in from a few metres short.)
+            housesInNow.Clear();
+            foreach (var s in states)
+                if (s.Mode == CreatureMode.Home && s.Stage == 2)
+                    housesInNow.Add(s.Individual);
             foreach (var s in states)
             {
                 // (A-105 row 2: each going in at a door, from the synced mode and stage, and whether that door is its
-                // own house's: the inside spot is 0.7 m in from the door it used.)
-                var inside = s.Mode == CreatureMode.Home && s.Stage >= 1;
+                // own house's.)
+                var inside = housesInNow.Contains(s.Individual);
                 housesInside.TryGetValue(s.Individual, out var was);
                 housesInside[s.Individual] = inside;
+                if (inside && !was && !(s.Mode == CreatureMode.Home && s.Stage == 2))
+                {
+                    housesInside[s.Individual] = false;   // (judged by the state that's in)
+                    continue;
+                }
                 if (!Households.Of(s.Individual, out var house, out var m))
                 {
                     // (A-134 row 1: a lodger going in must not be at any household's door.)
                     if (inside && !was)
                     {
                         lodgerArrivals++;
-                        if (AtHouseholdDoor(s.Position.xz, out var theirs))
+                        if (Ownership.HouseAt(s.Position.xz) is var theirs && theirs != Ownership.Nobody)
                         {
                             lodgerAtHousehold++;
                             Debug.Log($"[households] LODGER {FolkNames.Of(s.Individual)} in at house {theirs}'s door ({s.Position.x:F1}, {s.Position.z:F1}) " +
@@ -655,6 +668,14 @@ namespace Punchy.Fauna
                 if (inside && !was)
                 {
                     var own = math.distance(s.Position.xz, house.Door.xz) < 1.5f;
+                    // (A-134 row 1: wrong is another household's door; a door no household owns is a hall or a
+                    // workshop, a day's errand, not going home.)
+                    if (!own && Ownership.HouseAt(s.Position.xz) == Ownership.Nobody)
+                    {
+                        Debug.Log($"[households] errand {FolkNames.Of(s.Individual)} {house.Members[m].Role} in at a door no household owns " +
+                                  $"({s.Position.x:F1}, {s.Position.z:F1}) at {FishCatch.Hour():F2}h");
+                        continue;
+                    }
                     houseArrivals++;
                     houseWrongDoor += own ? 0 : 1;
                     if (own && membersHome.Add(s.Individual))

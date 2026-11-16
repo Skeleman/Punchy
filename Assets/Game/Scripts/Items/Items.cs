@@ -524,7 +524,7 @@ namespace Punchy.Items
                 return;
             }
             if (targetContainer >= 0)
-                prompt = $"{key}  look in the {containers[targetContainer].Name}";
+                prompt = $"{key}  look in {Punchy.Fauna.Ownership.Whose(Punchy.Fauna.Ownership.OfContainer(targetContainer), containers[targetContainer].Name)}";
             else if (target >= 0)
                 prompt = $"{key}  pick up {ItemTable.Items[item.Item].Name.ToLowerInvariant()}{(item.Count > 1 ? $" x{item.Count}" : "")}";
             else if (targetChest >= 0)
@@ -608,7 +608,10 @@ namespace Punchy.Items
                 return;
             }
             if (Take(uid, out var it))
+            {
+                Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfItem(uid), -1, $"{ItemTable.Items[it.Item].Name} x{it.Count} (item {uid})");
                 Grant(it.Item, it.Count);
+            }
         }
 
         void OpenChest(int socket)
@@ -753,6 +756,7 @@ namespace Punchy.Items
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                     if (Take(uid, out var it) && em.Exists(from))
                     {
+                        Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfItem(uid), PlayerId(em, from), $"{ItemTable.Items[it.Item].Name} x{it.Count} (item {uid})");
                         Send(em, from, new GrantRpc { Item = it.Item, Count = it.Count });
                         Carry(PlayerId(em, from), it.Item, it.Count);   // (P-17: the host's tally)
                     }

@@ -81,3 +81,19 @@ the same build. The world fingerprint in `WorldSync` refuses mismatched joiners.
   connection (InvalidRpc). `--burst-disable-compilation` on the player confirms it; delete `Library/BurstCache` and rebuild.
 - `CreatureGhost.Holder` by Mode: positive = a player holds or pets it (NetworkId+1); negative in Ride = minus the
   mount's ghost id; negative in Held or Petted = minus the ghost id of the folk who has it (`Interactions.FolkHolder`).
+
+## Ownership and house storage (A-134)
+
+- Container ids: a temple chest is its socket index. House storage is `RoomBase + door * 4 + k`, where door is the Door
+  anchor's index and k is the room's k-th shelf or chest. It's filled from the room's seed, k and the door, so a
+  house's chest has the same contents on every machine with nothing sent. Rooms are one per house type, so
+  `Interiors.StorageHere` shows a player only the storage of the door they came in by. The host must never filter a
+  client's `TakeRpc` through it: RPC takes resolve by id.
+- Storage is registered lazily and never dropped. The host registers houses within 40 m of any player, a client
+  registers houses near itself, and anyone registers a door's storage on going in by it. A client also registers an
+  unknown storage id when `ContainerSlotRpc` names it (`ReceiveContainer`), so a chest the host emptied before that
+  client joined shows empty. The host does the same for an unknown storage id in a client's `TakeRpc`, logging
+  "registered late", so a client that got there without walking past the door (a teleport) still has its take served.
+- Owners are derived (`Ownership`): a household index or Nobody, never sent. They read Nobody until the households
+  are built, a few seconds into a game (`Ownership.Known`). Spares, drops, loot and temple chests
+  belong to nobody.

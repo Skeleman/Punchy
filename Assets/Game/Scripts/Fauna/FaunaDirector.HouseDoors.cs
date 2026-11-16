@@ -19,9 +19,6 @@ namespace Punchy.Fauna
 
     public partial class FaunaDirector
     {
-        /// <summary>How near (m, along each axis) a Door anchor is to a household's door to be that house's: the
-        /// households stand their doors where AnchorBaking does, so they agree to rounding.</summary>
-        const int HouseDoorCells = 3;   // DoorKey cells are half a metre
         NativeHashSet<int> houseDoorAnchors;
         Entity houseDoorsEntity;
         World houseDoorsWorld;
@@ -39,14 +36,8 @@ namespace Punchy.Fauna
             {
                 if (anchors[a].Kind != AnchorKind.Door)
                     continue;
-                var q = (int2)math.round(anchors[a].Position.xz * 2f);
-                for (int dz = -HouseDoorCells; dz <= HouseDoorCells && !houseDoorAnchors.Contains(a); dz++)
-                    for (int dx = -HouseDoorCells; dx <= HouseDoorCells; dx++)
-                        if (Households.ByDoor.ContainsKey(q + new int2(dx, dz)))
-                        {
-                            houseDoorAnchors.Add(a);
-                            break;
-                        }
+                if (Ownership.HouseAt(anchors[a].Position.xz) != Ownership.Nobody)
+                    houseDoorAnchors.Add(a);
             }
             var em = simWorld.EntityManager;
             houseDoorsEntity = em.CreateEntity();
@@ -71,18 +62,6 @@ namespace Punchy.Fauna
             houseDoorsEntity = Entity.Null;
             if (houseDoorAnchors.IsCreated)
                 houseDoorAnchors.Dispose();
-        }
-
-        /// <summary>Whether a spot is within a household door's reach (the -households probe's lodger check).</summary>
-        static bool AtHouseholdDoor(float2 xz, out int house)
-        {
-            var q = (int2)math.round(xz * 2f);
-            for (int dz = -HouseDoorCells; dz <= HouseDoorCells; dz++)
-                for (int dx = -HouseDoorCells; dx <= HouseDoorCells; dx++)
-                    if (Households.ByDoor.TryGetValue(q + new int2(dx, dz), out house))
-                        return true;
-            house = -1;
-            return false;
         }
     }
 }
