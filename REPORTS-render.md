@@ -877,3 +877,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Medium, far island on, list2 (10 shots): all done, in PunchyMilestones/R-22/row1/m-on (contact-sheet.jpg). The island draws past the streamed ground out to the coast in fly300/fly1000. No holes or seams on the summit or pan shots.
 - During that run free RAM fell from 12.9 to 0.5 GB. Five other editors use 4-6 GB each and mine used about 5 GB. I stopped play mode and closed with EditorApplication.Exit, which was slow but clean (no kill).
 - Still to do: Medium-off, High-on with sparkle NaN, High-off, coast sawtooth A/B, final commit, BENCH ask; then the lava far-light re-check (#302; walk-in list ready in PunchyMilestones/R-25/lava-recheck/work/lava.txt). Need about 12 GB free at start, not 9, since one run takes about 7 GB on top of edit mode.
+
+## 11-16 render: b/fix-maxqueued-clamp merged with main (BRANCH-TRIAGE Land)
+- b/fix-maxqueued-clamp@edc256b2 (pushed). Merged origin/main cleanly. The net diff against main is still the one line in Settings/FrameRateCap.cs: `-maxqueued 0` now sets 1 instead of 0, and 1-10 are unchanged. CRLF kept.
+- What it changes: maxQueuedFrames 0 can stall or misbehave on some drivers, and the review of #424 asked for at least 1. It only affects runs that pass `-maxqueued`, which are bench and test start-up flags. Normal play and builds without the flag keep Unity's default (MaxQueued -1).
+- Risk: very low. A bench job that asked for `-maxqueued 0` would now get 1, so the profiler should know if any BENCH-QUEUE job used 0. The range check still accepts 0, which is intended (it maps to 1).
+- Editor check folded into the next slot: one play start with `-maxqueued 0`, expecting the log line "maxQueuedFrames 1". After that it is ready for PR.
