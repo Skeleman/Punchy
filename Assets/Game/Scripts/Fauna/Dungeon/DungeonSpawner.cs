@@ -10,7 +10,7 @@ namespace Punchy.Fauna
 {
     /// <summary>
     /// What the dungeon spawner can put in a socket (#24): creatures (by species asset name) and items. Items are
-    /// placeholder boxes for now, sized and tinted per kind, until the kit has dungeon props. Empty is a real pick: not
+    /// kit-built props drawn by screen size (<see cref="DungeonProps"/>), each with a collision box. Empty is a real pick: not
     /// every socket is filled. New entries go at the end; never renumber (pick hashes are built from these numbers).
     /// </summary>
     public enum DungeonContent : byte
@@ -116,12 +116,42 @@ namespace Punchy.Fauna
                 // which the director's dungeon tier, not the wild one, makes and lets go.)
                 var post = DungeonPost.From(s, c);
                 post.Dungeon = id;
+                if (post.Behaviour == DungeonBehaviour.Patrol && !Beat(sockets, i, out post.Beat))
+                    // (Nowhere to walk to: a dark nook is still somewhere to nap.)
+                    post.Behaviour = ((SocketTags)s.Tags & SocketTags.Dark) != 0 && DungeonPost.Sleeps(c)
+                        ? DungeonBehaviour.Sleep : DungeonBehaviour.None;
                 into.Add(new DungeonResident
                 {
                     Socket = i, Ordinal = at, Species = species, Position = s.Pos, Yaw = math.atan2(fwd.x, fwd.z), Post = post
                 });
             }
             return ordinal;
+        }
+
+        /// <summary>
+        /// r5: the far end of a patrol beat from socket <paramref name="from"/>: the nearest other Passage or Doorway
+        /// floor socket 4 to 20 m away and at about the same height (not up a shaft), or false when there is none.
+        /// </summary>
+        public static bool Beat(DynamicBuffer<DungeonSocket> sockets, int from, out float3 end)
+        {
+            end = default;
+            var at = sockets[from].Pos;
+            var best = 20f * 20f;
+            var found = false;
+            for (int j = 0; j < sockets.Length; j++)
+            {
+                var tags = (SocketTags)sockets[j].Tags;
+                if (j == from || (tags & (SocketTags.Passage | SocketTags.Doorway)) == 0 || (tags & SocketTags.Ceiling) != 0)
+                    continue;
+                var q = sockets[j].Pos;
+                var d = math.distancesq(q.xz, at.xz);
+                if (d < 4f * 4f || d >= best || math.abs(q.y - at.y) > 2.5f)
+                    continue;
+                best = d;
+                end = q;
+                found = true;
+            }
+            return found;
         }
 
         /// <summary>Picks for a whole dungeon, with a hash of (socket index, content) and counts per socket kind.</summary>
@@ -385,7 +415,7 @@ namespace Punchy.Fauna
     {
         readonly List<DungeonContent> picks = new();
         readonly int[] counts = new int[5];
-        readonly List<GameObject> props = new();
+        bool placedProps;
         readonly List<DungeonSpawner.Loot> loot = new();
         FaunaDirector director;
         EntityQuery fresh, filled;
@@ -399,10 +429,8 @@ namespace Punchy.Fauna
 
         protected override void OnDestroy()
         {
-            foreach (var p in props)
-                if (p != null)
-                    Object.Destroy(p);
-            props.Clear();
+            if (placedProps)
+                DungeonProps.Clear();
         }
 
         protected override void OnUpdate()
@@ -457,9 +485,8 @@ namespace Punchy.Fauna
                 {
                     using var items = sockets.ToNativeArray(Allocator.Temp);
                     for (int i = 0; i < items.Length; i++)
-                        if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]) &&
-                            MakeProp(items[i], picks[i], items, terrain) is { } prop)
-                            props.Add(prop);
+                        if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]))
+                            placedProps |= PlaceProp(items[i], picks[i], items, terrain);
                     // Loose loot: the host or solo puts it in the world for everyone (Items.Spawn is ignored on a
                     // joined client, which is sent the host's items instead).
                     var lootSeed = DungeonSpawner.PickLoot(sockets, picks, loot);
@@ -546,45 +573,18 @@ namespace Punchy.Fauna
             return false;
         }
 
-        static Material propMaterial;
-        static MaterialPropertyBlock propBlock;
-        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-
         /// <summary>
-        /// A placeholder box for an item pick: sized by kind, tinted by content, no collider. Null for a chest socket:
-        /// the player lane's Items draws the chest there. Drawn with the items' URP material (Resources/ItemMaterial,
-        /// the pipeline's default lit material), tinted through a property block, so it never draws magenta.
+        /// Places an item pick's prop to be drawn (row 4: <see cref="DungeonProps"/> draws it by screen size). Not for a
+        /// chest socket: the player lane's Items draws the chest there.
         /// </summary>
-        static GameObject MakeProp(in DungeonSocket s, DungeonContent c, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain)
+        static bool PlaceProp(in DungeonSocket s, DungeonContent c, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain)
         {
             if (s.Kind == SocketKind.Chest)
-                return null;
+                return false;
             // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
             DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
-            // A-91: the real prop, built from parts in the cave's dressed stone, wood and iron; the tinted box below
-            // only when there is no cave material to draw it with.
-            if (DungeonProps.Make(c, size) is { } built)
-            {
-                built.transform.SetPositionAndRotation(centre, rot);
-                return built;
-            }
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = $"Dungeon {c}";
-            Object.Destroy(go.GetComponent<Collider>());
-            go.transform.SetPositionAndRotation(centre, rot);
-            go.transform.localScale = size;
-            var h = DungeonSpawner.Scramble((uint)c * 0x9E3779B1u);
-            var r = go.GetComponent<Renderer>();
-            propMaterial ??= Resources.Load<Material>("ItemMaterial");
-            if (propMaterial != null)
-                r.sharedMaterial = propMaterial;
-            propBlock ??= new MaterialPropertyBlock();
-            // A-61: wall decor (skull niches) is a stone-grey stand-in set into the wall, not a bright tinted slab:
-            // the saturated purple read as a glitch box when the camera sat beside it (#24, a57-temple-mw).
-            bool wall = s.Kind == SocketKind.WallDecor;
-            propBlock.SetColor(BaseColorId, Color.HSVToRGB((h & 1023) / 1023f, wall ? 0.12f : 0.45f, wall ? 0.32f : 0.75f));
-            r.SetPropertyBlock(propBlock);
-            return go;
+            DungeonProps.Place(c, centre, size, rot);
+            return true;
         }
     }
 }
