@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r5+ | #365 | world | active | world/playtest-1114 f57c15dc | Rows 2-4 done (verified). Next: W-174 note, then row 5 (tunnel side passages, #262) |
+| W-172 r5+ | #365 | world | active | world/playtest-1114 f57c15dc | Rows 2-4 done (verified). W-174 note on world/ground-edits 2e48bec2 for review. Next: row 5 (tunnel side passages, #262) |
 | W-174 | #406 | world | next | world/ground-edits (new) | Row 1 audit and design note, after world-pack lands |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |

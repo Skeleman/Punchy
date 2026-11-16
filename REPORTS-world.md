@@ -8089,3 +8089,11 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Shares:** extends CliffKit (rule 33; the frame pieces are kit pieces). Parallel found but not folded in: the tunnel lining's brick is still the Cave.shader's own code, so it should move into the materials lane's Materials/Brick.hlsl when W-166 row 3 adds brick.
 - **BENCH:** none (+60 pieces against about 2290).
 - Next: W-174 note (world/ground-edits), then row 5.
+
+## W-174 row 1 (#406) - ground-edits design note - Ready for review
+- Branch world/ground-edits @ 2e48bec2 (from origin/main, docs only): docs/design/DESIGN-ground-edits.md.
+- The note lists every way the ground is cut or replaced today (landmark beds, plot pads, temple cut, cave mouth cut, scarps) and proposes one GroundEdits record set applied after places, with one seam/skirt rule. It is aligned with W-162 (scarps become one edit kind; one climbing method).
+- M-07 answer: the painted height delta is a base input summed before ScarpSet and BuildPlaces; GroundEdits reads that sum, so the editor and generated edits share one path.
+- Shots in the W-174 milestone folder (w174-sheet + 5): slice1 straight cuts 1116,42.7,1634 (#403); slice2 camp terrace edge 892,-3799; slice3 plot pad edge -1969,258,631; gap1 temple cut 3520,360 (floor hangs over sky from just below; #405); gap2 see-through hole at cave 0 mouth -1796,51.2,-199.
+- Stopped here for review as the card asks. Next: W-172 row 5 (tunnel side passages, #262).
+- Shares: new doc only; no code. The proposed GroundEdits would own TempleCut, MouthCut, LandmarkBeds terraces and SettlementData pads once approved.
