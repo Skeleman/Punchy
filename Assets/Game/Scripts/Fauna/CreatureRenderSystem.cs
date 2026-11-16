@@ -410,6 +410,8 @@ namespace Punchy.Fauna
             extraCount += GatherCaveFish(terrain, camAt0) * FishParts;
             // The baked herds' far form, island-wide, from the shared clock (CreatureRenderSystem.Herds).
             extraCount += GatherHerds(camAt0, skyClock, skyHour, terrain, (float)SystemAPI.Time.ElapsedTime);
+            // Fish rising on far lakes at dawn, from the shared clock (CreatureRenderSystem.LakeRings).
+            extraCount += GatherLakeRings(camAt0, skyClock, skyHour, terrain);
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
             var traceCount = traces != null ? traces.Count : 0;
@@ -616,6 +618,7 @@ namespace Punchy.Fauna
             at = WriteHomeSigns(extras, at);
             at = WriteCaveFish(skyClock, extras, at);
             at = WriteHerds(skyClock, extras, at);
+            at = WriteLakeRings(extras, at);
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
             Pass(6);

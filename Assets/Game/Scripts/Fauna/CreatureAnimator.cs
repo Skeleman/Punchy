@@ -2051,11 +2051,6 @@ namespace Punchy.Fauna
             return math.lerp(0.55f, -0.3f, math.smoothstep(0.55f, 1f, p));
         }
 
-        /// <summary>
-        /// Two-bone IK on a leg's first two segments: moves the end of the second segment by delta, keeping the knee
-        /// bending the way it did. The rest of the leg (foot, toes) keeps its orientation and shifts with it.
-        /// Returns how far the end of the leg moved.
-        /// </summary>
         /// <summary>How far over its hips folk's shoulders are, in standing heights (near enough for every folk body).</summary>
         const float MantleShoulder = 0.5f;
 
@@ -2075,6 +2070,11 @@ namespace Punchy.Fauna
             return 0f;
         }
 
+        /// <summary>
+        /// Two-bone IK on a leg's first two segments: moves the end of the second segment by delta, keeping the knee
+        /// bending the way it did. The rest of the leg (foot, toes) keeps its orientation and shifts with it.
+        /// Returns how far the end of the leg moved.
+        /// </summary>
         static float3 PlaceFoot(ref CreatureBlob b, ref CreaturePart part,
                                 ref FixedList4096Bytes<float3> segPos, ref FixedList4096Bytes<quaternion> segRot,
                                 float3 delta, float scale)

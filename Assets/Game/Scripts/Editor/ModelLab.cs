@@ -817,6 +817,7 @@ namespace Punchy.EditorTools
                     DrawSetPiecePanel();
                 else
                     DrawSaveReset();
+                DrawSaveAsNew();   // (creatures only: M-06 row 3b)
             }
             GUILayout.EndScrollView();
             GUILayout.EndArea();
