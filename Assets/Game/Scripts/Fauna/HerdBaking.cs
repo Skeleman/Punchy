@@ -121,7 +121,7 @@ namespace Punchy.Fauna
                     for (int s = 0; s < fauna.Count && s < 255; s++)
                     {
                         var f = fauna[s];
-                        if (f == null || f.Species == null || f.Density <= 0f || !Herds(f.Species))
+                        if (f == null || f.Species == null || f.FromHomes || f.Density <= 0f || !Herds(f.Species))
                             continue;
                         var body = f.Species.Body;
                         var group = new int2(math.max(1, body.GroupSize.x), math.max(math.max(1, body.GroupSize.x), body.GroupSize.y));

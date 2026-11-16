@@ -293,6 +293,11 @@ namespace Punchy.Fauna
                  "cluck, a duck's quack, a dog's bark. A variant with none uses the species it's based on.")]
         public List<CreatureCall> Calls = new List<CreatureCall>();
 
+        [Header("Homes")]
+        [Tooltip("Biomes this species lives in, beyond the biomes' own Fauna lists (M-06: species saved from the Model " +
+                 "Lab). FaunaDirector.Build adds each to that biome's animals at its density. Empty for built-in species.")]
+        public List<SpeciesHome> Homes = new List<SpeciesHome>();
+
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
         {
@@ -488,6 +493,23 @@ namespace Punchy.Fauna
     public class BiomeFauna
     {
         public CreatureSpecies Species;
+        [Tooltip("Animals per hectare (10 000 m²).")]
+        [Min(0f)] public float Density = 0.5f;
+        /// <summary>Added at run time from a species' Homes (FaunaDirector.Build), not part of the biome asset: taken
+        /// out again before each build and at teardown, and skipped by the herd bake and the world signature.</summary>
+        [NonSerialized] public bool FromHomes;
+    }
+
+    /// <summary>
+    /// A biome a species lives in and how many (M-06): the species-side twin of a biome's Fauna entry, so a species
+    /// saved from the Model Lab names its own biomes without editing the biome assets. The biome is named, not
+    /// referenced, so a species loaded from Resources doesn't pull copies of the biome assets into a build.
+    /// </summary>
+    [Serializable]
+    public class SpeciesHome
+    {
+        [Tooltip("The biome's asset name, as in the world's biome palette.")]
+        public string Biome;
         [Tooltip("Animals per hectare (10 000 m²).")]
         [Min(0f)] public float Density = 0.5f;
     }

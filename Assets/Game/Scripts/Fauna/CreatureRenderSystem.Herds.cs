@@ -14,6 +14,9 @@ namespace Punchy.Fauna
     /// while it's a few pixels long, a body and head below that, then a single body kept a pixel or so wide, fading out
     /// when even that is too small to see. Near a player the herd's animals are real (FaunaDirector.Herds), and the far
     /// form fades out where the live ones fade in, at the same places.
+    /// A-108 row 4: a herd on the move over dry, loose ground (dunes, desert, ash, salt) trails a haze of dust behind
+    /// each animal: a few soft see-through puffs that drift back, swell and thin out, in the ground's colour, picked by
+    /// their own size on screen and faded with the animal.
     /// </summary>
     public partial class CreatureRenderSystem
     {
@@ -49,6 +52,33 @@ namespace Punchy.Fauna
             public float Height;
             public float2 Slope;
         }
+
+        /// <summary>A-108 row 4: one dust puff behind a walking far animal.</summary>
+        struct HerdDust
+        {
+            public float3 At;
+            public float Size, Faded;
+            public float4 Colour;
+        }
+
+        /// <summary>Puffs trailing each walking animal on dusty ground, and how big (reference pixels) one must look to be drawn.</summary>
+        const int HerdDustPuffs = 3;
+        const float HerdDustPixels = 1.5f;
+        readonly List<HerdDust> herdDust = new List<HerdDust>();
+        /// <summary>Herds walking on dusty ground in sight last frame (probes).</summary>
+        public static int HerdsDusty;
+
+        /// <summary>The dust a biome's loose ground throws up (by its name hash, as AmbientLife's table), or w 0 for none.</summary>
+        static float4 DustOf(uint biome) => biome switch
+        {
+            315160912u => new float4(0.80f, 0.68f, 0.48f, 1f),   // Dunes
+            3368052845u => new float4(0.74f, 0.58f, 0.42f, 1f),  // Sonoran
+            659108819u => new float4(0.74f, 0.50f, 0.34f, 1f),   // MesaCanyonlands
+            3103161546u => new float4(0.82f, 0.76f, 0.62f, 1f),  // GlassDesert
+            441784083u => new float4(0.46f, 0.44f, 0.43f, 1f),   // Ashlands
+            3701048830u => new float4(0.90f, 0.88f, 0.84f, 1f),  // SaltFlat
+            _ => default
+        };
 
         const int HerdMaxLegs = 8;
         /// <summary>A live herd's far form shows in full this long after it woke, while its animals are made and fade in (s).</summary>
@@ -144,7 +174,8 @@ namespace Punchy.Fauna
         int GatherHerds(float3 cam, double t, float hour, in TerrainSource terrain, float now)
         {
             herdMembers.Clear();
-            HerdsDrawn = HerdMembersDrawn = 0;
+            herdDust.Clear();
+            HerdsDrawn = HerdMembersDrawn = HerdsDusty = 0;
             herdDrawnHash = 17u;
             if (!terrain.Herds.IsCreated || FaunaDirector.HerdBlobs.Count == 0 || CaveSystem.SurfaceHidden >= 0.99f)
                 return 0;
@@ -207,6 +238,11 @@ namespace Punchy.Fauna
                     live = false;
                 }
                 var handing = live && now - woke > HerdWakeGrace;
+                var dust = default(float4);
+                if (place.Walking && terrain.Biomes.IsCreated && h.Biome < terrain.Biomes.Value.Biomes.Length)
+                    dust = DustOf(terrain.Biomes.Value.Biomes[h.Biome].NameHash);
+                if (dust.w > 0f)
+                    HerdsDusty++;
                 var ground = GroundUnder(terrain, i, place.Centre, HerdClock.Spread(h, look.Shape));
                 var drawn = false;
                 for (int k = 0; k < h.Count; k++)
@@ -248,6 +284,8 @@ namespace Punchy.Fauna
                         member.Ground = MemberGround(terrain, i, k, xz, y);
                     herdMembers.Add(member);
                     parts += HerdParts(member);
+                    if (dust.w > 0f)
+                        parts += HerdDustBehind(member, k, t, d, ppm, show, dust);
                     drawn = true;
                 }
                 if (drawn)
@@ -259,6 +297,38 @@ namespace Punchy.Fauna
             HerdMembersDrawn = herdMembers.Count;
             LogHerds(hour, now);
             return parts;
+        }
+
+        /// <summary>
+        /// A-108 row 4: the dust behind one walking animal: each puff starts at its heels, drifts back and up, swells
+        /// and thins out over its cycle, then starts again, staggered so the trail is never empty. Returns puffs added.
+        /// </summary>
+        int HerdDustBehind(in HerdMember m, int k, double t, float distance, float ppm, float show, float4 colour)
+        {
+            var length = m.Look.Shape.BodyLength * m.Scale;
+            var forward = new float3(math.sin(m.Yaw), 0f, math.cos(m.Yaw));
+            var side = new float3(forward.z, 0f, -forward.x);
+            var time = (float)(t % 10000.0);
+            var added = 0;
+            for (int j = 0; j < HerdDustPuffs; j++)
+            {
+                var u = math.frac(time * 0.45f + j / (float)HerdDustPuffs + k * 0.29f);
+                var size = length * math.lerp(0.5f, 1.8f, u);
+                if (DetailPolicy.ScreenSize(size, distance, ppm) < HerdDustPixels)
+                    continue;
+                var back = length * (0.6f + 2.2f * u);
+                var sway = math.sin(u * 4f + k) * length * 0.3f;
+                herdDust.Add(new HerdDust
+                {
+                    At = new float3(m.Position.x, m.Ground, m.Position.z) - forward * back + side * sway + new float3(0f, size * (0.3f + 0.4f * u), 0f),
+                    Size = size,
+                    // (Thin from the start and thinner as it swells: a haze, never a solid ball.)
+                    Faded = 1f - show * 0.55f * math.smoothstep(0f, 0.15f, u) * (1f - u),
+                    Colour = new float4(colour.xyz, 0f)
+                });
+                added++;
+            }
+            return added;
         }
 
         static float Nearest(in FixedList128Bytes<float2> players, float2 at)
@@ -301,6 +371,11 @@ namespace Punchy.Fauna
         /// <summary>Writes the gathered herds' animals.</summary>
         int WriteHerds(double t, NativeArray<SegmentInstance> output, int at)
         {
+            foreach (var puff in herdDust)
+            {
+                var r = puff.Size * 0.5f;
+                output[at++] = Part(puff.At - new float3(r * 0.4f, 0f, 0f), quaternion.RotateY(1.5708f), r * 0.8f, r, r, 0.75f, puff.Colour, puff.Faded);
+            }
             var up = new float3(0f, 1f, 0f);
             var time = (float)(t % 10000.0);
             var ppm = DetailPolicy.Current.Data.PixelsPerMetre;

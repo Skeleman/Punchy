@@ -217,7 +217,7 @@ namespace Punchy.Net
                 var settings = NetDrivers.Client();
                 settings.WithRelayParameters(ref relay);
                 var store = new NetworkDriverStore();
-                DefaultDriverBuilder.RegisterClientUdpDriver(client, ref store, debug.GetSingleton<NetDebug>(), settings);
+                NetDrivers.RegisterClientUdp(client, ref store, debug.GetSingleton<NetDebug>(), settings);
                 ref var driver = ref driverQuery.GetSingletonRW<NetworkStreamDriver>().ValueRW;
                 driver.ResetDriverStore(client.Unmanaged, ref store);
                 driver.Connect(em, relay.Endpoint);

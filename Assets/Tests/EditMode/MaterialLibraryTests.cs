@@ -23,9 +23,9 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166): Creature.shader
-        // (fauna's) carries its own wood and reaches metal through the old Shaders/Metal.hlsl forwarder.
-        static readonly (string include, string shader)[] Pending = { ("Wood.hlsl", "Creature.shader"), ("Metal.hlsl", "Creature.shader") };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). None since
+        // A-133: Creature.shader draws its gear's wood and metal through the includes too.
+        static readonly (string include, string shader)[] Pending = { };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -88,10 +88,10 @@ namespace Punchy.Tests
         // shaders must draw it through the include (W-166 rows 2-3).
         static readonly (string include, string defines, string draws, string[] users)[] Families =
         {
-            ("Wood.hlsl", @"\w*(WoodGrain|LogEnd|Plank|Shingle)\w*", @"PunchyWood\w*\s*\(", new[] { "Flora.shader", "Cave.shader" }),
+            ("Wood.hlsl", @"\w*(WoodGrain|LogEnd|Plank|Shingle)\w*", @"PunchyWood\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "Creature.shader" }),
             ("Thatch.hlsl", @"\w*(Thatch|Straw)\w*", @"PunchyThatch\w*\s*\(", new[] { "Flora.shader" }),
             ("Cloth.hlsl", @"\w*(Linen|Hide|Weave)\w*", @"Punchy(Linen|Hide)\w*\s*\(", new[] { "Flora.shader" }),
-            ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader" }),
+            ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader", "Creature.shader" }),
             ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
             ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
