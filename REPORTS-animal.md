@@ -5500,3 +5500,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - fauna/material-library@1ccabebc: merged main 27b11437. Only conflict was MaterialLibraryTests.cs; kept main's Plaster/Brick/Ice families plus A-133's creature Wood/Metal users. merge-tree against main is clean.
 - MaterialLibraryTests edit-mode 3/3. No shared material files changed beyond what A-133 already had, so W-166's gear WIP can rebase on it.
 - Editor closed afterwards (free RAM under 6 GB).
+
+## 11-15 SkyBirds hash fix (lake-ring follow-up) - ready for PR
+- b/fix-skybird-hash@71b3c70b (from main c0d4a6f1): CreatureRenderSystem.SkyBirds passes its lane shift and slot seed through BiomeSampling.Scramble, the same change #447 made to LakeRings. Cosmetic, local, nothing sent.
+- Neighbour stat (24x24 patches, 3 lanes, a dawn slot): mean lane-shift gap between next-door patches 41.4 s before, 29.7 s after (30.0 s for independent draws); kind-roll gap 0.374 before, 0.330 after (0.333 independent).
+- Fauna_Fingerprint passes.

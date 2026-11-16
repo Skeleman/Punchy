@@ -36,6 +36,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
 | b/fix-lake-ring-hash | #298 | fauna | merged #447 | | lake ring seeds scrambled; follow-up: SkyBirds seeds the same unscrambled way |
+| b/fix-skybird-hash | #298 | fauna | done, ready for PR | b/fix-skybird-hash@71b3c70b | SkyBirds seeds scrambled like #447; neighbour stat independent; Fauna_Fingerprint passes |
 | R-28 r2, R-15 land | #312 | render-2 | active | render/cobble-depth@ce3ff5a7 ready for PR (BC1091 fixed, job 86 unblocked); render/audit-fixes next, then one-surface | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
