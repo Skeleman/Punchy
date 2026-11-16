@@ -38,10 +38,15 @@ Shader "Punchy/Terrain Surface"
             // environment cubemap, which is baked once and would show the wrong sky as weather changes.
             #define _ENVIRONMENTREFLECTIONS_OFF
             #include "TerrainSurface.hlsl"
+            #if defined(_CLUSTER_LIGHT_LOOP)
+                // Real lights go through PunchyRealLights below (one falloff with the glow), not URP's inverse square.
+                #undef _ADDITIONAL_LIGHTS
+            #endif
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
+            #include "RiverCurtains.hlsl"   // (R-21: rock beside a river fall is wet with spray)
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
@@ -401,6 +406,7 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
                                                 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
+                shore = max(shore, PunchyFallWet(input.positionWS) * (1 - saturate(input.extra.z * 2)));   // (R-21: fall spray)
                 // Item 22: only level ground pools (under about 10 degrees; the vertex normal, so fine relief can't
                 // tilt a flat into a slope or a slope into a flat).
                 half flatness = smoothstep(0.975, 0.99, normalize(input.normalWS).y);
@@ -549,7 +555,8 @@ Shader "Punchy/Terrain Surface"
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
                 // Glowing plants and molten pools nearby light the ground round them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS);
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS)
+                                   + PunchyRealLights(input.positionWS, inputData.normalWS, input.positionCS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 

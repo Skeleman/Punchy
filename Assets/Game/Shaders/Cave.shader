@@ -64,6 +64,7 @@ Shader "Punchy/Cave"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Materials/Wood.hlsl"
 
             struct Varyings
             {
@@ -375,15 +376,13 @@ Shader "Punchy/Cave"
                 }
                 else if (dressed > 1.5 && dressed < 2.5)
                 {
-                    // Wood: grain along the face (lengthwise on walls, along x on flat faces), plank seams, the odd knot.
+                    // Wood (W-166): the shared wood look (Materials/Wood.hlsl), as 24 cm boards laid along the face
+                    // (lengthwise on walls, along x on flat faces), dark mine timber, on the group's mid wood tone.
                     float2 along = normalize(float2(-shape.z, shape.x) + float2(1e-4, 0));
                     float2 g = abs(shape.y) > 0.7 ? p.xz : float2(dot(p.xz, along), p.y);
-                    float grain = PunchyValueNoise(float2(g.x * 0.8, g.y * 22)) * 0.6 + PunchyValueNoise(float2(g.x * 2.5, g.y * 60)) * 0.4;
-                    float seam = 1 - smoothstep(0.0, 0.04, min(frac(g.y / 0.24), 1 - frac(g.y / 0.24)));
-                    float knot = smoothstep(0.86, 0.9, PunchyValueNoise(g * float2(3, 9) + 41));
-                    rock = lerp(_DarkColor.rgb, _RockColor.rgb, saturate(grain * 0.9 + 0.1)) * input.data.y;
-                    rock *= 1 - seam * 0.55 - knot * 0.35;
-                    gloss = 0.12 * (1 - seam);
+                    half3 timber = lerp(_DarkColor.rgb, _RockColor.rgb, 0.55) * input.data.y;
+                    rock = PunchyWoodBoards(timber, g.x, g.y, length(fwidth(p)), PUNCHY_WOOD_DARK, 0.24);   // nan-safe: _Dressed is per material, a uniform branch
+                    gloss = 0.12;
                 }
                 else if (dressed > 2.5)
                 {
@@ -427,14 +426,22 @@ Shader "Punchy/Cave"
 
                 // Lanterns and other lights work everywhere: diffuse, highlights on polished, wet or crystal rock, and
                 // light soaking through ice.
+                // (R-10: with Forward+ they fall off the way every other shader lights them, Glow.hlsl's
+                // PunchyRealLight, so a lantern looks the same on cave rock, on the ground and as a glow slot.)
                 uint count = GetAdditionalLightsCount();
                 LIGHT_LOOP_BEGIN(count)
+                #if PUNCHY_REAL_LIGHTS
+                    half3 toLight;
+                    half3 lit = PunchyRealLight(lightIndex, p, toLight) * AdditionalLightRealtimeShadow(lightIndex, p, toLight);
+                #else
                     Light l = GetAdditionalLight(lightIndex, p, half4(1, 1, 1, 1));
+                    half3 toLight = l.direction;
                     half3 lit = l.color * l.distanceAttenuation * l.shadowAttenuation;
-                    light += lit * saturate(dot(n, l.direction) * 0.8 + 0.2);
-                    float3 h = normalize(l.direction + view);
+                #endif
+                    light += lit * saturate(dot(n, toLight) * 0.8 + 0.2);
+                    float3 h = normalize(toLight + view);
                     shine += lit * pow(saturate(dot(n, h)), shininess) * saturate(gloss + metallic * 0.6 + facets * 0.8) * glint;
-                    through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, l.direction)));
+                    through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, toLight)));
                 LIGHT_LOOP_END
 
                 // Glowing things nearby (molten pools, glowing plants): their light falling off over its reach, brightest
