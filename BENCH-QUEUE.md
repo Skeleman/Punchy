@@ -1019,3 +1019,6 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 
 ## Note (2026-11-16, player lane P-46 row 2, branch player/p46 fb9bc62c): temple socket hash B6F367A8 -> 2D2BFAEB
 - Sunken temple 105 still has 73 sockets. One hall torch socket under a stacked room is dropped (a different sconce takes its place), and clutter is kept 1.4 m clear of chest spots. Placement of landmarks and fauna is unchanged. Re-pin any check that reads the temple socket hash or the dungeon 109 spawn list. No cost check needed.
+
+## Note (2026-11-16, render lane, b/fix-maxqueued-clamp edc256b2): `-maxqueued 0` now means 1
+- Once this lands, FrameRateCap clamps `-maxqueued` to at least 1, so a job that passes `-maxqueued 0` runs with maxQueuedFrames 1 (the log line says so). 1-10 and runs without the flag are unchanged. Re-label any arm that relied on 0.
