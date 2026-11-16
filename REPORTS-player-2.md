@@ -245,3 +245,8 @@ Branch player/tower-rooms from origin/main 2354d35d. No code yet.
 - **StructureKit.WalkIn.cs:** a WalkInTower helper (additive).
 - **No changes to:** StructureKit.Tower, Beacon, Spire, SaltTower or shaders.
 - **Open question:** kit corner towers stay solid. Say if you want a freestanding kit tower family (the 4 x 4 m straight-flight version) carded later as well.
+
+## P-51 row 2 (WIP, blocked) - 2026-11-16
+- Pushed player/tower-rooms 7ab1fcd4: hollow ElfTower/ElfSpire with storeys and stair under -seamless only (FloraGenerator.TowerRooms), round walk-ins, -climbtower test. With Seamless off the tower model hash is still CE0716DB4B71F604.
+- Found and fixed: Interiors picked walk-ins by the layout building, but FloraPlacement.PlotSpecies builds the biggest town's houses from its Kit Building. Walk-ins now use the placed species (Interiors.PlacedSpecies).
+- Blocker: ElfGrove is the default world's biggest town, so all its ElfTower plots become KitHouses and no tower stands to climb (-climbtower 74 had hit a KitHouse). Options: (a) keep towers (Form Tower) out of the kit override (changes the default world), (b) a test-only flag that skips the override, (c) wait for a world where an elf grove isn't the biggest town.
