@@ -5760,3 +5760,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Known gap:** a theft made while every player is inside a room holds the call until someone comes near the door. The probes took after leaving the room, so the hold itself is r5's case to verify.
 - Shares (rule 33): the resident spawn (Enqueue/SetUpMember/StepOutOf), Whereabouts, Ownership and SayTheftLines. No second spawner. No timing (rule 21).
 - NEXT: r5 (thefts while every player is inside a room).
+
+## #24 phase 2 row 3 re-verified after merging main through 53cc5e36 (2026-11-16) - DONE (verified)
+- Issue #24. Branch fauna/dungeon-spawns ba6a6c90, pushed. Main merged in twice: fce56e84 (one conflict in FaunaDirector.Update, both lines kept: ServeDungeonExceptions next to ServeTownExceptions and ServeThefts), then 53cc5e36 (#495, clean, adds FaunaDirector.OwnerOut.cs).
+- **Tests:** FaunaTests 3/3. Build OK.
+- **7985 (build at ba6a6c90, two runs):** solo PASS (CaveSalamander resident 0 killed, mask 0000000000000001, tier empty after 1.0 s, back 9/10). Host PASS, trip skipped with 2 players in the world, mask sent to both clients and again to the late joiner at join. Joiner PASS (10 within 40 m), late joiner PASS (7 and 9). Dungeon records "24 dungeons, 170 residents, 1 dead, hash 82F306EA" identical on solo, host, joiner and late joiner in both runs; board digest 107CB3EB on all.
+- **One-off:** the first run, at the first merge, had the joiner FAIL (no creature within 40 m in 60 s). There the host had done its away trip, likely because it counted only itself before the joiner reported a position (GatherPlayers waits for that), so the tier emptied around the joiner. Not proven; it did not repeat in two runs at the final sha. Test-only timing in DungeonLifeTest, not a game bug as far as I can tell.
+- No timing (rule 21). Shares (rule 33): the A-110 town exceptions pattern, unchanged since the r3 report.
+- NEXT: r4 (props on DetailPolicy screen-size tiers) on fauna/dungeon-props-r4, WIP pushed, unverified. P-37 r3 row 2 (#369) queued after r4, waiting for the supervisor's ping.
