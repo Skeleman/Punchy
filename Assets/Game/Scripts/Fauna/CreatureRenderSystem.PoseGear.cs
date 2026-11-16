@@ -290,12 +290,29 @@ namespace Punchy.Fauna
                 var r = Unity.Mathematics.math.max(c.RadiusStart, c.RadiusEnd);
                 if (look >= CreatureArmour.Apron)
                 {
-                    // (An apron down the front: from the chest to below the hips, flat.)
+                    // (An apron down the front: from the chest to below the hips.)
                     var front = Unity.Mathematics.math.normalize(forward - axis * Unity.Mathematics.math.dot(forward, axis));
-                    var colour = look == CreatureArmour.LeatherApron ? new Unity.Mathematics.float4(0.14f, 0.085f, 0.05f, 0f) : look == CreatureArmour.BakerApron ? new Unity.Mathematics.float4(0.86f, 0.84f, 0.78f, 0f) : new Unity.Mathematics.float4(0.62f, 0.58f, 0.5f, 0f);
+                    var smith = look == CreatureArmour.LeatherApron;
+                    var colour = smith ? new Unity.Mathematics.float4(0.14f, 0.085f, 0.05f, 0f) : look == CreatureArmour.BakerApron ? new Unity.Mathematics.float4(0.86f, 0.84f, 0.78f, 0f) : new Unity.Mathematics.float4(0.62f, 0.58f, 0.5f, 0f);
                     var topAt = c.Position + axis * c.Length * 0.55f + front * r * 0.72f;
-                    Output[at] = Piece(topAt, -axis, front, c.Length * 0.6f + r * 1.2f, r * 0.62f, r * 0.7f, 0.035f, colour, faded,
-                                           look == CreatureArmour.LeatherApron ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
+                    var length = c.Length * 0.6f + r * 1.2f;
+                    // (A-128: a smith's heavy leather one reaches down to the knee, over the thighs.)
+                    if (smith)
+                        for (int i = 0; i < b.Parts.Length; i++)
+                            if (b.Parts[i].Role == LimbRole.Leg && b.Parts[i].SegmentCount > 0)
+                            {
+                                var t = Output[offset + b.Parts[i].FirstSegment];
+                                length = Unity.Mathematics.math.max(length, Unity.Mathematics.math.dot(topAt - t.Position, axis) + t.Length * 0.85f);
+                                break;
+                            }
+                    // In two pieces, bib and skirt, each kept out in front of the chest, belly and thighs (Drape, A-128),
+                    // so a stride pushes the skirt forward with the thigh rather than the knee coming through it.
+                    var cloth = smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth;
+                    var bib = Drape(ref b, offset, ref topAt, -axis, length * 0.5f, r * 0.62f, r * 0.62f * 0.035f, front, true);
+                    Output[at] = Piece(topAt, bib, front, length * 0.5f, r * 0.62f, r * 0.66f, 0.035f, colour, faded, cloth);
+                    var waist = topAt + bib * length * 0.5f;
+                    var skirt = Drape(ref b, offset, ref waist, -axis, length * 0.5f, r * 0.66f, r * 0.66f * 0.035f, front, false);
+                    Output[at + 1] = Piece(waist, skirt, front, length * 0.5f, r * 0.66f, r * 0.7f, 0.035f, colour, faded, cloth);
                     return;
                 }
                 // (Plate for a breastplate, leather for a cuirass: over the chest and the segment under it.)
@@ -376,16 +393,13 @@ namespace Punchy.Fauna
                     var depth = r * Unity.Mathematics.math.clamp(c.Flatten, 0.3f, 1f);
                     if (state.Outfit.Back == CreatureArmour.HideCape)
                     {
-                        // (An ogre guard's hide cape: from across the shoulders down the back, heavy, stirring less than cloth.)
+                        // (An ogre guard's hide cape: from across the shoulders down the back, heavy, stirring less than
+                        // cloth in the wind, and kept off the legs as they stride (Hanging, A-128).)
                         var shoulders = Tip(c) - forward * (depth + 0.02f * scale) - up * 0.04f * scale;
                         var hang = Unity.Mathematics.math.max(shoulders.y - state.Position.y - 0.4f * scale, 0.3f * scale);
-                        var going = Unity.Mathematics.math.saturate(state.Speed / 4f);
-                        var top = Unity.Mathematics.math.normalize(-up - forward * (0.08f + 0.2f * going));
-                        var hem = Unity.Mathematics.math.normalize(-up - forward * (0.12f + 0.5f * going));
-                        var hide = new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f);
                         var width = r * 1.3f + pad;
-                        Output[backAt] = Piece(shoulders, top, forward, hang * 0.5f, width * 0.9f, width, 0.15f, hide, faded, SegmentMaterial.Leather);
-                        Output[backAt + 1] = Piece(shoulders + top * hang * 0.5f, hem, forward, hang * 0.5f, width, width * 1.1f, 0.15f, hide, faded, SegmentMaterial.Leather);
+                        Hanging(ref b, offset, shoulders, -forward, width * 0.9f, width * 1.1f, hang, in state, forward,
+                                new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f), faded, SegmentMaterial.Leather, backAt, 0.5f);
                     }
                     else
                     {
@@ -420,6 +434,9 @@ namespace Punchy.Fauna
                     var dye = Dye(in state, ref b);
                     Output[neckAt] = Piece(from,Unity.Mathematics.math.normalize(over - from), front, Unity.Mathematics.math.distance(from, over), band, band, 0.25f, dye, faded, SegmentMaterial.Cloth);
                     Output[neckAt + 1] = Piece(over,Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, dye, faded, SegmentMaterial.Cloth);
+                    // (A-128: the sash's knot at the hip, its tail hanging loose, blown in the wind and swinging back
+                    // with a run.)
+                    Hanging(ref b, offset, to, front, band * 1.1f, band * 0.8f, 0.16f * scale, in state, forward, dye, faded, SegmentMaterial.Cloth, neckAt + 2);
                 }
                 if (state.Outfit.Neck == CreatureArmour.Scarf && head >= 0)
                 {

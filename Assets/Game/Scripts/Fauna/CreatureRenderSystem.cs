@@ -152,12 +152,14 @@ namespace Punchy.Fauna
             0 => 0,
             CreatureArmour.Robe => 3,
             CreatureArmour.Breastplate or CreatureArmour.Cuirass => 4,
-            >= CreatureArmour.Apron => 1,
+            >= CreatureArmour.Apron => 2,
             _ => 2
         };
         static int PairParts(byte look) => look != 0 ? 2 : 0;
+        /// <summary>A sash's two bands and its knot's loose tail (two more, A-128); a scarf's two.</summary>
+        static int NeckParts(byte look) => look == CreatureArmour.Sash ? 4 : PairParts(look);
         static int ArmourCount(in CreatureState s) => HeadParts(s.Outfit.Head) + BodyParts(s.Outfit.Body) + PairParts(s.Outfit.Legs) +
-                                                      PairParts(s.Outfit.Feet) + PairParts(s.Outfit.Back) + PairParts(s.Outfit.Neck);
+                                                      PairParts(s.Outfit.Feet) + PairParts(s.Outfit.Back) + NeckParts(s.Outfit.Neck);
         static int WornCount(in CreatureState s) => HatPackCount(in s) + HandsCount(in s) + ArmourCount(in s);
         /// <summary>Zach 11-12 row 3: a body as it's drawn: one of the folk in its kit's looks (FolkKits.Dress), a player
         /// in its own outfit.</summary>
