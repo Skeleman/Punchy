@@ -6,12 +6,15 @@
 # Views: inside the oak grove (-place OakGrove, as job 84) at noon; the same at 18:30, low sun (backlit only where the
 # grove's sun side happens to be behind the trees: -place sets the heading). The R-22 forest vantage has no pose on
 # record (asked). The laptop's GPU pass timers read nothing, so the shadow pass isn't split here (RenderDoc can).
+# Builds 11-16: every main commit from #420 (A-131) to #436 fails a player build (CS0103: TestHooks.Options.cs lacks the
+# UNITY_EDITOR guard that TestHooks.cs has). Each arm is a local bench-only commit: the named commit plus that 2-line guard
+# (30bbb1c2, #436), refs/bench/guard-<commit> in the profiler's clone, not pushed. Both arms get it, so the A/B diff is unchanged.
 Q=q141; TITLE="job 102 leaf looks"
-BUILDS="d86dc21 9cec43a"
+BUILDS="1ea8ed0 211bbfd"
 VIEWS="noon dusk"
 view() { case $1 in
   noon) echo "-place OakGrove -benchstops here -benchhour 12 -benchweather Clear -benchflora";;
   dusk) echo "-place OakGrove -benchstops here -benchhour 18.5 -benchweather Clear -benchflora";; esac; }
 ARMS="off a b c N"
-arm() { case $1 in off) echo "Profile-d86dc21";; a|b|c) echo "Profile-d86dc21 -leaftrial $1";; N) echo "Profile-9cec43a";; esac; }
+arm() { case $1 in off) echo "Profile-1ea8ed0";; a|b|c) echo "Profile-1ea8ed0 -leaftrial $1";; N) echo "Profile-211bbfd";; esac; }
 ROUNDS=3; GFX="High"; REF=off; BAR=1

@@ -4,12 +4,15 @@
 #  glide150: the R-39 row 1 strip, 300 m in from the south straight to the centre at 6 m/s (the flames hand over as the
 #            camera closes; -hitchms 33 logs any switch spike);
 #  far600:   600 m south of the centre at 150 m up, drifting 30 m north at 1 m/s (far flames, now kept past 150 m).
+# Builds 11-16: every main commit from #420 (A-131) to #436 fails a player build (CS0103: TestHooks.Options.cs lacks the
+# UNITY_EDITOR guard that TestHooks.cs has). Each arm is a local bench-only commit: the named commit plus that 2-line guard
+# (30bbb1c2, #436), refs/bench/guard-<commit> in the profiler's clone, not pushed. Both arms get it, so the A/B diff is unchanged.
 Q=q140; TITLE="job 100 far flames"
-BUILDS="d2dfcd1 64eb479"
+BUILDS="3b4dfac b6c8b33"
 VIEWS="glide150 far600"
 view() { case $1 in
   glide150) echo "-goto 2972,-1185 -benchstops line -benchline 2972,-1185,2972,-885,6,150 -benchhour 22 -benchweather Clear -hitchms 33";;
   far600)   echo "-goto 2972,-1485 -benchstops line -benchline 2972,-1485,2972,-1455,1,150 -benchhour 22 -benchweather Clear";; esac; }
 ARMS="B A"
-arm() { case $1 in B) echo "Profile-d2dfcd1";; A) echo "Profile-64eb479";; esac; }
+arm() { case $1 in B) echo "Profile-3b4dfac";; A) echo "Profile-b6c8b33";; esac; }
 ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3   # (High's bar is +0.5 ms per the card; the report checks it by hand)

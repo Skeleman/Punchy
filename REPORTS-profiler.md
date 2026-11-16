@@ -2,6 +2,22 @@
 
 Newest first.
 
+## Job 97 (and 99a, 100, 102): no player build, 2026-11-16 (q138.job): **main from #420 to just before #436 can't build a player; rerun on guarded local commits, chained**
+- q138's build of fe23fc62 failed with `TestHooks.Options.cs(40,23): error CS0103: The name 'PersonaIndividual' does not exist`. The cause: TestHooks.Options.cs has no `#if UNITY_EDITOR` guard, but PersonaIndividual lives in the editor-only TestHooks.cs. That's the bug #436 (30bbb1c2) fixed. It was introduced with #420 (61588fae), so every main merge from #420 up to #436 fails a player build: 15 first-parent merges. So do branches cut from that range.
+- It hits these chained jobs: 97 (fe23fc6/5e59c65), 99a (6ce454c/84d7d57; q139 is failing the same way now), 100 (d2dfcd1/64eb479) and 102 (render/foliage-realism d86dc21/9cec43a). Jobs 94, 105, 86 and 96 are outside the range.
+- **Workaround:** each arm is now a local, bench-only commit: the named commit plus that 2-line guard (git commit-tree, kept in local refs/bench/guard-*, not pushed). Both arms get it, so the A/B diff is unchanged.
+
+| job | B | A |
+|---|---|---|
+| 97 (q138g.job) | fe23fc6 -> f69d867 | 5e59c65 -> c14a674 |
+| 99a (q139g.job) | 6ce454c -> 6fe2835 | 84d7d57 -> b93adb1 |
+| 100 (q140.job) | d2dfcd1 -> 3b4dfac | 64eb479 -> b6c8b33 |
+| 102 (q141.job) | d86dc21 -> 1ea8ed0 (off/a/b/c) | 9cec43a -> 211bbfd (N) |
+
+- **New chain order:** 99a's failing q139, then 96 (q137b), 86 (q128d), 100, 102, 105, then 97 (q138g) and 99a (q139g).
+- For any lane: a player build from that range needs #436's guard. The editor and tests aren't affected, which is why it went unnoticed.
+
+Cost: laptop total $945 (laptop session e163d8ab; 1 failed build, 0 games).
 ## Job 94: W-170 row 1 lying-log bark along the grain (world/log-bark b1c2ab17 = B vs its merge-base 19bdb274 = A), 2026-11-16 (q135b.job): **PASS at every view (Medium worst +0.27 ms, High within noise)**
 **Setup:** local builds of both (no FXC crash in either log), 1920x1080, uncapped, 12:00, Clear, arms alternated, 3 rounds. Views: 10 m south of the camp (`-benchspot -2894,-663,0`: seat log, woodpile and tent in frame, checked on B's shot) and 10 m south of the gravel bar (`-benchspot -2667,619,0`).
 
