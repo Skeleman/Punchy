@@ -80,5 +80,16 @@ namespace Punchy.Debugging
             }
             return r;
         }
+
+        /// <summary>A line's text filled for a speaker of the given job by the live archive ("I'm a {trade}." for an
+        /// Innkeeper should read "I'm an innkeeper."), or null without an archive.</summary>
+        public static string FillForJob(string text, string job)
+        {
+            var archive = DialogueArchive.Current;
+            if (archive == null)
+                return null;
+            var rng = new Random(7);
+            return archive.Fill(text, new DialogueArchive.Speaker { Species = "Human", Job = job, Hour = 12f }, ref rng, 0);
+        }
     }
 }

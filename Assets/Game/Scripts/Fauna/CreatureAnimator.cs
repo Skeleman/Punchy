@@ -1459,8 +1459,16 @@ namespace Punchy.Fauna
         static float Haul(float t, bool right) => math.smoothstep(-0.6f, 0.6f, math.sin(t * 1.7f + (right ? 0f : math.PI)));
 
         /// <summary>
+        /// An innkeeper's chore at its counter (A-132): 1 while it wipes the counter down, 0 while it stacks mugs, easing
+        /// from one to the other every half minute or so (offset per innkeeper so a town's keepers don't switch together).
+        /// </summary>
+        static float Wiping(in CreatureState s) =>
+            math.smoothstep(-0.25f, 0.25f, math.sin(s.Clock * 0.11f + (s.Individual % 97) * 0.37f));
+
+        /// <summary>
         /// The rest of a tender's body by its job (A-33): a baker leans over its table, bobbing into each push; a healer
-        /// is bent right over its bowl, head down; a well keeper leans back against the rope's weight.
+        /// is bent right over its bowl, head down; a well keeper leans back against the rope's weight; an innkeeper
+        /// leans in to wipe its counter.
         /// </summary>
         static float3 TendBody(ref CreaturePart part, in CreatureState s, int joint)
         {
@@ -1480,6 +1488,9 @@ namespace Punchy.Fauna
                 case FolkJob.FireTender:
                     // Upright, head bowed a little over the flame.
                     return new float3(torso ? 0.04f : 0.22f, 0f, 0f);
+                case FolkJob.Innkeeper:
+                    // (A-132) Leaning over the counter to wipe it, upright again to stack the mugs; head down at the work.
+                    return new float3((torso ? 0.06f : 0.2f) + 0.14f * Wiping(in s), 0f, 0f);
                 default:
                     return float3.zero;
             }
@@ -1600,6 +1611,22 @@ namespace Punchy.Fauna
                             var toss = math.smoothstep(0.66f, 0.74f, p) * (1f - math.smoothstep(0.74f, 0.88f, p));
                             var low = right ? 0f : 0.15f;
                             return new float3(joint == 0 ? -0.45f + low - 0.85f * lift - 0.5f * toss : -0.3f - 0.45f * lift + 0.35f * toss, 0f, 0f);
+                        }
+                        case FolkJob.Innkeeper:
+                        {
+                            // (A-132) Two chores at the counter in turn. Wiping it down: the right hand scrubs round in
+                            // small circles on the top while the left rests flat. Stacking mugs: each hand in turn lifts
+                            // a mug up to the stack at chest height and comes back down for the next.
+                            var wipe = Wiping(in s);
+                            var circle = t * 2.4f;
+                            var wipeArm = right
+                                ? new float2(-0.6f + 0.12f * math.sin(circle), -0.75f + 0.16f * math.cos(circle))
+                                : new float2(-0.45f, -0.9f);
+                            var p = math.frac(t * 0.42f + (right ? 0f : 0.5f));
+                            var lift = math.smoothstep(0.05f, 0.3f, p) * (1f - math.smoothstep(0.45f, 0.7f, p));
+                            var stackArm = new float2(-0.5f - 0.65f * lift, -0.85f + 0.35f * lift);
+                            var arm = math.lerp(stackArm, wipeArm, wipe);
+                            return new float3(joint == 0 ? arm.x : arm.y, 0f, 0f);
                         }
                         case FolkJob.Roofer:
                         {
