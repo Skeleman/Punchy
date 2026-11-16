@@ -36,9 +36,11 @@ struct PunchySurface
 struct PunchyLit
 {
     Light sun;          // the main light, its shadowAttenuation the real-time (cascade) shadow
-    half wide;          // the wide cached shadow of the huge things (R-5)
+    half wide;          // the wide cached shadow of the huge things (R-5), times its share of the hand-off
+    half realShade;     // the real-time shadow times its share, as URP's PBR fade leaves it (R-40)
+    half tiers;         // the sunlight the two shadow tiers keep, one shadow per point (PunchyShadowHandOff)
     half cloud;         // the cloud shadow
-    half shadow;        // the one tier blend: min(real-time, 1 - wide) x (1 - cloud) x sunReach
+    half shadow;        // tiers x (1 - cloud) x sunReach
     half3 ambient;      // the sky's ambient x skyReach
     half3 glow;         // glow lights (and the far glow map under PUNCHY_SURFACE_GLOW_WORLD)
     half3 lantern;      // the lantern's soft diffuse light (PUNCHY_SURFACE_LANTERN, not under Forward+), else 0
@@ -60,12 +62,6 @@ PunchySurface PunchySurfaceAt(float3 positionWS, half3 normalWS)
     return s;
 }
 
-/// The real-time shadow and the wide one where they overlap: the darker, so they never double.
-half PunchyShadowTiers(half realtime, half wide)
-{
-    return min(realtime, 1 - wide);
-}
-
 PunchyLit PunchySurfaceLight(PunchySurface s)
 {
     PunchyLit lit;
@@ -74,9 +70,17 @@ PunchyLit PunchySurfaceLight(PunchySurface s)
     #else
     lit.sun = GetMainLight(TransformWorldToShadowCoord(s.shadowPositionWS));
     #endif
+    // R-40: the real shadow's share is 1 minus the wide map's; with the fade flag URP has already applied it.
+    float handOff = PunchyWideShadowFade(s.shadowPositionWS);
+    #ifdef PUNCHY_SURFACE_SHADOW_FADE
+    lit.realShade = 1 - lit.sun.shadowAttenuation;
+    #else
+    lit.realShade = (1 - lit.sun.shadowAttenuation) * (1 - handOff);
+    #endif
     lit.wide = PunchyWideShadow(s.shadowPositionWS, s.wideNormalWS);
+    lit.tiers = PunchyShadowHandOff(lit.realShade, lit.wide, handOff);
     lit.cloud = PunchyCloudShadow(s.shadowPositionWS);
-    lit.shadow = PunchyShadowTiers(lit.sun.shadowAttenuation, lit.wide) * (1 - lit.cloud);
+    lit.shadow = lit.tiers * (1 - lit.cloud);
     lit.shadow *= s.sunReach;
     lit.ambient = SampleSH(s.normalWS) * s.skyReach;
     lit.glow = PunchyGlowLight(s.positionWS, s.normalWS);
@@ -100,16 +104,18 @@ PunchyLit PunchySurfaceLight(PunchySurface s)
     return lit;
 }
 
-/// For URP-PBR surfaces, after UniversalFragmentPBR (which knows nothing of the wide or cloud shadow): dims exactly the
-/// share of the light that came straight from the sun, by how much of it the wide and cloud shadows take away.
+/// For URP-PBR surfaces, after UniversalFragmentPBR (which knows nothing of the wide or cloud shadow): sets the share of
+/// the light that came straight from the sun to what the shadow hand-off and the cloud shadow keep. URP lit it with its
+/// own faded real shadow (lit.realShade), so the hand-off band is darkened back to one full shadow, not left washed out.
 /// bakedGI is the ambient the PBR call was given.
 half3 PunchySurfaceSunDim(half3 color, PunchySurface s, PunchyLit lit, half3 bakedGI)
 {
-    if (lit.cloud > 0 || lit.wide > 0)
+    half direct01 = 1 - lit.realShade;
+    if (lit.cloud > 0 || lit.tiers != direct01)
     {
         half sunlit = Luminance(lit.sun.color) * saturate(dot(s.normalWS, lit.sun.direction));
-        half direct = sunlit * lit.sun.shadowAttenuation;
-        half kept = sunlit * PunchyShadowTiers(lit.sun.shadowAttenuation, lit.wide) * (1 - lit.cloud);
+        half direct = sunlit * direct01;
+        half kept = sunlit * lit.tiers * (1 - lit.cloud);
         half ambient = Luminance(bakedGI);
         color *= 1 - (direct - kept) / max(direct + ambient, 1e-3);
     }
