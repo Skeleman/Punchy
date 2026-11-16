@@ -234,7 +234,7 @@ namespace Punchy.EditorTools
                     if (GUILayout.Button("Revert builder edits"))
                         RevertBuild();
             }
-            EditorGUILayout.LabelField(built ? "Builder edits are in memory only (not saved yet)." : "No builder edits.", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(built ? "Builder edits are in memory only (Save as new creature keeps them)." : "No builder edits.", EditorStyles.miniLabel);
             EditorGUILayout.Space();
         }
 
