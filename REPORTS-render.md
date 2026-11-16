@@ -750,3 +750,12 @@ with main d95e7ff1); compiles, no suite run yet.
 - No suite run, no timing (rule 21). BENCH ask: none needed beyond the haze multiply (one per pixel).
 - Shares: Glow.hlsl's one glow falloff (all glow slots), Sky.hlsl's one haze path (every surface), DetailPolicy.ScreenSize for flames. Parallel not folded: none found.
 - NEXT: ready for PR (supervisor). Then R-30 row 1.
+
+## R-25 row 5 (#302): lava far form + Ember Forest walk-in (render-2, render/far-lights-2 2769270d)
+- DONE (verified in part): surface lava's far points were FarLightKind.Fire, so they lit only with tonight's forest fire and took its colour. Lava is now its own row in FarLightPolicy (Lava, Fire tier, lava colour, lit every night, core 6 m + halo 4x so a field merges, hand-off from lava's 30 m glow reach at 90-56 px = 300-500 m by screen size). KindCount 8, FarLights.shader arrays 8.
+- NOT VERIFIED, no target: the current island has no surface lava. The world glow bake logs 0 lava texels; a 6 m scan of the south half finds no lava glow; the VolcanoCone landmark type (the only lava water) has 0 instances, and the Volcano/VolcanoCone debug locations are at sea (h -18). The "fissure" at -805,-3398 isn't lava. Placing lava is a layout change, so I left it alone; the code is ready for when lava returns. Ask: should a VolcanoCone (or another lava source) go back into the layout? That's the world lane's call.
+- Ember Forest walk-in at ground level, 22:00, Clear, far lights on/off, 500 m to 10 m, bearing north (target -261,-3393): D:/Unity/PunchyMilestones/R-25/row5/ember-on, ember-off, sheet ember-sheet-a.png (500/400/200 m). On and off look the same: centre-crop mean 81/83, 88/86, 109/113. The far points 200-500 m out are no brighter than the plants' own glow, so nothing to match. Row 4's "larger and brighter" was from 300 m up, not at ground level.
+- Sparkle probe (rule 24) at the emberlava vantage, night, far lights on: 360 frames, 0 marked, other bad 0.
+- Suite: runs at the row 6 tip (one editor close for both rows). No timing (rule 21). BENCH ask: none; the lava kind adds no points today and is one more table row.
+- Shares: FarLightPolicy's one kind table and FarLights.shader (all far points). Parallel not folded: beacon fires are also Fire kind (gated on the forest fire); left alone, not on this card.
+- NEXT: row 6 (warm town far points).
