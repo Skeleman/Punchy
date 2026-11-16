@@ -319,6 +319,22 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// A-131 row 2, target: the shipped hermit, guard and innkeeper each answer with a branching exchange (dialogue.json
+        /// conversation, reply-only topics), and every reply walked to the depth cap is answered with filled words.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_SampleBranchesWalk()
+        {
+            foreach (var job in new[] { "Hermit", "Guard", "Innkeeper" })
+            {
+                var bad = Game.Hook<string[]>("OptionWalk", job);
+                LogWatch.Measure($"options walk, {job}:\n" + Game.HookField<string>("OptionsTrail"));
+                Assert.IsEmpty(bad, $"{job}: " + string.Join("\n", bad));
+            }
+            yield return null;
+        }
+
+        /// <summary>
         /// Target: live village folk answer every topic through the entity path (persona, condition, town, stance).
         /// A-96 row 0: folk answer a beast differently (no "[who]" line for a crow), and every tree shares the editor's
         /// PlayerPrefs, so the saved body (Punchy.Character.Body) may be anything: the test plays a human itself and puts
