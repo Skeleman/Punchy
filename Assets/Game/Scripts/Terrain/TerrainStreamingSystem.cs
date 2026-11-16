@@ -126,11 +126,15 @@ namespace Punchy.Terrain
             // A batch still meshing when play mode ends (or the game quits) reads the terrain blobs, which the scene
             // teardown frees before this system is destroyed: finish it first, so it never reads a freed blob.
             Application.quitting += CancelBuild;
+            // #259: leaving or joining switches the scene off (unloading the subscene and its blobs) before the worlds
+            // are disposed, and this batch isn't a tracked job, so it would still be reading them: finish it first.
+            Punchy.Net.GameBootstrap.WorldsReplacing += CancelBuild;
         }
 
         protected override void OnDestroy()
         {
             Application.quitting -= CancelBuild;
+            Punchy.Net.GameBootstrap.WorldsReplacing -= CancelBuild;
             CancelBuild();
             foreach (var chunk in loaded.Values)
             {
