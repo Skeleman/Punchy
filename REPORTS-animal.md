@@ -5780,3 +5780,4 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Limits:** RiderPaths' plot placement still ignores walk-ins (mounts path by circles); a creature can slip in while a door stands open; landmark props with walk-in kits aren't covered; the -footprintcheck compare leaves the walk-in test out. BENCH job 110 asks the cost.
 - Shares (rule 33): BuildingFootprints' plot walk and placement, KitBox, FloraDoors. No timing (rule 21).
 - NEXT: stopped, as ordered. On the slot ping: r4, r5 and this row in one slot.
+- Coordinator (2026-11-16): rule 11 approved (FloraSystem ModelCount/ModelAt, FloraDoors OpenSnapshot, read-only accessors only). Merge seamless-2 first, then this branch with the DoorsOf line. Stopped until my editor slot (after player-2 and fishing).
