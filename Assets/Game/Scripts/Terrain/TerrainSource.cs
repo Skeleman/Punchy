@@ -103,6 +103,9 @@ namespace Punchy.Terrain
         public BlobAssetReference<HeightmapBlob> Heightmap;
         /// <summary>Generator version 2 only: metres added to the biome shape heights (ridges between realms, the lake bowl).</summary>
         public BlobAssetReference<HeightmapBlob> Island;
+        /// <summary>M-07 r2b (#260): the map editor's painted height offsets, added to the base height before every place
+        /// is laid out (unset with no edits file: the bake is then byte-identical).</summary>
+        public BlobAssetReference<PaintedEditsBlob> Edits;
 
         public BiomeSourceKind BiomeKind;
         public BiomeNoiseSettings BiomeNoise;
@@ -401,6 +404,9 @@ namespace Punchy.Terrain
             }
             if (Island.IsCreated)
                 height += Island.Value.Sample(xz);
+            // M-07 r2b: painted edits go into the base height, so rivers, places, roads, ponds and scarps fit them.
+            if (Edits.IsCreated)
+                height += PaintedEditsBlob.Sample(ref Edits.Value, xz);
             return World.SeaLevel + height;
         }
 
@@ -1455,7 +1461,7 @@ namespace Punchy.Terrain
         }
 
         public bool Equals(TerrainSource o) =>
-            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
+            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island && Edits == o.Edits &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
             RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
     }

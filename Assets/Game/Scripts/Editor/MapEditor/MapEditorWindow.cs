@@ -19,7 +19,7 @@ namespace Punchy.EditorTools
     {
         public const string BrushFolder = "Assets/Game/Scripts/Editor/MapEditor/Brushes";
         /// <summary>Where edits files go by default. Not committed until the bake hook reads them.</summary>
-        public const string EditsFolder = "Assets/Game/WorldEdits";
+        public const string EditsFolder = "Assets/Game/Resources/WorldEdits";   // M-07 r2b: IslandEdits.bytes here is what the bake applies
         const int UndoDepth = 32;
 
         MapIsland island;
@@ -234,7 +234,7 @@ namespace Punchy.EditorTools
             if (string.IsNullOrEmpty(path))
             {
                 Directory.CreateDirectory(EditsFolder);
-                path = EditorUtility.SaveFilePanel("Save map edits", EditsFolder, "Island.edits", "bytes");
+                path = EditorUtility.SaveFilePanel("Save map edits", EditsFolder, "IslandEdits", "bytes");
                 if (string.IsNullOrEmpty(path)) return;
             }
             edits.Save(path);
