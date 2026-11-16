@@ -208,3 +208,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-16: #516 W-175 (#415) a Cookhouse built from a JSON blueprint stands in human villages (world). Playtest: find it near 2957,-834.
 - 2026-11-16: #517 P-51 r3 (#337) elf tower roof hatch, roof deck and windows under -seamless (player-2). Playtest: climb to the deck.
 - 2026-11-16: #519 P-52 (#518) long frames move the player in 0.05 s pieces, no more walking out through tower walls on a hitch (player-2). Playtest: climb a tower stair while the game hitches.
+- 2026-11-16: #520 W-174 r6 row 1 (#405) the sunken temple entrance meets the ground with no gaps or lips at any distance (world). Playtest: walk the temple rim and view it from 150 m.
