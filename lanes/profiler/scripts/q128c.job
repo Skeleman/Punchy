@@ -1,0 +1,22 @@
+# Rebuild of B for job 86: q128b's B build hit 'Lost connection with shader compiler process. Suspected crash in FXC'
+# on TerrainSurface ForwardLit and shipped without terrain. Before the games, stop if the crash repeats.
+# Rerun 11-15: B = ce3ff5a7 (BC1091 fixed), A = 5b953a34 (its merge-base with main; the diff is the 6 cobble files).
+# Job 86 (R-28 row 2, #312): cobble bevel parallax and stone normals. render/cobble-depth ce3ff5a8 (B) vs main 5b953a3a
+# (A, shelf). Medium and High, noon, Clear, 3 rounds. Views: the desert town square (-benchspot -342,560, yaw 0) and
+# town 73 centre (-benchspot 2972,-885, yaw 0). Whole-frame GPU here; terrain GPU needs a pass split (RenderDoc), not
+# taken by this spec. Terrain mesh memory from the runner's "mesh N MB" field.
+Q=q128c; TITLE="job 86 cobble parallax"
+BUILDS="ce3ff5a 5b953a3"
+OUT_ce3ff5a=Profile-ce3ff5a-r2   # (a fresh build: q128b's B lost its terrain pass to an FXC crash)
+VIEWS="desert town"
+view() { case $1 in
+  desert) echo "-goto -342,560 -benchstops spot -benchspot -342,560,0 -benchhour 12 -benchweather Clear";;
+  town)   echo "-goto 2972,-885 -benchstops spot -benchspot 2972,-885,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-ce3ff5a-r2";; A) echo "Profile-5b953a3";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.1
+before() {
+  [ -n "${DRY:-}" ] && return
+  local n; n=$(grep -ac "Suspected crash in FXC" "$R/build-Profile-ce3ff5a-r2.log")
+  echo "FXC crashes in the rebuild: $n"; [ "$n" = 0 ] || { echo "crash repeats: not running the games"; exit 1; }
+}

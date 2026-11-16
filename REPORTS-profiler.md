@@ -2,6 +2,16 @@
 
 Newest first.
 
+## Job 86: R-28 row 2 cobble parallax (render/cobble-depth ce3ff5a7 = B vs its merge-base main 5b953a34 = A), 2026-11-16 (q128b.job): **INVALID: B's build shipped without the terrain pass** (FXC crashed compiling it); rebuild queued
+**What happened:** both builds succeeded here (BC1091 is fixed). B's build log has, twice: `Shader compiler: Compile Punchy/Terrain Surface - ForwardLit, Fragment Program: Lost connection with shader compiler process. Suspected crash in FXC.` (d3d11, "Protocol error - failed to read magic number"). In every B game the ground isn't drawn at all: flat blue where the terrain should be, with houses, grass and props floating on it. A's build log has no such line.
+- So the timed table is meaningless. B reads 5-10 ms GPU "cheaper" (Medium desert 7.67 vs 14.2, town 11.27 vs 16.6) only because it draws no terrain. I'm not reporting it as a result.
+- The same build log also warns `use of potentially uninitialized variable (MicroFades) at TerrainSurface.shader(215)` (d3d11). Worth a look under rule 24 either way.
+- **Is the crash the shader or the laptop?** I can't tell from one build. A fresh B build (q128c.job, to a new folder) is chained after job 96. It stops before the games if FXC crashes again; if not, it runs the original spec. If the main PC's build drew terrain, a crash that repeats here points at FXC on this machine (memory or a timeout on a heavy ForwardLit variant: 32 variants were logged in flight). The render lane may want to check the ForwardLit compile time with the 3-step parallax loop.
+
+Also (profiler lane, from the supervisor's 11-15 note): the `-maxqueued` clamp is on `b/fix-maxqueued-clamp` 2873ed81 (one line in FrameRateCap.cs: parsed values now floor at 1). Not yet compiled here (Unity is busy with the queue); I'll compile it between jobs.
+
+Cost: laptop total $935 (laptop session e163d8ab; 2 builds, 24 games).
+
 ## Job 92: A-115 lamplighter glow (fauna/lamplighter a96f48d8 = B1 vs base 4006cab = A) and A-116 notice boards (fauna/notice-board-life 9a1694eb = B2 vs base 3b192717 = A), 2026-11-15 (q133.job, q134.job): frames PASS both; **B1's far-map rescan costs about 4 ms of worker time a frame at dusk**; B2's NoticeSheets.Tick has no Profiler marker
 **Setup:** both branches had merged by run time, so each is measured against its own base. B2 from the shelf, B1 and its base built here (runner checked). 1920x1080, uncapped, Clear, arms alternated, 3 rounds, Medium and High, 60 s per game. Then one Profiler-captured game per arm at Medium (2000 frames, BProfileTools.Analyze).
 - B2 view: town 73's board (`-benchspot 2972,-885,0`), 12:00.
