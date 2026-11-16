@@ -22,7 +22,7 @@ namespace Punchy.Items
         {
             if (meshes[item] != null)
                 return meshes[item];
-            var mesh = Build(ItemTable.Items[item].Name).ToMesh();
+            var mesh = Build(ItemTable.Items[item].Name).ToMesh(ItemTable.Items[item]);
             mesh.name = "Item " + ItemTable.Items[item].Name;
             mesh.hideFlags = HideFlags.DontSave;
             return meshes[item] = mesh;
@@ -409,6 +409,32 @@ namespace Punchy.Items
                 for (int i = 0; i < mesh.subMeshCount; i++)
                     mesh.SetTriangles(parts[i], i);
                 mesh.RecalculateBounds();
+                return mesh;
+            }
+
+            /// <summary>W-166 r4 (#336): the mesh with what each part is made of, for the material library's shader
+            /// (Colossus.shader): the part's colour in its vertex colours (linear, as a material colour would be) and
+            /// uv3 = (family, kind). Each triangle has its own three vertices, so a part's indices are its vertices. The
+            /// colour is baked rather than set by a property block: a block takes the draw off the SRP batcher, and on
+            /// Colossus.shader (no Forward+ variant) an unbatched draw gets no sun.</summary>
+            public Mesh ToMesh(in ItemDef def)
+            {
+                var mesh = ToMesh();
+                var colours = new Color[points.Count];
+                var family = new Vector2[points.Count];
+                for (int part = 0; part < parts.Length; part++)
+                {
+                    var f = part == 0 ? new Vector2((int)def.Family, def.Kind) : new Vector2((int)def.AccentFamily, def.AccentKind);
+                    var c = (part == 0 ? def.Colour : def.Accent).linear;
+                    c.a = 1f;   // (alpha below 1 would glow where _VertexGlow is on)
+                    foreach (var v in parts[part])
+                    {
+                        family[v] = f;
+                        colours[v] = c;
+                    }
+                }
+                mesh.SetColors(colours);
+                mesh.SetUVs(3, family);
                 return mesh;
             }
 
