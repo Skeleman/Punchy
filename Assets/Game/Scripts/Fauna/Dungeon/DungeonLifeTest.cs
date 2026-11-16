@@ -15,8 +15,9 @@ namespace Punchy.Fauna
     /// the guard test has put the player by a guarded chest and residents are in the world, solo or the host kills one
     /// (sets it Gone), checks its dead bit is set, takes the player 700 m away until the Dungeon tier is empty, brings it
     /// back and checks the residents are made again without the dead one. A host with another player in the world skips
-    /// the trip (the other player keeps them in). A joined client logs the creatures it is sent near it. Logs
-    /// "[dungeon life] PASS" or "FAIL ..." and DungeonState.Describe().
+    /// the trip (the other player keeps them in). A joined client logs the creatures it is sent near it, and (row 3)
+    /// waits 20 s for the host's dead masks. Logs "[dungeon life] PASS" or "FAIL ...", DungeonState.Describe() and the
+    /// director's DungeonDigest(), which host and joiner compare.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -133,7 +134,8 @@ namespace Punchy.Fauna
             foreach (var s in states)
                 if (math.distance(s.Position, at) < 40f)
                     near++;
-            if (near > 0 || now > startAt + 60f)
+            // (Row 3: past 20 s, so a late joiner has had the host's masks.)
+            if (near > 0 && now > startAt + 20f || now > startAt + 60f)
                 Finish(near > 0 ? $"PASS joined client: {near} creatures within 40 m (of {states.Length} sent)"
                                 : "FAIL joined client: no creature within 40 m in 60 s");
         }
@@ -156,7 +158,7 @@ namespace Punchy.Fauna
 
         void Finish(string result)
         {
-            Debug.Log($"[dungeon life] {World.Name}: {result} | {DungeonState.Describe()}");
+            Debug.Log($"[dungeon life] {World.Name}: {result} | {DungeonState.Describe()} | records: {director?.DungeonDigest()}");
             Enabled = false;
         }
     }

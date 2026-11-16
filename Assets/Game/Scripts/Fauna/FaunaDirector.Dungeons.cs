@@ -26,8 +26,8 @@ namespace Punchy.Fauna
     /// <see cref="Radius"/> of its post (a fixed reach, so every machine agrees), through the queue on a Dungeon tier
     /// with its own cap, nearest first, and lets it go once every player is past <see cref="DespawnDistance"/> of both
     /// it and its post. A resident that dies (Gone) sets its bit in the dungeon's dead mask, the host's exceptions
-    /// record: it is never made again this session, nor after a director rebuild. Nothing new is sent (row 3 asks for
-    /// the message that tells a joined client).
+    /// record: it is never made again this session, nor after a director rebuild. Row 3: the host sends the masks to
+    /// joined clients (FaunaDirector.DungeonExceptions.cs).
     /// </summary>
     public partial class FaunaDirector
     {
@@ -72,6 +72,7 @@ namespace Punchy.Fauna
             dungeonSession = simWorld;
             dungeons.Clear();
             dungeonDead.Clear();
+            dungeonDirty.Clear();
             dungeonCount = dungeonLive = 0;
         }
 
@@ -82,9 +83,7 @@ namespace Punchy.Fauna
         internal void RegisterDungeon(uint id, List<DungeonResident> residents)
         {
             DungeonSession();
-            if (residents.Count > MaxDungeonResidents)
-                Debug.LogError($"[dungeon life] dungeon {id:X8} has {residents.Count} creature residents, over {MaxDungeonResidents}: " +
-                               "the ones past it can't be told apart when they die");
+            WarnTooManyResidents(id, residents.Count);
             var record = new DungeonRecord
             {
                 Id = id,
@@ -152,7 +151,10 @@ namespace Punchy.Fauna
                     {
                         var ordinal = d.Residents[i].Ordinal;
                         if (ordinal < MaxDungeonResidents)
+                        {
                             dungeonDead[d.Id] = (dungeonDead.TryGetValue(d.Id, out var bits) ? bits : 0ul) | 1ul << ordinal;
+                            DungeonMaskChanged(d.Id);
+                        }
                         Caught++;
                         Debug.Log($"[dungeon life] dungeon {d.Id:X8} resident {ordinal} ({d.Residents[i].Post.Name}) died at " +
                                   $"({s.Position.x:F1}, {s.Position.y:F1}, {s.Position.z:F1}): not made again this session");
@@ -232,14 +234,16 @@ namespace Punchy.Fauna
         static readonly bool LogDungeonLife = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-dungeonlife") >= 0;
 
         /// <summary>
-        /// For DungeonState, where animals live: a dungeon's residents and how many are still at their posts (living,
-        /// and either not in the world or within <paramref name="drivenOff"/> of their post). False before the dungeon is
-        /// registered, or where animals don't live.
+        /// For DungeonState: a dungeon's residents and how many are still at their posts (living, and either not in the
+        /// world or within <paramref name="drivenOff"/> of their post). On a joined client, from its copy and the host's
+        /// masks, where a resident driven off still counts (row 3). False before the dungeon is registered.
         /// </summary>
         public bool DungeonResidentsLeft(uint id, float drivenOff, out int residents, out int left)
         {
             residents = left = 0;
-            if (simWorld == null || !simWorld.IsCreated || simWorld != dungeonSession || !dungeons.TryGetValue(id, out var d))
+            if (simWorld == null)
+                return SeenResidentsLeft(id, out residents, out left);
+            if (!simWorld.IsCreated || simWorld != dungeonSession || !dungeons.TryGetValue(id, out var d))
                 return false;
             var em = simWorld.EntityManager;
             residents = d.Residents.Length;
@@ -291,7 +295,8 @@ namespace Punchy.Fauna
         /// <summary>Test only: players the director counted last.</summary>
         internal int DungeonPlayers => players.Count;
 
-        /// <summary>Test only: a dungeon's dead mask.</summary>
-        internal ulong DungeonDeadMask(uint id) => dungeonDead.TryGetValue(id, out var bits) ? bits : 0ul;
+        /// <summary>Test only: a dungeon's dead mask (on a joined client, the last one the host sent).</summary>
+        internal ulong DungeonDeadMask(uint id) =>
+            (simWorld == null ? dungeonHeard : dungeonDead).TryGetValue(id, out var bits) ? bits : 0ul;
     }
 }
