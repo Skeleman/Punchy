@@ -97,6 +97,9 @@ namespace Punchy.Fauna
         public bool Hair;
         [Tooltip("What it is made of, for shading. Coat = the species' coat; anything else never has fur.")]
         public SegmentSurface Surface;
+        [Tooltip("M-06 row 4: what it is made of, from the W-166 library (MaterialLibrary.FamilyOf), drawn by that " +
+                 "family's include in Creature.shader. Body = its coat or Surface, as always; Bone reads as horn or shell.")]
+        public SegmentMaterial Material;
         [Tooltip("Fur length here, if it differs from the species' (a long tail on a short-haired body).")]
         public FurLengthOverride FurLength;
     }
