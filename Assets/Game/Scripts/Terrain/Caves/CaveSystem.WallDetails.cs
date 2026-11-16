@@ -22,6 +22,7 @@ namespace Punchy.Terrain
         readonly HashSet<int> wallShown = new HashSet<int>();
         /// <summary>Per kind, a copy of the cave material in its colours.</summary>
         Material[] wallMaterials;
+        static readonly int OwnLightId = Shader.PropertyToID("_OwnLight");
         CaveWallBuild wallBuilding;
         BlobAssetReference<CaveSetBlob> wallSet;
         List<CaveStyle> wallStyles;
@@ -49,6 +50,7 @@ namespace Punchy.Terrain
                     mat.SetColor(RockColorId, rock);
                     mat.SetColor(DarkColorId, dark);
                     mat.SetFloat(DressedId, -1f);
+                    mat.SetColor(OwnLightId, CaveWallDetails.OwnLight((CaveWallKind)k));
                     wallMaterials[k] = mat;
                 }
             }
