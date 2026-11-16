@@ -8382,3 +8382,19 @@ Plan:
   - WorldSync.Signature (rule 11, coordinator OK): adds "edits <first 16 bytes of the file's SHA-256>" from the baked TerrainSource.Edits, only when the world has edits, so a no-edits world keeps today's signature. A client with other edits is refused like one with another seed; the mismatch warning now says "or map edits". PR body must note this line.
   - PaintedEditsCheck (design section 4): after the cave sockets, lists painted tiles (offset >= 0.05 m) on a settlement plot, landmark garden bed, cave socket or river channel as one [map-edits] warning (counts + first 24 tiles). Reads only, never changes the bake; island-version mismatch stays the PaintedEdits warning. Runs on bake, not on a cached load. Not yet shown in the map editor window (its base island bakes without edits).
   - Tree back on world/ground-edits @ a8a1fb3b. Next at the editor slot: W-174 r3, then M-07 r2b compile/tests, then W-172 r7.
+
+## W-174 r3 (#406): river banks, falls pools and landmark pools on the shared ground-edit profile (2026-11-16)
+
+- Branch world/ground-edits @ da12a9b5 (main 53cc5e36 merged in; code a8a1fb3b). Pushed. done (verified).
+- RiverSampling.Carve, GrandFalls level/rim and the landmark pool lip now go through GroundEdits.Band + GroundEdits.Apply (noisy edge, rockiness), same as the scarp and cave-mouth cuts. River carve band: full to 55 m, fades 55-110 m.
+- Compile clean. WorldTests 16/17 in the suite: Setup_SpawnRainAndShot timed out under load (519 s vs 180 s limit) and passes when run alone. Landmarks_V3, Fauna_Fingerprint and TempleSockets_Pinned pass: **no re-pins**.
+- Before/after height profiles (old code at 4ed33df1 vs r3, same seed; the after run repeated byte for byte):
+  - River at 148,-811 (flat): 0 of 131 samples changed out to 130 m.
+  - River falls 22 cross-section (valley rim, hilly): 14 of 131 changed, all 74-100 m from the channel (the fade band). Largest -3.25 m at 86 m; the rim shoulder is lowered and smoothed, +0.98 m at 96 m. Wet cells lost 0, gained 0.
+  - Landmark 4 pool, 61x61 2 m grid: 10 of 3721 changed, max 0.04 m, no wet change.
+  - Water checks identical before and after; falls pool ring r4 24/24 wet, surface 174.58, min depth 0.47.
+- The Grand Falls itself is absent in this world (lake not found), so the falls-pool shot uses river falls 22.
+- Shots: Assets/Temp/shots/w174r3-{before,after}-{river,falls,lmpool,rim}.png, sheet w174r3-sheet.png, rim pair w174r3-rimpair.png (lighting differs by time of day).
+- Risks: none for hashes. The band fade could shave a ridge that sits 55-110 m from a river; the falls 22 rim is the largest case seen.
+- Shares: GroundEdits (Band/Apply/EdgeNoise) now covers river carves, falls and pool lips. Parallel left out: settlement plot flattening and road cuts still use their own blends (later W-174 rows).
+- Next: M-07 r2b (world/map-edits-bake), then W-172 r7, then #400.

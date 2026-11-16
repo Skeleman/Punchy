@@ -4081,3 +4081,7 @@ Zach's question: do behaviours, animation and the other creature logic run as la
 - World (W-176 #475, world/ground-edits 81c24572): cave layouts move. Cave socket hash FCAA026F -> E2AD48D0 (31 dungeons,
   777 sockets, chest 70); chests 83 in 24 dungeons. Landmarks (114 9786243F) and temple (C41A5BA2) unchanged. Benches that
   pin the cave socket hash or chest count should re-pin. No new cost line: same cave count, slightly fewer links (735).
+
+## world: W-174 r3 (#406) note (2026-11-16)
+
+- Ground change only, no timing done: river carve, falls and pool lips now share GroundEdits.Band/Apply (one EdgeNoise per sample inside the band). Landmark/fauna/temple pins unchanged. Expect sample cost about equal; worth a glance on the next terrain-stream bench, no dedicated job needed.
