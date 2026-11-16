@@ -196,3 +196,52 @@ Needs from world (send via supervisor first, card row 3): row 1 shell changes (F
 - model.DoorBoxes keeps its name and shape (public readonly List<KitBox> on the model), ready for fauna/walkin-walls. merge-tree with origin/main (7 ahead) is clean.
 - PR body / release note: IslandVersionRpc gains a byte, so the NetCode RPC hash changes. Old and new builds can't join each other (A-124 precedent).
 - Editor closed with EditorApplication.Exit. The slot is free.
+
+## P-51 row 1 (#337): design note for walk-in towers. Stopped for review.
+
+Branch player/tower-rooms from origin/main 2354d35d. No code yet.
+
+**Towers the game has today**
+- **StructureKit.Tower** (house corner tower). TowerChance is Dwarf 0.45, Elf 0.35, Goblin/Ogre/Snow 0.1, Human 0.18. It is a solid Wall box, 0.42 x min(width, depth) on a side. Houses are 6-8.5 m wide, so the tower is about 2.0-3.6 m across. It has slit windows every Storey, a cornice, and crenels or a pyramid roof. **It has no door**, so it can stay solid under W-167's rule: only a freestanding tower with a door must fit a stair.
+- **Beacon fixture** (BeaconDeck 10.4). A solid 3 m core with an outside stair up to the deck. You can already climb it. No change.
+- **Spire** (sea folk). A shell spire on the lake bed with no door. It stays solid.
+- **Salt tower** (SaltTowerShape). A 7.5 m basalt body with an outside spiral of steps, a tunnel and a summit. You can already climb it and it has no rooms. No change.
+- **ElfTower** (FloraForm.Tower, built by FloraGenerator.Village.Tower). One per elf grove (ElfGroveLayout), Height 10.5-15.5, radius = 0.28 x height (2.9-4.3 m). It has tapered tube walls up to 0.62 x height (6.5-9.6 m), 2-3 balcony rings, a cone roof and a porch with a door. **This is the only tower with a door.** Today the door teleports you to a room (HouseInterior has a Tower case). **It is my pick for row 2.**
+
+**Smallest footprint** (player radius 0.35 m, head 1.7 m, KitStep 0.32, so rises of 0.28 or less as on the Beacon)
+- **Spiral stair round a core:** 2.5 m clear at the least. A 0.9-1 m stair, walked on a line about 0.7 m out, is about 4.4 m per turn. A 3.2 m storey takes 12 rises of 0.27 at about 0.37 m each. That leaves no room, only a landing.
+- **Stair up the inside of the wall, room in the middle:** inner radius 2.2 m or more. A 0.9 m stair ring leaves a central floor about 2.6 m across.
+- **Square tower with straight flights:** 4 x 4 m inside, so about 4.8-5.6 m outside with 0.4-0.8 m walls. One flight per storey runs along the next wall each time (a quarter turn per storey): 12 x 0.27 m treads give 3.2 m of run plus a 0.8 m landing. The room on each floor is about 3 x 4 m less a 1 x 3.2 m stairwell.
+- **Head room:** storeys must be 3 m or more. One storey per turn or per flight then clears 1.7 m. Goblin storeys of 2.6 m would need a half-turn landing.
+- **ElfTower:** the smallest inner radius (0.85 r - 0.3 at the eaves of the smallest tower) is 2.2 m. That fits a stair up the wall with a central room. **No size change is needed.**
+- The house corner tower (2.0-3.6 m) is too small for any of these. Making it enterable would need bigger houses or freestanding towers, which is a placement change. That is not in this card.
+
+**Row 2 plan: the walk-in ElfTower, only under -seamless** (StructureKit.Seamless, already synced by IslandVersionRpc)
+- **Storeys:** n = floor(walls / 3.2). That is 2-3 floors including the ground; the spacing is walls / n, which is 3.2 m or more.
+- **Hollow inside:** a straight cylinder of radius 0.85 r - 0.3 inside the tapered shell.
+- **Inner lining:** a second, reversed tube, so the walls show from inside.
+- **Floors:** a floor disc at each storey, cut by a 100-120 degree notch where the flight comes up.
+- **Stair:** a helical stair up the wall made of rotated KitBoxes, about 0.27 m per rise. It makes one turn per storey (or a part-turn plus a landing).
+- **Roof access:** the top floor gets an opening onto the top balcony ring.
+- **Balconies:** in seamless mode the balcony rings and window rows move onto the storey lines, which gives the floor bands #337 asks for. g.Count(s.Branches) is still drawn, so the draws that follow are unchanged.
+- **Collision:** the solid cylinder collider is dropped under walk-in. Wall boxes ring the shell (about 12 segments, the doorway left open), and the floors and treads become g.Boxes.
+- **Door:** the porch door becomes a swinging leaf with its DoorBox, using the same helper the kit houses use (FloraDoors.HoldShut and Doors.TestInside as in r3).
+- **Interiors:**
+  - generalise the r3 check (`Form == KitBuilding && StructureKit.WalkIn(shape)`) to a helper that also accepts Form.Tower;
+  - AddWalkIn is given the whole wall height, so ambient light and IndoorArm stay indoors upstairs;
+  - the room index and seed are still made as before, so chests and stores match the teleport room.
+- **Level of detail:** the interior parts (stair, floors, lining) are built only at Lod 0/1, and their boxes come from that model (rule 20, by screen size).
+- **Verify:** the port flags -walkin/-atdoor/-usedoor, plus a new -climbtower N that walks the stair to the top floor and logs height and floor at each storey. I will test host + client on 7983 with -seamless, then solo, then default (no flag, unchanged), and take near shots inside and on the stair.
+
+**Placement and world fingerprint (rule 11)**
+- **Placement:** none. Plot, height, spread and ElfGroveLayout are untouched. All of the above is gated on Seamless, which is off by default.
+- **Fingerprint:** default worlds and landmark hashes are unchanged.
+- **Under -seamless:** only the ElfTower model and its boxes change, not where anything stands. I see no reshuffle. If row 2 shows the smallest tower is too tight and we raise ElfTower's Height.x or Spread, that would change plot size and could move grove buildings. I will ask before doing that. The layout-free rule would allow it, but it is not needed.
+
+**Edits outside additive kit partials** (named here for approval)
+- **FloraGenerator.Village.cs**, Tower() (shared Flora file; not additive): a walk-in branch that skips the solid collider and calls into a new partial, FloraGenerator.TowerRooms.cs, which holds the stair, floors, lining, wall boxes and door leaf.
+- **FloraGenerator.Houses.cs**, HouseInterior: the Tower case reports the full wall height when it is a walk-in.
+- **Interiors.cs / Interiors.WalkIn.cs** (player-owned): the walk-in check is generalised, and the height covers every storey.
+- **StructureKit.WalkIn.cs:** a WalkInTower helper (additive).
+- **No changes to:** StructureKit.Tower, Beacon, Spire, SaltTower or shaders.
+- **Open question:** kit corner towers stay solid. Say if you want a freestanding kit tower family (the 4 x 4 m straight-flight version) carded later as well.
