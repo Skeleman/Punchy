@@ -66,7 +66,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 
 ## Creatures
 - **Riding (#278, A-104).** Shipped: any creature rides one at least 50% heavier, players ride players, folk ride
-  horses out of town stables (A-117) Shipped: dismount when you no longer fit the mount (P-40, PR #422).
+  horses out of town stables (A-117) Shipped: dismount when you no longer fit the mount (P-40, PR #422). Shipped: rides keep up when either body changes mid-ride (P-43, PR #441).
 - **Climbable colossi (#276, A-107).** Shipped: graded climbable sections, carried as the colossus walks.
 - **Sand and snow worms.** Shipped: breaching snow worm and sand worm colossi (A-84, Z-28).
 - **Climbing (A-101).** Shipped: one climbing model, ladders, marked walls, ledge hang. Shipped: brisk ladders

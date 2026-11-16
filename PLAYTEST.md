@@ -138,3 +138,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: #438 merged (A-132, #25): the innkeeper works its inn's counter by day, wipes it and stacks mugs when idle; a/an fixed before dialogue slots. Check: visit an inn by day and talk to the innkeeper.
 - 11-15: #439 merged (R-25 rows 5-6, #302): town windows and lamps keep their warm colour from 1 km instead of white dots; lava has its own far light. Check: fly 1 km from a town at night, then walk in.
 - 11-15: #440 merged (W-174 row 1, #406): design note for one ground-edit system (docs/design/DESIGN-ground-edits.md). Nothing to check in game.
+- 11-15: #441 merged (P-43, #396): a ride keeps up when the rider or ridden player changes body mid-ride, and the rider gets down once it no longer fits. Check: ride a player, then change either body.
