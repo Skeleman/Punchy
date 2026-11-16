@@ -1612,3 +1612,8 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - MAIN BUG (another lane's file, not committed): Debugging/TestHooks.Options.cs (A-131, 67de6050) has no UNITY_EDITOR guard, but it uses PersonaIndividual from the editor-only TestHooks.cs, so player builds fail with CS0103 on main and on this branch. I wrapped it locally for my builds and reverted that. Owner fix: add #if UNITY_EDITOR.
 - Risks: bodies that aren't upright, or have no arms, can't wear gear (CanWearGear), so they can't wear eyewear. CreatureRenderSystem.cs is shared, so whichever branch merges second resolves the conflict. P-39 (player/menus) is stacked on this branch.
 - Shares: one kit/item system for folk and players (rule 33): job gear, drape and eyewear all go through ItemTable and FolkKits.
+
+## P-38 main merge (#372): merged with A-113, M-08, W-166 and the TestHooks guard; re-pinned - done (verified); ready for PR
+- Branch player/take-items @ 496abb7d. Two merges: b6667ecf (main 739e441e; the only conflict was the WorldTests pin) and 496abb7d (main b04b5432, W-166 #437 and the #436 guard; clean).
+- Fingerprint: the merged build measures 0654C913, the same as main, and the test is pinned to it. The comment chain gets "0654C913 since the P-38 + A-113 main merge re-pin". No placement moved, and the profiler needs no change.
+- Suite 50/68 passed, 1 failed. Setup_SpawnRainAndShot hit the 180 s timeout on the cold first run, after main's shader changes. Run alone afterwards it passed (1/1). Note: that rerun began with about 2.5 GB RAM free, under the 6 GB rule, because other trees' editors were using memory.
