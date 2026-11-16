@@ -8426,3 +8426,9 @@ Plan:
 - Tests: EditMode 13/13 (UnitLibraryTests incl. 4 new: tidy JSON, yaw, mirror winding, part streams; MaterialLibraryTests; UnitBlueprintTests). Landmarks_V3 pass. No shots (no look change). No timing.
 - Gap 6 note: existing posts/counter/roof keep no colliders (adding them would move the coded hashes); row 5's new parts all carry box colliders.
 - NEXT: row 5 (walls, floors, doors, windows, gabled roof, beams, stairs, rails, signs, lantern, crate as unit parts drawn through the kit pieces, so families and box collision come from the one kit path).
+
+## [materials] W-175 (#415) row 5 DONE - 422688dc on world/parts-units-4
+
+- 11 parts (wall, floor, door, window, gabled roof, beam, stair, rail, sign, lantern, crate) in FloraGenerator.Parts.Build.cs, drawn via DrawKitPart: W-166 families from MaterialLibrary.FamilyOf, boxes for non-decor/solid pieces (lantern walk-through).
+- Stair/lantern/crate reuse StructureKit builders; KitDecor shared with KitStructure (same rule, no look change).
+- Verified: W175Probe hashes same as main, EditMode 15/15, Landmarks_V3 pass. No shots (no look change to existing builds).
