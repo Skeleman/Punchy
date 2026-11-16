@@ -47,6 +47,8 @@ namespace Punchy.Fauna
             int Rock(string name, Vector3 centre, Vector3 radii, Quaternion rot, float bob, int shards)
             {
                 var m = new DunesColossus.MeshBuilder();
+                m.Family(GolemBasalt, MaterialFamily.Stone);                            // W-166 r4 (#336): library natural rock
+                m.Family(BasaltPale, MaterialFamily.Stone);
                 m.Ellipsoid(Vector3.zero, radii, rot, GolemBasalt, 7, 4);
                 for (int k = 0; k < 3; k++)                                                                     // jagged lumps
                 {
