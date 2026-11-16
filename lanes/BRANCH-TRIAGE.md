@@ -20,7 +20,7 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | world/cave-climbs | W-144 | world | Waits on Zach's look at 1b pairs. |
 | render/cobble-depth | R-28 r2 | render | Terrain shader vs puddle-edges. |
 | b/cloud-shadow-map | profiler | profiler | Rework: store raw density, apply R-20 r4 soft edge after the read; BENCH cost check. |
-| render/foliage-realism | R-30 r1 (#323) | render | In flight. |
+| render/foliage-realism | R-30 r1-r2c (#323) | render | Conflicts with #454 in Flora/FloraImpostor shaders; render merges main, then draft PR waiting on job 102. |
 | player/menus | P-39 (#397) | player-2 | In flight. |
 | player/talk-replies | P-42 | player-2 | In flight. |
 | world/ashlands-lava | W-172 lava | world | Rebase on main after #451, re-pin. |
