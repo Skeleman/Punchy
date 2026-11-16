@@ -593,6 +593,8 @@ namespace Punchy.Terrain
         protected override void OnCreate()
         {
             focusQuery = GetEntityQuery(ComponentType.ReadOnly<TerrainFocus>(), ComponentType.ReadOnly<LocalTransform>());
+            // #259: the cut jobs read the terrain blobs, which a world swap frees before this system is destroyed.
+            Punchy.Net.GameBootstrap.WorldsReplacing += DropCuts;
             creatureQuery = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             lastAt = new NativeHashMap<Entity, float3>(64, Allocator.Persistent);
             quads = new NativeList<ParentQuad>(1024, Allocator.Persistent);
@@ -608,8 +610,16 @@ namespace Punchy.Terrain
             CreateFall();
         }
 
+        /// <summary>Finishes and drops both cut jobs in flight (a world swap is about to free what they read).</summary>
+        void DropCuts()
+        {
+            FinishCut(false);
+            FinishFallCut(false);
+        }
+
         protected override void OnDestroy()
         {
+            Punchy.Net.GameBootstrap.WorldsReplacing -= DropCuts;
             FinishCut(false);
             DestroyFall();
             Shader.SetGlobalVector(RectId, NoRect);

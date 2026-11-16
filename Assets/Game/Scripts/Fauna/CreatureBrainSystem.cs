@@ -92,6 +92,15 @@ namespace Punchy.Fauna
         public static readonly float2 BrainLodDefault = new float2(80f, 4f);
         static float BrainLodRange => BrainLod.Data.x > 0f ? BrainLod.Data.x : BrainLodDefault.x;
         static uint BrainLodFrames => BrainLod.Data.y >= 1f ? (uint)BrainLod.Data.y : (uint)BrainLodDefault.y;
+        /// <summary>
+        /// How near a player (m, from CreatureMotion.SeenAt) a creature thinks every frame: BrainLodRange, further for
+        /// the big (refactor 3.7: as far out as it looks as big as a deer does at BrainLodRange), and for a riding pair
+        /// the pair's size (A-119), so a rider and its mount think at one rate. Sizes and a fixed reference view only,
+        /// so every machine would agree.
+        /// </summary>
+        public static float ThinkRange(in CreatureState s, ref CreatureBlob b)
+            => BrainLodRange * math.max(1f, Punchy.Settings.DetailPolicy.SimulationReach(
+                   CreatureMotion.ApparentSize(s, ref b), Punchy.Settings.DetailPolicy.CreatureThinkPixels) / BrainLodDefault.x);
         /// <summary>#57: each creature looks for predators, alarms and someone asking it to chat once per this (s), phased
         /// by its Individual on the shared clock (the same on every machine); fleeing ones still look every frame.</summary>
         const float SearchPeriod = 0.2f;
@@ -605,13 +614,12 @@ namespace Punchy.Fauna
                 var frameDt = Dt;
                 var frameStep = Step;
                 var far = BrainLodOff.Data == 0 && !s.Gone && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet;
-                // (Refactor 3.7: the range grows with the creature's size, as its pose detail does, so a sky serpent seen
-                // from far off thinks every frame as far out as it looks as big as a deer does at BrainLodRange. Sizes and
-                // a fixed reference view only, so every machine would agree.)
-                var lodRange = BrainLodRange * math.max(1f, Punchy.Settings.DetailPolicy.SimulationReach(
-                    CreatureMotion.ApparentSize(s, ref body.Blob.Value), Punchy.Settings.DetailPolicy.CreatureThinkPixels) / BrainLodDefault.x);
+                // (Refactor 3.7: the range grows with the creature's size, as its pose detail does: ThinkRange.)
+                var lodRange = ThinkRange(s, ref body.Blob.Value);
+                // (A-119: a mount carrying a rider measured from where it stands for both, as the renderer does.)
+                var seenAt = CreatureMotion.SeenAt(s);
                 for (int p = 0; p < Players.Length && far; p++)
-                    far = math.distancesq(Players[p].xz, s.Position.xz) > lodRange * lodRange;
+                    far = math.distancesq(Players[p].xz, seenAt.xz) > lodRange * lodRange;
                 // (A fish near a bobber thinks every frame: its nibbles are what the player reads. The bobber is near its
                 // caster anyway, so this only matters for a long cast on a low setting.)
                 for (int l = 0; l < Lures.Length && far; l++)

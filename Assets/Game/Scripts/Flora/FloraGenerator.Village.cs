@@ -6,100 +6,8 @@ namespace Punchy.Flora
     // FloraGenerator, village buildings: tents, towers, pens, stalls, inns, halls, shrines, gardens. Code moved from FloraGenerator.cs (W-116).
     public static partial class FloraGenerator
     {
-        static void Tent(Grower g)
-        {
-            var s = g.S;
-            var b = g.B;
-            var height = g.Range(s.Height);
-            var radius = height * s.Spread * 0.5f;
-            g.Height = height;
-            g.Width = radius * 2.2f;
-            g.TrunkRadius = radius * 0.85f;
-
-            // Poles lean in to meet near the top, then poke out past it, a little crooked.
-            var poles = Mathf.Max(3, g.Count(s.Branches));
-            var apex = new Vector3(g.Range(-0.1f, 0.1f), height * 0.88f, g.Range(-0.1f, 0.1f));
-            var rows = g.Sides(5, 3, 2);
-            // Each edge sags towards the axis under the apex, not along its own panel's middle (W-43): a pole's edge is
-            // shared by two panels, so both put it in the same place and no slit opens at the corner.
-            Vector3 Inward(Vector3 p) => -new Vector3(p.x - apex.x, 0f, p.z - apex.z).normalized;
-            float Sag(float t) => Mathf.Sin(t * Mathf.PI) * radius * 0.06f;
-            var feet = new List<Vector3>();
-            for (int k = 0; k < poles; k++)
-            {
-                var a = (k + g.Range(-0.2f, 0.2f)) / poles * Mathf.PI * 2f + 0.3f;
-                var foot = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * g.Range(0.9f, 1.05f);
-                feet.Add(foot);
-                var through = apex + (apex - foot).normalized * height * g.Range(0.12f, 0.22f);
-                // W-113 (item 9): the pole bows with the hide's sag and stands just inside it, so the hide covers it from
-                // the ground up and only its tip shows past the apex (a straight pole stood outside the sagging hide its
-                // whole length and poked out at the foot).
-                // Deep enough that even a three- or four-pole tent's flat panels cover a pole's faceted sides; it closes
-                // only just under the apex, where the poles cross.
-                var inset = radius * 0.12f;
-                var path = new List<Vector3>();
-                var radii = new List<float>();
-                for (int r = 0; r < rows; r++)
-                {
-                    var t = r / (float)rows;
-                    var p = Vector3.Lerp(foot, apex, t);
-                    path.Add(p + Inward(p) * (Sag(t) + inset * (1f - t * t)) + (r == 0 ? Vector3.down * 0.1f : Vector3.zero));
-                    radii.Add(radius * Mathf.Lerp(0.04f, 0.035f, t));
-                }
-                path.Add(apex);
-                radii.Add(radius * 0.035f);
-                path.Add(through);
-                radii.Add(radius * 0.025f);
-                b.Family = Timber(g);   // W-166: the poles are wood, the hides the form's cloth
-                b.Tube(path, radii, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
-                b.Family = b.BaseFamily;
-            }
-
-            // Hide panels between neighbouring poles, each a slightly different hide, sagging inwards.
-            var first = b.VertexCount;
-            for (int k = 0; k < poles; k++)
-            {
-                var a = feet[k];
-                var c = feet[(k + 1) % poles];
-                var colour = Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, g.R());
-                // The panel facing +Z is left open as the doorway.
-                var mid = (a + c) * 0.5f;
-                var open = mid.z > radius * 0.5f && Mathf.Abs(mid.x) < radius * 0.6f;
-                var top = b.VertexCount;
-                for (int r = 0; r <= rows; r++)
-                {
-                    var t = r / (float)rows;
-                    var sag = Sag(t);
-                    var p0 = Vector3.Lerp(a, apex, t);
-                    var p1 = Vector3.Lerp(c, apex, t);
-                    var ao = Mathf.Lerp(0.7f, 1f, t);
-                    var cut = open && t < 0.55f;
-                    var n = Vector3.Cross(p1 - p0, apex - p0).normalized;
-                    if (Vector3.Dot(n, (p0 + p1) * 0.5f - Vector3.up * p0.y) < 0f) n = -n;
-                    b.Vertex(p0 + Inward(p0) * sag, n, cut ? new Color(0.02f, 0.017f, 0.015f) : colour, FloraPart.Bark, cut ? 0.2f : ao);
-                    b.Vertex(p1 + Inward(p1) * sag, n, cut ? new Color(0.02f, 0.017f, 0.015f) : colour, FloraPart.Bark, cut ? 0.2f : ao);
-                }
-                for (int r = 0; r < rows; r++)
-                {
-                    int i0 = top + r * 2;
-                    b.Triangle(i0, i0 + 2, i0 + 1);
-                    b.Triangle(i0 + 1, i0 + 2, i0 + 3);
-                }
-            }
-            // The panels are hide (W-113): cloth's snow, held still on the poles, but leather's mottle and stitched seams
-            // instead of W-99's linen weave (the tents read as linen).
-            b.Hide(first);
-            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.3f));
-            DoorMat(g, radius, radius * 0.7f);
-
-            // Collision follows the slope (W-43): stepped rings, each as wide as the hide half a metre below its top, so
-            // a body stops where the slope meets it about the chest, not with its head through the hide (a small goblin
-            // tent too). (With none, the whole tent was one fat trunk cylinder; its hides' support grid gave the climb
-            // logic a "ledge" all round it, so it is left out of the support grid: FloraGenerator.Grow.)
-            foreach (var top in new[] { 1.1f, 2f, 3f })
-                if (top < apex.y - 0.5f)
-                    g.Colliders.Add(new Vector4(apex.x * top / apex.y, apex.z * top / apex.y, radius * 0.95f * (1f - (top - 0.5f) / apex.y), top));
-        }
+        // W-175 row 3: the tent is a unit of library parts (FloraGenerator.Units.TentUnit).
+        static void Tent(Grower g) => BuildUnit(g, TentUnit);
 
         /// <summary>
         /// Where a gabled roof slab's eave edge starts (its centre line's height, <paramref name="overhang"/> past the
@@ -275,52 +183,8 @@ namespace Punchy.Flora
             }
         }
 
-        static void Stall(Grower g)
-        {
-            var s = g.S;
-            var b = g.B;
-            var height = g.Range(s.Height);
-            var width = height * s.Spread;
-            var depth = width * 0.7f;
-            g.Height = height;
-            g.Width = Mathf.Max(width, depth) * 1.3f;
-            g.TrunkRadius = 0f;
-            var post = 0.06f;
-            var frontHeight = height * 0.82f;
-            // Posts and counter are timber, with its grain (Z-30).
-            b.Family = Timber(g);
-            foreach (var x in new[] { -0.5f, 0.5f })
-            foreach (var z in new[] { -0.5f, 0.5f })
-            {
-                var top = z > 0f ? frontHeight : height;
-                b.Tube(new List<Vector3> { new Vector3(x * width, -0.05f, z * depth), new Vector3(x * width, top, z * depth) },
-                       new List<float> { post, post }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
-            }
-            // Counter across the front, and goods laid out on it.
-            b.Box(new Vector3(0f, 0.45f, depth * 0.5f - 0.15f), new Vector3(width * 0.95f, 0.9f, 0.45f), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
-            b.Family = Punchy.Terrain.MaterialFamily.Plaster;   // W-166: the goods, crocks and wares
-            if (g.Lod < 2)
-                for (int k = 0; k < 7; k++)
-                {
-                    var at = new Vector3(Mathf.Lerp(-0.4f, 0.4f, k / 6f) * width, 0.98f, depth * 0.5f - 0.15f + g.Range(-0.08f, 0.08f));
-                    b.Blob(at, Vector3.one * g.Range(0.07f, 0.12f), Quaternion.identity, 0, 0.2f, g.R() * 50f, AccentAt(g, k + 1), FloraPart.Bark);
-                }
-            // A striped awning sloping from the back down over the front, overhanging it.
-            var back = new Vector3(0f, height + 0.05f, -depth * 0.55f);
-            var front = new Vector3(0f, frontHeight - 0.15f, depth * 0.5f + 0.45f);
-            // Cloth held at both bars, so it only ripples between them.
-            var stripes = g.Sides(6, 4, 2);
-            b.Family = Punchy.Terrain.MaterialFamily.Cloth;
-            var awning = b.VertexCount;
-            for (int k = 0; k < stripes; k++)
-            {
-                var x = k / (float)stripes - 0.5f;
-                var colour = k % 2 == 0 ? g.FoliageColor() : AccentAt(g, 0);
-                b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 2, 1), colour, FloraPart.Bark);
-            }
-            b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI), taut: true);
-            b.Family = b.BaseFamily;
-        }
+        // W-175: the market stall is a unit of library parts (FloraGenerator.Units.StallUnit).
+        static void Stall(Grower g) => BuildUnit(g, StallUnit);
 
         static void Inn(Grower g)
         {

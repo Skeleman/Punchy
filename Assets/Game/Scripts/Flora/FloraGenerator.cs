@@ -251,8 +251,12 @@ namespace Punchy.Flora
         /// Everything Grow does but making the meshes: pure code over the species' settings, safe on a worker thread
         /// (<paramref name="name"/> is the species asset's name, read on the main thread). FloraModel.Finish makes the meshes.
         /// </summary>
-        static FloraModel GrowParts(FloraSpecies species, int variant, string name, bool shapeOnly = false)
+        static FloraModel GrowParts(FloraSpecies species, int variant, string name, bool shapeOnly = false, UnitDef unit = null)
         {
+            // M-06 r5 blueprint hook: a unit given (GrowUnit) or a species' own non-empty Unit is drawn in place of its
+            // form's builder. An empty Unit (every species so far) changes nothing.
+            if (unit == null && species.Unit != null && species.Unit.Parts != null && species.Unit.Parts.Length > 0)
+                unit = species.Unit;
             var model = new FloraModel { Species = species, MeshName = $"{name} {variant}", Pending = shapeOnly ? null : new FloraMeshBuilder[3] };
             model.CastsShadows = !FloraModel.Shadowless(species.Form);
             var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(name));
@@ -271,7 +275,8 @@ namespace Punchy.Flora
                 builder.Family = builder.BaseFamily;
                 builder.WoodKind = WoodKindFor(species);
                 var g = new Grower(species, variant, lod, seed, builder);
-                switch (species.Form)
+                if (unit != null) BuildUnit(g, unit);
+                else switch (species.Form)
                 {
                     case FloraForm.BroadleafTree: Broadleaf(g); break;
                     case FloraForm.Conifer: Conifer(g); break;

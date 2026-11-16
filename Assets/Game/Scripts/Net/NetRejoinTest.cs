@@ -28,7 +28,7 @@ namespace Punchy.Net
                 return;
             var parts = args[at + 1].Split(',');
             if (!float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var wait)
-                || !NetworkEndpoint.TryParse(args[join + 1], GameBootstrap.Port, out var host))
+                || !GameBootstrap.TryParseAddress(args[join + 1], out var host))
             {
                 Debug.LogWarning("rejoin: needs -rejoin <seconds>[,<times>] and -join <ip>");
                 return;

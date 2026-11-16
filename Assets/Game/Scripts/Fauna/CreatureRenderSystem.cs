@@ -336,10 +336,10 @@ namespace Punchy.Fauna
                 copied.Complete();
                 for (int i = 0; i < bodies.Length; i++)
                 {
-                    var to = allStates[i].Position - camPos;
+                    var to = CreatureMotion.SeenAt(allStates[i]) - camPos;
                     var far = !NearBehind(math.length(to), allStates[i], ref allBodies[i].Blob.Value, false);
                     var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
-                                 math.length(to) > allBodies[i].Blob.Value.SeenFrom * 0.5f;
+                                 math.length(to) > CreatureMotion.SeenFrom(allStates[i], ref allBodies[i].Blob.Value) * 0.5f;
                     var underground = hidden && !(allStates[i].Position.y < hiddenFrom.SampleHeight(allStates[i].Position.xz) - 1f);
                     keepFlags[i] = allEntities[i] != hideBody && (allStates[i].Mode == CreatureMode.Puppet || !behind && !underground);
                 }
@@ -794,8 +794,9 @@ namespace Punchy.Fauna
                 // where it's let go: dithered in and out by the shader, so nothing pops.
                 var fadeIn = Unity.Mathematics.math.saturate(state.Clock / FadeInTime);
                 // (Huge animals, seen across the land, from their own distance.)
-                var fadeFar = Unity.Mathematics.math.max(FadeFar, body.Blob.Value.SeenFrom);
-                var fadeOut = Unity.Mathematics.math.saturate((fadeFar - Unity.Mathematics.math.distance(state.Position, CameraPosition)) / FadeOutRange);
+                // (A-119: a riding pair fades as one, from the mount's position.)
+                var fadeFar = Unity.Mathematics.math.max(FadeFar, CreatureMotion.SeenFrom(state, ref body.Blob.Value));
+                var fadeOut = Unity.Mathematics.math.saturate((fadeFar - Unity.Mathematics.math.distance(CreatureMotion.SeenAt(state), CameraPosition)) / FadeOutRange);
                 var faded = 1f - fadeIn * fadeOut;
                 // Stepping through a door: dithered out going in, gone indoors, dithered back in coming out.
                 if (state.Mode == CreatureMode.Home && state.Stage >= 1)

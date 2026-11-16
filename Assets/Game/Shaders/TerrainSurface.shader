@@ -56,7 +56,7 @@ Shader "Punchy/Terrain Surface"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
-            #include "Stone.hlsl"
+            #include "Materials/Stone.hlsl"
             // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
             float2 _PunchyWindDirection;
             half _PunchyWind;
@@ -476,7 +476,7 @@ Shader "Punchy/Terrain Surface"
                 }
                 // R-19: the rock on steep faces. Strata: a thick and a thin set of beds by height, wandering slowly
                 // along the face so they aren't contour lines, each bed's top a ledge (the normal tips up where the beds
-                // step out). The surface on them is the shared stone (Stone.hlsl, R-34 row 2: it replaced the old 2 m grain and
+                // step out). The surface on them is the shared stone (Materials/Stone.hlsl, R-34 row 2: it replaced the old 2 m grain and
                 // 12 m mottle, so there is no double noise). Every part fades by its own
                 // on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans), never by metres.
                 half rockBand = 0, rockBlock = 0, rockLedge = 0;
@@ -600,7 +600,7 @@ Shader "Punchy/Terrain Surface"
                     albedo = lerp(albedo, rock, rockFace);
                 }
                 // R-34 row 2: steep faces (and the cliff kit pieces, drawn with this material) take their surface from the
-                // shared stone (Stone.hlsl) on the beds and ledges above. Its footprint from the same reference pixels as
+                // shared stone (Materials/Stone.hlsl) on the beds and ledges above. Its footprint from the same reference pixels as
                 // R-19's fades (screen size, not metres). Wet from rain (drying over time), shores and fall spray.
                 half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
                 half3 stoneN0 = normalWS;
