@@ -133,5 +133,18 @@ namespace Punchy.Terrain
             KitMaterial.Net => MaterialFamily.Cloth,
             _ => MaterialFamily.Plaster   // Trim, Opening, Moss, Sand, Ash, Dirt, Flame: coloured plaster for now
         };
+
+        /// <summary>The family a creature's gear segment is made of (Fauna.SegmentMaterial): Creature.shader draws each
+        /// through that family's include, so gear wood is a town's wood and gear cloth its awnings. Body is None (a
+        /// creature's own coat, not a material).</summary>
+        public static MaterialFamily FamilyOf(Punchy.Fauna.SegmentMaterial material) => material switch
+        {
+            Punchy.Fauna.SegmentMaterial.Cloth => MaterialFamily.Cloth,
+            Punchy.Fauna.SegmentMaterial.Leather => MaterialFamily.Leather,
+            Punchy.Fauna.SegmentMaterial.Metal => MaterialFamily.Metal,
+            Punchy.Fauna.SegmentMaterial.Wood => MaterialFamily.Wood,
+            Punchy.Fauna.SegmentMaterial.Bone => MaterialFamily.Bone,
+            _ => MaterialFamily.None
+        };
     }
 }

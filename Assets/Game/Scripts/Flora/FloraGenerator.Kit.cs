@@ -153,6 +153,8 @@ namespace Punchy.Flora
             b.Shell = FarShells && g.Lod >= 2 && !ruined && (shape == Punchy.Terrain.KitShape.House || shape >= Punchy.Terrain.KitShape.AshHouse && shape <= Punchy.Terrain.KitShape.SandHouse);
             b.ShellMin = new Vector3(-halfIn.x, 0f, -halfIn.z);
             b.ShellMax = new Vector3(halfIn.x, eaves, halfIn.z);
+            if (g.Lod == 0)
+                g.KitParts = parts;   // (M-06/M-08: kept for the Model Lab's parts list, FloraModel.KitParts.)
             for (int i = 0; i < parts.Count; i++)
             {
                 var p = parts[i];
@@ -300,8 +302,11 @@ namespace Punchy.Flora
                        p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
             b.Surface = (int)look;
             // W-166: each part states its family; a ruin's bare walls are old stone, not plaster.
+            // W-166 row 3: standing stone chimneys are laid in brick (Materials/Brick.hlsl); rune and trim stacks keep their own.
             b.Family = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
+                     : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
                      : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
+            b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
             b.Unfounded = p.Afloat;
             if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                 RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close

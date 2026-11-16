@@ -242,6 +242,7 @@ namespace Punchy.Flora
             // glowing embers among dark coals, and its chimney up through the roof.
             var hearth = new Vector3(0f, 0.55f, -depth * 0.45f);
             float hearthX = half * 1.1f, hearthZ = depth * 0.8f, bed = 0.85f, rim = 0.15f;
+            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the hearth is stone, not the walls' plaster
             b.Box(new Vector3(hearth.x, bed * 0.5f, hearth.z), new Vector3(hearthX, bed, hearthZ), Quaternion.identity, Stone(g), FloraPart.Bark);
             foreach (var side in new[] { -1f, 1f })
             {
@@ -250,6 +251,7 @@ namespace Punchy.Flora
                 b.Box(new Vector3(hearth.x + side * (hearthX - rim) * 0.5f, (bed + 1.1f) * 0.5f, hearth.z), new Vector3(rim, 1.1f - bed, hearthZ - rim * 2f),
                       Quaternion.identity, Stone(g), FloraPart.Bark);
             }
+            b.Family = b.BaseFamily;
             var pit = new Vector2(hearthX * 0.5f - rim - 0.08f, hearthZ * 0.5f - rim - 0.08f);
             var embers = g.Lod == 0 ? 7 : 3;
             for (int k = 0; k < embers; k++)
@@ -260,8 +262,11 @@ namespace Punchy.Flora
                 b.Blob(at, new Vector3(size, size * 0.6f, size * g.Range(0.8f, 1.2f)), Quaternion.Euler(0f, g.R() * 360f, 0f), 1, 0.3f, g.R() * 50f,
                        glowing ? AccentAt(g, 0) : g.Bark * 0.25f, glowing ? FloraPart.Glow : FloraPart.Bark);
             }
+            // W-166 row 3: the forge stack is laid in fired brick (MaterialFamily.Brick, Materials/Brick.hlsl).
+            b.Family = Punchy.Terrain.MaterialFamily.Brick;
             b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
             ChimneyTop(g, new Vector3(0f, height + 0.8f, -depth * 0.7f), 0.3f, Stone(g) * 0.85f);
+            b.Family = b.BaseFamily;
             g.Perches.Add(Vector3.up * height);
             g.Perches.Add(new Vector3(0f, height + 0.8f, -depth * 0.7f));
             // The anvil on its block.

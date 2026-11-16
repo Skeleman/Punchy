@@ -35,13 +35,21 @@ Shader "Punchy/Flora"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
             #include "Flora.hlsl"
+            #include "Materials/Stone.hlsl"
             #include "Grounding.hlsl"
             #include "Materials/Wood.hlsl"
             #include "Materials/Thatch.hlsl"
             #include "Materials/Cloth.hlsl"
             #include "Materials/Metal.hlsl"
+            #include "Materials/Plaster.hlsl"
+            #include "Materials/Brick.hlsl"
+            #include "Materials/Ice.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
+            #define PUNCHY_SURFACE_GLOW_WORLD
+            #define PUNCHY_SURFACE_LANTERN
+            #define PUNCHY_SURFACE_REAL_LIGHTS
+            #include "Surface.hlsl"
 
             /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
@@ -191,11 +199,26 @@ Shader "Punchy/Flora"
                 int woodKind = wood ? (int)round((frac(input.extra.x) - 0.015) / 0.0025) : 0;
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
                 // (PunchyWeathering). Timber takes only a little of it: its stone-like courses read as plaster (W-99).
-                bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
+                bool strata = part == 0 && frac(input.extra.x) > 0.06 && frac(input.extra.x) < 0.09;
+                // W-166 row 3: built families with their own include ride on the bark mark (FloraMeshBuilder.FamilyMark).
+                bool plaster = part == 0 && frac(input.extra.x) > 0.095 && frac(input.extra.x) < 0.105;
+                bool brick = part == 0 && frac(input.extra.x) > 0.11 && frac(input.extra.x) < 0.12;
+                bool ice = part == 0 && frac(input.extra.x) > 0.125 && frac(input.extra.x) < 0.135;
+                // Built stone: cut at 0.142, rubble at 0.144 (FloraMeshBuilder.Rubble), both drawn by Materials/Stone.hlsl.
+                bool builtStone = part == 0 && frac(input.extra.x) > 0.137 && frac(input.extra.x) < 0.147;
+                bool rubble = builtStone && frac(input.extra.x) > 0.143;
                 // (Refactor 3.5, measuring a bake: "-nofloradetail" sets _PunchyFloraDetailOff and skips the procedural
                 // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
                 bool detail = _PunchyFloraDetailOff < 0.5;
-                if (detail && (part == 0 && built || strata))
+                if (detail && plaster)
+                    albedo *= PunchyPlaster(input.positionWS, n, footprint, r);
+                else if (detail && brick)
+                    albedo *= PunchyBrick(input.positionWS, n, v, footprint, r);
+                else if (detail && ice)
+                    albedo *= PunchyIce(input.positionWS, n, v, footprint, r);
+                else if (detail && builtStone)
+                    albedo *= PunchyStoneBlocks(input.positionWS, n, footprint, rubble, r);
+                else if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
                 // W-166: wood draws through Materials/Wood.hlsl, its kind riding on the wood mark (FloraMeshBuilder.WoodKind).
@@ -229,7 +252,10 @@ Shader "Punchy/Flora"
                 // it stays; the bark's own grain (below) does the work.
                 bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
                 near *= bark ? 0.35 : 1;
-                if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
+                // R-34 row 2: boulders and built stone (not timber, not living plants) draw their surface from the shared
+                // stone (Materials/Stone.hlsl) in place of the relief here; built stone's blocks are laid above (W-166).
+                bool stone = part == 0 && !wood && input.living < 0.5 && _PunchyCaveDetailReady > 0;
+                if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0 && !stone)
                 {
                     float3 q = input.positionWS * 0.9;
                     float3 w = pow(abs(n), 4);
@@ -325,18 +351,32 @@ Shader "Punchy/Flora"
                 }
                 // Wet darkens. Bark and leaves (items 27-28) soak it up, so they darken more and shine far less (below).
                 albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
+                half stoneWet = 0, crevice = 0;
+                half3 stoneN0 = n;
+                if (stone)
+                {
+                    stoneWet = PunchyStoneWetness(wet);
+                    PunchyStoneSurface(input.positionWS, footprint, stoneWet, wet, albedo, n, crevice);
+                }
 
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
-                half wideLit = 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0));
-                half cloudLit = (1 - PunchyCloudShadow(input.positionWS)) * (1 - _PunchyUnderground) * (1 - _FloraInCave);
-                half shadow = min(light.shadowAttenuation, wideLit) * cloudLit;
+                // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them
+                // (Surface.hlsl; the wide map's bias along straight up, as for every plant).
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
                 // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
                 // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
                 // ambient (the daylight spilling in at a mouth).
-                // (folded into cloudLit above, so the light through leaves below is dark there too)
-                half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
+                ps.wideNormalWS = half3(0, 1, 0);
+                ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                // Past the far map: the island's static glow and distant towns' light (R-10 row 4), not in caves
+                // (profiler pricing: -floraglowworld 0 skips it).
+                ps.glowWorldReach = (1 - _FloraInCave) * (_PunchyFloraGlowWorldOff < 0.5);
+                ps.positionCS = input.positionCS;
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
+                half3 sky = lit.ambient;
                 // Roof undersides, eaves and overhangs on built things see the ground, not the sky (Grounding.hlsl).
                 half under = part == 0 && built ? PunchyUnderside(n.y) : 0;
                 if (under > 0)
@@ -345,20 +385,9 @@ Shader "Punchy/Flora"
                     albedo *= lerp(1, PunchyUndersideAlbedo, under);
                 }
                 // Glowing plants and molten pools nearby (their own glow included, softly).
-                sky += PunchyGlowLight(input.positionWS, n);
-                // Past the far map: the island's static glow and distant towns' light (R-10 row 4), not in caves.
-                [branch] if (_PunchyFloraGlowWorldOff < 0.5)   // (profiler pricing, -floraglowworld 0)
-                    sky += PunchyGlowWorld(input.positionWS, n) * (1 - _FloraInCave);
+                sky += lit.glow;
                 // Real lights (the lantern among them) with the glow falloff; without Forward+ the lantern alone.
-                sky += PunchyRealLights(input.positionWS, n, input.positionCS);
-#if !PUNCHY_REAL_LIGHTS
-                if (_PunchyLantern.w > 0)
-                {
-                    float3 toLantern = _PunchyLantern.xyz - input.positionWS;
-                    float reach = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
-                    sky += _PunchyLanternColor.rgb * _PunchyLantern.w * reach * reach * saturate(dot(n, normalize(toLantern)) * 0.7 + 0.3);
-                }
-#endif
+                sky += lit.lights + lit.lantern;
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
                 // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
@@ -370,7 +399,7 @@ Shader "Punchy/Flora"
                 half3 color = albedo * (light.color * shadow * diffuse * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
                 // Light through the leaves (R-30 row 2, Flora.hlsl), its own soft self-shadow; thinner deep in the crown.
                 if (leafy && !metal)
-                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, wideLit * cloudLit, lerp(0.5, 1, ao) * input.thin);
+                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, (1 - lit.wide) * (1 - lit.cloud) * ps.sunReach, lerp(0.5, 1, ao) * input.thin);
                 // Tinted reflections of the sky, a sharp sun highlight, and glints that twinkle as the leaves move and
                 // the view changes (shared with creature gear: Metal.hlsl).
                 if (metal)
@@ -379,6 +408,8 @@ Shader "Punchy/Flora"
                 // surfaces have a little smoothness), so rocks fade into the same sky-tinted haze as the land. Metal
                 // and crystal too: dark ones (obsidian) otherwise stay black specks on a distant hazy slope. Up close
                 // dry stone, wood and plaster stay matte (rain adds its own sheen below).
+                if (stone && stoneWet > 0.01)
+                    color += SampleSH(reflect(-v, n)) * PunchyStoneFresnel(n, v, crevice, stoneWet) * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
@@ -511,6 +542,19 @@ Shader "Punchy/Flora"
                 // highlight of wet stone or planks (on them it read as shiny plastic and showed up the evergreens' facets).
                 bool damp = bark || leafy;
                 half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5);
+                if (stone && stoneWet > 0.01)
+                {
+                    // Wet stone's own two lobes, from the sun and the lantern, in place of the wet gloss.
+                    color += light.color * shadow * PunchyStoneSpec(n, stoneN0, v, light.direction, crevice, stoneWet) * ao;
+                    if (_PunchyLantern.w > 0)
+                    {
+                        float3 toLantern = _PunchyLantern.xyz - input.positionWS;
+                        float reachL = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+                        color += _PunchyLanternColor.rgb * _PunchyLantern.w * reachL * PunchyStoneSpec(n, stoneN0, v, normalize(toLantern), crevice, stoneWet) * ao;
+                    }
+                }
+                if (stone)
+                    gloss = 0;
                 if (gloss > 0)
                 {
                     half3 h = normalize(light.direction + v);
@@ -524,7 +568,7 @@ Shader "Punchy/Flora"
                     }
                 }
 
-                color = PunchyAtmosphere(color, input.positionWS);
+                color = PunchySurfaceFinish(color, ps);
                 return half4(color, 1);
             }
             ENDHLSL

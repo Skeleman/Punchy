@@ -54,7 +54,9 @@ namespace Punchy.Fauna
         /// <summary>A child's ride home: the grown-up is nearly at its door (or has given up going home).</summary>
         Home,
         /// <summary>The ride's time is up.</summary>
-        Done
+        Done,
+        /// <summary>P-43: a player's rider and mount no longer fit (a body changed: Riding.Check's mass rule, or wings).</summary>
+        Size
     }
 
     /// <summary>

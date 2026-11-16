@@ -1276,6 +1276,7 @@ half3 PunchySkyVolumesFromLut(half3 color, float3 dir)
 
 // 0..1: how fully clear and sunny the day is round the camera (WeatherSystem): the base haze thins there (item 30).
 half _PunchyHazeClear;
+half _PunchyNightHaze;            // R-39 row 2 (#402): the share of the haze's brightness kept at night (GlowLook; unset is 1)
 
 // Everything between the camera and a surface point: weather volumes, then the base haze (fog coloured like the
 // horizon, thick enough at the edge of the streamed terrain to hide it).
@@ -1324,6 +1325,8 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
                         0.5 * saturate(PunchyTwilightAmount(hazeElevation) * 3) * smoothstep(-3, 0, hazeElevation));
     half3 horizon = twilightHaze + _PunchySunColor * pow(saturate(dot(flat, _PunchySunDirection)), 12) * 0.25 * clearness;
     horizon = PunchyHazeFromLut(horizon, flat.xz, PUNCHY_HAZE_RANGE);
+    // R-39 row 2 (#402, Zach 11-15): a darker night haze, so far land sinks into the night and glows stand out.
+    horizon *= _PunchyNightHaze > 0 ? _PunchyNightHaze : 1;
     return lerp(color, horizon, haze);
 }
 

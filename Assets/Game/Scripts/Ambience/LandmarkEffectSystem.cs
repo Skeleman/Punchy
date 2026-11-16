@@ -22,8 +22,13 @@ namespace Punchy.Ambience
         public Material WaterfallMaterial;
         [Tooltip("Effects of landmarks within this distance of the camera are drawn.")]
         public float Range = 700f;
-        /// <summary>Flame effects are lit within this distance (they're small; FireSystem draws them each frame).</summary>
-        const float FlameRange = 150f;
+        /// <summary>R-39 (#401, rule 20): a flame is drawn in full while it looks bigger than
+        /// DetailPolicy.TorchFlamePixels (a 0.35 m torch to 150 m at the reference view, x Detail, as the fixed 150 m
+        /// it replaces), by its 3D distance, so a bigger fire reaches further. It used to stop at a flat 150 m from the
+        /// camera, which a glide at about that height crossed over every lit town. Past its reach it hands over
+        /// (crossfaded) to the far flame (FireSystem.AddFarFlame, no sparks or smoke) until that is under
+        /// FarFlamePixels.</summary>
+        const float TorchSize = 0.35f, FarFlamePixels = 0.5f, FlameHandOver = 0.85f;
         /// <summary>The index offsets of river falls, their spray and the grand falls' tiers in the nearby list.</summary>
         const int RiverFallBase = 1000000, RiverSprayBase = 1500000, GrandFallBase = 2000000;
         /// <summary>
@@ -152,14 +157,28 @@ namespace Punchy.Ambience
             }
             var eye = cam.transform.position;
             FallSounds(eye);
-            var flameRange = Punchy.Settings.GraphicsSettings.DetailRange(FlameRange);
+            var flameRange = Punchy.Settings.DetailPolicy.ExtraReach(TorchSize, Punchy.Settings.DetailPolicy.TorchFlamePixels);
             // Night-only fires catch as the light goes (the sky's night past a fifth) and die down at dawn.
             var lit = math.saturate((Shader.GetGlobalFloat(NightId) - 0.2f) / 0.3f);
             foreach (var f in fires)
             {
                 var size = f.night ? f.size * lit : f.size;
-                if (size > 0.02f && (f.at - eye).sqrMagnitude < flameRange * flameRange)
-                    FireSystem.AddFlame(f.at, size, f.seed, f.palette);
+                if (size <= 0.02f)
+                    continue;
+                // (R-39: by the flame's own size on screen, 3D distance; see TorchSize.)
+                var d = Vector3.Distance(f.at, eye);
+                var reach = Punchy.Settings.DetailPolicy.ExtraReach(f.size, Punchy.Settings.DetailPolicy.TorchFlamePixels);
+                var fade = Punchy.Settings.DetailPolicy.Crossfade(d, reach * FlameHandOver, reach);
+                if (fade < 1f)
+                    FireSystem.AddFlame(f.at, size * (1f - fade), f.seed, f.palette);
+                if (fade > 0f)
+                {
+                    // (No further than Gather lists fires: Range, a 2D superset of this 3D reach.)
+                    var farReach = math.min(Punchy.Settings.DetailPolicy.ExtraReach(f.size, FarFlamePixels), Punchy.Settings.GraphicsSettings.ViewRange(Range));
+                    var farSize = size * fade * (1f - Punchy.Settings.DetailPolicy.Crossfade(d, farReach * 0.7f, farReach));
+                    if (farSize > 0.02f)
+                        FireSystem.AddFarFlame(f.at, farSize, f.seed + 1, f.palette);
+                }
             }
             // Each fire's light: brighter and further for a wider fire, flickering; LightBudget decides by its
             // on-screen reach whether it lights (a glow slot) or only its flames show (refactor 3.1).

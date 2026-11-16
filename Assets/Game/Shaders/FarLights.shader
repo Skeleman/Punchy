@@ -38,10 +38,10 @@ Shader "Punchy/Far Lights"
             StructuredBuffer<FarPoint> _FarLights;
             // Per kind (FarLightPolicy.Pack): brightness (on and tier folded in); core size, least pixels, halo reach,
             // halo share; haze share, reach (m), fade from, fade to (reference pixels).
-            float4 _FarLightBright[7];
-            float4 _FarLightShape[7];
-            float4 _FarLightFade[7];
-            float4 _FarLightParams;                 // x reference pixels a metre at 1 m (DetailPolicy)
+            float4 _FarLightBright[8];
+            float4 _FarLightShape[8];
+            float4 _FarLightFade[8];
+            float4 _FarLightParams;                 // x reference pixels a metre at 1 m (DetailPolicy), y core cap
             float4 _FarFireColor;                   // tonight's forest fire colour (its brightest channel 1)
             float _PunchyHazeDensity;               // (Sky.hlsl) the haze per metre
 
@@ -69,7 +69,7 @@ Shader "Punchy/Far Lights"
             {
                 static const float2 Corners[6] = { float2(-1, -1), float2(1, -1), float2(-1, 1), float2(-1, 1), float2(1, -1), float2(1, 1) };
                 FarPoint p = _FarLights[vertex / 6];
-                uint kind = min((uint)p.color.w, 6u);
+                uint kind = min((uint)p.color.w, 7u);
                 float4 shape = _FarLightShape[kind];
                 float4 fadeRule = _FarLightFade[kind];
                 float2 corner = Corners[vertex % 6];
@@ -112,8 +112,16 @@ Shader "Punchy/Far Lights"
                     discard;
                 // A bright core and a faint wide halo, so a far cluster of lights runs together.
                 float r2 = dot(input.quad, input.quad);
-                half glow = exp(-r2 * 3.5) + input.halo * exp(-r2 * 0.35);
-                return half4(input.color * glow, 0);
+                float glow = exp(-r2 * 3.5) + input.halo * exp(-r2 * 0.35);
+                // Over the knee (0.4 of the core cap), eased under the cap by its brightest channel with the others
+                // scaled alike, so a warm core stays warm rather than clipping white. A cap of 0 is no easing.
+                float3 c = input.color * glow;
+                float cap = _FarLightParams.y;
+                float top = max(max(c.r, c.g), c.b);
+                float over = max(top - cap * 0.4, 0);
+                if (cap > 0 && over > 0)
+                    c *= (top - over + over / (1 + over / (cap * 0.6))) / top;
+                return half4(c, 0);
             }
             ENDHLSL
         }

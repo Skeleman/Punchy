@@ -87,6 +87,7 @@ Shader "Punchy/Cave"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            #include "Materials/Stone.hlsl"
 
             Varyings Vert(CaveAttributes input)
             {
@@ -189,7 +190,10 @@ Shader "Punchy/Cave"
                 // Where daylight comes in (a mouth) the fine detail fades towards the terrain's own level beside it, so
                 // the walls don't turn sharply grainier at the opening (G-35).
                 float detailStrength = s7.x * lerp(1, 0.35, openness);
-                n = normalize(n + nudge * detailStrength * (1 - terrain) * (1 - slick));
+                // R-34 row 2: bare rock and dressed stone take their surface from the shared stone (Stone.hlsl, below), so
+                // the cave's own fine grain stays off it (no double noise). Not ice, crystal facets, bone or wood.
+                float stoneShare = _PunchyCaveDetailReady > 0 && _Dressed > -0.5 && _Dressed < 1.5 ? (1 - terrain) * (1 - slick) * (1 - s3.z) : 0;
+                n = normalize(n + nudge * detailStrength * (1 - terrain) * (1 - slick) * (1 - stoneShare));
 
                 // Faceted rock (ore, crystal): each triangle shaded with its own flat face normal (from screen
                 // derivatives), so the angular walls read as planes meeting at sharp edges, each catching the light
@@ -205,7 +209,7 @@ Shader "Punchy/Cave"
                 // detail takes the light tone (frost on ice), sunken detail the dark one (deep blue in its recesses).
                 float blotch = PunchyValueNoise(p.xz * 0.35 + p.y * 0.2) * 0.6 + PunchyValueNoise(p.xy * 1.3 + p.z) * 0.4;
                 float strata = 0.5 + 0.5 * sin(p.y * s1.w * 6.2832 + PunchyValueNoise(p.xz * 0.2) * 4);
-                float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * detailStrength);
+                float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * detailStrength * (1 - stoneShare));
                 half3 rock = lerp(s1.rgb, s0.rgb, tone) * input.data.y;
                 // The floor: its own two tones with grit (sand, gravel, ash, frost crust).
                 half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
@@ -220,9 +224,13 @@ Shader "Punchy/Cave"
                     float stoneShare = saturate(-input.data.z);
                     roadShare = saturate(input.data.z) * smoothstep(0.5, 0.75, shape.y) * (1 - terrain);
                     float bareWall = (1 - stoneShare) * (1 - roadShare) * (1 - terrain);
-                    // Cut stone courses on the side walls of a built tunnel, ending raggedly where the vault and the
-                    // floor take over.
-                    float courses = built ? (1 - smoothstep(0.35, 0.55, abs(shape.y) + (PunchyValueNoise(p.xz * 0.7 + p.y * 0.5 + 19) - 0.5) * 0.25)) * bareWall : 0;
+                    // Cut stone courses on the side walls of a built tunnel. W-172 row 4: they stop at a clear edge
+                    // under the vault (no ragged noise), topped by a capping course of long pale stones with a dark
+                    // shadow line where the rough vault rock hangs over it.
+                    float slope = abs(shape.y);
+                    float courses = built ? (1 - smoothstep(0.43, 0.45, slope)) * bareWall : 0;
+                    float capping = built ? smoothstep(0.35, 0.36, slope) * courses : 0;
+                    float overhang = built ? smoothstep(0.44, 0.46, slope) * (1 - smoothstep(0.46, 0.52, slope)) * bareWall : 0;
                     // Rough rock: a coarse read of the shared detail, so the bare rock breaks into knobs and hollows
                     // at arm's length (flatter where it's cut stone).
                     float3 coarseNudge;
@@ -231,24 +239,26 @@ Shader "Punchy/Cave"
                     rock *= lerp(1, 0.75 + 0.5 * coarse.b, bareWall);
                     [branch] if (courses > 0)
                     {
-                        // Rows 0.42 m high, each set off along the wall by its own share of a block, joints where the
-                        // wall crosses the x or z planes it runs across (both on a slanting wall).
-                        const float rowHeight = 0.42, blockLength = 0.95;
-                        float row = floor(p.y / rowHeight);
-                        float fy = frac(p.y / rowHeight);
-                        float joint = min(fy, 1 - fy) * rowHeight;
-                        float offset = frac(row * 0.618) * blockLength;
-                        bool acrossX = abs(shape.x) < 0.75, acrossZ = abs(shape.z) < 0.75;
-                        float bx = (p.x + offset) / blockLength, bz = (p.z + offset) / blockLength;
-                        if (acrossX) joint = min(joint, min(frac(bx), 1 - frac(bx)) * blockLength);
-                        if (acrossZ) joint = min(joint, min(frac(bz), 1 - frac(bz)) * blockLength);
-                        int3 block = int3(row, acrossX ? floor(bx) : 0, acrossZ ? floor(bz) : 0);
-                        float blockTone = 0.8 + 0.4 * (FacetHash(block).x + 0.5);
-                        float mortar = 1 - smoothstep(0.012, 0.03, joint);
-                        float bevel = 1 - smoothstep(0.03, 0.09, joint);
-                        rock = lerp(rock, rock * blockTone * (1 - bevel * 0.25), courses);
-                        rock = lerp(rock, rock * 0.45, mortar * courses);
+                        // W-166 row 3: the one built stone (Materials/Stone.hlsl, cut courses), as the towns' fountains
+                        // and plinths. Its footprint from the distance, safe in this branch (rule 24). W-172 row 4's clear
+                        // top edge and capping course stay here: the library draws the courses, the tunnel only its cap.
+                        float footprint = length(_WorldSpaceCameraPos - p) * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11);
+                        half3 cutN = n;
+                        float body = courses * (1 - capping);
+                        rock = lerp(rock, rock * PunchyStoneBlocks(p, cutN, footprint, false, 0), body);
+                        n = normalize(lerp(n, cutN, body));
+                        // The capping course: long pale stones, one joint per two blocks, a dark bed joint under them.
+                        const float blockLength = 0.95;
+                        bool acrossX = abs(shape.x) < 0.75;
+                        float capJoint = acrossX ? frac(p.x / blockLength * 0.5) : frac(p.z / blockLength * 0.5);
+                        capJoint = min(capJoint, 1 - capJoint) * blockLength * 2;
+                        float capTone = 1.12 + 0.12 * (FacetHash(int3(floor(p.y / 0.42), floor(p.x / (blockLength * 2)), floor(p.z / (blockLength * 2)))).y);
+                        rock = lerp(rock, rock * capTone, capping);
+                        float capMortar = max(1 - smoothstep(0.018, 0.034, capJoint), smoothstep(0.35, 0.36, slope) * (1 - smoothstep(0.36, 0.372, slope))) * capping;
+                        rock = lerp(rock, rock * 0.38, capMortar * courses);
                     }
+                    // The shadow line just over the courses, where the vault's rock stands out over them.
+                    rock *= 1 - overhang * 0.55;
                     // Fallen stones: pale grey, darker where they sit in the floor.
                     half3 stone = half3(0.62, 0.6, 0.56) * (0.7 + 0.6 * detail.b) * (0.8 + 0.4 * coarse.b) * input.data.y;
                     rock = lerp(rock, stone, smoothstep(0.5, 0.9, stoneShare));
@@ -395,6 +405,21 @@ Shader "Punchy/Cave"
                 // Slick ice: the deep, clear tone of the rock and a mirror gloss.
                 rock = lerp(rock, s1.rgb * 0.8, slick * 0.7);
                 gloss = lerp(gloss, 0.97, slick);
+                // R-34 row 2: the shared stone's surface (Stone.hlsl); wet where the cave is damp, its lobes replacing the
+                // gloss highlight there. Not ice, nor the ground's share (that takes it below, as the terrain does).
+                half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
+                half3 stoneN0 = n;
+                float stoneFootprint = length(fwidth(p));
+                [branch] if (stoneShare > 0.001)
+                {
+                    stoneOn = stoneShare;
+                    stoneWet = PunchyStoneWetness(damp);
+                    half3 stoneRock = rock, stoneN = n;
+                    PunchyStoneSurface(p, stoneFootprint, stoneWet, damp * (dressed > -0.5 && dressed < 0.5), stoneRock, stoneN, stoneCrevice);
+                    rock = lerp(rock, stoneRock, stoneOn);
+                    n = normalize(lerp(n, (float3)stoneN, stoneOn));
+                    gloss *= 1 - stoneOn * stoneWet;
+                }
                 // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
                 half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
                 half3 albedo = lerp(rock, ground, terrain);
@@ -415,13 +440,15 @@ Shader "Punchy/Cave"
                 half3 light = SampleSH(n) * lerp(_Darkness, 1, openness);
                 // R-36: cloud shadow only where the sky is overhead; one read, shared with the terrain share below.
                 half cloudShadow = 0;
+                half3 shine = 0;
                 if (openness > 0.001)
                 {
                     cloudShadow = PunchyCloudShadow(p);
                     Light sun = GetMainLight(TransformWorldToShadowCoord(p));
                     light += sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness * (1 - cloudShadow);
+                    [branch] if (stoneOn * stoneWet > 0.01)
+                        shine += sun.color * sun.shadowAttenuation * openness * (1 - cloudShadow) * PunchyStoneSpec(n, stoneN0, view, sun.direction, stoneCrevice, stoneWet) * stoneOn;
                 }
-                half3 shine = 0;
                 half3 through = 0;
 
                 // Lanterns and other lights work everywhere: diffuse, highlights on polished, wet or crystal rock, and
@@ -442,6 +469,8 @@ Shader "Punchy/Cave"
                     float3 h = normalize(toLight + view);
                     shine += lit * pow(saturate(dot(n, h)), shininess) * saturate(gloss + metallic * 0.6 + facets * 0.8) * glint;
                     through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, toLight)));
+                    [branch] if (stoneOn * stoneWet > 0.01)
+                        shine += lit * PunchyStoneSpec(n, stoneN0, view, toLight, stoneCrevice, stoneWet) * stoneOn;
                 LIGHT_LOOP_END
 
                 // Glowing things nearby (molten pools, glowing plants): their light falling off over its reach, brightest
@@ -471,6 +500,8 @@ Shader "Punchy/Cave"
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
                 // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
                 color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);
+                [branch] if (stoneOn * stoneWet > 0.01)
+                    color += SampleSH(reflect(-view, n)) * lerp(_Darkness, 1, openness) * PunchyStoneFresnel(n, view, stoneCrevice, stoneWet) * stoneOn;
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
                     color = lerp(color, PunchyAtmosphere(color, p), openness);
@@ -482,21 +513,18 @@ Shader "Punchy/Cave"
                 [branch] if (terrain > 0.001)
                 {
                     half wet = PunchyWetnessAt(p.xz).r * openness;
-                    // The terrain's rock grain on steep faces (TerrainSurface: the shared detail at 0.6, three ways).
+                    // Steep faces take the shared stone surface, as the terrain's rock faces do (R-34 row 2), so the seam
+                    // matches; the PBR call's own wet gloss stands in for the lobes on this thin share.
                     float3 groundNormal = shape;
-                    half rockShade = 1;
+                    half3 groundAlbedo = input.color.rgb;
                     half steep = 1 - smoothstep(0.55, 0.8, shape.y);
-                    if (steep > 0.01 && _PunchyCaveDetailReady > 0)
+                    [branch] if (steep > 0.01 && _PunchyCaveDetailReady > 0)
                     {
-                        float3 q = p * 0.6;
-                        float3 tw = pow(abs(shape), 4);
-                        tw /= tw.x + tw.y + tw.z;
-                        half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
-                                 + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz) * tw.y
-                                 + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy) * tw.z;
-                        half2 rb = (rd.rg - 0.5) * 0.8 * steep;
-                        groundNormal = normalize(shape + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
-                        rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
+                        half3 sa = groundAlbedo, sn = shape;
+                        half sc;
+                        PunchyStoneSurface(p, stoneFootprint, PunchyStoneWetness(wet), wet, sa, sn, sc);
+                        groundAlbedo = lerp(groundAlbedo, sa, steep);
+                        groundNormal = normalize(lerp(shape, (float3)sn, steep));
                     }
                     InputData ground = (InputData)0;
                     ground.positionWS = p;
@@ -508,7 +536,7 @@ Shader "Punchy/Cave"
                     ground.normalizedScreenSpaceUV = inputData.normalizedScreenSpaceUV;
                     ground.shadowMask = half4(1, 1, 1, 1);
                     SurfaceData groundSurface = (SurfaceData)0;
-                    groundSurface.albedo = input.color.rgb * rockShade * lerp(1, 0.72, wet);
+                    groundSurface.albedo = groundAlbedo * lerp(1, 0.72, wet);
                     groundSurface.smoothness = lerp(0.15, 0.45, wet);
                     groundSurface.occlusion = 1;
                     groundSurface.alpha = 1;

@@ -71,7 +71,7 @@ namespace Punchy.Fauna
         public static readonly Unity.Burst.SharedStatic<SearchCounts> Searches = Unity.Burst.SharedStatic<SearchCounts>.GetOrCreate<SearchCountsKey2>();
         // (Key renamed when the struct grew in A-47: a SharedStatic keeps its first size until the editor restarts.)
         struct SearchCountsKey2 { }
-        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips; }
+        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips, Legs; }
         /// <summary>
         /// A-72: the walking colossi (<see cref="ColossusWalker"/>), one column each: (x, z, radius m, heading radians);
         /// radius 0 is an empty column. Creatures inside a circle get out of the way (A-72 row 2).
@@ -585,6 +585,9 @@ namespace Punchy.Fauna
                 // A-104: a rider has no mind of its own while it rides; RideSystem puts it on its mount.
                 if (s.Mode == CreatureMode.Ride)
                     return;
+                // A-110 row 5: a town member far from every player only follows its day (Legs) until something wakes it.
+                if (M.Legs != 0 && Legs(self, ref s, in body))
+                    return;
                 // #59 brain LOD: far from every player it thinks only on its turn, for the time since its last think; on
                 // the frames between, anything moving coasts along its heading (taken back before it next thinks, so the
                 // think moves it the whole way): a walker on open ground follows the ground, a flier or swimmer keeps its
@@ -741,7 +744,9 @@ namespace Punchy.Fauna
                 s.Clock += dt;
                 if (s.Mode == CreatureMode.Puppet)
                 {
-                    Advance(ref s, ref b, dt);
+                    // (An animal a player rides and steers, Holder naming the player: placed by SteeredMountSystem, A-126 row 4.)
+                    if (s.Holder <= 0)
+                        Advance(ref s, ref b, dt);
                     return;
                 }
                 // A sand or snow worm lives its own life under the ground, heeding nothing.
@@ -1278,7 +1283,7 @@ namespace Punchy.Fauna
 
                 // Bat folk (#35): a light coming near breaks off what it was doing, to cover its face at once
                 // (DecideShield) rather than when its timer runs out.
-                if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && s.Held != HeldItem.Goggles &&
+                if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && !Punchy.Items.FolkKits.Shaded(in s) &&
                     (Free(s.Mode) || s.Mode == CreatureMode.Work) && !(s.Mode == CreatureMode.Idle && s.Timer <= 0.6f))
                     // (Straight into the cover, not via Decide next tick: a moment idle and facing the light, it would
                     // see the player and bolt instead. A-68.)
@@ -1798,7 +1803,9 @@ namespace Punchy.Fauna
                 {
                     s.Speed *= 0.5f;
                     // (A-88 row 1: one following a player veers too, for a moment, rather than crawl into it.)
-                    var following = M.FollowHolder != 0 && M.FollowDetourTime <= 0f;
+                    // (A-110 row 4: so does one walking to its door, which stood against a wall or a bank before, far
+                    // out of its town, till its brain gave the door up: GoIndoors keeps to the spot as Follow does.)
+                    var following = (M.FollowHolder != 0 || s.Mode == CreatureMode.Home && s.Stage == 0) && M.FollowDetourTime <= 0f;
                     if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1 || following)
                     {
                         // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
@@ -1923,8 +1930,9 @@ namespace Punchy.Fauna
                     var tool = ((s.Individual >> 9) % 3u) switch { 0u => HeldItem.Staff, 1u => HeldItem.Stick, _ => HeldItem.None };
                     if (s.Mode == CreatureMode.Wander && s.Stage == CarryGoods)
                         tool = HeldItem.OreSack;
-                    s.Held = !Below(s, ref b) && Night < 0.5f ? HeldItem.Goggles
-                           : s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
+                    // (Smoked goggles on the surface by day: a head item, so its hands stay free; P-38 row 3.)
+                    Punchy.Items.FolkKits.SetShades(ref s, !Below(s, ref b) && Night < 0.5f);
+                    s.Held = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
                 }
                 else if (b.Blind && b.Hands)
                     s.Held = ((s.Individual >> 7) & 3u) != 0 && s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? HeldItem.Staff : HeldItem.None;
