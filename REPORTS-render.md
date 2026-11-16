@@ -883,3 +883,10 @@ with main d95e7ff1); compiles, no suite run yet.
 - What it changes: maxQueuedFrames 0 can stall or misbehave on some drivers, and the review of #424 asked for at least 1. It only affects runs that pass `-maxqueued`, which are bench and test start-up flags. Normal play and builds without the flag keep Unity's default (MaxQueued -1).
 - Risk: very low. A bench job that asked for `-maxqueued 0` would now get 1, so the profiler should know if any BENCH-QUEUE job used 0. The range check still accepts 0, which is intended (it maps to 1).
 - Editor check folded into the next slot: one play start with `-maxqueued 0`, expecting the log line "maxQueuedFrames 1". After that it is ready for PR.
+
+## 11-16 render: R-22 r1 High-on NaN check passed, slot ended on RAM (third time)
+- render/far-island@98bc7ca2, no code change. The watch saw 14.4 GB free at 04:47.
+- My first launch shut down during startup with a crash-handler report. Cause: I wrapped start-quiet.ps1 in `timeout 50`, which took the editor down with the launcher. This was not a project bug. Relaunched without the wrapper; it went fine.
+- High, far island on, `-sparkleprobe r22`: summary 360 frames, 0 with markers (NaN 0, rule 24). Only 2 of 10 shots (warmup, summit) were taken before free RAM fell to 3.4 GB. My editor was at 4.6 GB; the other editors use the rest. I left play mode and closed with EditorApplication.Exit, which was clean in about 30 s.
+- Still to do: High-on shots 3-10, Medium-off, High-off, the coast A/B, the final commit, the BENCH ask, the lava check (#302), and the clamp check on b/fix-maxqueued-clamp (one play start with `-maxqueued 0`, expecting "maxQueuedFrames 1").
+- Starting at 12-14 GB free is not enough while about five other editors are open: a High run pushes the machine below 4 GB. Doing the remaining runs needs either fewer other editors or the coordinator allowing a run to finish down to about 2 GB.
