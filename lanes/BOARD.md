@@ -51,7 +51,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-23 r4+r5 | #298 | render-2 | DONE in editor 11-16 (HeatHaze kept in metres: physical effect, pushback accepted) | render/one-surface-5@9701f8a3, draft PR #494 | Drift pair + colossus clouds on/off done 11-16 (REPORTS); waits only on BENCH job 109 |
 | R-35 r2 | #333 | render-2 | row 2 done in editor 11-16 (picks A-E, E = main at fov 60 D1); shots in PunchyMilestones/R-35 for Zach | render/cloud-picks@b7a1f7cc (after #494) | Waits on Zach's picks for row 3; BENCH draft in REPORTS to file |
 | R-31 | #325 | render | editor-free start 11-16 (row 1 probe plan, row 2 prototypes a-d) | render/grass-fields (new off main) | Editor slot on request |
-| R-29 | #320 | render-2 | row 1 approved; kit folder Scripts/Rendering/Effects (render-2 owns); row 2 call sites wired (Flora bolts, GolemArcs, LightKind.Electric), uncompiled, waits on editor slot after render | render/effects-kit@05a8043f (Punchy-release) | render/hour-sync-doc landed as #500 |
+| R-29 | #320 | render-2 | paused (budget). Row 2 call sites wired; row 3 bolt gather by screen size done; all uncompiled, needs editor slot (port 7987) | render/effects-kit@63f794f7 (Punchy-release) | resume on coordinator message |
 | #400 cull | #400 | fauna | queued after r4/r5/walkin-walls (Job 96 FAIL cause) | fauna/cull-no-stall (new off main) | CreatureRenderSystem: no same-frame Complete of the cull |
 | #400 mesh | #400 | world | queued after M-07 r2b, W-172 r7 | world/chunk-mesh-budget (new off main) | Per-frame chunk-mesh budget by screen size; tunnel-mouth burst |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
