@@ -1,6 +1,7 @@
 using Punchy.Terrain;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -266,7 +267,7 @@ namespace Punchy.Flora
         struct CanopyBlurJob : IJobParallelFor
         {
             [ReadOnly] public NativeArray<float4> Sums, SumsB;
-            [WriteOnly] public NativeArray<Color32> OutA, OutB;
+            [WriteOnly, NativeDisableParallelForRestriction] public NativeArray<Color32> OutA, OutB;   // (one row each)
 
             public void Execute(int row)
             {
