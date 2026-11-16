@@ -34,6 +34,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
+            #include "ScreenSize.hlsl"
             #include "Flora.hlsl"
             #include "Materials/Stone.hlsl"
             #include "Grounding.hlsl"
@@ -241,7 +242,9 @@ Shader "Punchy/Flora"
                 // Built things keep it much further (W-23): faded by 45 m, a thatch roof turned into a smooth, plain cone
                 // whose few facets showed, across the 30-55 m where huts also change LOD. Few of them, and the texture's
                 // mips keep the far relief from shimmering.
-                float detailFade = distance(input.positionWS, GetCameraPositionWS());
+                // R-23 row 4 (rule 20): metres in the tuning view (Medium, 60 degrees, 1080 lines), the same on-screen size
+                // in any other (ScreenSize.hlsl).
+                float detailFade = PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()));
                 float near = built ? 1 - smoothstep(60, 140, detailFade) : 1 - smoothstep(18, 45, detailFade);
                 // Timber keeps only a trace of the rock's relief (W-99: it gave the fishing huts' boards a plaster's depth).
                 near *= wood ? (look == 3 ? 0.35 : 0.15) : 1;
@@ -294,7 +297,7 @@ Shader "Punchy/Flora"
                     // with distance, where the crown reads as one mass anyway).
                     float3 q = (input.positionWS - frac(r * 7.3) * 10) * 2.2;
                     half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
-                    half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
+                    half leafNear = 1 - smoothstep(40, 90, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS())));
                     albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
                 }
                 // Moss (W-64): darker, greener clumps and yellower tips, and darker still in the thin cover near the rim.
@@ -408,7 +411,7 @@ Shader "Punchy/Flora"
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
-                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
+                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()))));
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 }
 
@@ -494,7 +497,7 @@ Shader "Punchy/Flora"
                 if (part == 5)
                 {
                     // A steady glow beyond 100 m, where the shimmer can't be seen.
-                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, distance(input.positionWS, GetCameraPositionWS())));
+                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()))));
                     float pulse = 1 + amount * sin(_PunchyClock * 0.55 + r * 40 + input.positionWS.y * 0.7);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
@@ -530,7 +533,7 @@ Shader "Punchy/Flora"
                     float2 hexB = fmod(abs(q + float2(0.866, 0.5)), float2(1.732, 1)) - float2(0.866, 0.5);
                     float2 h2 = dot(hexA, hexA) < dot(hexB, hexB) ? hexA : hexB;
                     float rim = max(abs(h2.y), dot(abs(h2), float2(0.866, 0.5)));
-                    half cellNear = 1 - smoothstep(4, 10, distance(input.positionWS, GetCameraPositionWS()));
+                    half cellNear = 1 - smoothstep(4, 10, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS())));
                     color *= 1 - smoothstep(0.38, 0.47, rim) * 0.35 * cellNear;
                 }
                 // Items 27-28: wet bark and leaves are rough and absorbent: a faint, broad damp sheen, not the sharp
