@@ -5302,3 +5302,17 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Risk: merge order with A-130 (dune-groves re-pins to 9EFF3BCF); whichever lands second keeps the other's pin.
 - Shares: island cache / TerrainSource blob pattern (same as Scarps, CliffKit, CaveSockets). No parallel found.
 - NEXT: A-126 rows 2-4 on fauna/playtest-1114.
+
+## M-07
+
+### Row 1 - design note (lab, 11-15)
+- Note: docs/agents/map-editor.md on lab/map-editor 0dea2a94 (#260). No code, no editor.
+- Loading: edit scene reads the island cache (W-140), meshes only around the scene camera, brush preview re-meshes chunks under the brush; places refit only on Re-bake.
+- Edits file: IslandEdits asset, sparse 64 m tiles of half-float deltas at 2 m, strokes flattened on save, ships beside the world file (W-168).
+- Fixed point: added to the base height (ShapeHeight/BaseHeight) after Generate, before BuildPlaces, so rivers, roads and towns refit. Empty file = byte-identical bake, pins hold; edits move hashes.
+- W-174: proposed as one record kind (painted delta) at a base-layer stage. Open question to the world lane: does W-174 have a pre-place stage?
+- Orphans: [map-edits] warnings for tiles under towns, beds, cave sockets, rivers, or painted on another island version; never fails.
+- Multiplayer: edits hash in the island cache key and WorldSync.Signature; mismatch refused. No network transfer this card.
+- Cost: cache hit unchanged; changed edits = one rebake. Numbers via BENCH-QUEUE after row 2.
+- Zach: refit (hashes move) vs places fixed; brush set raise/lower/smooth/flatten.
+- NEXT: stop for Zach's OK and the W-174 answer.
