@@ -65,8 +65,7 @@ namespace Punchy.Dungeon
                 for (int b = a + 1; b < n; b++)
                 {
                     RuinRoom ra = rooms[a], rb = rooms[b];
-                    float ou = math.min(ra.U1, rb.U1) - math.max(ra.U0, rb.U0), ov = math.min(ra.V1, rb.V1) - math.max(ra.V0, rb.V0);
-                    if (ou < -0.25f || ov < -0.25f || math.max(ou, ov) < 0.5f)
+                    if (!Touch(ra, rb))
                         continue;
                     neighbours[a]++;
                     neighbours[b]++;
@@ -82,8 +81,8 @@ namespace Punchy.Dungeon
                 float cu = (r.U0 + r.U1) * 0.5f, cv = (r.V0 + r.V1) * 0.5f;
                 float Floor(float u, float v) => r.FloorAt(u) + Sand(drifts, i, u, v);
                 var headroom = r.Ceil - Floor(cu, cv);
-                bool hall = longer >= 2.2f * shorter && shorter <= 5f;
-                bool deadEnd = neighbours[i] == 1 && r.Kind == 0;
+                bool hall = IsHall(r);
+                bool deadEnd = IsDeadEnd(r, neighbours[i]);
                 bool dark = true;
                 for (int k = 0; k < set.RuinSconces.Length && dark; k++)
                 {
@@ -261,6 +260,23 @@ namespace Punchy.Dungeon
             }
             return result;
         }
+
+        /// <summary>Whether two temple rooms touch (a doorway): rectangles 25 cm apart or overlapping, along at least half a metre.</summary>
+        public static bool Touch(in RuinRoom a, in RuinRoom b)
+        {
+            float ou = math.min(a.U1, b.U1) - math.max(a.U0, b.U0), ov = math.min(a.V1, b.V1) - math.max(a.V0, b.V0);
+            return ou >= -0.25f && ov >= -0.25f && math.max(ou, ov) >= 0.5f;
+        }
+
+        /// <summary>A hall piece: long and narrow (at least 2.2 times as long as wide, at most 5 m wide).</summary>
+        public static bool IsHall(in RuinRoom r)
+        {
+            float lu = r.U1 - r.U0, lv = r.V1 - r.V0;
+            return math.max(lu, lv) >= 2.2f * math.min(lu, lv) && math.min(lu, lv) <= 5f;
+        }
+
+        /// <summary>A dead-end piece: a closed room (kind 0) touching just one other.</summary>
+        public static bool IsDeadEnd(in RuinRoom r, int neighbours) => neighbours == 1 && r.Kind == 0;
 
         /// <summary>Sand drifted onto room <paramref name="room"/>'s floor at (u, v): SunkenTempleShape.Sand, from a copy of the drifts.</summary>
         static float Sand(RuinDrift[] drifts, int room, float u, float v)

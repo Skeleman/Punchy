@@ -456,6 +456,15 @@ namespace Punchy.Debugging
                     wallTallest = 0f;
                     wallSearchAt = 0f;
                 }
+                // P-45: "-place piece:hall|deadend|pool": in one of each dungeon piece (DebugControls.DungeonPieces).
+                else if (args[i] == "-place" && args[i + 1].StartsWith("piece:", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    // (Placed again if the landmarks change: see PlacePiecePending.)
+                    piecePending = args[i + 1];
+                    piecePlaceKey = new float3(-1f);
+                    piecePlaceUntil = Time.unscaledTime + 180f;
+                    PlacePiecePending();
+                }
                 // P-5/P-7: "-place temple" / "temple:N": on a sunken temple room's floor (for camera shots underground, #85).
                 else if (args[i] == "-place" && args[i + 1].StartsWith("temple", System.StringComparison.OrdinalIgnoreCase) && EnsureLocations(out var templeSource))
                     PlaceInTemple(templeSource, args[i + 1]);
