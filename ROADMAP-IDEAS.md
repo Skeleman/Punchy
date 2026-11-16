@@ -48,8 +48,8 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **One material library (#336, W-166). Top concern (Zach 11-15):** the same look for a material whether built, held,
   dropped, on an animal or on a colossus. In flight: row 1 audit done 11-14 and confirmed 11-15; row 2 (wood, shared
   includes, test) next for the world lane, then the other families and the creature, item and colossus calls. Shipped: one wood library for every built piece; thatch, cloth and metal in shared files (rows 2-3a, PR #426); plaster, brick and ice includes (PR #437). Shipped: creature gear wood and metal on the library (A-133, PR #448). Shipped: built stone (cut and rubble), cave linings and creature cloth and bone on the library (row 3, PR #452); sunken temple ashlar (row 4 part, PR #456); terrain reads the library's stone directly (PR #471). Shipped: items and the salt tower on the library, colossus shader reads a family channel (row 4, PR #476). Shipped: each colossus names its families, oak wood, golem stone, lizard bone, mammoth ice (PR #486). W-175 row 2 shipped (PR #462).
-- **Farm fields (#335, W-165), towers with real storeys (#337, W-167),
-  elf towns without wood (#326, W-161), wood grain and strangler roots (#330, W-163).** Next, world lane.
+- **Farm fields (#335, W-165), elf towns without wood (#326, W-161), wood grain and strangler roots (#330, W-163).** Next, world lane.
+- **Towers with real storeys (#337).** In flight as P-51 (player-2): the elf tower becomes walk-in under -seamless, with a stair up the inner wall, 2-3 floors and roof access. Later: a freestanding kit tower family with straight flights (4x4 m inside).
 - **Castle walls (#254).** Later. Modular walls, towers, a gatehouse with a working, synced portcullis.
 - **Port town (#255).** Later. A big pier, a boardable galleon and a busy main road.
   Zach 11-16: worth the effort, start simple; later the same day: colossi should be dynamically rideable too, so P-44 is one walk-on-moving-bodies system for colossi, the galleon and boats. Later (can wait).
