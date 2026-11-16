@@ -530,7 +530,9 @@ namespace Punchy.Terrain
                 var rib = Rib(c, p);
                 n += (rib * rib - 0.4f) * 0.75f * c.Wall.z * math.smoothstep(0.06f, 0.3f, up) * lift;
             }
-            return n;
+            // W-172 row 6: near the floor the relief never pushes rock in further than the height above it, so a strong
+            // facet or ridge can't leave a slab of rock floating at a rider's chest over a main path (c21's fin).
+            return math.min(n, math.max(0f, p.y - floorY - 0.35f) * 0.8f);
         }
 
         /// <summary>

@@ -56,6 +56,11 @@ namespace Punchy.Terrain
         /// caves 0.1-0.4 m short (c2, c21 on the 11-15 layout), so the full reach.
         /// </summary>
         const float CeilingDip = 1f;
+        /// <summary>
+        /// W-172 row 6: the share of the gentle wall noise's and facets' reach (NoiseReach by Roughness, facets by Angularity) a ceiling also
+        /// dips on a main path. Without it a rough cave's end chamber kept a 2.2 m bulge (c21 on the 11-15 layout).
+        /// </summary>
+        const float WallDip = 0.6f;
 
         /// <summary>A node a side passage can start from, and the way its own passage was heading there.</summary>
         struct Attach
@@ -150,7 +155,8 @@ namespace Punchy.Terrain
                 var tall = profile.y * (1.45f + (1f - flatness) * 0.65f);
                 // W-172 row 6: the smallest radius whose top clears a ridden horse past the ceiling's noise. Main path
                 // nodes are never laid smaller, and never squashed below it (a thin roof sinks the floor instead).
-                var horse = (RiderHead + CaveSampling.JaggedReach * rock.x * CeilingDip) / tall;
+                var facetReach = style != null ? 0.64f * style.FacetSize * style.Angularity : 0f;
+                var horse = (RiderHead + CaveSampling.JaggedReach * rock.x * CeilingDip + (CaveSampling.NoiseReach * wall.x + facetReach) * WallDip) / tall;
                 var minMain = math.max(math.max(r * MinMain, MainHead / tall), horse);
                 void Grade(List<int> path, List<float> want, List<float> ceil)
                 {

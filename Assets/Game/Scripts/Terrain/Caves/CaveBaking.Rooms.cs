@@ -175,6 +175,25 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// W-172 row 6: how tall a doorway of this width can be, from the most the passage allows down in 0.1 m steps,
+        /// until both its top corners are in the passage's air (a sloping roof lowers it).
+        /// </summary>
+        static float DoorTop(in TerrainSource source, in CaveRoom room, float width, float most)
+        {
+            const float t = CaveRoom.Wall;
+            var h = most;
+            for (int k = 0; k < 10; k++)
+            {
+                var corner = room.World(new float3(width * 0.5f, h, -t - 0.3f));
+                var other = room.World(new float3(-width * 0.5f, h, -t - 0.3f));
+                if (source.CaveDistance(corner) < 0f && source.CaveDistance(other) < 0f)
+                    break;
+                h -= 0.1f;
+            }
+            return h;
+        }
+
+        /// <summary>
         /// Sets a planned room's floor and doorway from the passage it ends, and whether it fits: a floor at the door,
         /// at least 2.2 m of head room and 1.9 m of width there, cover above the whole room, no other air (any cave's)
         /// inside its walls, and clear of rooms already kept.
@@ -203,18 +222,24 @@ namespace Punchy.Terrain
             if (half * 2f < 1.9f)
                 return Miss(2);
             // W-172 row 6: a little wider and taller where the passage allows (a ridden horse goes through), and lowered
-            // in finer steps so a sloping roof doesn't cost the door 0.4 m at a time.
-            room.DoorWidth = math.clamp(half * 2f - 0.4f, 1.6f, 2.4f);
-            room.DoorHeight = math.clamp(gap - 0.2f, 2f, 3f);
-            // The doorway's top corners must be in the passage's air too (a sloping roof lowers it).
-            for (int k = 0; k < 10; k++)
+            // in finer steps so a sloping roof doesn't cost the door 0.4 m at a time. Under a sloping roof a narrower
+            // door keeps more height: the widest that still clears a rider (CaveBaking.RiderHead) wins, else the tallest.
+            var widest = math.clamp(half * 2f - 0.4f, 1.6f, 2.4f);
+            var bestW = widest;
+            var bestH = 0f;
+            for (var w = widest; w >= 1.6f - 1e-3f; w -= 0.2f)
             {
-                var corner = room.World(new float3(room.DoorWidth * 0.5f, room.DoorHeight, -t - 0.3f));
-                var other = room.World(new float3(-room.DoorWidth * 0.5f, room.DoorHeight, -t - 0.3f));
-                if (source.CaveDistance(corner) < 0f && source.CaveDistance(other) < 0f)
+                var h = DoorTop(source, room, w, math.clamp(gap - 0.2f, 2f, 3f));
+                if (h > bestH + 1e-3f)
+                {
+                    bestW = w;
+                    bestH = h;
+                }
+                if (h >= RiderHead)
                     break;
-                room.DoorHeight -= 0.1f;
             }
+            room.DoorWidth = bestW;
+            room.DoorHeight = bestH;
             if (room.DoorHeight < 2f)
                 return Miss(3);
             // The passage's floor a ramp's length out from the wall's face, over the room's floor: the ramp in front of
