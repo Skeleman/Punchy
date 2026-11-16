@@ -143,7 +143,7 @@ else in this note: one kit, and one authority over it.
 **Derived where it lies, carried once moved.**
 - **Derived, never stored, while a thing is in its place:**
   - Items in a house's room storage, and its door items, belong to that house's household.
-  - A worker's spares belong to the worker's household.
+  - Spares belong to nobody: they are how players try a trade (fishing rods), so taking one is never theft (A-134, 11-16).
   - A folk's kit belongs to its household, or to its settlement for a lodger or a guard's issue.
   - Houses themselves belong to their household.
 
@@ -249,7 +249,7 @@ written atomically: a temp file is renamed over the old one, on autosave every f
 | 8 | FolkKit Post0/Post1 props | post set-piece records at work anchors (rule 22), with Fixed items | world lane (records), player lane (drawing) |
 | 9 | `HeldItem` enum in brains | brains write item ids; FolkKits.Fill translates until then | animal |
 | 10 | Uid ranges (door*4+k, 1M, 2M, 3M, 100k) | record-id-based ids; a saved counter for moved items | player; world lane for record ids |
-| 11 | Spares: a host-only worker-to-uid map | (work anchor record, k), owner = the worker's household, restock state saved | player |
+| 11 | Spares: a host-only worker-to-uid map | (work anchor record, k), owner = nobody (A-134), restock state saved | player |
 | 12 | No owner tags | the Owner int, derived in place, carried in ItemStack once moved | player |
 | 13 | Dead household members on the host only, per session (`Household.Lost`; clients guess with WatchKinLost) | world save + KinLostRpc to joiners | animal (Households), player (save) |
 | 14 | quests-save.json per machine | the player entry in the host's world save (the same "lost to time" rules) | player |
