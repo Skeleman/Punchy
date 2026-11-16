@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using Punchy.Fauna;
@@ -203,3 +204,4 @@ namespace Punchy.Debugging
         }
     }
 }
+#endif
