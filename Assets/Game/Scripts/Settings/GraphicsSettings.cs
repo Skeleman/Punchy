@@ -38,11 +38,19 @@ namespace Punchy.Settings
         public static float DetailRange(float baseline) => baseline * Detail;
 
         /// <summary>
-        /// How many real (Unity) local lights LightBudget may have on at once (refactor 3.1): 4 at Low, 6 at Medium, 8 at
-        /// High and Ultra, by Detail. "-lightbudget N" overrides it for the run (benches). Glow ranges follow Detail
-        /// through LightPolicy's thresholds.
+        /// How many real (Unity) local lights LightBudget may have on at once: 4 at Low, 16 at Medium, 48 at High, 96 at
+        /// Ultra, by Detail (R-10: unshadowed point lights are cheap under Forward+, and street lights are lent pooled
+        /// ones). "-lightbudget N" overrides it for the run (benches). Glow ranges follow Detail through LightPolicy's
+        /// thresholds.
         /// </summary>
-        public static int RealLights => lightBudgetArg >= 0 ? lightBudgetArg : Mathf.Clamp(Mathf.RoundToInt(2f + 4f * Detail), 4, 8);
+        public static int RealLights => lightBudgetArg >= 0 ? lightBudgetArg
+            : Detail >= 1.75f ? 96 : Detail >= 1.25f ? 48 : Detail >= 0.75f ? 16 : 4;
+        /// <summary>
+        /// How many of those may be sources' own Unity lights (lanterns, room lamps, the iceberg light), which may cast
+        /// shadows: 4 at Low, 6 at Medium, 8 at High and Ultra (refactor 3.1's budget). The rest go to pooled,
+        /// unshadowed street lights.
+        /// </summary>
+        public static int OwnRealLights => Mathf.Min(RealLights, Mathf.Clamp(Mathf.RoundToInt(2f + 4f * Detail), 4, 8));
         static int lightBudgetArg = -1;
 
         /// <summary>

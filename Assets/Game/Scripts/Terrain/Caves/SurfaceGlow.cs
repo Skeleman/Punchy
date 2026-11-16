@@ -34,6 +34,7 @@ namespace Punchy.Terrain
         JobHandle farJob;
         bool farRunning;
         NativeArray<float4> farPlants, farWindows;
+        NativeList<float4> farFixtureAt, farFixtureLight;
         float2 farCorner;
         float3 farScannedAt = new float3(float.MaxValue);
 
@@ -47,6 +48,8 @@ namespace Punchy.Terrain
 
         BlobAssetReference<FloraBlob> blob;
         NativeArray<float4> modelGlow;
+        /// <summary>R-10 row 4c: glass crystals' glow a model (left out of modelGlow), for their far lights only.</summary>
+        NativeArray<float4> modelCrystal;
         bool anyGlow;
         BiomePalette from;
         float3 cellSizes;
@@ -58,6 +61,21 @@ namespace Punchy.Terrain
 
         /// <summary>The glowing plants found by the last finished scan: position (xyz) and light (rgb, w reach).</summary>
         public readonly List<(float3 position, Vector4 light)> Found = new List<(float3, Vector4)>();
+
+        /// <summary>R-10: the street lights (tree layer) the last far scan found, as <see cref="Found"/> holds them, out to
+        /// about <see cref="FarFixtureReach"/> from the camera, so they can stay real lights and glow slots well past the
+        /// near scan's 50 m.</summary>
+        public readonly List<(float3 position, Vector4 light)> FarFixtures = new List<(float3, Vector4)>();
+        /// <summary>How far from the camera <see cref="FarFixtures"/> is sure to be complete (m).</summary>
+        public static float FarFixtureReach => FarRadius.z - MoveBeforeFarRescan;
+
+        /// <summary>R-39 (#401, #302): how far out (3D camera distance, m) LightBudget still wants the near glows: the
+        /// AmbientGlow hand-off's far end, which grows with Detail. Each layer is scanned at least this far (plus the
+        /// move before a rescan), so no glow the budget would light sits outside the scan and pops in at its edge (the
+        /// ground layer's 30 m used to cut glows off inside the 37 m hand-off, and further at higher Detail). A disc on
+        /// the ground this wide holds every plant within that 3D distance, from any height. Capped at the far scan's
+        /// radius per layer: past it the far map carries them anyway. Set by CaveSystem before Update.</summary>
+        public float NearReach;
 
         /// <summary>Call once a frame; picks up a finished scan and starts a new one when the camera has moved.</summary>
         public void Update(in TerrainSource source, BiomePalette palette, FloraSystem flora, float3 camPos)
@@ -93,6 +111,7 @@ namespace Punchy.Terrain
                     Source = source,
                     ModelGlow = modelGlow,
                     Centre = camPos.xz,
+                    Reach = math.min(math.max(Radius, NearReach + MoveBeforeRescan), FarRadius),
                     CellSizes = cellSizes,
                     Positions = positions,
                     Colors = colors,
@@ -117,6 +136,9 @@ namespace Punchy.Terrain
                 MapPlants.Apply(false, false);
                 MapWindows.SetPixelData(farWindows, 0);
                 MapWindows.Apply(false, false);
+                FarFixtures.Clear();
+                for (int i = 0; i < farFixtureAt.Length; i++)
+                    FarFixtures.Add((farFixtureAt[i].xyz, farFixtureLight[i]));
                 MapCorner = farCorner;
                 MapReady = true;
             }
@@ -134,6 +156,8 @@ namespace Punchy.Terrain
                     CellSizes = cellSizes,
                     Plants = farPlants,
                     Windows = farWindows,
+                    FixtureAt = farFixtureAt,
+                    FixtureLight = farFixtureLight,
                     Dark = FillDark()
                 }.Schedule();
                 farClock = System.Diagnostics.Stopwatch.StartNew();
@@ -152,12 +176,18 @@ namespace Punchy.Terrain
             blob = FloraPlacement.Build(palette, cellSizes, species);
             ref var f = ref blob.Value;
             modelGlow = new NativeArray<float4>(math.max(f.Models.Length, 1), Allocator.Persistent);
+            if (modelCrystal.IsCreated)
+                modelCrystal.Dispose();
+            modelCrystal = new NativeArray<float4>(math.max(f.Models.Length, 1), Allocator.Persistent);
             anyGlow = false;
             for (int s = 0; s < f.Rules.Length; s++)
             {
                 var g = f.Glow[s];
                 // Glass crystals stay out: a cluster has many at the same distance, so they took turns in the nearest
                 // 16 as the camera moved and the crystals seemed to pulse (F-52). They still light caves' walls.
+                if (g.w > 0f && species[s].Finish == FoliageFinish.Glass)
+                    for (int v = 0; v < f.Rules[s].Variants; v++)
+                        modelCrystal[f.Rules[s].FirstModel + v] = g;
                 if (g.w == 0f || species[s].Finish == FoliageFinish.Glass)
                     continue;
                 anyGlow = true;
@@ -174,6 +204,8 @@ namespace Punchy.Terrain
                 return;
             farPlants = new NativeArray<float4>(MapSize * MapSize, Allocator.Persistent);
             farWindows = new NativeArray<float4>(MapSize * MapSize, Allocator.Persistent);
+            farFixtureAt = new NativeList<float4>(256, Allocator.Persistent);
+            farFixtureLight = new NativeList<float4>(256, Allocator.Persistent);
             MapPlants = NewMap("Far glow (plants)");
             MapWindows = NewMap("Far glow (windows)");
             farScannedAt = new float3(float.MaxValue);
@@ -201,11 +233,17 @@ namespace Punchy.Terrain
             }
             ReleaseWorld();
             ReleaseSpill();
+            ReleaseDomes();
             ReleaseLamps();
             if (farPlants.IsCreated)
                 farPlants.Dispose();
             if (farWindows.IsCreated)
                 farWindows.Dispose();
+            if (farFixtureAt.IsCreated)
+                farFixtureAt.Dispose();
+            if (farFixtureLight.IsCreated)
+                farFixtureLight.Dispose();
+            FarFixtures.Clear();
             if (MapPlants != null)
                 Object.Destroy(MapPlants);
             if (MapWindows != null)
@@ -216,6 +254,8 @@ namespace Punchy.Terrain
                 blob.Dispose();
             if (modelGlow.IsCreated)
                 modelGlow.Dispose();
+            if (modelCrystal.IsCreated)
+                modelCrystal.Dispose();
             if (positions.IsCreated)
                 positions.Dispose();
             if (colors.IsCreated)
@@ -232,6 +272,8 @@ namespace Punchy.Terrain
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float4> ModelGlow;
             public float2 Centre;
+            /// <summary>Each layer's search radius (m): Radius, widened to the near glows' 3D reach (NearReach).</summary>
+            public float3 Reach;
             public float3 CellSizes;
             public NativeList<float4> Positions, Colors;
             /// <summary>W-127: lit-window plants within SpillRadius (the tree layer's houses): xyz position, w yaw;
@@ -245,7 +287,7 @@ namespace Punchy.Terrain
                 for (int layer = 0; layer < 3; layer++)
                 {
                     var size = CellSizes[layer];
-                    var near = Radius[layer];
+                    var near = Reach[layer];
                     var r = layer == 2 ? math.max(near, SpillRadius) : near;
                     var lo = (int2)math.floor((Centre - r) / size);
                     var hi = (int2)math.floor((Centre + r) / size);
@@ -287,8 +329,10 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// Bakes the light every glowing plant and lit window within FarRadius casts on the ground into the far maps:
-        /// each spreads over a wider, softer reach than its near light (at least 12 m, so it can't slip between texels)
-        /// with the same total light. The alpha sums each source's height times its light, for the shader's height test.
+        /// a plant spreads over a wider, softer reach than its near light (at least 12 m, so it can't slip between texels)
+        /// with the same total light; a street light keeps its own reach and brightness (at least 2.5 texels), so where the
+        /// night map takes over from its glow slot it lights the same ground as brightly (R-10). The alpha sums each
+        /// source's height times its light, for the shader's height test.
         /// </summary>
         [BurstCompile]
         struct FarScanJob : IJob
@@ -299,6 +343,8 @@ namespace Punchy.Terrain
             public float2 Corner;
             public float3 CellSizes;
             public NativeArray<float4> Plants, Windows;
+            /// <summary>The tree layer's street lights (not strided), laid out as ScanJob's Positions and Colors.</summary>
+            public NativeList<float4> FixtureAt, FixtureLight;
             /// <summary>A-115: how lit the route lamps not fully lit are, by foot (LampRoutes.Key); others in full.</summary>
             [ReadOnly] public NativeHashMap<int2, float> Dark;
 
@@ -306,6 +352,8 @@ namespace Punchy.Terrain
             {
                 for (int i = 0; i < Plants.Length; i++)
                     Plants[i] = Windows[i] = float4.zero;
+                FixtureAt.Clear();
+                FixtureLight.Clear();
                 ref var f = ref Flora.Value;
                 var centre = Corner + MapSize * MapTexel * 0.5f;
                 for (int layer = 0; layer < 3; layer++)
@@ -336,7 +384,7 @@ namespace Punchy.Terrain
                             continue;
                         var scale = math.max(plant.Scale, 0.3f);
                         var reach = FloraPlacement.GlowReach(glow.w) * math.sqrt(scale);
-                        var wide = math.max(reach * 1.6f, 12f);
+                        var wide = fixture ? math.max(reach, MapTexel * 2.5f) : math.max(reach * 1.6f, 12f);
                         var light = glow.xyz * (reach * reach / (wide * wide) * step * step);
                         if (fixture && Dark.TryGetValue((int2)math.floor(plant.Position.xz * 4f), out var lit))
                         {
@@ -345,6 +393,11 @@ namespace Punchy.Terrain
                             light *= lit;
                         }
                         var lift = fixture ? StructureKit.FixtureLightHeight : 0.4f;
+                        if (fixture && step == 1)
+                        {
+                            FixtureAt.Add(new float4(plant.Position + new float3(0f, lift * scale, 0f), 0f));
+                            FixtureLight.Add(new float4(glow.xyz, -(FloraPlacement.FixtureGlowBase + reach)));
+                        }
                         Splat(fixture ? Windows : Plants, plant.Position + new float3(0f, lift * scale, 0f), light, wide);
                     }
                 }

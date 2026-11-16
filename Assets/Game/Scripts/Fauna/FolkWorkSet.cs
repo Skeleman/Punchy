@@ -52,7 +52,9 @@ namespace Punchy.Fauna
                 return null;
             foreach (var set in All)
                 foreach (var b in set.Biomes)
-                    if (b == biome)
+                    // (By name as well: in a player build the palette's biomes come from the baked subscene's
+                    // content, which are other objects than the ones a Resources asset points at.)
+                    if (b == biome || b != null && b.name == biome.name)
                         return set;
             return null;
         }
