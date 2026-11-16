@@ -24,7 +24,13 @@ namespace Punchy.Debugging
         Entity rpDog, rpMount;
         float3 rpDogAt;
         float rpMaxOffset, rpMaxApart;
+        /// <summary>A-126 row 4, the steered walk: how far the dog went, its fastest gait, how high it got off the floor.</summary>
+        float rpTravel, rpTopSpeed, rpTopJump;
+        float3 rpLastDog;
         bool rpPass = true, rpApplied;
+        FaunaDirector rpHostDirector;
+        float3 rpRemoteLast;
+        float rpRemoteStillAt;
         readonly List<string> rpLines = new List<string>();
         static readonly (string name, RideOff expect)[] RpCases =
         {
@@ -34,16 +40,24 @@ namespace Punchy.Debugging
         /// <summary>
         /// "-rideplayer": once the world has settled. Alone or hosting (with "-body Cat"): a dog put down beside the player,
         /// which the player gets on as the interact button would (InteractionInputSystem.TestRide; as host, on the dog's
-        /// ghost in the client world); the dog walks a circle for 12 s while every frame the player's body is measured
-        /// against its seat (Riding.Offset, as drawn here) and the player against its body (the camera follows the
-        /// player), and the frames with a NaN counted; then each way down in turn, getting back on first: the button,
+        /// ghost in the client world). A-126 row 4: the player steers it round a circle for 12 s (PlayerInputSystem.TestMove,
+        /// running from 6 s to 8 s, a jump at 10 s) while every frame the player's body is measured against its seat
+        /// (Riding.Offset, as drawn here) and the player against the dog (the dog stands where the player is), and the
+        /// frames with a NaN counted; then each way down in turn, getting back on first: the button,
         /// the dog swimming, climbing, and taken out of the world, each logged with why, where and how far over the floor.
-        /// PASS when the player stayed on the seat (under 1 cm, and with its body), no NaN, and every case got down for
-        /// the right reason, on the floor. "-rideplayer rider" and "-rideplayer mount" (one each, host and client, the
+        /// PASS when the player stayed on the seat (under 1 cm, and the dog under it), the dog went over 10 m, ran, and
+        /// jumped, no NaN, and every case got down for the right reason, on the floor. "-rideplayer rider" and "-rideplayer mount" (one each, host and client, the
         /// mount the heavier body): see RidePlayerPair.
         /// </summary>
         void RidePlayerTest()
         {
+            if (ridePlayer != null && rpDone && rpHostDirector != null && rpHostDirector.SimWorld != null && rpHostDirector.SimWorld.IsCreated &&
+                EnsureLocations(out var hostSource))
+            {
+                // (The host's own test is done; a client may join later, and still gets its dog.)
+                DogForClient(World.DefaultGameObjectInjectionWorld.EntityManager, rpHostDirector.SimWorld.EntityManager, rpHostDirector, hostSource);
+                return;
+            }
             if (ridePlayer == null || rpDone || Time.timeSinceLevelLoad - optionsAt < settle || !EnsureLocations(out var source) ||
                 !playerQuery.TryGetSingleton<LocalTransform>(out var player))
                 return;
@@ -58,8 +72,15 @@ namespace Punchy.Debugging
                 return;
             }
             var director = FindAnyObjectByType<FaunaDirector>();
-            if (director == null || director.SimWorld == null || !director.SimWorld.IsCreated)
+            if (director == null)
                 return;
+            // (A joined client has no sim world: it steers a dog the host put down beside it.)
+            if (director.SimWorld == null || !director.SimWorld.IsCreated)
+            {
+                if (world.IsClient())
+                    RidePlayerClient(em, input, source, director);
+                return;
+            }
             if (!director.CanSpawn)
             {
                 Debug.LogWarning("RidePlayer: needs a solo or hosting game (or rider/mount)");
@@ -85,12 +106,20 @@ namespace Punchy.Debugging
                 c.Speed = c.GaitSpeed = 0f;
                 sim.SetComponentData(rpDog, c);
                 rpAt = rpStepAt = Time.time;
+                // (The ride counters are static: they carry over from the last play when the domain isn't reloaded.)
+                rpBegun = PlayerRideSystem.Begun;
+                rpEnded = PlayerRideSystem.Ended;
                 rpStep = 0;
                 Debug.Log($"RidePlayer: dog at ({rpDogAt.x:F1}, {rpDogAt.y:F2}, {rpDogAt.z:F1}), {(world == director.SimWorld ? "solo" : "hosting")}");
                 return;
             }
+            if (world != director.SimWorld)
+            {
+                rpHostDirector = director;
+                DogForClient(em, sim, director, source);
+            }
             // The dog as this machine draws it: itself alone, its ghost (the nearest creature to it) in a client world.
-            if (!em.Exists(rpMount) && sim.Exists(rpDog))
+            if (!em.Exists(rpMount) && sim.HasComponent<CreatureState>(rpDog))
             {
                 if (world == director.SimWorld)
                     rpMount = rpDog;
@@ -126,17 +155,20 @@ namespace Punchy.Debugging
                 }
                 if (riding && t < 14f)
                 {
-                    DriveDog(sim, true);
+                    SteerDog(t);
                     Measure(em, playerEntity, source, t);
                     return;
                 }
                 if (t < 14f && !(t > 3f && !riding))
                     return;
-                DriveDog(sim, false);
+                PlayerInputSystem.TestMove = null;
+                PlayerInputSystem.TestSprint = false;
                 rpLines.Add(riding || PlayerRideSystem.Begun > 0
-                    ? $"walk: max offset {rpMaxOffset * 100f:F2} cm, player from its body {rpMaxApart * 100f:F2} cm max, NaN frames {rpNaN}"
+                    ? $"walk: max offset {rpMaxOffset * 100f:F2} cm, player from the dog {rpMaxApart * 100f:F2} cm max, dog went {rpTravel:F1} m, " +
+                      $"top gait {rpTopSpeed:F2} m/s, jumped {rpTopJump:F2} m, steered {SteeredMountSystem.Steered}, NaN frames {rpNaN}"
                     : "walk: player NOT on the dog");
-                rpPass &= rpMaxOffset < 0.01f && rpMaxApart < 0.01f && rpNaN == 0 && PlayerRideSystem.Begun > 0;
+                rpPass &= rpMaxOffset < 0.01f && rpMaxApart < 0.01f && rpNaN == 0 && PlayerRideSystem.Begun > 0 &&
+                          rpTravel > 10f && rpTopJump > 0.2f && rpTopSpeed > 2f;
                 NextStep();
                 return;
             }
@@ -161,7 +193,7 @@ namespace Punchy.Debugging
                 }
                 return;
             }
-            if (t > 2.5f && PlayerRideSystem.Ended == rpEnded && sim.Exists(rpDog))
+            if (t > 2.5f && PlayerRideSystem.Ended == rpEnded && sim.HasComponent<CreatureState>(rpDog))
             {
                 // The case, set again each frame till the player is down (the brain may change a mode it didn't pick).
                 var m = sim.GetComponentData<CreatureState>(rpDog);
@@ -190,7 +222,7 @@ namespace Punchy.Debugging
                 rpLines.Add(down ? $"{c2.name}: down ({PlayerRideSystem.LastOff}) at ({p.x:F2}, {p.y:F2}, {p.z:F2}), floor {floor:F2} m ({(ok ? "ok" : "WRONG")})"
                                  : $"{c2.name}: NOT down after 8 s (WRONG)");
                 Debug.Log("RidePlayer: " + rpLines[rpLines.Count - 1]);
-                if (sim.Exists(rpDog))
+                if (sim.HasComponent<CreatureState>(rpDog))
                 {
                     var m = sim.GetComponentData<CreatureState>(rpDog);
                     m.Mode = CreatureMode.Puppet;
@@ -209,22 +241,16 @@ namespace Punchy.Debugging
             rpEnded = PlayerRideSystem.Ended;
         }
 
-        /// <summary>Walks the test's dog round its circle (as RideTest's mounts), or stands it still facing +x.</summary>
-        void DriveDog(EntityManager sim, bool walk)
+        /// <summary>A-126 row 4: steers the dog as a player would: round a circle on the stick, running 6-8 s, a jump at 10 s.</summary>
+        static void SteerDog(float t)
         {
-            if (!sim.Exists(rpDog))
-                return;
-            var m = sim.GetComponentData<CreatureState>(rpDog);
-            var c = rpDogAt - new float3(RideCircle, 0f, 0f);
-            if (walk)
-            {
-                var angle = math.atan2(m.Position.x - c.x, m.Position.z - c.z);
-                m.Yaw = angle - math.PI * 0.5f - math.clamp((math.distance(m.Position.xz, c.xz) - RideCircle) * 0.3f, -0.3f, 0.3f);
-                m.Speed = m.GaitSpeed = RideWalk;
-            }
-            else
-                m.Speed = m.GaitSpeed = 0f;
-            sim.SetComponentData(rpDog, m);
+            var a = (t - 3f) * 0.6f;
+            PlayerInputSystem.TestMove = new float2(math.cos(a), -math.sin(a)) * 0.8f;
+            PlayerInputSystem.TestSprint = t >= 6f && t < 8f;
+            // (Pressed through half a second, as a player presses when it's down: one frame might fall on a bump. Twice,
+            // at 5 s and 10 s: on a steep climb a jump hardly clears the slope ahead, and the circle may cross one.)
+            if ((t >= 5f && t < 5.5f) || (t >= 10f && t < 10.5f))
+                PlayerInputSystem.TestJump = true;
         }
 
         /// <summary>One frame of the walk: the player's body against its seat, and the player against its body.</summary>
@@ -244,17 +270,181 @@ namespace Punchy.Debugging
             else if (t > 2f)
             {
                 rpMaxOffset = math.max(rpMaxOffset, offset);
-                rpMaxApart = math.max(rpMaxApart, math.distance(p, r.Position));
+                // (Steering, the dog stands where the player is; carried, the player is where its body sits.)
+                rpMaxApart = math.max(rpMaxApart, math.distance(p, ride.Steering ? m.Position : r.Position));
+                if (rpLastDog.x != 0f || rpLastDog.z != 0f)
+                    rpTravel += math.min(math.distance(m.Position.xz, rpLastDog.xz), 1f);
+                rpLastDog = m.Position;
+                rpTopSpeed = math.max(rpTopSpeed, m.Speed);
+                rpTopJump = math.max(rpTopJump, m.Position.y - source.FloorUnder(m.Position + new float3(0f, 0.5f, 0f), out _));
             }
             if (Mathf.FloorToInt(t) != Mathf.FloorToInt(t - Time.deltaTime))
                 Debug.Log($"RidePlayer {t:F0} s: dog ({m.Position.x:F1}, {m.Position.y:F2}, {m.Position.z:F1}) yaw {math.degrees(m.Yaw):F0}, " +
-                          $"player ({p.x:F2}, {p.y:F2}, {p.z:F2}) {(RidePose)r.Stage}, offset {offset * 100f:F2} cm");
+                          $"player ({p.x:F2}, {p.y:F2}, {p.z:F2}) {(RidePose)r.Stage}, offset {offset * 100f:F2} cm, " +
+                          $"{(ride.Steering ? "steering" : "carried")}, gait {m.Speed:F2} m/s, mode {m.Mode}, holder {m.Holder}");
         }
 
         static bool playerAvatarFor(EntityManager em, out Entity avatar)
         {
             using var q = em.CreateEntityQuery(ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<CreatureState>());
             return q.TryGetSingletonEntity<PlayerAvatar>(out avatar);
+        }
+
+        /// <summary>A-126 row 4, host and client: the dog put down beside the joined player, and what the host saw of it.</summary>
+        Entity rpClientDog;
+        float3 rpClientDogLast;
+        float rpClientDogTravel;
+        int rpClientDogHolder;
+        /// <summary>The client side: when it began waiting and when its current step began (Time.time; -1 before), the step.</summary>
+        float rpNetAt = -1f, rpNetStepAt = -1f;
+        int rpNetStep;
+
+        /// <summary>
+        /// Hosting "-rideplayer": once the host's own test is done and a joined player is in the world, a second dog put
+        /// down beside it, for its "-rideplayer" to steer (RidePlayerClient). Every second the host logs that dog
+        /// as the server has it: where, its mode and holder (the joined player's while it steers), how far it went.
+        /// </summary>
+        void DogForClient(EntityManager em, EntityManager sim, FaunaDirector director, in TerrainSource source)
+        {
+            // (Only once the host's own test is done, so the joined player can't take the host's dog, and once the joined
+            // player has stood still 2 s: a joined player is placed after it first appears.)
+            if (!rpDone)
+                return;
+            if (rpClientDog != Entity.Null && !sim.HasComponent<CreatureState>(rpClientDog))
+            {
+                if (rpClientDogHolder == 0)
+                    rpClientDog = Entity.Null;
+                return;
+            }
+            if (rpClientDog == Entity.Null)
+            {
+                using var others = em.CreateEntityQuery(ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureState>());
+                if (others.IsEmpty)
+                    return;
+                using var them = others.ToEntityArray(Allocator.Temp);
+                var there = em.GetComponentData<CreatureState>(them[0]).Position;
+                if (math.distance(there, rpRemoteLast) > 0.5f)
+                {
+                    rpRemoteLast = there;
+                    rpRemoteStillAt = Time.time;
+                    return;
+                }
+                if (Time.time - rpRemoteStillAt < 2f)
+                    return;
+                var at = there.xz + new float2(-2.5f, 0f);
+                rpClientDog = director.Spawn(director.SpeciesIndex("Dog"), new float3(at.x, source.SampleHeight(at), at.y), 0f);
+                var c = sim.GetComponentData<CreatureState>(rpClientDog);
+                c.Mode = CreatureMode.Puppet;
+                c.Speed = c.GaitSpeed = 0f;
+                sim.SetComponentData(rpClientDog, c);
+                rpClientDogLast = c.Position;
+                Debug.Log($"RidePlayer host: a dog for the joined player at ({at.x:F1}, {c.Position.y:F2}, {at.y:F1})");
+                return;
+            }
+            var s = sim.GetComponentData<CreatureState>(rpClientDog);
+            rpClientDogTravel += math.min(math.distance(s.Position.xz, rpClientDogLast.xz), 1f);
+            rpClientDogLast = s.Position;
+            rpClientDogHolder = math.max(rpClientDogHolder, s.Holder);
+            if (Mathf.FloorToInt(Time.time) != Mathf.FloorToInt(Time.time - Time.deltaTime))
+                Debug.Log($"RidePlayer host: the joined player's dog at ({s.Position.x:F1}, {s.Position.y:F2}, {s.Position.z:F1}), " +
+                          $"mode {s.Mode}, holder {s.Holder} (most {rpClientDogHolder}), went {rpClientDogTravel:F1} m, gait {s.Speed:F2} m/s, steered {SteeredMountSystem.Steered}");
+        }
+
+        /// <summary>
+        /// A joined client's "-rideplayer" (A-126 row 4): waits for the dog the host put down beside it (the nearest
+        /// dog ghost no one holds), gets on, steers it as the solo test does (measured the same way: the dog as this
+        /// machine draws it stands where the player is), then gets down with the button. PASS when it stayed on, went
+        /// over 10 m, ran and jumped, no NaN, and got down on the floor.
+        /// </summary>
+        void RidePlayerClient(EntityManager em, InteractionInputSystem input, in TerrainSource source, FaunaDirector director)
+        {
+            var playerEntity = playerQuery.GetSingletonEntity();
+            if (rpNetAt < 0f)
+            {
+                rpNetAt = Time.time;
+                Debug.Log("RidePlayer client: waiting for a dog");
+            }
+            var riding = em.HasComponent<PlayerRide>(playerEntity);
+            if (rpNetStep == 0)
+            {
+                if (Time.time - rpNetAt > 90f)
+                {
+                    Debug.Log("RidePlayer client: no dog came => FAIL");
+                    rpDone = true;
+                    return;
+                }
+                if (Time.time - rpNetAt < 3f)
+                    return;
+                // The nearest dog ghost no one holds, within 20 m.
+                var dog = director.SpeciesIndex("Dog");
+                var me = em.GetComponentData<LocalTransform>(playerEntity).Position;
+                using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>(), ComponentType.ReadOnly<GhostInstance>());
+                using var all = q.ToEntityArray(Allocator.Temp);
+                var best = 20f;
+                var pick = Entity.Null;
+                foreach (var e in all)
+                {
+                    var c = em.GetComponentData<CreatureState>(e);
+                    var d = math.distance(c.Position, me);
+                    if (em.GetComponentData<CreatureBody>(e).Species == dog && c.Holder == 0 && d < best)
+                    {
+                        best = d;
+                        pick = e;
+                    }
+                }
+                if (pick == Entity.Null)
+                    return;
+                rpMount = pick;
+                rpBegun = PlayerRideSystem.Begun;
+                input.TestRide(pick);
+                rpNetStep = 1;
+                rpNetStepAt = Time.time;
+                Debug.Log($"RidePlayer client: getting on the dog {best:F1} m off");
+                return;
+            }
+            var t = Time.time - rpNetStepAt;
+            if (rpNetStep == 1)
+            {
+                if (!riding)
+                {
+                    if (t > 3f)
+                    {
+                        Debug.Log($"RidePlayer client: NOT on the dog (refusal {PlayerRideSystem.LastRefusal}) => FAIL");
+                        rpDone = true;
+                    }
+                    return;
+                }
+                // (On the solo walk's clock, from 3 s to 14 s.)
+                var walk = t + 2f;
+                if (walk < 14f)
+                {
+                    SteerDog(walk);
+                    Measure(em, playerEntity, source, walk);
+                    return;
+                }
+                PlayerInputSystem.TestMove = null;
+                PlayerInputSystem.TestSprint = false;
+                rpLines.Add($"walk: max offset {rpMaxOffset * 100f:F2} cm, player from the dog {rpMaxApart * 100f:F2} cm max, dog went {rpTravel:F1} m, " +
+                            $"top gait {rpTopSpeed:F2} m/s, jumped {rpTopJump:F2} m, NaN frames {rpNaN}");
+                rpPass &= rpMaxOffset < 0.01f && rpMaxApart < 0.01f && rpNaN == 0 && rpTravel > 10f && rpTopJump > 0.2f && rpTopSpeed > 2f;
+                rpEnded = PlayerRideSystem.Ended;
+                input.TestRide(Entity.Null);
+                rpNetStep = 2;
+                rpNetStepAt = Time.time;
+                return;
+            }
+            if (PlayerRideSystem.Ended != rpEnded || t > 8f)
+            {
+                var down = PlayerRideSystem.Ended != rpEnded;
+                var p = em.GetComponentData<LocalTransform>(playerEntity).Position;
+                var floor = p.y - source.FloorUnder(p + new float3(0f, 0.5f, 0f), out _);
+                var ok = down && PlayerRideSystem.LastOff == RideOff.None && math.abs(floor) < 0.05f && !riding;
+                rpPass &= ok;
+                rpLines.Add(down ? $"get down: down ({PlayerRideSystem.LastOff}) at ({p.x:F2}, {p.y:F2}, {p.z:F2}), floor {floor:F2} m ({(ok ? "ok" : "WRONG")})"
+                                 : "get down: NOT down after 8 s (WRONG)");
+                rpDone = true;
+                Debug.Log("RidePlayer client: " + string.Join(" | ", rpLines) + $" => {(rpPass ? "PASS" : "FAIL")}");
+            }
         }
 
         /// <summary>

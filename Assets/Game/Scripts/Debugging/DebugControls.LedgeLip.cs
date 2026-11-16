@@ -36,6 +36,8 @@ namespace Punchy.Debugging
 
         /// <summary>The lip test's flags (ApplyOptions): "-place ledge:lip[:Body]" and "-ledgepiece x,y,z,yaw,height,grade"
         /// ("-lipwait" holds the test for a joined player).</summary>
+        bool lipPromptSeen;
+
         void LedgeLipOptions(string[] args)
         {
             for (int i = 0; i < args.Length - 1; i++)
@@ -190,6 +192,7 @@ namespace Punchy.Debugging
             var moved = math.distance(t.Position, lipLastPos);
             lipStillFor = moved < 0.002f ? lipStillFor + Time.deltaTime : 0f;
             lipLastPos = t.Position;
+            HandStrip(em, m, source);
             if (m.Hang != lipLastHang)
             {
                 if (lipLastHang > 0 && m.Hang > 0)
@@ -239,6 +242,14 @@ namespace Punchy.Debugging
                     break;
                 case 1:   // Shimmying right: in round the inner corner, out round the outer one, to the open end.
                     PlayerInputSystem.TestMove = right;
+                    // (A-126 row 3: the hang's prompt, logged, and shot with "-promptshot", once it has taken hold.)
+                    if (stageTime >= 0.3f && !lipPromptSeen)
+                    {
+                        lipPromptSeen = true;
+                        Debug.Log($"DebugControls: lip test: hang prompt \"{InputGlyphs.Plain(InteractionInputSystem.Prompt) ?? "(none)"}\"");
+                        if (System.Array.IndexOf(LaunchArgs, "-promptshot") >= 0)
+                            ScreenCapture.CaptureScreenshot($"Assets/Temp/shots/a126-hang-prompt{(InputGlyphs.Gamepad ? "-pad" : "")}.png");
+                    }
                     if (m.Hang == 0)
                         LipFail("let go shimmying right");
                     else if (stageTime > 1f && lipStillFor > 0.5f)
@@ -293,7 +304,7 @@ namespace Punchy.Debugging
                     if (lipTries < 0 && stageTime > 1.2f)
                     {
                         PlayerInputSystem.TestMove = into;
-                        if (m.Grounded && stageTime < 1.4f)
+                        if (m.Grounded && (stageTime - 1.2f) % 1.2f < 0.2f)   // again every 1.2 s: one jump can fall short
                             PlayerInputSystem.TestJump = true;
                         if (m.Hang > 0)
                         {
@@ -387,6 +398,86 @@ namespace Punchy.Debugging
         }
 
         static float HandsUp(float size) => LedgeHang.HandReach * size;
+
+        /// <summary>A-126 row 2: each hand's first and worst world position over a pull-up, and a strip every few frames.</summary>
+        float3[] handFirst = new float3[2];
+        float[] handWorst = new float[2], handWorstPull = new float[2];
+        int handFrames;
+
+        /// <summary>
+        /// A-126 row 2: while the player pulls up onto a ledge (PlayerMotion.Mantle), poses its body as the renderer does
+        /// and follows the tip of each arm. The hands should hold still on the rim while the body rises past them: logs a
+        /// strip of their world positions, then how far each drifted from where it first held, over the pull-up (the body
+        /// rising, mantle under 0.6) and over the whole climb.
+        /// </summary>
+        static readonly float[] HandShotAt = { 0.2f, 0.45f, 0.7f, 0.88f };
+        int handShot;
+
+        void HandStrip(EntityManager em, in PlayerMotion m, in TerrainSource terrain)
+        {
+            if (m.Mantle <= 0f)
+            {
+                if (handFrames > 0)
+                    Debug.Log($"DebugControls: hand strip: {handFrames} frames, drift while rising L {handWorstPull[0] * 100f:F1} cm R {handWorstPull[1] * 100f:F1} cm, " +
+                              $"over the whole climb L {handWorst[0] * 100f:F1} cm R {handWorst[1] * 100f:F1} cm");
+                handFrames = 0;
+                handShot = 0;
+                return;
+            }
+            using var q = em.CreateEntityQuery(typeof(PlayerAvatar), typeof(CreatureState), typeof(CreatureBody));
+            if (q.CalculateEntityCount() != 1)
+                return;
+            var s = q.GetSingleton<CreatureState>();
+            var body = q.GetSingleton<CreatureBody>();
+            ref var b = ref body.Blob.Value;
+            var output = new NativeArray<SegmentInstance>(b.Segments.Length + 64, Allocator.Temp);
+            CreatureAnimator.Evaluate(ref b, s, body.Coat, terrain, output, 0);
+            var hand = 0;
+            var line = $"DebugControls: hand strip: mantle {m.Mantle:F2}, body y {V(s.Position.y)}, act {s.Action} anchor ({s.Anchor.x:F2}, {s.Anchor.y:F2}, {s.Anchor.z:F2})";
+            for (int p = 0; p < b.Parts.Length && hand < 2; p++)
+            {
+                ref var part = ref b.Parts[p];
+                if (part.Role != LimbRole.Arm || part.SegmentCount < 2)
+                    continue;
+                var seg = output[part.FirstSegment + 1];
+                var tip = seg.Position + math.mul(seg.Rotation, new float3(0f, 0f, seg.Length));
+                var i = part.Side < 0f ? 0 : 1;
+                if (handFrames == 0)
+                {
+                    handFirst[i] = float3.zero;
+                    handWorst[i] = handWorstPull[i] = 0f;
+                }
+                // (Drift counts from when the hand first reaches the rim: from the hang it may still be reaching up.)
+                if (math.all(handFirst[i] == float3.zero) && math.abs(tip.y - s.Anchor.y) < 0.05f)
+                    handFirst[i] = tip;
+                var drift = math.all(handFirst[i] == float3.zero) ? 0f : math.distance(tip, handFirst[i]);
+                handWorst[i] = math.max(handWorst[i], drift);
+                if (m.Mantle < 0.6f)
+                    handWorstPull[i] = math.max(handWorstPull[i], drift);
+                var sh = output[part.FirstSegment];
+                line += $", {(i == 0 ? "L" : "R")} ({tip.x:F3}, {tip.y:F3}, {tip.z:F3}) reach {math.distance(sh.Position, tip):F2}/{sh.Length + seg.Length:F2}";
+                hand++;
+            }
+            output.Dispose();
+            // ("-handshots": side-on to the climb, a shot as it starts the pull, halfway up, over the top, and letting go.)
+            if (System.Array.IndexOf(LaunchArgs, "-handshots") >= 0)
+            {
+                var fwd = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+                var look = s.Anchor - fwd * 0.3f - new float3(0f, 0.3f, 0f);
+                var eye = look + new float3(fwd.z, 0f, -fwd.x) * 2.8f - fwd * 0.8f + new float3(0f, 0.5f, 0f);
+                PoseCamera(eye, Quaternion.LookRotation(look - eye));
+                if (handShot < HandShotAt.Length && m.Mantle >= HandShotAt[handShot])
+                {
+                    System.IO.Directory.CreateDirectory("Assets/Temp/shots");
+                    ScreenCapture.CaptureScreenshot($"Assets/Temp/shots/a126-mantle-{handShot}.png");
+                    Debug.Log($"DebugControls: hand strip: shot {handShot} at mantle {m.Mantle:F2}");
+                    handShot++;
+                }
+            }
+            if (handFrames % 3 == 0)
+                Debug.Log(line);
+            handFrames++;
+        }
 
         void LipStage(int stage)
         {

@@ -298,6 +298,18 @@ namespace Punchy.Fauna
                 pitch += act * 1.45f;
                 height = math.lerp(height, 0.16f * scale, act);
             }
+            // A-126 row 2: folk climbing onto a ledge keep their hands planted on the rim (the arm IK below) while the
+            // climb lifts the body past them. The shoulders can't rise more than an arm's length over the rim, so the body
+            // sinks into a crouch over its hands, leaning onto them, and only straightens once it's over the top.
+            else if (s.Action == IdleAction.Mantle && b.Upright && math.lengthsq(s.Anchor) > 0f)
+            {
+                var u = math.saturate((s.ActionTime - 0.12f) / 0.73f);
+                var shoulder = s.Position.y + height + MantleShoulder * b.StandHeight * scale;
+                var reach = ArmReach(ref b) * scale;
+                var drop = reach > 0f ? math.max(0f, shoulder - (s.Anchor.y + 0.8f * reach)) * MantleHold(u) : 0f;
+                height -= drop;
+                pitch += 0.6f * math.saturate(drop / (0.5f * b.StandHeight * scale));
+            }
             // A-103 row 2b, A-127 row 2: a sea folk out of the water stands upright, with only a slight forward
             // set as it walks (it trudges, uncomfortable). In the water it leans into its swim as before.
             if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
@@ -978,11 +990,14 @@ namespace Punchy.Fauna
                     rot = math.mul(turn, rot);
                     // (No angle frees the ball of the hip itself, which the belly rests on, nor quite all of a long leg on a
                     // slope, judged on a plane: lift what is left against the real ground up into the flank, at most the hip's
-                    // own radius (a leg folded on the lie: the shallow dip above), so no leg stays in the ground.)
+                    // own radius plus the lying body's height (at least the folded leg's shallow dip above), so no leg stays in the
+                    // ground and none rises above the back. (Bony, near-bellyless bodies have hips too thin for the radius alone
+                    // to clear curved slopes.)
                     var left = LowestLegOnGround(ref b, ref part, ref segPos, ref segRot, in terrain, s.Position.y, scale);
                     if (left < 0f)
                     {
-                        var rise = new float3(0f, math.min(-left, shallow) * weight, 0f);
+                        var reach = math.max(shallow, b.Segments[part.FirstSegment].RadiusStart * scale + height);
+                        var rise = new float3(0f, math.min(-left, reach) * weight, 0f);
                         for (int j = 0; j < part.SegmentCount; j++)
                             segPos[part.FirstSegment + j] += rise;
                         pos += rise;
@@ -994,7 +1009,7 @@ namespace Punchy.Fauna
                 if (part.Role == LimbRole.Arm && part.SegmentCount >= 2 && s.Action == IdleAction.Mantle && b.Upright &&
                     math.lengthsq(s.Anchor) > 0f && part.FirstSegment + part.SegmentCount <= MaxSegments)
                 {
-                    var hold = 1f - math.smoothstep(0.45f, 0.7f, (s.ActionTime - 0.12f) / 0.73f);
+                    var hold = MantleHold((s.ActionTime - 0.12f) / 0.73f);
                     if (hold > 0.01f)
                     {
                         var s1 = part.FirstSegment + 1;
@@ -2007,6 +2022,25 @@ namespace Punchy.Fauna
         /// bending the way it did. The rest of the leg (foot, toes) keeps its orientation and shifts with it.
         /// Returns how far the end of the leg moved.
         /// </summary>
+        /// <summary>How far over its hips folk's shoulders are, in standing heights (near enough for every folk body).</summary>
+        const float MantleShoulder = 0.5f;
+
+        /// <summary>A-126 row 2: how firmly folk climbing onto a ledge keep their hands planted on its rim, by how far the
+        /// climb has gone (0..1): all the way up, and on while the body goes over them, letting go as it stands up.</summary>
+        static float MantleHold(float u) => 1f - math.smoothstep(0.75f, 0.95f, u);
+
+        /// <summary>The length of a body's arm (upper arm and forearm, unscaled); 0 without arms.</summary>
+        static float ArmReach(ref CreatureBlob b)
+        {
+            for (int p = 0; p < b.Parts.Length; p++)
+            {
+                ref var part = ref b.Parts[p];
+                if (part.Role == LimbRole.Arm && part.SegmentCount >= 2)
+                    return b.Segments[part.FirstSegment].Length + b.Segments[part.FirstSegment + 1].Length;
+            }
+            return 0f;
+        }
+
         static float3 PlaceFoot(ref CreatureBlob b, ref CreaturePart part,
                                 ref FixedList4096Bytes<float3> segPos, ref FixedList4096Bytes<quaternion> segRot,
                                 float3 delta, float scale)

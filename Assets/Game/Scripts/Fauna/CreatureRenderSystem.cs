@@ -328,10 +328,14 @@ namespace Punchy.Fauna
             extraCount += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
             // The towns' far figures (A-109), drawn only, from the households and the shared clock.
             extraCount += GatherFarFolk(camAt0, skyClock, skyHour);
+            // The small things round the towns (A-110 row 7): boats, washing.
+            extraCount += GatherFarDetails(terrain, camAt0, skyClock, skyHour);
             // (-homesign: the debug markers of what each house shows, A-109 row 3.)
             extraCount += GatherHomeSigns(terrain, camAt0, skyHour);
             // Fish in the caves' pools near the camera, drawn only.
             extraCount += GatherCaveFish(terrain, camAt0) * FishParts;
+            // The baked herds' far form, island-wide, from the shared clock (CreatureRenderSystem.Herds).
+            extraCount += GatherHerds(camAt0, skyClock, skyHour, terrain, (float)SystemAPI.Time.ElapsedTime);
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
             var traceCount = traces != null ? traces.Count : 0;
@@ -534,8 +538,10 @@ namespace Punchy.Fauna
                 at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, extras, at);
             at = WriteSkyBirds(skyClock, extras, at);
             at = WriteFarFolk(skyClock, extras, at);
+            at = WriteFarDetails(extras, at);
             at = WriteHomeSigns(extras, at);
             at = WriteCaveFish(skyClock, extras, at);
+            at = WriteHerds(skyClock, extras, at);
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
             Pass(6);

@@ -33,6 +33,8 @@ Shader "Punchy/SunkenTemple"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            // R-25: no Forward+ variant here (its cost, profiler job 45j); real lights come from LightBudget's list.
+            #define PUNCHY_NEAR_REAL_LIST
             #define _ENVIRONMENTREFLECTIONS_OFF
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -171,7 +173,8 @@ Shader "Punchy/SunkenTemple"
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
                 // The wall torches (CaveSystem's glow lights).
-                color += surface.albedo * PunchyGlowLight(input.positionWS, inputData.normalWS);
+                color += surface.albedo * (PunchyGlowLight(input.positionWS, inputData.normalWS)
+                                           + PunchyRealLights(input.positionWS, inputData.normalWS, input.positionCS));
                 color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
                 return half4(PunchyAtmosphere(color, input.positionWS), 1);
             }

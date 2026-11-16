@@ -14,12 +14,21 @@ namespace Punchy.Fauna
     /// A-104 row 3: the local player is riding (on the PlayerTag entity, this machine only). Mount is the body it rides
     /// here: a creature, or another player's body (a RemoteAvatar); MountGhost is what goes to the others in
     /// NetPlayerLook.Mount: the creature's ghost id, or that player's NetPlayer ghost id (0 solo).
-    /// While it's on, PlayerMovementSystem leaves the player be and PlayerRideSystem carries it.
+    /// While it's on, PlayerMovementSystem leaves the player be and PlayerRideSystem carries it, unless it steers.
+    /// A-126 row 4: on a creature (one no player steers) the player steers: it moves with the creature's abilities
+    /// (PlayerBody from PlayerBodyAbilities.Steered; its own kept in RiderBody till it gets down), the player standing
+    /// where the creature stands, and the creature is driven from it (SteeredMountSystem, as the player's own body is
+    /// by PlayerAvatarSystem). Last..Phase: the creature as this machine last drove it (a client redraws it ahead of
+    /// its ghost from these).
     /// </summary>
     public struct PlayerRide : IComponentData
     {
         public Entity Mount;
         public int MountGhost;
+        public bool Steering;
+        public PlayerBody RiderBody;
+        public float3 Last;
+        public float Yaw, YawRate, Sway, Speed, Phase;
     }
 
     /// <summary>
@@ -37,7 +46,8 @@ namespace Punchy.Fauna
     /// player on a creature or another player's body when the interact button asks and the mass rule allows (Riding.Check),
     /// then every frame, after the mount has moved as it always does, puts the player's body on the mount's seat
     /// (Riding.Begin, as an NPC rider is) and the player where its body is, facing as the mount faces. The camera and the
-    /// look stay the player's own; moving does nothing (PlayerMovementSystem skips a rider). Gets down, falling clear
+    /// look stay the player's own; moving does nothing (PlayerMovementSystem skips a rider), except on a creature, which
+    /// the player steers (A-126 row 4: see PlayerRide; jump jumps then, only the button gets down). Gets down, falling clear
     /// (Riding.Clear), on the button or jump and when the mount swims, climbs, sleeps, fights, is picked up or rides
     /// (Riding.Reason; a player's body: climbing, flying, lying down or riding), and where it is when the mount is gone.
     /// Also seats each other player's body on what they ride (NetPlayerLook.Mount) as this machine draws it: a creature
@@ -52,6 +62,7 @@ namespace Punchy.Fauna
     [UpdateAfter(typeof(CreatureBrainSystem))]
     [UpdateAfter(typeof(RideSystem))]
     [UpdateAfter(typeof(CreatureReplicaSystem))]
+    [UpdateAfter(typeof(SteeredMountSystem))]
     public partial struct PlayerRideSystem : ISystem
     {
         /// <summary>Tests (-rideplayer): the last way down (RideOff, None for the button), and the rides begun and ended.</summary>
@@ -108,7 +119,7 @@ namespace Punchy.Fauna
             }
 
             if (em.HasComponent<PlayerRide>(player))
-                Carry(em, player, avatar, me, terrain);
+                Carry(em, player, avatar, me, terrain, state.WorldUnmanaged.IsClient(), SystemAPI.Time.DeltaTime);
 
             SeatOthers(em, bodies, me, player, terrain);
         }
@@ -147,11 +158,32 @@ namespace Punchy.Fauna
             }
             Riding.Begin(ref rBody.Blob.Value, ref r, rBody.Coat, ref mBody.Blob.Value, m, mBody.Coat, ghost, terrain);
             em.SetComponentData(avatar, r);
-            em.AddComponentData(player, new PlayerRide { Mount = target, MountGhost = ghost });
-            Hold(em, player, r.Position, m.Yaw);
+            var ride = new PlayerRide
+            {
+                Mount = target, MountGhost = ghost,
+                // (A-126 row 4: a creature is steered; another player steers itself, A-104.)
+                Steering = !em.HasComponent<RemoteAvatar>(target),
+                Last = m.Position, Yaw = m.Yaw, Phase = m.Phase
+            };
+            if (ride.Steering)
+            {
+                // The player takes on the creature's abilities and stands where it stands.
+                using var abilityQuery = em.CreateEntityQuery(ComponentType.ReadWrite<PlayerBody>());
+                if (abilityQuery.TryGetSingletonEntity<PlayerBody>(out var bodyEntity))
+                {
+                    ride.RiderBody = em.GetComponentData<PlayerBody>(bodyEntity);
+                    em.SetComponentData(bodyEntity, PlayerBodyAbilities.Steered(ref mBody.Blob.Value, m.Scale, ride.RiderBody));
+                }
+                else
+                    ride.RiderBody = new PlayerBody { SpeedFactor = 1f, JumpFactor = 1f, Size = 1f };
+                Hold(em, player, m.Position, m.Yaw);
+            }
+            else
+                Hold(em, player, r.Position, m.Yaw);
+            em.AddComponentData(player, ride);
             Begun++;
             Debug.Log($"[ride] player on {(em.HasComponent<RemoteAvatar>(target) ? "a player" : "a creature")} (ghost {ghost}), pose {(RidePose)r.Stage}, " +
-                      $"at ({r.Position.x:F2}, {r.Position.y:F2}, {r.Position.z:F2})");
+                      $"{(ride.Steering ? "steering" : "carried")}, at ({r.Position.x:F2}, {r.Position.y:F2}, {r.Position.z:F2})");
         }
 
         static void Refuse(int why, Entity target)
@@ -187,8 +219,13 @@ namespace Punchy.Fauna
             return why != 0;
         }
 
-        /// <summary>One frame of a ride: down if the mount says so, else on its seat, the player with it.</summary>
-        static void Carry(EntityManager em, Entity player, Entity avatar, int me, in TerrainSource terrain)
+        /// <summary>
+        /// One frame of a ride: down if the mount says so, else the player's body on its seat. Carried, the player is
+        /// held there with it; steering, the player has moved and the creature stands where the player is
+        /// (SteeredMountSystem drove it solo and on the host; a client drives it here too, ahead of its ghost, so it
+        /// doesn't trail behind the camera).
+        /// </summary>
+        static void Carry(EntityManager em, Entity player, Entity avatar, int me, in TerrainSource terrain, bool client, float dt)
         {
             var ride = em.GetComponentData<PlayerRide>(player);
             if (avatar == Entity.Null || !em.HasComponent<CreatureState>(ride.Mount) || !em.HasComponent<CreatureBody>(ride.Mount))
@@ -218,11 +255,36 @@ namespace Punchy.Fauna
                 GetDown(em, player, avatar, why, terrain);
                 return;
             }
+            if (ride.Steering)
+            {
+                if (client)
+                {
+                    // (From where we last drove it, not its ghost a few frames behind, so its gait runs with our pace.)
+                    var t = em.GetComponentData<LocalTransform>(player);
+                    m.Position = ride.Last;
+                    m.Yaw = ride.Yaw;
+                    m.YawRate = ride.YawRate;
+                    m.Sway = ride.Sway;
+                    m.Speed = m.GaitSpeed = ride.Speed;
+                    m.Phase = ride.Phase;
+                    var grounded = !em.HasComponent<PlayerMotion>(player) || em.GetComponentData<PlayerMotion>(player).Grounded;
+                    PlayerAvatarSystem.Drive(ref m, ref mBody.Blob.Value, t, grounded, math.max(dt, 1e-4f));
+                    em.SetComponentData(ride.Mount, m);
+                }
+                ride.Last = m.Position;
+                ride.Yaw = m.Yaw;
+                ride.YawRate = m.YawRate;
+                ride.Sway = m.Sway;
+                ride.Speed = m.Speed;
+                ride.Phase = m.Phase;
+                em.SetComponentData(player, ride);
+            }
             var rBody = em.GetComponentData<CreatureBody>(avatar);
             var r = em.GetComponentData<CreatureState>(avatar);
             Riding.Begin(ref rBody.Blob.Value, ref r, rBody.Coat, ref mBody.Blob.Value, m, mBody.Coat, ride.MountGhost, terrain);
             em.SetComponentData(avatar, r);
-            Hold(em, player, r.Position, m.Yaw);
+            if (!ride.Steering)
+                Hold(em, player, r.Position, m.Yaw);
         }
 
         /// <summary>The player where its body sits, facing as the mount faces, held still (no fall, no climb, no flight).</summary>
@@ -252,6 +314,13 @@ namespace Punchy.Fauna
             var ride = em.GetComponentData<PlayerRide>(player);
             em.RemoveComponent<PlayerRide>(player);
             Ended++;
+            if (ride.Steering)
+            {
+                // The player's own abilities back (SteeredMountSystem lets the creature go once no one steers it).
+                using var abilityQuery = em.CreateEntityQuery(ComponentType.ReadWrite<PlayerBody>());
+                if (abilityQuery.TryGetSingletonEntity<PlayerBody>(out var bodyEntity))
+                    em.SetComponentData(bodyEntity, ride.RiderBody);
+            }
             LastOff = why;
             var t = em.GetComponentData<LocalTransform>(player);
             var at = t.Position;
