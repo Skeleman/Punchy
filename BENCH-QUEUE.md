@@ -1055,3 +1055,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
   - frame time at fov 60 and at fov 90, standing at the village (117,-470) with deer spawned, at a cliff face with a cave mouth in view, and at a lakeshore at noon in rain (puddles, ripples);
   - one fov 40 sample at the cliff, for the rock-grain reach.
 - Expect fov 60 to be within noise of A, and fov 90 to be equal or cheaper. Report only; nothing fails.
+
+## Note (2026-11-16, player lane, P-35 r3 row 4, #26, branch player/kit-wire 46958dcc): kit ghost size
+- When row 4 is compiled and merged: the player ghost gains NetPlayerKit (8 ushort + 4 byte GhostFields), and each folk creature ghost's 13 Kit* fields go from byte to ushort. Gear RPC traffic drops: there are no per-change broadcasts and no per-joiner resend.
+- Record the snapshot bytes per tick at the village (117,-470) with folk about, host plus 1 joiner, before and after. Report only; nothing fails unless the snapshot grows by more than 10%.

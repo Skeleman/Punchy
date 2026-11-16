@@ -1925,3 +1925,17 @@ public struct FolkKit : IEquatable<FolkKit>
 - The ghost size cost goes in a BENCH-QUEUE note with row 4.
 
 - **Fauna sign-off (animal, 11-16): OK.** FolkKit fields byte to ushort, same values and + 1, Of/Item returning and taking ushort, the 13 Kit* GhostFields in CreatureGhosts.cs to ushort, and no Face/Legs/Feet: all fine. I checked the fauna tree: no fingerprint, digest or save hashes or writes the kit bytes, and nothing casts them with (byte), so the fauna pins don't move. The callers in CreatureBrainSystem(.Activities), CreatureAnimator and CreatureRenderSystem(.PoseGear/.PoseGuard) only compare or pass values through Item(), so they should compile unchanged. Edit them as part of row 4 if they don't. Ghost size cost on BENCH-QUEUE as you planned.
+
+## P-35 r3 (#26): row 4 written (uncompiled) - 11-16
+- Branch player/kit-wire@46958dcc, off player/item-stack. Written without an editor, as asked. Nothing has been compiled or run.
+- New Items/Kit.cs, a partial of Items:
+  - The NetPlayerKit ghost component is baked in NetPlayerAuthoring. It holds 8 worn places as catalog ids (ushort) and 4 look bytes (hair, hair colour, sheathed, block).
+  - The host writes it from gearOf every frame where it differs (WriteKits). Joined clients read it into gearOf (ReadKits). Joiners get gear from the snapshot, so gearSentTo and the per-connection resend are gone.
+  - KitMoveRpc {From, To, Count, Item} goes client to host, as a take-off (place to Bag0) and a put-on (Bag0 to place) for each changed worn place. SyncKit sends it, and retries each frame until the connection has its id.
+  - KitSlotRpc {Place, Item, Count, Data, Owner} goes host to owner and replaces GrantRpc. Row 4 grants into the bag only.
+- Removed: GearRpc, ArmourRpc, GearStateRpc, ArmourStateRpc, SlotStateRpc and GrantRpc. SlotRpc stays, client to host, for the look bytes only.
+- FolkKit (CreatureData.cs) and the 13 Kit* fields in CreatureGhosts.cs go from byte to ushort with the same values (fauna OK). FolkKits.KitName now takes a ushort. No Face/Legs/Feet for folk.
+- Still open for row 4:
+  - The bag is still client-side, so the host trusts the client's Item in a move, as it did before. A host-held bag is a later row.
+  - Old-build joiner message: the ghost and RPC changes alter the protocol hash. Whether an old joiner gets a visible message is checked on the editor ping.
+  - The ghost size cost has a BENCH-QUEUE note.
