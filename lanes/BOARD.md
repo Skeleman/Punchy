@@ -9,20 +9,20 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r7+ | #365 | world | active | world/fix-259-rejoin 77721cff (PR #461); world/ashlands-lava acf0fc69 | #259 fix ready for review: PR #461, 3 valid host+joiner rejoin runs, 0 crashes. Now: lava rebase + re-pin. Then: W-174 r2, row 7 |
+| W-172 r7+ | #365 | world | active | world/ashlands-lava acf0fc69 | #259 fix merged (PR #461, #259 closed). Now: lava rebase + re-pin. Then: W-174 r2, row 7 |
 | W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r3-4 | #336 | materials | r3 merged #452; r4 part merged #456 (temple on Stone.hlsl); sweep (items, colossi) queued after W-175 r2 | world/material-library-2 9d04c2d3 | render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder
+| W-166 r3-4 | #336 | materials | r3 merged #452; r4 part merged #456 (temple on Stone.hlsl); sweep (items, colossi) next | world/material-library-2 9d04c2d3 | render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
 | A-119 | #339 | fauna | next | fauna/ride-size | rider and mount share one size (batches/A-119.md) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
-| M-06 r3-4 | #412-414 | fauna (lab agent gone) | r4 merged #459; #413 closed; r5 waits on W-175 r2 | fauna/lab-colour b47844c0 | material kind per segment via the looks table; Fauna_Fingerprint E764AAEC, no shader change |
+| M-06 r3-4 | #412-414 | fauna (lab agent gone) | r4 merged #459; #413 closed; r5 can start (W-175 r2 merged #462) | fauna/lab-colour b47844c0 | material kind per segment via the looks table; Fauna_Fingerprint E764AAEC, no shader change |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
-| W-175 r1-2 | #415 | materials | ready for PR: r2 stall + smithy are units of library parts; meshes hash-identical (15 variants), Landmarks_V3 kept, tests 7/7 + 1/1 | world/parts-units 6807a252 | M-06 r5 can use UnitDef; next family per supervisor (W-166 r4 sweep queued) |
+| W-175 r1-2 | #415 | materials | r2 merged #462: stall + smithy are units of library parts, meshes unchanged | world/parts-units 6807a252 | M-06 r5 can use UnitDef; next family per supervisor (W-166 r4 sweep queued) |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1-r2c | #323 | render | main merged in (#454 conflicts: leaf transmission via PunchySurfaceLight); compile + look check pending (RAM) | render/foliage-realism@161ecc3a | when 6 GB free: Refresh, compile, backlit look check, NaN 0; draft PR waits on job 102 |
 | R-22 r1 | #298 | render | resumable: far mesh WIP; Medium on shots done, Medium off + High on/off + NaN check pending (editor closed, RAM < 6 GB) | render/far-island@51e8f3e0 (WIP) | when RAM allows: list2 shot runs, sparkle NaN, seams/coast check, final commit, handoff, BENCH ask |
