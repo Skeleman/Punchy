@@ -266,18 +266,7 @@ namespace Punchy.Fauna
                 // Coming out at a door (row 4): made in the doorway, it steps out as the far figure would have, the
                 // brain's own step-out (GoIndoors' last stage). Its far figure stays hidden while it is in the doorway
                 // (LiveIndoors), so there is never a double.
-                var from = plan.Places[w.From];
-                var outward = math.normalizesafe(from.Face - from.At, new float2(0f, 1f));
-                st.Mode = CreatureMode.Home;
-                st.ModeTime = 0f;
-                st.Stage = 3;
-                st.StageTime = 0f;
-                st.ActionTime = 1f;
-                st.Anchor = new float3(from.At.x, from.Height, from.At.y);
-                st.AnchorYaw = math.atan2(outward.x, outward.y);
-                st.Position = new float3(from.At.x - outward.x * 0.7f, from.Height, from.At.y - outward.y * 0.7f);
-                st.Yaw = st.AnchorYaw;
-                st.Timer = 0f;
+                StepOutOf(ref st, plan.Places[w.From]);
             }
             else if (job.Task != CreatureTask.None && w.To == r.Job)
             {
@@ -318,6 +307,23 @@ namespace Punchy.Fauna
                 Debug.Log($"[members] spawn {FolkNames.Of(r.Seed)} id {r.Seed:X8} {house.Members[r.Member].Role} {species[r.Species].name} of {plan.Name} #{plan.Landmark} " +
                           $"at ({st.Position.x:F1}, {st.Position.y:F1}, {st.Position.z:F1}), far figure at ({w.Position.x:F1}, {w.Position.y:F1}, {w.Position.z:F1}), " +
                           $"apart {math.distance(st.Position, w.Position):F2} m, {w.Doing}{(st.Task != CreatureTask.None ? " task " + st.Task : "")}, hour {hour:F2}");
+        }
+
+        /// <summary>A creature just made in an indoor place's doorway, stepping out of it (the brain's own step-out,
+        /// GoIndoors' last stage).</summary>
+        static void StepOutOf(ref CreatureState st, in TownPlace from)
+        {
+            var outward = math.normalizesafe(from.Face - from.At, new float2(0f, 1f));
+            st.Mode = CreatureMode.Home;
+            st.ModeTime = 0f;
+            st.Stage = 3;
+            st.StageTime = 0f;
+            st.ActionTime = 1f;
+            st.Anchor = new float3(from.At.x, from.Height, from.At.y);
+            st.AnchorYaw = math.atan2(outward.x, outward.y);
+            st.Position = new float3(from.At.x - outward.x * 0.7f, from.Height, from.At.y - outward.y * 0.7f);
+            st.Yaw = st.AnchorYaw;
+            st.Timer = 0f;
         }
 
         /// <summary>Row 7b: if a body of this radius at p is inside a building's or prop's walls, moves p to the nearest

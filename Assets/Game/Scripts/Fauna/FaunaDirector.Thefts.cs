@@ -59,6 +59,8 @@ namespace Punchy.Fauna
                 theftsByPlayer.Clear();
                 theftsSentTo.Clear();
                 theftsServer = null;
+                ownerCalls.Clear();
+                ownersOut.Clear();
             }
             Thefts.Today = Cycle != null ? Cycle.Day : 0;
             if (Households.Ready)
@@ -156,6 +158,9 @@ namespace Punchy.Fauna
                               $"unseen ({home} at home, no guard on its rounds facing the door within {TheftSeeReach:F0} m)"));
                 if (seenBy == null)
                     continue; // nobody saw it: nobody holds it against the thief, so nothing is kept or sent
+                // (Row 4: seen from inside, one of them steps out at the door to face the thief.)
+                if (home > 0)
+                    CallOwnerOut(take.Owner, day, hour);
                 if (host)
                 {
                     if (!theftsByPlayer.TryGetValue(rpc.Thief, out var list))
