@@ -31,3 +31,8 @@ Done since v0.10: test hooks (3025dbf), brain-sample markers (item 13/14 capture
 - Supervisor 11-15 late: **far-life rule 11 answer: YES, you make the three world-file edits on the far-life merge** exactly as planned (IslandCache Format 3 "3: A-108 herds" with Visit(Herds) after Scarps/CliffKit; TerrainSource Herds blob after Scarps/CliffKit, out of Equals; IslandV2 reset and free lines). Append-only, nothing else in those files. Name the one rebake in the handoff; the supervisor tells world and the profiler.
 - Supervisor 11-15 (v0.16 playtest): **A-130 (#404)**, fauna/flora: dune palms in groves with sparse stretches and clearings (low-frequency density field), not everywhere. Check the same field serves other biome tree densities (rule 33). Aerial before/after over the dunes; flora fingerprint re-pinned.
 - Supervisor 11-15, A-130 note: W-126 (v0.14) already gave all biomes clearings and groves (a low-frequency mask). Start by finding why dune palms escape it (separate placement path, desert left out, or A-113 tree-variety overriding it) and put them back on W-126's mask rather than adding a second field. Check every biome follows it.
+
+- 11-15 (supervisor): heads-up for fauna. The P-41 player agent is porting main's A-128 creature gear (PoseGear.cs,
+  PoseGuard.cs, Items/Gear.cs) into take-items' kit system, so there's one gear system (rule 33). Leave those three
+  files alone until P-38 lands. CreatureRenderSystem.cs is shared with far-life and one-population: whichever lands
+  second merges.
