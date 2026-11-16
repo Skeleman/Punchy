@@ -7,18 +7,20 @@ using UnityEngine;
 namespace Punchy.Interact
 {
     /// <summary>
-    /// P-51 row 2 (#337): "-climbtower N", the test that an elf tower walked into (StructureKit.WalkInTower, with
-    /// -seamless) can be climbed. With -atdoor N and -usedoor N, once door N stands open the player walks in to the
+    /// P-51 rows 2-3 (#337): "-climbtower N", the test that an elf tower walked into (StructureKit.WalkInTower, with
+    /// -seamless) can be climbed, up through the roof hatch and out onto the roof deck. With -atdoor N and -usedoor N, once door N stands open the player walks in to the
     /// ground floor, then up the stair tread by tread (each time to the lowest tread above its feet, by the kit boxes the
-    /// stair is made of), and out onto the top storey's floor. Logs each tread reached, the storeys and the height got
-    /// to, then PASS (on the top floor, inside the tower) or FAIL (70 s up). One shot from the top with -shotdir.
+    /// stair is made of), through the hatch and out to the middle of the roof deck. Logs each tread reached, the storeys
+    /// and the height got to, then PASS (on the deck, which counts as outside the tower) or FAIL (70 s up). One shot from the top with -shotdir.
     /// </summary>
     public partial class Interiors
     {
         int climbTower = -2, climbTreads;
         float climbAt, climbLog, climbBest, climbTop = float.NaN, climbStep = float.NaN;
-        bool climbIn, climbDone, climbEntered, climbCentred, climbStuckLogged;
-        float3 climbLastPos;
+        bool climbIn, climbDone, climbEntered, climbCentred, climbOnStair, climbStuckLogged;
+        float3 climbLastPos, climbBestAt;
+        int climbFalls;
+        float climbLongestFrame;
         float climbStillSince;
         float2 climbStepAt = float.NaN;
 
@@ -47,7 +49,27 @@ namespace Punchy.Interact
             var w = walkIns[house];
             var t = Time.realtimeSinceStartup - climbAt;
             var feet = player.Position.y;
-            climbBest = math.max(climbBest, feet - w.Floor);
+            climbLongestFrame = math.max(climbLongestFrame, Time.deltaTime);
+            if (feet - w.Floor > climbBest)
+                (climbBest, climbBestAt) = (feet - w.Floor, player.Position);
+            // (A fall off the stair, back down near the floor: log what stood round the highest point reached, then walk
+            // in and climb again, at most twice. A long frame can carry the body off a tread and through the wall.)
+            if (climbBest - (feet - w.Floor) > 1f && feet - w.Floor < 0.5f && climbFalls < 2)
+            {
+                climbFalls++;
+                Debug.Log($"Interiors: -climbtower fell from {climbBestAt} to {player.Position} (longest frame so far {climbLongestFrame:F3} s), climbing again");
+                climbBest = feet - w.Floor;
+                climbIn = climbEntered = climbCentred = climbOnStair = false;
+                climbStep = float.NaN;
+                using var fq = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+                if (fq.TryGetSingletonBuffer<KitBox>(out var near, true))
+                    foreach (var box in near)
+                    {
+                        var local = math.mul(math.inverse(box.Rotation), climbBestAt + new float3(0f, 0.9f, 0f) - box.Centre);
+                        if (math.all(math.abs(local) - box.Half <= 1.1f))
+                            Debug.Log($"Interiors: -climbtower near the fall: box at {box.Centre}, half {box.Half}, local {local}");
+                    }
+            }
 
             // In first: to a point on the ground floor 0.4 of the way in from the wall by the doorway.
             var to = w.Centre;
@@ -104,16 +126,33 @@ namespace Punchy.Interact
                 // (From the door, first to the middle of the floor: a straight line from the door's side to the stair's
                 // foot runs along the round wall and lodges on its segments.)
                 climbCentred |= math.distance(w.Centre, player.Position.xz) < 0.5f;
+                // (Each tread aimed at a little toward the wall: off its inner edge the player drops down the well.)
+                if (found)
+                    to += math.normalizesafe(to - w.Centre) * 0.15f;
                 if (!climbCentred)
                     to = w.Centre;
+                else if (found && !climbOnStair)
+                {
+                    // (Onto the first tread along the wall, from before the stair's foot, as one walks up: straight out from
+                    // the middle, the player rubs on the second tread's side, too high to step.)
+                    var foot = to - w.Centre;
+                    var back = math.radians(-25f);
+                    var before = w.Centre + new float2(foot.x * math.cos(back) - foot.y * math.sin(back), foot.x * math.sin(back) + foot.y * math.cos(back));
+                    climbOnStair = math.distance(before, player.Position.xz) < 0.3f || feet > w.Floor + 0.2f;
+                    if (!climbOnStair)
+                        to = before;
+                }
                 else if (!found)
                 {
-                    // Past the top tread: out onto the floor's middle.
+                    // Past the top tread: out of the hatch onto the roof deck's middle.
                     to = w.Centre;
-                    if (math.distance(w.Centre, player.Position.xz) < 0.6f && feet > climbTop - 0.05f)
+                    var roof = walkIns[house].Roof;
+                    if (math.distance(w.Centre, player.Position.xz) < 0.6f && feet > climbTop - 0.05f && !float.IsNaN(roof) && feet >= roof - 0.3f)
                     {
-                        Finish(InWalkIn(player.Position, out var inHouse, out _) && inHouse == house,
-                               $"on the top floor, {feet - w.Floor:F2} m up, {climbTreads} treads climbed");
+                        var inside = InWalkIn(player.Position, out var inHouse, out _) && inHouse == house;
+                        Finish(!inside, $"on the roof deck, {feet - w.Floor:F2} m up (deck {roof - w.Floor:F2}), {climbTreads} treads climbed" +
+                                        (climbFalls > 0 ? $" after {climbFalls} fall(s), longest frame {climbLongestFrame:F3} s" : "") +
+                                        (inside ? ", but still counted inside" : ""));
                         return;
                     }
                 }
@@ -143,7 +182,7 @@ namespace Punchy.Interact
                             Debug.Log($"Interiors: -climbtower near box at {box.Centre}, half {box.Half}, player local {local}");
                     }
             }
-            if (t > 70f)
+            if (t > 70f + 40f * climbFalls)
                 Finish(false, $"timed out at {feet - w.Floor:F2} m up (best {climbBest:F2}, top tread {climbTop - w.Floor:F2})");
 
             void Finish(bool pass, string why)

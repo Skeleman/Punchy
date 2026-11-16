@@ -28,6 +28,11 @@ namespace Punchy.Interact
             public float Floor, Height;
             /// <summary>A round house's inner radius (an elf tower's, P-51 row 2), or 0 for a rectangle (Half).</summary>
             public float Radius;
+            /// <summary>
+            /// A walk-in tower's roof deck (P-51 row 3), world height, NaN until read off its kit boxes (the tower's own
+            /// height is drawn per tower, so the type's mean, Height, can be a metre or two off): above it is outside.
+            /// </summary>
+            public float Roof;
             public int Door, Room;
         }
 
@@ -59,7 +64,7 @@ namespace Punchy.Interact
         {
             var i = walkIns.Count;
             walkIns.Add(new WalkIn { Centre = centre, Facing = math.normalizesafe(facing, new float2(0f, 1f)), Half = half, Floor = floor, Height = height, Radius = radius,
-                                     Door = door, Room = room });
+                                     Door = door, Room = room, Roof = float.NaN });
             walkInOf[door] = i;
             var r = math.cmax(half) + 1f;
             var lo = (int2)math.floor((centre - r) / WalkInCell);
@@ -104,7 +109,7 @@ namespace Punchy.Interact
                 var to = p.xz - w.Centre;
                 var along = math.dot(to, w.Facing);
                 var across = math.dot(to, new float2(-w.Facing.y, w.Facing.x));
-                if (p.y < w.Floor - 0.5f || p.y > w.Floor + w.Height + 0.5f)
+                if (p.y < w.Floor - 0.5f || p.y > (float.IsNaN(w.Roof) ? w.Floor + w.Height + 0.5f : w.Roof - 0.3f))
                     continue;
                 if (w.Radius > 0f ? math.lengthsq(to) > w.Radius * w.Radius : math.abs(across) > w.Half.x || math.abs(along) > w.Half.y)
                     continue;
@@ -150,6 +155,32 @@ namespace Punchy.Interact
             Block(go.transform, at + new float3(0f, half.y, 0f), half * 2f, new Color(0.42f, 0.27f, 0.14f));
         }
 
+        float roofReadAt;
+
+        /// <summary>
+        /// P-51 row 3: a walk-in tower's roof deck, read once off the kit boxes while the player is in it (the highest of
+        /// the square floor slabs centred on the tower, TowerFloor's); tried at most once a second until they stand.
+        /// </summary>
+        void ReadRoof(int house)
+        {
+            var w = walkIns[house];
+            if (w.Radius <= 0f || !float.IsNaN(w.Roof) || Time.realtimeSinceStartup < roofReadAt)
+                return;
+            roofReadAt = Time.realtimeSinceStartup + 1f;
+            var top = float.NaN;
+            using var q = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+            if (q.TryGetSingletonBuffer<KitBox>(out var boxes, true))
+                foreach (var box in boxes)
+                    if (math.abs(box.Half.x - box.Half.z) < 0.01f && box.Half.x > 0.5f && box.Half.y < 0.15f && math.distance(box.Centre.xz, w.Centre) < 0.3f &&
+                        box.Centre.y > w.Floor + 1f)
+                        top = float.IsNaN(top) ? box.Centre.y + box.Half.y : math.max(top, box.Centre.y + box.Half.y);
+            if (float.IsNaN(top))
+                return;
+            w.Roof = top;
+            walkIns[house] = w;
+            Debug.Log($"Interiors: walk-in tower {house} (door {w.Door}) roof deck {top - w.Floor:F2} m up (its type's eaves {w.Height:F2})");
+        }
+
         void UpdateWalkIn()
         {
             if (built && builtSeamless != StructureKit.Seamless && !seamlessWarned)
@@ -162,6 +193,8 @@ namespace Punchy.Interact
             if (!TryPlayer(out _, out var player))
                 return;
             var was = walkInAt;
+            if (walkInAt >= 0 && walkInAt < walkIns.Count)
+                ReadRoof(walkInAt);
             InWalkIn(player.Position, out walkInAt, out walkInDepth);
             if (walkInAt != was || walkInAt >= 0 && Time.realtimeSinceStartup > walkInLog)
             {
