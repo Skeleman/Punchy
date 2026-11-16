@@ -44,6 +44,27 @@ namespace Punchy.Ambience
         /// </summary>
         const float ChimneyRange = 220f, SmokeShare = 0.42f;
         const int ChimneyBase = 3000000, SmokeParticles = 14;
+
+        /// <summary>
+        /// Rule 20 (#302 re-check): a plume fades out by its own size on screen instead of at a fixed 600-750 m. It is
+        /// gone below PlumeGonePixels reference pixels (its largest of rise, width and puff) and fades in over the last
+        /// fifth of that reach (LandmarkEffects.hlsl, _PunchyPlumeReach). Tuned so a 9 m forge or fumarole plume keeps
+        /// the old 750 m at High; the 70 m volcano plume now shows from kilometres off instead of popping in at
+        /// 700-850 m. A landmark is gathered out to its plumes' reach as well, for its plumes only: its falls, flames and
+        /// bubbles keep the old Range.
+        /// </summary>
+        const float PlumeGonePixels = 16.8f;
+        static readonly int PlumeReachId = Shader.PropertyToID("_PunchyPlumeReach");
+
+        /// <summary>How far this landmark's biggest plume reaches on screen (0 if it has none).</summary>
+        static float PlumeReach(LandmarkType type, float scale)
+        {
+            var size = 0f;
+            foreach (var effect in type.Effects)
+                if (effect.Kind == LandmarkEffectKind.Plume)
+                    size = math.max(size, math.max(math.max(effect.Height, effect.Width), effect.Size));
+            return size > 0f ? Punchy.Settings.DetailPolicy.ExtraReach(size * scale, PlumeGonePixels) : 0f;
+        }
         /// <summary>Last chimney gather: "smoking/total chimney buildings in range, particles, ms" (for the world probe).</summary>
         public static string LastChimneyLog = "";
         World floraWorld;
@@ -447,7 +468,10 @@ namespace Punchy.Ambience
             {
                 ref var inst = ref set.Instances[i];
                 var type = inst.Type < types.Length ? types[inst.Type] : null;
-                if (type != null && type.Effects.Count > 0 && math.distance(inst.Position, cam) < Punchy.Settings.GraphicsSettings.ViewRange(Range) + set.Types[inst.Type].Radius * inst.Scale)
+                if (type == null || type.Effects.Count == 0)
+                    continue;
+                var d = math.distance(inst.Position, cam);
+                if (d < Punchy.Settings.GraphicsSettings.ViewRange(Range) + set.Types[inst.Type].Radius * inst.Scale || d < PlumeReach(type, inst.Scale))
                     nearby.Add(i);
             }
             // Cave waterfalls near the camera (they're small and underground: while their spray looks big enough, W-135
@@ -593,9 +617,16 @@ namespace Punchy.Ambience
                 }
                 ref var inst = ref set.Instances[i];
                 var radius = set.Types[inst.Type].Radius * inst.Scale;
+                // Past the old Range only its plumes are drawn (gathered by PlumeReach).
+                var plumesOnly = math.distance(inst.Position, new float2(camera.x, camera.z)) >= Punchy.Settings.GraphicsSettings.ViewRange(Range) + radius;
                 var e = 0;
                 foreach (var effect in types[inst.Type].Effects)
                 {
+                    if (plumesOnly && effect.Kind != LandmarkEffectKind.Plume)
+                    {
+                        e++;
+                        continue;
+                    }
                     var at = LandmarkSampling.ToWorld(inst, effect.Offset, radius);
                     var ground = source.SampleGround(at);
                     var y = ground.HasWater ? math.max(ground.Height, ground.WaterSurface) : ground.Height;
@@ -762,6 +793,7 @@ namespace Punchy.Ambience
             if (plumes.Count > 0)
             {
                 plumeProps.SetInteger(MaxParticlesId, maxParticles);
+                plumeProps.SetFloat(PlumeReachId, Punchy.Settings.DetailPolicy.ExtraReach(1f, PlumeGonePixels));
                 var rp = new RenderParams(PlumeMaterial) { worldBounds = bounds, matProps = plumeProps };
                 Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 6, plumes.Count * maxParticles);
             }
