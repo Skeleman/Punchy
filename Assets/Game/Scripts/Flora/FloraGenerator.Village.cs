@@ -86,12 +86,15 @@ namespace Punchy.Flora
                 var wy = y + 0.7f;
                 var wr = wy < walls * 0.6f ? Mathf.Lerp(radius * 1.05f, radius * 0.9f, Mathf.InverseLerp(walls * 0.15f, walls * 0.6f, wy))
                                            : Mathf.Lerp(radius * 0.9f, radius * 0.85f, Mathf.InverseLerp(walls * 0.6f, walls, wy));
-                Windows(g, wr, wy, 5, 0.35f, f == 1 ? 30f : -1f, sides);
+                // (A walk-in tower has its own, at its storeys: TowerRooms.)
+                if (!walkIn)
+                    Windows(g, wr, wy, 5, 0.35f, f == 1 ? 30f : -1f, sides);
             }
 
-            // A tall, slightly flared roof.
+            // A tall, slightly flared roof; walked into, lifted on posts over a roof deck at the eaves (P-51 row 3).
             var roof = b.VertexCount;
-            RoofTube(b, walls - 0.2f, radius * 1.25f, sides, g.FoliageColor(), FloraPart.Foliage, height, 0.02f, walls + (height - walls) * 0.25f, radius * 0.7f);
+            var eaves = walkIn ? walls + TowerLookout : walls;
+            RoofTube(b, eaves - 0.2f, radius * 1.25f, sides, g.FoliageColor(), FloraPart.Foliage, height, 0.02f, eaves + (height - eaves) * 0.25f, radius * 0.7f);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
             g.Perches.Add(Vector3.up * height);
 
