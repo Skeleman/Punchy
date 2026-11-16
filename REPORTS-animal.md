@@ -5549,3 +5549,59 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Shares: extends the creature animator's step and gait path (CreatureAnimator/CreatureMotion) and row 1's per-Individual traits. No second gait system. The clip capture now lives in ShotTool as Clip/ClipBegin/ClipEnd. There is a parallel I didn't fold in: DebugControls.ColossusClimb's -ccclip takes clip frames as separate shots. It could move to ShotTool.Clip later.
 - BENCH request (crowd cost, rule 21): GaitStyle.Of runs per upright creature per animator update (a hash plus a few multiplies). Please time the biggest town on Medium, main vs folk/gait 7aa37dc3: CreatureAnimator/creature render ms with the town crowd in view. Pass: +0.1 ms or less.
 - NEXT: A-124 row 2 is ready for PR (folk/gait off main aa064602). Then the coordinator's next card.
+
+## 2026-11-16 A-134 row 0 (#460): audit and plan, households own houses and items [folk]
+- DONE (audit, no code). Compared main 8c98fc7d with DESIGN-npc-ownership and DESIGN-items-save section 4. Branch folk/ownership is at main, with nothing on it yet.
+- **What main already has:**
+  - **Households (A-105):** each house is derived from its door spot (key = Scramble(hash(DoorKey) ^ kind ^ salt)). Each has members by role (Head, Partner, Elder, Child), a pet, horses, and the Taken/Pinned/Lost bitmasks. Lookups: `Households.Of(individual)`, `ByDoor`, `ByLandmark`.
+  - **Who has a house:** spawned folk who get a place are Settled, which sets their Individual and `OwnDoor` to the house door. This covers town folk (FolkLife, Folk, Members), sea folk, turtle-folk igloos and pinned huts.
+  - **Who has no house:**
+    - lodgers, which covers folk spawned after a landmark's places are full;
+    - hermits, campers and travellers (Camp anchors);
+    - riders.
+  - **Going home:** `FindDoor` takes OwnDoor first, so a Settled folk goes home to its own door at sunset (Homeward); children are called in at 17:00. `-households` already logs "own door / WRONG door" arrivals.
+  - **Family words:** `Relation()`/`WordFor()` give the words, with dialogue.json "kin" lines for every relation. Coverage is thin for some: sibling 3, grandchild 2, in-law 2 (partner 10, child 9).
+  - **Items in and around houses:**
+    1. Door items: 2 seeded junk items 3-8 m from each door (uid door*4+k), taken with Use (`Items.Take`).
+    2. Room storage: chests and shelves in interiors, taken through the inventory screen (`TakeFromContainer`, host `TakeRpc`).
+    3. Spares at workers' posts: free to take since Zach's 11-12 take-items. `sparesOf` records whose they are, but nothing reads it yet.
+    4. Chests (dungeon loot) and drops.
+  - **Take paths:** there are two. `Items.Take(uid)` (Pickup, host PickupRpc) for world items; the container take for storage. The host decides both.
+  - **Senses:** distance-based only (FindPredator alert range, FindKin, Hermit `Wary` at 4.5 m). Nothing checks line of sight or facing. `Footprints.Blocked` can test for walls along a ray.
+  - **Refusing talk:** FolkConversation already has `Willing`/`Pestered` (a per-Individual ask ledger, 90 s fade) and a "refuses" offer, so a grudge can reuse that path.
+- **Gaps:**
+  1. **Lodgers go into other folk's houses.** A folk with no OwnDoor falls back to one of the 3 nearest doors, chosen by its Individual, so it can step into a household's house.
+  2. **Interiors are shared per house type, not per house.** Interiors.cs builds one room per house type, and its storage ids are RoomBase + room*4+k. Every "house" of a type shares one chest, so taking from A's chest empties B's. An item there has no single household owner until storage is per door.
+  3. **No owner value anywhere.** P-35's ItemStack Owner and world save have not landed: no ItemStack, no world save on main.
+  4. **No theft record, notice, reaction or guard confront.**
+  5. **The take-items "worker notices a spare gone" reader was never written.**
+- **Plan:**
+  - **Row 1, own house (folk files only):**
+    - Lodgers pick only doors with no household (`Households.ByDoor` misses). If there is none, they stay out: the porch or the fire, as campers do.
+    - Top up dialogue.json "kin" lines to at least 4 per relation.
+    - Extend the `-households` watch into the probe: 20 folk, each night's door against the household door, lodgers in no household door. Host and joiner compare households derived for the same Individuals.
+    - Nothing sent or stored. Spawn draws and fingerprint untouched. Pins checked.
+  - **Row 2, owned items:**
+    - Add Fauna/Ownership.cs (new, folk) with one `Ownership.Of(...)` returning DESIGN-items-save's owner int: 0 nobody, or Household(h) with h = household Key.
+    - Door items and room storage belong to the door's household. Spares, chests and drops belong to nobody (per the card).
+    - Room storage per door: container id DoorStoreBase + door*4+k, seeded from the door's key, registered when entered. Room geometry stays one per type.
+    - Both take paths and the pickup prompt ("take X (Bram's)") call the one check.
+    - Check: owners logged and stable across two runs and host/joiner.
+  - **Row 3, theft:**
+    - **Witness check:** Fauna/Witnesses.cs (new, folk). It finds a household member or Patrol guard within about 12 m, facing within a cone, not walled (Footprints.Blocked along the line). Inside a room: seen if a member is home (Home/Sleep at that door).
+    - **The host decides:** the take path calls one hook with the taker's player Individual. The host keeps the record (player Individual -> household key, item, time, witness, plus a thief level per settlement). It sends `TheftRpc` to everyone and catches up late joiners like ItemGoneRpc.
+    - **Reactions (folk):** the owner turns, says a line and refuses talk through `Willing` (a new "wronged" condition plus lines). A guard on shift walks to the thief and says a confront line. Both are chosen from the record on each machine.
+    - **Saved:** each player's own machine keeps its record in the same per-machine save as quests (a new `thefts` field in quests-save.json) and tells the host again on join, the way quests do. It moves into P-35's world save when that lands.
+- **Rule 11 asks (outside the folk lane, all player-lane except the docs):**
+  1. `Scripts/Items/Items.cs`: Take/Pickup and the pickup prompt call `Ownership.Of` and the theft hook (a few lines; the file is 1212 lines).
+  2. `Scripts/Items/Containers.cs`: the container take (solo and host TakeRpc) calls the same hook.
+  3. `Scripts/Interact/Interiors.cs`: room storage per door instead of per room. This changes which items a room chest holds; it is not pinned.
+  4. `Scripts/Items/QuestSave.cs`: a `thefts` list in the per-machine save, re-sent on join.
+  5. New `Scripts/Items/Thefts.cs` (a partial of Items in the player folder): `TheftRpc` (host -> all: player Individual, household key, item, witness kind) and join catch-up. **This is a network table change:** `docs/agents/multiplayer.md` table, and MULTIPLAYER.md if you want it there.
+  6. Maybe `Scripts/Interact/FolkTalk.cs`, only if the talk screen must show "won't talk to you". I expect not: FolkConversation already returns refusals.
+- **Questions for the supervisor:**
+  - (a) Rule 27: P-35's ItemStack Owner is not on main, so a stolen item can't stay marked in the bag. I plan an owner check at take time only, and leave bag marking to P-35 row 4. OK?
+  - (b) Spares: the card says nobody owns them, but DESIGN-items-save says the worker's household does. I'll follow the card unless you say otherwise.
+  - (c) Thefts in the per-machine quests save (each player keeps their own, re-sent on join) as the interim until the world save. OK?
+- **Shares (rule 33):** extends Households (A-105) and FolkConversation's Willing/refuses path, and uses DESIGN-items-save's owner int. There is one owner check for every take path and one witness check for owner and guard. No second household or save system.
+- NEXT: row 1 (folk files only) now. Rows 2-3 wait on your rule 11 OK for items 1-5.
