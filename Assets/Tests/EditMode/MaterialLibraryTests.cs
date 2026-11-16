@@ -23,8 +23,9 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw wood their own way, waiting on their owners (handed off from W-166).
-        static readonly string[] PendingWood = { "Creature.shader" };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166): Creature.shader
+        // (fauna's) carries its own wood and reaches metal through the old Shaders/Metal.hlsl forwarder.
+        static readonly (string include, string shader)[] Pending = { ("Wood.hlsl", "Creature.shader"), ("Metal.hlsl", "Creature.shader") };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -67,6 +68,7 @@ namespace Punchy.Tests
             ("Wood.hlsl", @"\w*(WoodGrain|LogEnd|Plank|Shingle)\w*", @"PunchyWood\w*\s*\(", new[] { "Flora.shader", "Cave.shader" }),
             ("Thatch.hlsl", @"\w*(Thatch|Straw)\w*", @"PunchyThatch\w*\s*\(", new[] { "Flora.shader" }),
             ("Cloth.hlsl", @"\w*(Linen|Hide|Weave)\w*", @"Punchy(Linen|Hide)\w*\s*\(", new[] { "Flora.shader" }),
+            ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader" }),
         };
 
         [Test]
@@ -86,9 +88,10 @@ namespace Punchy.Tests
                     var name = Path.GetFileName(path);
                     var inMaterials = path.Replace('\\', '/').Contains("/Materials/");
                     var text = File.ReadAllText(path);
-                    if (!inMaterials && !(include == "Wood.hlsl" && PendingWood.Contains(name)) && defines.IsMatch(text))
+                    var pending = Pending.Contains((include, name));
+                    if (!inMaterials && !pending && defines.IsMatch(text))
                         problems.Add($"{name} defines its own {include} look ({defines.Match(text).Value.Trim()}): draw it through Materials/{include}");
-                    if (!inMaterials && draws.IsMatch(text) && !text.Contains(quoted))
+                    if (!inMaterials && !pending && name != include && draws.IsMatch(text) && !text.Contains(quoted))
                         problems.Add($"{name} draws {include}'s family without including Materials/{include}");
                 }
                 foreach (var name in users)
