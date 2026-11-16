@@ -24,6 +24,12 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | player/talk-replies | P-42 | player-2 | In flight. |
 | b/fix-maxqueued-clamp | render review | render | FrameRateCap clamp; hand off for PR. |
 | player/ships | P-44 r1 draft | player | Parked (Zach 11-16); input for the moving-bodies card. |
+| b/fix-port-flag | rule 35 port flag | player-2 | In flight (ip:port join). |
+| folk/ownership | A-134 r1 | folk | In flight (WIP). |
+| render/far-island | R-22 r1 | render | WIP; main merged, needs editor checks. |
+| render/one-surface-3 | R-23 r3 | render-2 | In flight (Sky.hlsl split). |
+| render/stone-include | W-166 r3 tail #452 | render | Editor checks pending. |
+| world/material-library-3 | W-166 r4 | materials | In flight (rule 11 OK 11-16). |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
