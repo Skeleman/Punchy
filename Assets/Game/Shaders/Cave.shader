@@ -63,7 +63,7 @@ Shader "Punchy/Cave"
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Materials/Wood.hlsl"
 
             struct Varyings
@@ -83,6 +83,8 @@ Shader "Punchy/Cave"
             // The nearest glowing things (lava pools, glowing plants): they light the walls round them in the shader
             // instead of with real lights (the list is declared in Glow.hlsl, shared with the terrain and plants).
             #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
+            #include "Surface.hlsl"
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
@@ -437,17 +439,23 @@ Shader "Punchy/Cave"
 
                 // Daylight reaches only near the entrance. Openness is per vertex, so this branch is coherent: deep
                 // inside, whole wavefronts skip the sun's shadow taps.
-                half3 light = SampleSH(n) * lerp(_Darkness, 1, openness);
+                // (Surface.hlsl: the sun reaches as far as the sky is overhead, the sky's ambient down to _Darkness.)
+                PunchySurface ps = PunchySurfaceAt(p, n);
+                ps.sunReach = openness;
+                ps.skyReach = lerp(_Darkness, 1, openness);
+                half3 light = SampleSH(n) * ps.skyReach;
                 // R-36: cloud shadow only where the sky is overhead; one read, shared with the terrain share below.
                 half cloudShadow = 0;
                 half3 shine = 0;
                 if (openness > 0.001)
                 {
-                    cloudShadow = PunchyCloudShadow(p);
-                    Light sun = GetMainLight(TransformWorldToShadowCoord(p));
-                    light += sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness * (1 - cloudShadow);
+                    // The shared shadow tiers: real-time, the wide map past it, cloud, times the sun's reach.
+                    PunchyLit lit = PunchySurfaceLight(ps);
+                    cloudShadow = lit.cloud;
+                    Light sun = lit.sun;
+                    light += sun.color * saturate(dot(n, sun.direction)) * lit.shadow;
                     [branch] if (stoneOn * stoneWet > 0.01)
-                        shine += sun.color * sun.shadowAttenuation * openness * (1 - cloudShadow) * PunchyStoneSpec(n, stoneN0, view, sun.direction, stoneCrevice, stoneWet) * stoneOn;
+                        shine += sun.color * lit.shadow * PunchyStoneSpec(n, stoneN0, view, sun.direction, stoneCrevice, stoneWet) * stoneOn;
                 }
                 half3 through = 0;
 
@@ -504,7 +512,7 @@ Shader "Punchy/Cave"
                     color += SampleSH(reflect(-view, n)) * lerp(_Darkness, 1, openness) * PunchyStoneFresnel(n, view, stoneCrevice, stoneWet) * stoneOn;
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
-                    color = lerp(color, PunchyAtmosphere(color, p), openness);
+                    color = lerp(color, PunchySurfaceFinish(color, ps), openness);
 
                 // Where the walls stand in for the ground (round a mouth), shade that share as TerrainSurface shades the
                 // ground beside it: its plain colour, darkened and glossy when the weather has wet it, lit the same way
@@ -550,7 +558,7 @@ Shader "Punchy/Cave"
                         groundColor *= PunchySkyShade(cloudShadow, openness, direct, Luminance(ground.bakedGI));
                     }
                     groundColor *= lerp(ribs, 1, openness);
-                    groundColor = lerp(groundColor, PunchyAtmosphere(groundColor, p), openness);
+                    groundColor = lerp(groundColor, PunchySurfaceFinish(groundColor, ps), openness);
                     color = lerp(color, groundColor, terrain);
                 }
 

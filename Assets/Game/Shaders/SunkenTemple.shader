@@ -39,12 +39,15 @@ Shader "Punchy/SunkenTemple"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Glow.hlsl"
             // Stone.hlsl reads the shared detail texture (a global, set by CaveSystem); its includer declares it.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             #include "Materials/Stone.hlsl"
+            #include "WideShadow.hlsl"
+            #define PUNCHY_SURFACE_REAL_LIGHTS
+            #include "Surface.hlsl"
 
             float TempleHash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
 
@@ -147,7 +150,6 @@ Shader "Punchy/SunkenTemple"
                 inputData.normalWS = normalize(input.normalWS);
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-                inputData.bakedGI = SampleSH(inputData.normalWS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
@@ -160,15 +162,20 @@ Shader "Punchy/SunkenTemple"
                     surface.albedo *= PunchyStoneBlocks(input.positionWS * TempleCourse, n, footprint * TempleCourse, false, 0);
                     inputData.normalWS = n;
                 }
+                // Lit with the block face's normal, so the sky's ambient follows the bevels too.
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, inputData.normalWS);
+                ps.positionCS = input.positionCS;
+                PunchyLit lit = PunchySurfaceLight(ps);
+                inputData.bakedGI = lit.ambient;
                 surface.smoothness = 0.08;
                 surface.occlusion = 1;
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
-                // The wall torches (CaveSystem's glow lights).
-                color += surface.albedo * (PunchyGlowLight(input.positionWS, inputData.normalWS)
-                                           + PunchyRealLights(input.positionWS, inputData.normalWS, input.positionCS));
-                color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
-                return half4(PunchyAtmosphere(color, input.positionWS), 1);
+                // The cloud and wide shadows dim only the share of the light that came straight from the sun (Surface.hlsl).
+                color = PunchySurfaceSunDim(color, ps, lit, inputData.bakedGI);
+                // The wall torches (CaveSystem's glow lights), which clouds do not dim.
+                color += surface.albedo * (lit.glow + lit.lights);
+                return half4(PunchySurfaceFinish(color, ps), 1);
             }
             ENDHLSL
         }

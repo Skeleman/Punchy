@@ -116,7 +116,7 @@ Shader "Punchy/FloraImpostor"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "WideShadow.hlsl"
             #include "Flora.hlsl"
             #include "Grounding.hlsl"

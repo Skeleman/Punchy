@@ -301,6 +301,30 @@ namespace Punchy.Terrain
 
         // ---------------------------------------------------------------- heights
 
+        /// <summary>W-70b: pass corridor weight (0..1) at a point: how much biome shape relief to fade out.</summary>
+        float PassTrack(float2 xz)
+        {
+            // W-174 (#403): the pass corridor is an 18 m raster, so its bank followed the raster's straight cell lines
+            // in places. Sampled through a two-scale warp (~16 m), the bank wanders like a natural valley side.
+            var warp = new float2(noise.snoise(xz * 0.014f + 5.7f), noise.snoise(xz * 0.014f - 21.3f)) * 12f
+                     + new float2(noise.snoise(xz * 0.045f - 9.1f), noise.snoise(xz * 0.045f + 2.9f)) * 4f;
+            return Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz + warp);
+        }
+
+        /// <summary>
+        /// W-174 (#403): 1 in a pass-box gully, 0 between them. The gullies run along the walls of a jittered cell
+        /// network (cells ~96 m) seen through a two-scale domain warp, about 12-50 m wide as the edge noise wanders.
+        /// </summary>
+        static float PassGully(float2 xz)
+        {
+            var warp = new float2(noise.snoise(xz * 0.006f + 11.3f), noise.snoise(xz * 0.006f - 7.9f)) * 28f
+                     + new float2(noise.snoise(xz * 0.025f + 3.1f), noise.snoise(xz * 0.025f + 17.7f)) * 7f;
+            var c = noise.cellular((xz + warp) / 96f);
+            var wall = (c.y - c.x) * 48f;   // ~metres to the nearest cell wall
+            var wide = 0.6f + 0.8f * GroundEdits.EdgeNoise(xz, 0.012f, 41f);
+            return 1f - math.smoothstep(6f * wide, 28f * wide, wall);
+        }
+
         /// <summary>Biome base elevations plus each biome's relief, blended by shape weight. No rivers.</summary>
         public float ShapeHeight(float2 xz, in BiomeWeights shape)
         {
@@ -310,19 +334,17 @@ namespace Punchy.Terrain
             ref var set = ref Biomes.Value;
             float height = 0f;
             // Island v3 (W-70b): the biome relief fades out in a pass corridor, so a pass is walkable.
-            var track = V3Ground.IsCreated ? Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz) : 0f;
+            var track = V3Ground.IsCreated ? PassTrack(xz) : 0f;
             var relief = 1f - track;
-            // In the rest of the pass box, long walls of relief are notched: gullies on a 96 m grid of world lines
-            // keep 40% of the relief, so any straight face crossing the pass is broken every 96 m or less.
+            // In the rest of the pass box, long walls of relief are notched: gullies keep 40% of the relief, so any
+            // straight face crossing the pass is broken every ~100 m. W-174 (#403): the gullies were a 96 m grid of
+            // world lines and left square mesas with ruler-straight rims; they now follow the walls of a domain-warped
+            // cell network (cells ~96 m) with a width that wanders, so they read as eroded gullies.
             if (V3Ground.IsCreated)
             {
                 var box = Punchy.Terrain.V3Ground.PassBox(ref V3Ground.Value, xz);
                 if (box > 0.001f)
-                {
-                    var dd = math.abs(math.frac(xz / 96f) - 0.5f) * 96f;
-                    var notch = 1f - math.smoothstep(6f, 28f, math.min(dd.x, dd.y));
-                    relief *= 1f - 0.6f * box * notch;
-                }
+                    relief *= 1f - 0.6f * box * PassGully(xz);
             }
             // Island v3 (W-72): on range tops (range field 35-95 m and up) ridged biome relief gets rounded creases,
             // fewer fine octaves and less height, so crests read as soft ridges and domed summits; the lower flanks
@@ -499,8 +521,8 @@ namespace Punchy.Terrain
             // made a bank spike; where a river or landmark had reshaped the ground the pool also undid that.
             cover *= TerraceFit(xz, h) * (1f - steep);
             // Out towards the pond's edge the paddy blends back into the natural ground: a rim at bank height first,
-            // so the pool ends against it, not in mid air.
-            var rim = math.lerp(h, math.max(h, bank), math.smoothstep(0f, 0.3f, cover));
+            // so the pool ends against it, not in mid air. W-174: on the shared ground-edit falloff.
+            var rim = GroundEdits.Apply(xz, h, math.max(h, bank), GroundEdits.Falloff(1f - cover / 0.3f), 0f);
             var inside = math.smoothstep(0.3f, 0.65f, math.saturate(cover));
             g = math.lerp(rim, g, inside);
             if (inside > 0f && g < water - 0.02f)
@@ -729,7 +751,7 @@ namespace Punchy.Terrain
         {
             if (!V3Ground.IsCreated)
                 return float.MaxValue;
-            var track = Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz);
+            var track = PassTrack(xz);
             return track > 0.001f ? math.lerp(1.25f, 0.5f, math.smoothstep(0f, 0.6f, track)) : float.MaxValue;
         }
 
@@ -754,7 +776,7 @@ namespace Punchy.Terrain
                 {
                     ref var bed = ref set.Beds[type.FirstBed + b];
                     if (LandmarkBeds.Reach(inst, type.Radius * inst.Scale, bed, xz, out var centre, out var distance, out var ring))
-                        h = LandmarkBeds.Level(h, Unbedded(centre), distance, bed.Radius, ring);
+                        h = LandmarkBeds.Level(xz, h, Unbedded(centre), distance, bed.Radius, ring);
                 }
             }
             return h;

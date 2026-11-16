@@ -26,7 +26,10 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 117 landmarks, probe hash 547D4E79 since the W-172 lava half-row (VolcanoCone joins Ashlands' list and
+        /// <summary>Target: 114 landmarks, probe hash 9786243F since W-174 row 2 (one natural ground-edit profile: pass gullies, beds,
+        /// pads and paddy rims re-shape the ground, so roadside picks re-draw: five campsites, a fairy ring, the small fungal grotto at
+        /// (-1796,-201) and a grotto drop; a campsite, two burnt campfires, a cave network and a lone inn are new; the bear cave,
+        /// a waterfall and the sea folk landing and village move). 117 / 547D4E79 since the W-172 lava half-row (VolcanoCone joins Ashlands' list and
         /// takes the Ashlands spot at (-891,-2021); one Ashlands BoneGraveyard at (-733,-2944) drops; the other 115 unmoved).
         /// 689D5348 since W-138 row 3a (bores capped at 800 m and kept out from
         /// under towns: the west roads re-routed, so three roadside campsites are new and the C0a swamp waystation moved 65 m).
@@ -42,7 +45,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("117 547D4E79", hash);
+            Assert.AreEqual("114 9786243F", hash);
             yield return null;
         }
 
@@ -318,7 +321,8 @@ namespace Punchy.Tests
         }
 
         /// <summary>P-46: the sunken temple's sockets are pinned (a hall torch too low for its prop dropped, clutter kept
-        /// off chest spots). A layout change moves the hash: re-pin it and add a BENCH-QUEUE note.</summary>
+        /// off chest spots). A layout change moves the hash: re-pin it and add a BENCH-QUEUE note. C41A5BA2 since W-174 row 2 (same 73 sockets
+        /// on the re-shaped ground; was 2D2BFAEB).</summary>
         [UnityTest, Order(90)]
         public IEnumerator TempleSockets_Pinned()
         {
@@ -327,7 +331,7 @@ namespace Punchy.Tests
             if (line == null)
                 Assert.Inconclusive("the sunken temple was not built in this world");
             StringAssert.Contains("73 sockets", line);
-            StringAssert.Contains("hash 2D2BFAEB", line);
+            StringAssert.Contains("hash C41A5BA2", line);
             yield return null;
         }
 

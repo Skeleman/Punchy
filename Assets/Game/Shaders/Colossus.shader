@@ -39,6 +39,9 @@ Shader "Punchy/Colossus"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
+            #include "Surface.hlsl"
             // W-166 row 4: a vertex may name a material family (uv3: x the MaterialFamily, y its kind); 0 keeps the
             // flat vertex colour, so meshes with no uv3 draw exactly as before. Stone reads the shared detail texture.
             TEXTURE2D(_PunchyCaveDetail);
@@ -99,7 +102,9 @@ Shader "Punchy/Colossus"
                     inputData.normalWS = normalize(TransformObjectToWorldNormal(n));
                 }
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-                inputData.bakedGI = SampleSH(inputData.normalWS);
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, inputData.normalWS);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                inputData.bakedGI = lit.ambient;
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
@@ -111,15 +116,16 @@ Shader "Punchy/Colossus"
                 surface.occlusion = 1;
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
+                // The cloud and wide shadows dim only the share of the light that came straight from the sun (Surface.hlsl).
+                color = PunchySurfaceSunDim(color, ps, lit, inputData.bakedGI);
                 [branch] if (metal)
                 {
-                    Light light = GetMainLight(inputData.shadowCoord);
-                    color += PunchyMetalShade(albedo, inputData.normalWS, inputData.viewDirectionWS, input.patternPos, light.color,
-                                              light.direction, light.shadowAttenuation * light.distanceAttenuation, 1, 0);
+                    // The metal's sun highlight takes the full shadow tiers (real-time, wide, cloud) from Surface.hlsl.
+                    color += PunchyMetalShade(albedo, inputData.normalWS, inputData.viewDirectionWS, input.patternPos, lit.sun.color,
+                                              lit.sun.direction, lit.shadow * lit.sun.distanceAttenuation, 1, 0);
                 }
-                color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
                 color += input.albedo * (input.glow * _GlowStrength); // self-lit: no shadow, still hazed below
-                return half4(PunchyAtmosphere(color, input.positionWS), 1);
+                return half4(PunchySurfaceFinish(color, ps), 1);
             }
             ENDHLSL
         }
