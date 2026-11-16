@@ -212,6 +212,7 @@ namespace Punchy.Fauna
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
             CreatureSnapshotSystem.Forget();
+            TeardownHerds();
             DisposeBuilds();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
@@ -340,7 +341,10 @@ namespace Punchy.Fauna
             {
                 nextDespawn = Time.time + 0.25f;
                 using (DespawnMarker.Auto())
+                {
                     Despawn();
+                    UpdateHerds(source);
+                }
             }
             DrainSpawns();
             UpdateRiders(source);
@@ -558,7 +562,8 @@ namespace Punchy.Fauna
                 var index = SpeciesIndex(f.Species);
                 // (Moths live round a cave's glowing plants: they come only with the cave.)
                 // (Nor a wolf, a bear or the like in a town: the guards would only be driving it off again.)
-                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
+                // (Herding species come with their baked herds, FaunaDirector.Herds, not one by one.)
+                if (index < 0 || Herding(index, source) || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
                     f.Species.Body.DrivenOff && InTown(source, at))
                     continue;
                 var shortfall = f.Density * densityScale * areaHectares - counts[offset + index];
