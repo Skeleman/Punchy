@@ -241,3 +241,4 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Asked: a BENCH-QUEUE note for the Shuriken baseline (towns and the StoneColossi.Puffs giants), to measure against in row 3.
 - Next: editor slot (compile, material, 12-frame strips near and at 50 m, `-sparkleprobe` NaN 0, tune the ArcPixels fade), then row 3 one family per commit, with wind last for Zach's OK.
 - Coordinator (11-16): Kinds 7 to 8 is approved as part of the same change. Row 3 now also replaces the DrawBolts 160 m gather radius with a gather picked by screen size (rule 20), since render-2 owns that call site now.
+- Editor slot (11-16, port 7987): not opened. Render's editor (Punchy-render) had not loaded, the fauna editor was still starting, and only 7-9 GB was free. With render's editor still to load, opening mine would leave less than 6 GB. Waiting for RAM to free up.
