@@ -417,12 +417,20 @@ namespace Punchy.Interact
             for (int n = 0; n < 10 && !opened; n++)
             {
                 e = NextFolk(tried, out var s);
+                for (int hop = 0; e == Entity.Null && hop < 6; hop++)
+                {
+                    nextDoor += 20;
+                    Hop(nextDoor);
+                    yield return new WaitForSecondsRealtime(6f);
+                    e = NextFolk(tried, out s);
+                }
                 if (e == Entity.Null)
                     break;
                 tried.Add(s.Individual);
                 StandBefore(s);
                 yield return new WaitForSecondsRealtime(0.3f);
                 yield return Press(e, (o, d) => opened = o && talking);
+                Debug.Log($"[talk] replies: try {n}: #{s.Individual:X8}, window {talking}");
             }
             Check(opened, "a talk opened");
             if (!opened)
