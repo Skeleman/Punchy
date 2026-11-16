@@ -1769,3 +1769,9 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - `-weather Clear` never ran: "Weather: forced Clear" never appears after "forced Rain ... (held)". DebugControls.RunOptions only stores the line, to apply on a later frame, and that frame never came.
 - So the hang is in the frame right after `Shots.Take`, the old immediate `camera.Render()` into a temporary RenderTexture plus ReadPixels, in batchmode with forced rain. It is not in the weather code. Take is the only immediate-render helper still used by a default-suite test (the other users are Explicit).
 - Suggested fix (test file, Assets/Tests/PlayMode/WorldTests.cs:141; owner decides): use `yield return Shots.Settled(...)` like every other shot test. Not reproduced in the GUI editor; this verdict comes from the logs only.
+
+## P-50 (#24): Setup_SpawnRainAndShot on Shots.Settled, done (verified) - player/rain-shot@88dec4a5
+- Change: WorldTests.cs Setup_SpawnRainAndShot now uses `yield return Shots.Settled("test-rain-deer", 960, 540)` instead of the immediate `Shots.Take` render.
+- Play-mode suite on main 6b7bad3d plus the fix (batchmode, port 7982): 77 total, 57 passed, 0 failed, 20 skipped, 431 s. Setup_SpawnRainAndShot passed in 12 s (before: timed out at 660 s). "Weather: forced Clear" now runs (4 times in the log). Unity exited 0.
+- No shot (test change only).
+- Shares: Shots.Settled, the one ready-gated shot helper. Take is now used only by Explicit tests.
