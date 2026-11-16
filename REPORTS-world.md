@@ -7993,3 +7993,21 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Shares:** one island file and one bake order for every baked blob. Parallel found but not folded in: none.
 - **BENCH:** none. The merge adds no per-frame work.
 - Next: water/truth once you've merged this, then waterfall-sheets and log-bark. W-172 row 2 (#277) in between.
+
+## W-172 row 2 (#365, #277): cave streams start from a fall, no disc pools - done (verified)
+
+- **Branch:** world/playtest-1114 545782ea, pushed.
+- **Streams:** stream heads now go through the shared NotchFall that pool falls already used. A spring pocket stays
+  as a fallback. Bake: heads fall 6, spring 0, none 0; ends pool 6, hole 0, left out 0. Stream 6 starts from a 3.0 m
+  fall at 1604,113.5,1046, runs 32 points and ends in a pool at 1645,96.2,1028.
+- **Discs:** 0 left. Water pools 18 (0 discs), lakes 4 (0), lava 1 (0; kept round on purpose). The last 2 were
+  lake-room pools whose shore came from the round room SDF. The room basin now uses the same PoolLobe as PoolAcross,
+  so both agree. Shore variation at the two stream pools: cv 0.33 and 0.29.
+- **Shots:** PunchyMilestones/W-172/w172-r2-source.png (the head fall), w172-r2-end.png (the lobed end pool, lit by
+  2 temporary probe lights because the cave is dark there).
+- **Checks:** clean compile; full suite 40/41. LiveFolk_BeastResponse failed by 0 m on its flee distance and passes
+  alone. Cave code isn't involved, so I'm calling it a flake. 117 landmarks; game hash FA8F24B1 unchanged.
+- **Shares:** one pool shoreline (PoolLobe) for water pools, lake beds and lake rooms; one notch-fall builder for
+  pool falls and stream heads. Parallel found but not folded in: lava pools keep their own round shape.
+- **BENCH:** none. Bake-time only.
+- Next: W-172 row 3.
