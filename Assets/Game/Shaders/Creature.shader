@@ -207,6 +207,7 @@ Shader "Punchy/Creature"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
             #include "Surface.hlsl"
+            #include "ScreenSize.hlsl"
             // W-166 row 3: gear draws from the one material library, as built pieces do.
             #include "Materials/Metal.hlsl"
             #include "Materials/Wood.hlsl"
@@ -353,7 +354,9 @@ Shader "Punchy/Creature"
                     half wrap = 0.25, rimK = 0.25, spec = 0, specPow = 8, sky = 0;
                     if (_PunchyNoFur < 0.5)
                     {
-                        float dist = distance(input.positionWS, _WorldSpaceCameraPos);
+                        // R-23 row 4 (rule 20): the close-detail fades below are in the tuning view's metres (Medium, 60
+                        // degrees, 1080 lines), so they keep the same on-screen size in any other view (ScreenSize.hlsl).
+                        float dist = PunchyReferenceDistance(distance(input.positionWS, _WorldSpaceCameraPos));
                         half patch = Noise3(sp * 2.3 + albedo * 17) * 0.6 + Noise3(sp * 5.7 + 3.1) * 0.4;
                         if (surf == 0)
                         {

@@ -34,6 +34,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
+            #include "ScreenSize.hlsl"
             #include "Flora.hlsl"
             #include "Materials/Stone.hlsl"
             #include "Grounding.hlsl"
@@ -241,7 +242,9 @@ Shader "Punchy/Flora"
                 // Built things keep it much further (W-23): faded by 45 m, a thatch roof turned into a smooth, plain cone
                 // whose few facets showed, across the 30-55 m where huts also change LOD. Few of them, and the texture's
                 // mips keep the far relief from shimmering.
-                float detailFade = distance(input.positionWS, GetCameraPositionWS());
+                // R-23 row 4 (rule 20): metres in the tuning view (Medium, 60 degrees, 1080 lines), the same on-screen size
+                // in any other (ScreenSize.hlsl).
+                float detailFade = PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()));
                 float near = built ? 1 - smoothstep(60, 140, detailFade) : 1 - smoothstep(18, 45, detailFade);
                 // Timber keeps only a trace of the rock's relief (W-99: it gave the fishing huts' boards a plaster's depth).
                 near *= wood ? (look == 3 ? 0.35 : 0.15) : 1;
@@ -294,7 +297,7 @@ Shader "Punchy/Flora"
                     // with distance, where the crown reads as one mass anyway).
                     float3 q = (input.positionWS - frac(r * 7.3) * 10) * 2.2;
                     half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
-                    half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
+                    half leafNear = 1 - smoothstep(40, 90, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS())));
                     albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
                 }
                 // Moss (W-64): darker, greener clumps and yellower tips, and darker still in the thin cover near the rim.

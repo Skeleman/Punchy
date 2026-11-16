@@ -65,7 +65,12 @@ namespace Punchy.Settings
                 Detail = GraphicsSettings.Detail,
                 Shadows = GraphicsSettings.Shadows
             };
+            // The shaders' screen-size fades (ScreenSize.hlsl) take their pixels from each camera's projection and Detail
+            // from here.
+            Shader.SetGlobalFloat(DetailId, GraphicsSettings.Detail);
         }
+
+        static readonly int DetailId = Shader.PropertyToID("_PunchyDetail");
 
         public static float PixelsPerMetreAt(float fovDegrees)
             => ReferenceLines / (2f * math.tan(math.radians(math.clamp(fovDegrees, 5f, 170f)) * 0.5f));
