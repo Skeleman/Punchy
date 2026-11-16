@@ -1,5 +1,7 @@
 # Ships you can board (design note, P-44 row 1, #255)
 
+**Status: WIP, parked (supervisor 11-16).** P-44 is being rescoped to one walk-on-moving-bodies system for colossi and the galleon; this draft is input to that, not a plan.
+
 This is a design note only. No code follows from it until the supervisor and Zach have reviewed it. It covers how a
 player boards a galleon and walks its deck while it sails, built on what the colossus carry (A-107) already does.
 Small boats and rafts use the same system later (rule 33). There is no second moving-platform system.
