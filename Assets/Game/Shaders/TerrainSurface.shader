@@ -45,6 +45,7 @@ Shader "Punchy/Terrain Surface"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            #include "Canopy.hlsl"   // (R-22 row 3: the far forest on the ground past the trees)
             #include "WideShadow.hlsl"
             #include "RiverCurtains.hlsl"   // (R-21: rock beside a river fall is wet with spray)
             #define PUNCHY_SURFACE_GLOW_WORLD
@@ -645,10 +646,21 @@ Shader "Punchy/Terrain Surface"
                     albedo = lerp(albedo, shingle, bandMix * shore * (1 - input.extra.y));
                 }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
+                // Far forest (R-22 row 3): past where the trees are drawn, their crowns cover the ground (Canopy.hlsl).
+                half3 canopyN = inputData.normalWS;
+                half canopy = PunchyCanopyApply(input.positionWS, distance, inputData.viewDirectionWS, albedo, canopyN);
+                [branch] if (canopy > 0.001)
+                {
+                    inputData.bakedGI += SampleSH(canopyN) - SampleSH(inputData.normalWS);
+                    inputData.normalWS = canopyN;
+                    puddle *= 1 - canopy;
+                    stoneOn *= 1 - canopy;
+                }
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
                 // (Wet stone brings its own shine below, in place of rain's sheen.)
                 surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle));
+                surface.smoothness = lerp(surface.smoothness, 0.08, canopy);   // (leaves, matte from afar)
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
                 surface.emission = input.emission * _EmissionScale;

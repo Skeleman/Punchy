@@ -374,6 +374,7 @@ namespace Punchy.Flora
             ReleaseShadowCache();
             ReleaseWide();
             ReleaseImpostorBake();
+            ResetCanopy();
             foreach (var l in layers)
                 l?.Release();
             ReleaseImpostorQuad();
@@ -438,6 +439,7 @@ namespace Punchy.Flora
             BakeImpostors();
 
             ScaleRanges();
+            UpdateCanopy(source);   // (R-22 row 3: the far forest map, after the ranges it fades in at)
             // Deep in a cave the surface's plants are out of sight: no placing, no drawing (obstacles stay).
             var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
             var camXZ = new float2(cam.transform.position.x, cam.transform.position.z);
