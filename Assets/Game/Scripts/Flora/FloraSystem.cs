@@ -1390,10 +1390,9 @@ namespace Punchy.Flora
         readonly List<Bolt> bolts = new List<Bolt>();
         float2 boltCentre = new float2(float.MaxValue);
         float nextBolts;
-        /// <summary>Bolts are found among arcing spires within this distance of the camera.</summary>
-        const float BoltRange = 160f;
-        /// <summary>BoltRange at the graphics settings' View distance.</summary>
-        float BoltReach => Punchy.Settings.GraphicsSettings.ViewRange(BoltRange);
+        /// <summary>Bolts are found among arcing spires out to where a spire's arc fades (rule 20: by its on-screen
+        /// thickness at the current view, ElectricitySystem.Reach), never fixed metres. Kept for one gather.</summary>
+        float boltReach;
 
         /// <summary>
         /// Electric bolts between neighbouring arcing spires (FloraForm.ArcSpire): every spire near the camera pairs with
@@ -1409,6 +1408,7 @@ namespace Punchy.Flora
             {
                 boltCentre = camXZ;
                 nextBolts = Time.unscaledTime + 2f;
+                boltReach = Punchy.Rendering.Effects.ElectricitySystem.Reach();
                 GatherBolts(source, camXZ);
             }
             foreach (var bolt in bolts)
@@ -1434,8 +1434,8 @@ namespace Punchy.Flora
             for (int li = 1; li < 3 && li < layers.Length; li++)
             {
                 var size = layers[li].Settings.TileSize;
-                var c0 = (int2)math.floor((camXZ - BoltReach) / size);
-                var c1 = (int2)math.floor((camXZ + BoltReach) / size);
+                var c0 = (int2)math.floor((camXZ - boltReach) / size);
+                var c1 = (int2)math.floor((camXZ + boltReach) / size);
                 for (int ty = c0.y; ty <= c1.y; ty++)
                 for (int tx = c0.x; tx <= c1.x; tx++)
                 {
@@ -1445,7 +1445,7 @@ namespace Punchy.Flora
                     {
                         if (inst.Model < 0 || inst.Model >= models.Count || models[inst.Model].Species == null || models[inst.Model].Species.Form != FloraForm.ArcSpire)
                             continue;
-                        if (math.distancesq(inst.Position.xz, camXZ) > BoltReach * BoltReach)
+                        if (math.distancesq(inst.Position.xz, camXZ) > boltReach * boltReach)
                             continue;
                         tips.Add(inst.Position + new float3(0f, models[inst.Model].Height * inst.Scale * 0.85f, 0f));
                     }

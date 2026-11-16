@@ -40,9 +40,22 @@ namespace Punchy.Rendering.Effects
         /// <summary>The standard electricity (Resources/StandardElectricity), loaded on first use.</summary>
         public static ElectricityEffect Effect => effect != null ? effect : effect = Resources.Load<ElectricityEffect>("StandardElectricity");
 
-        /// <summary>Below this many reference pixels (its length, DetailPolicy) an arc fades out; gone at half of it.
-        /// TODO: move to DetailPolicy beside TorchFlamePixels once the value is picked in the editor.</summary>
-        const float ArcPixels = 1.5f, ArcEndShare = 0.5f;
+        /// <summary>Below this many reference pixels (its glow band's thickness, DetailPolicy) an arc fades out; gone at
+        /// half of it. A spire's 0.6 m band goes at about 190 m at the reference view and Detail 1, near the old 160 m
+        /// bolt range. TODO: move to DetailPolicy beside TorchFlamePixels once the value is picked in the editor.</summary>
+        const float ArcPixels = 3f, ArcEndShare = 0.5f;
+
+        /// <summary>
+        /// How far an arc of this width shows at the current view (rule 20): its glow band's thickness on screen, not its
+        /// length, since a long arc far off is still a hairline. Callers that gather arcs (spire bolts) use it as their
+        /// radius so nothing is gathered past where it fades.
+        /// </summary>
+        public static float Reach(float width = 1f)
+        {
+            var e = Effect;
+            var band = 2f * (e != null ? e.CoreWidth * e.GlowWidth : 0.3f) * width;
+            return Punchy.Settings.DetailPolicy.ExtraReach(band, ArcPixels);
+        }
 
         /// <summary>The shared clock (WorldSync sets it every frame; the server tick when joined).</summary>
         public static float Clock => Shader.GetGlobalFloat(ClockId);
@@ -177,8 +190,8 @@ namespace Punchy.Rendering.Effects
                 if (length < 0.05f)
                     continue;
                 var mid = (a.From + a.To) * 0.5f;
-                // Rule 20: fade by how big the arc looks (its length), never by fixed metres.
-                var reach = Punchy.Settings.DetailPolicy.ExtraReach(length, ArcPixels);
+                // Rule 20: fade by how thick the arc looks, never by fixed metres.
+                var reach = Reach(a.Width);
                 var distance = Vector3.Distance(camera, mid);
                 var fade = math.saturate((reach - distance) / math.max(reach * (1f - ArcEndShare), 0.01f));
                 if (fade <= 0f)
