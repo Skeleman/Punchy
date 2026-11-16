@@ -35,6 +35,17 @@ namespace Punchy.Flora
         public static IReadOnlyCollection<string> PartIds => PartLibrary.Keys;
 
         /// <summary>
+        /// M-06 r5 blueprint hook: grows any unit (a Model Lab blueprint) at the host species' size, colours and finish,
+        /// as Grow would if the host's Unit were that unit. Editor preview only; it skips the pregrown cache.
+        /// </summary>
+        public static FloraModel GrowUnit(FloraSpecies host, UnitDef unit, int variant)
+        {
+            var model = GrowParts(host, variant, host.name, false, unit);
+            model.Finish();
+            return model;
+        }
+
+        /// <summary>
         /// Draws a unit: grows its frame from the species (height from Height, width from Spread), then each part in
         /// order. Each part starts from the form's own family (FormFamily) and names its own materials.
         /// </summary>
