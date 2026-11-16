@@ -1725,3 +1725,10 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Re-verified on a fresh dev build of main fd90e634: solo `-ridefit` => PASS (cat on dog, Monkey swap kept, Human down TooHeavy, own abilities back, jump steers, button gets down). Joined pair on `-port 7983` (host `-ridefit mount -body Human`, joiner `-ridefit rider -body Cat`): mount PASS, rider PASS (found again after growing, down after shrinking with Size). 0 exceptions, players 2.
 - Branch player/ride-fold made no commits and was dropped. BOARD P-43 marked DONE.
 - Shares: none.
+
+## P-46 row 1: play-mode suite on main (#24 #266, 2026-11-16, fishing agent)
+- Ran scripts/run-playmode-tests.sh on main 01688b6f (branch player/p46, no code). The suite builds a local world (no -host), so it binds no port and 7979 stayed free.
+- Result: 54 passed, 1 failed, 20 skipped (Explicit shot/bench tests), 1572 s, Unity exit 2.
+- FAIL WorldTests.Setup_SpawnRainAndShot (660 s): "Timeout value of 180000 ms was exceeded". The deer spawned, rain was forced and the shot was taken and written (test-rain-deer-20261116-034255.png). The hang came after that, in `-weather Clear` plus a 2 s wait. Net status went from 59 fps at the start to 12 fps at the end. It looks like the game slows or stalls when weather is set back to Clear right after a forced Rain. Not dungeon or fishing code; this is for the weather owner (or the profiler, if it needs timing).
+- Pins all pass: Landmarks_V3 117 547D4E79, Fauna_Fingerprint 4BEFEA91 (species 124 3B1B2423), CaveSockets_BakedEqualsBuilt D74CD402, IslandCache both, the Folk/Whereabouts digests, Lying, Follow, Fish catch and lure tests.
+- Shares: none. Starting row 2 (temple sockets).
