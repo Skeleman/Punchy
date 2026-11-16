@@ -32,6 +32,8 @@ code, assets and definitions. An improvement to the system then reaches every pl
   pilot it, small boats are pilotable too. Readable shop signs mean inn and other building signs become readable.
   Pickable plants make garden plants pickable. See-through windows on one building mean every building's windows.
   Folk sleeping in beds means floors, mats and benches are considered as sleeping places.
+- Units are built from parts (Zach 11-15, W-175): a stall, tent or camp lists standalone parts (awning, table,
+  anvil) defined once, so other units reuse them and a part change reaches every instance.
 - Stand-ins follow the definition. Once a thing gets a real definition (paper, rope, glass), whatever imitated it
   moves onto that definition.
 - Design the first member for the family: data-driven kinds, not hard-coded cases. A card that finds a parallel
