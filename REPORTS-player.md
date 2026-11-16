@@ -1642,3 +1642,22 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Snaps: more than row 2. Some 5 s windows show 1.5-5 m steps on both own and other players. The host's own player also snaps while loading, so this looks like frame stalls from two players baking and streaming on one PC, not the lag stage. I didn't separate the two.
 - Suite 51/72 passed, 2 failed (both WorldTests cave tests: CrowFliesOutOfCave timed out at 180 s, CaveWater didn't read the pool). Run alone: 2/2 passed. This branch only changes Net drivers, so I count both as flaky. Fingerprint 0654C913.
 - UNVERIFIED: Relay join with -netsim; a joined client on a second machine.
+
+## player-2 - P-42 row 2 (#25): the shipped A-131 reply exchanges walked in game; held offers get a note - done (verified solo + host); stacked on P-39
+- Row 2 had no written text (not in BOARD, lanes/player or #25), so I set it: walk the shipped dialogue.json exchanges (guard quest, hermit, innkeeper) in game, and fix anything found.
+- Branch player/talk-replies @ c34b3f4b (WIP 69f9716b folded in). New FolkTalk.Exchanges.cs (test only); FolkTalk.cs Show() change.
+- Finding and fix: a quest kept in the save hid the Accept/Decline replies, so the guard's line ended on an offer with nothing to answer. The window now adds "(You already have this quest.)" (or "(You already took this gift.)" for a gift).
+- Finding, no change: asking a topic again draws a new random line (per-trade weights). So the test turns the quest down at one guard and takes it at the next, rather than re-asking one guard. After the save holds the guard quests, guards say a no-quest "help enough" line.
+- Test `-body Human -talktest 1 exchanges` checks:
+  - the guard's replies are "I'll do it." and "Not right now.";
+  - turning it down goes back to the topics with no quest;
+  - taking it by reply holds the quest, shows "Added to your quests" and goes to guard_thanks;
+  - a quest already held shows the note and no replies;
+  - the hermit's "Sorry. I'll be quiet." gives a Bow and goes back to the topics;
+  - the innkeeper's "Maybe another night." goes back to the topics.
+- Solo: PASS, 0 exceptions (met 62). Quest turned down, then crows taken at the next guard ("Good. One more pair of eyes."). Hermit bow passed.
+- Host: PASS, 0 exceptions (met 56). Pigeons turned down; the held note was shown for crows and lost-key. The hermit bow passed in the run before (that run failed only the old, stricter final check).
+- Two earlier host runs met 0 folk and logged nothing on why. The test now logs failed presses and empty hops. The next 3 host runs met folk.
+- Not seen: an innkeeper offering replies (no innkeeper drew that line in any run). Not run: joined client (7.7 GB free; owed with the P-43 pair run).
+- Shots: D:/Unity/PunchyMilestones/P-42/row2-host/talk-02-guard-quest, talk-03-guard-held (.png), not viewed. The solo run saved none (no folder at the time).
+- Shares: one talk window and one offer path (rule 33). The note sits in FolkTalk.Show, next to the existing hide rule.
