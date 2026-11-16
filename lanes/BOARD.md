@@ -50,7 +50,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-23 r4 | #298 | render-2 | editor-free done (WIP 3fefa203); editor after world W-176 and render plume | render/one-surface-4 (new off main) | r3 merged PR #483. Row 4: Creature close-detail and bark relief fades by screen size (rule 20) |
 | R-23 r4+r5 | #298 | render-2 | DONE in editor 11-16 (HeatHaze kept in metres: physical effect, pushback accepted) | render/one-surface-5@9701f8a3, draft PR #494 | Drift pair + colossus clouds on/off done 11-16 (REPORTS); waits only on BENCH job 109 |
 | R-35 r2 | #333 | render-2 | row 2 done in editor 11-16 (picks A-E, E = main at fov 60 D1); shots in PunchyMilestones/R-35 for Zach | render/cloud-picks@b7a1f7cc (after #494) | Waits on Zach's picks for row 3; BENCH draft in REPORTS to file |
-| R-31 | #325 | render | paused (budget) after row 1 | render/grass-fields | Editor slot on request |
+| R-31 | #325 | render | queued after R-40 (#511). Zach picked row 2: a-count+b-height with narrower blades, and a-count+d curved blades; c dropped | render/grass-fields | Editor slot on request |
 | R-29 | #320 | render-2 | paused (budget). Row 2 call sites wired; row 3 bolt gather by screen size done; all uncompiled, needs editor slot (port 7987) | render/effects-kit@63f794f7 (Punchy-release) | resume on coordinator message |
 | #400 cull | #400 | fauna | paused (budget), not started | fauna/cull-no-stall (new off main) | CreatureRenderSystem: no same-frame Complete of the cull |
 | #400 mesh | #400 | world | queued after M-07 r2b, W-172 r7 | world/chunk-mesh-budget (new off main) | Per-frame chunk-mesh budget by screen size; tunnel-mouth burst |
