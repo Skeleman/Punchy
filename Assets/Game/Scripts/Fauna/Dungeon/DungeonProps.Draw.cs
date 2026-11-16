@@ -75,6 +75,27 @@ namespace Punchy.Fauna
         public static (int placed, int full, int low, int hidden) Counts => (placed.Count, full, low, hidden);
 
         /// <summary>
+        /// Whether a point is inside a prop's box (within 2 m of its centre), and that prop's centre: what the dungeon
+        /// walk's prop check asked of the old "Dungeon ..." stand-in GameObjects, which no longer exist.
+        /// </summary>
+        public static bool Inside(float3 p, out float3 centre)
+        {
+            foreach (var q in placed)
+            {
+                if (math.distancesq(q.Centre, p) > 4f)
+                    continue;
+                var l = (float3)q.Matrix.inverse.MultiplyPoint3x4(p);
+                if (math.all(math.abs(l) <= q.Size * 0.5f))
+                {
+                    centre = q.Centre;
+                    return true;
+                }
+            }
+            centre = default;
+            return false;
+        }
+
+        /// <summary>
         /// The tier a prop of this size (m, its box's largest side) gets at this distance (m, to its nearest point) at
         /// the reference view and Detail 1, from scratch: 0 every part, 1 the biggest part, 2 or 3 not drawn.
         /// </summary>

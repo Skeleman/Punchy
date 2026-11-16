@@ -10,7 +10,7 @@ namespace Punchy.Fauna
 {
     /// <summary>
     /// What the dungeon spawner can put in a socket (#24): creatures (by species asset name) and items. Items are
-    /// placeholder boxes for now, sized and tinted per kind, until the kit has dungeon props. Empty is a real pick: not
+    /// kit-built props drawn by screen size (<see cref="DungeonProps"/>), each with a collision box. Empty is a real pick: not
     /// every socket is filled. New entries go at the end; never renumber (pick hashes are built from these numbers).
     /// </summary>
     public enum DungeonContent : byte
