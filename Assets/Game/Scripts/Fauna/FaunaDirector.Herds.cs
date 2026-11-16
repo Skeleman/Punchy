@@ -44,7 +44,7 @@ namespace Punchy.Fauna
                 for (int s = 0; s < fauna.Count && s < 255; s++)
                 {
                     var f = fauna[s];
-                    if (f == null || f.Species == null || f.Density <= 0f || !HerdBaking.Herds(f.Species))
+                    if (f == null || f.Species == null || f.FromHomes || f.Density <= 0f || !HerdBaking.Herds(f.Species))
                         continue;
                     var index = SpeciesIndex(f.Species);
                     if (index < 0)
