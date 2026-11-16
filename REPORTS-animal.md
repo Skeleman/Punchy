@@ -5625,3 +5625,27 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Docs:** docs/agents/fauna.md has an A-119 line.
 - Editor closed, Temp/PlayArgs.txt deleted. No timing done.
 - NEXT: M-06 row 5 (#414, Lab blueprint buildings on W-175 UnitDef) if you assign it.
+
+## M-06 row 5 (#414): Lab blueprint buildings on W-175 UnitDef - done (verified), ready for PR
+- **Branch:** fauna/lab-blueprint @ 75b30386 (on main 60445b5b, #465). Commits 646448af hooks + test, 42acbb99 Lab editor, 75b30386 example JSON.
+- **Hooks (rule 11 OK'd, each under 20 lines):** `FloraGenerator.GrowUnit(host, unit, variant)` in FloraGenerator.Parts.cs above BuildUnit; `FloraSpecies.Unit`, checked in GrowParts before the form switch (optional `unit` argument). An empty Unit (every species) changes nothing. No other UnitDef/Parts/Units edits. No blueprint species in any placement list.
+- **Lab (ModelLab.Blueprints.cs new, ModelLab.SetPieces.cs small edit, ModelLab.cs untouched):** "Blueprint/<id>" entries in the set-piece list (the 4 coded units plus Assets/Game/Flora/Units/*.json). Host species gives size, colours and finish. Palette of the 14 PartLibrary parts (each added with its first coded use as defaults). Per part: At/To/Span shares + metres, nudge, up/down, duplicate, remove. The selected part draws bright over the dimmed rest; the 1.8 m person stands beside. Save as JSON (JsonUtility, LF; coded ids refused), Revert, Copy JSON. Static hooks for eval (NewBlueprint, BlueprintAdd, BlueprintSet, SaveBlueprint, BlueprintInfo...).
+- **Example:** Assets/Game/Flora/Units/cookhouse.json on the Stall host: 4 smithy posts, pyramid roof, counter + wares, fire ring + embers, door mat (10 parts, 1000 tris). Saved, reloaded from disk, same parts.
+- **Tests:** EditMode UnitLibraryTests 3/3, UnitBlueprintTests 2/2 (new: Stall and Smithy species given their unit grow the same mesh as the coded unit, variants 0-1). Playmode WorldTests 14/14: Landmarks_V3 117 547D4E79 and Fauna_Fingerprint 4BEFEA91 unchanged.
+- **Shots:** D:/Unity/PunchyMilestones/M-06/ r5-cookhouse.png, r5-cookhouse-close.png, r5-cookhouse-roof-selected.png, r5-lab-panel.png.
+- **Kit gaps (for W-175 cards):**
+  1. Missing parts: walls/planks, floors, doors and frames, windows/shutters, gabled roof (only pyramid roof and awning), beams/lintels, stairs/ladders, rails/fences, signs, lanterns, barrels/crates.
+  2. No rotation or mirror on UnitPart: the door mat faces +Z only; nothing can face sideways.
+  3. Sizes are shares of a frame that comes from the host species (Height x Spread); they don't snap to metres, and the unit file holds no size or host (a reloaded blueprint picks a default host).
+  4. Part conventions differ: the pyramid roof's Span is a half-size (and its radius is widened x1.6 inside), the fire ring and embers take their radius from Span.y (the whole frame height by default) and ignore At, so they always sit at the unit's centre.
+  5. Fire ring and hide tent overwrite the grower's Height/Width (bounds), so mixing them into a bigger unit can shrink its bounds.
+  6. Collision: only the hide tent and fire ring add colliders; posts, counter and roof add none. Perches only from pyramid roof and chimney.
+  7. Parts share the variant's random draws in order, so reordering or inserting a part changes the parts after it.
+  8. No nested units (a stall inside a market unit).
+  9. JSON carries float noise (0.699999988); harmless but noisy to read.
+  10. Seams: the pyramid roof rim and post tops line up by eye only; no snapping.
+- **What each builder would need:** world lane - read FloraSpecies.Unit (or a JSON unit by id) at placement and add blueprint species to placement lists; an adapter so StructureKit buildings can be expressed as units (walls, floors, doors above first). Player lane - interiors/doors would need door and floor parts with colliders and a facing.
+- **Risks:** the selected-part view grows the part alone, so a part using seeded draws may differ a little from its look in the whole. Blueprints are editor-only; nothing at runtime loads JSON units yet.
+- **Shares (rule 33):** extends W-175 UnitDef/PartLibrary/BuildUnit and the Lab set-piece view (Family.SetPiece). No Lab-only format. Parallel seen, not folded: StructureKit buildings stay coded.
+- Editor closed, Temp/PlayArgs.txt deleted. No timing.
+- NEXT: ready for PR.
