@@ -85,7 +85,9 @@ namespace Punchy.Debugging
                         var clear = fa > fm ? fa - Top(mp, mr) : fm - Top(at, ar);
                         if (clear >= 1.5f) continue;
                         pits++;
-                        if (problems.Count < 8) problems.Add($"cave {cave} pit at {at.x:F0},{at.y:F0},{at.z:F0}: floors {math.abs(fa - fm):F1} m apart, {clear:F1} m rock");
+                        if (problems.Count < 8)
+                            problems.Add($"cave {cave} pit at {at.x:F0},{at.y:F0},{at.z:F0}: floors {math.abs(fa - fm):F1} m apart, {clear:F1} m rock "
+                                + $"(links {used[x] - data.FirstSegment} {Describe(ref set, a)} and {used[y] - data.FirstSegment} {Describe(ref set, b)})");
                         break;
                     }
                 }
@@ -93,6 +95,10 @@ namespace Punchy.Debugging
             CaveLayoutTrail = $"{caves} caves, {links} links: {pits} pits, {ledges} ledges, steepest grade {steepest:F2}";
             return pits + ledges == 0 ? "" : $"{pits} pits, {ledges} ledges: " + string.Join("; ", problems);
         }
+
+        /// <summary>A link's nodes for a problem line: kind initial and radius at each end.</summary>
+        static string Describe(ref CaveSetBlob set, CaveSegment link)
+            => $"{set.Kinds[link.A].ToString()[0]}{set.Nodes[link.A].Radius:F1}-{set.Kinds[link.B].ToString()[0]}{set.Nodes[link.B].Radius:F1}";
 
         static bool CaveWalkable(CaveNodeKind kind) => kind == CaveNodeKind.Passage || kind == CaveNodeKind.Chamber;
 

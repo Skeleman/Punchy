@@ -184,6 +184,18 @@ namespace Punchy.Terrain
                         if (i > 0 && (kinds[path[i]] == CaveNodeKind.Chamber || kinds[path[i - 1]] == CaveNodeKind.Chamber))
                             gap[i] *= ChamberGrade;
                     }
+                    // W-176: and level across the whole of a big chamber's reach. A chamber is wider than the node spacing,
+                    // so its disc overlaps the passage two or three nodes on either side; floors still falling there cut
+                    // a pit through the chamber floor (or the chamber through theirs).
+                    for (int c = 0; c < n; c++)
+                    {
+                        if (kinds[path[c]] != CaveNodeKind.Chamber)
+                            continue;
+                        var cn = nodes[path[c]];
+                        bool Reach(int i) => math.distance(nodes[path[i]].Position.xz, cn.Position.xz) <= (cn.Radius + nodes[path[i]].Radius) * profile.x + 1f;
+                        for (int i = c + 1; i < n && Reach(i); i++) gap[i] = 0f;
+                        for (int i = c; i > 0 && Reach(i - 1); i--) gap[i] = 0f;
+                    }
                     // When the rock gets too thin further on for MainGrade to get under it from chain[0] (a cave running
                     // in under a valley lower than its mouth), the whole path steepens just enough (up to MaxGrade)
                     // instead of the floor dropping off a ledge where it can't keep up.
@@ -276,22 +288,19 @@ namespace Punchy.Terrain
                 // another height (a floor a metre or more apart, with too little rock between them), which cuts a pit or
                 // a shelf into it where they meet. Passages well above or below one, or level with it (a crossroads), are
                 // fine. W-176: every earlier passage counts, side passages too (only main paths did, so side passages
-                // cut pits through each other). The links at the node a branch starts from and one link on are skipped:
-                // the branch leaves its parent there by design.
-                var near = new List<int>(4);
+                // cut pits through each other). Only links that share a node or are joined by one link are skipped (a
+                // branch leaves its parent there by design); before, every link at the branch's root and one on was
+                // skipped for the whole branch, so a branch could dig through a big chamber at its root.
                 float Floor(float3 at, float nodeRadius) => at.y - FloorDrop(nodeRadius);
                 float Top(float3 at, float nodeRadius) => at.y + nodeRadius * profile.y + CaveSampling.JaggedReach * rock.x;
-                bool Cuts(int since, int fromNode)
+                var joined = new HashSet<long>();
+                long Key(int a, int b) => ((long)math.min(a, b) << 32) | (uint)math.max(a, b);
+                bool Close(int n, CaveSegment link) => n == link.A || n == link.B || joined.Contains(Key(n, link.A)) || joined.Contains(Key(n, link.B));
+                bool Cuts(int since)
                 {
-                    near.Clear();
-                    near.Add(fromNode);
-                    for (int s = firstSegment; s < since; s++)
-                    {
-                        if (segments[s].A == fromNode)
-                            near.Add(segments[s].B);
-                        else if (segments[s].B == fromNode)
-                            near.Add(segments[s].A);
-                    }
+                    joined.Clear();
+                    for (int s = firstSegment; s < segments.Count; s++)
+                        joined.Add(Key(segments[s].A, segments[s].B));
                     for (int s = since; s < segments.Count; s++)
                         for (int k = 0; k <= 2; k++)
                         {
@@ -302,7 +311,7 @@ namespace Punchy.Terrain
                             for (int e = firstSegment; e < since; e++)
                             {
                                 var link = segments[e];
-                                if (near.Contains(link.A) || near.Contains(link.B))
+                                if (Close(segments[s].A, link) || Close(segments[s].B, link))
                                     continue;
                                 var ma = nodes[link.A];
                                 var mb = nodes[link.B];
@@ -369,7 +378,7 @@ namespace Punchy.Terrain
                     Grade(chain, plan, tops, main ? MainGrade : MaxGrade);
                     // A-91 row 3: a passage that runs into an earlier passage at another height is laid again on a new heading
                     // (up to 4 times), then left out.
-                    if (Cuts(segmentsBefore, from.Node))
+                    if (Cuts(segmentsBefore))
                     {
                         nodes.RemoveRange(nodesBefore, nodes.Count - nodesBefore);
                         kinds.RemoveRange(nodesBefore, kinds.Count - nodesBefore);
