@@ -5452,3 +5452,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - folk/inn-job@4b9a681a: origin/main merged in (baef8f00, clean), then b/fix-testhooks-guard merged in, then TestHooks.Inn.cs guarded with UNITY_EDITOR.
 - WorldTests 14/14 in batch, no re-pin: fingerprint 0654C913 and landmarks 117 689D5348 hold. The Counter anchors moved no pin. Setup_SpawnRainAndShot timed out at 180 s on the full run (the same flake as A-113's first run) and passed alone on the rerun (78 s).
 - Build hotfix: b/fix-testhooks-guard@30bbb1c2 from main wraps TestHooks.Options.cs (A-131) in #if UNITY_EDITOR to fix the player build CS0103. Only TestHooks.Options.cs and TestHooks.Inn.cs lacked the guard. The DungeonWalk callers were already guarded. No player build run.
+
+## 11-15 b/fix-audio-doors (#352, A-122) occlusion read released anchors [fauna]
+- Branch b/fix-audio-doors@319b6b05 from main (aa064602). Ready for PR.
+- Cause: GameAudio.Terrain is a static copy that CreatureAudioSystem sets. When the world or island goes (test teardown, rebuild), the system stops running and nothing clears the copy, so OpenDoors (and the occlusion job's own anchor and ground reads) used blobs that had been released.
+- Fix: a new KeepTerrainLive() in GameAudioOcclusion.cs runs first in GameAudio.Update, before Echo, Water and Occlude. It takes Terrain from the live TerrainSource singleton through a cached query, or clears it (HasTerrain false) when there is no world or singleton. That guards every reader in GameAudio, not just line 206. Both files stay CRLF; +34 lines.
+- WorldTests (PlayMode): 14/14 pass with the fix, Fauna_Fingerprint included, and no released or deallocated errors in Editor.log. Caveat: the baseline without the fix also passed 14/14 in this tree, so I could not reproduce the world lane's failure here. The fix follows the stale-copy path the report names; please ask the world lane to re-run in their tree.
+- A-108 r4 is parked as a resumable WIP: fauna/far-details@5ce15aac (eagle over summits, dust behind walking herds in dusty biomes, dawn fish rings on far lakes; compiles; play checks and shots still to do). Resuming it next.
+- No collision with the W-166 gear row beyond the Wood/Metal note in the entry above.

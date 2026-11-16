@@ -15,7 +15,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r3 | #336 | materials | stone: compiled + tests 3/3, shots pending (RAM); gear WIP on top of A-133 | world/material-library-2 1bf93cce (tree Punchy-materials) | Supervisor: merge A-133 before this; built stone close-up into BENCH 101 |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
-| A-108 r2 | #298 | fauna | merged #428 | fauna/far-life | Row 4 details next |
+| A-108 r2 | #298 | fauna | merged #428 | fauna/far-life | r4 WIP fauna/far-details@5ce15aac (eagle, herd dust, dawn lake rings; compiles, shots pending) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
@@ -33,7 +33,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-43 | #396 | player-2 | done, ready for PR (player/ride-fit a980ae54; pair run not done, RAM) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
 | A-124 r2 | #358 | folk | active | folk/gait (new) | Per-person gait styles; no new wire field |
-| b/fix-audio-doors | #352 | fauna | next | - | GameAudioOcclusion.cs:206 reads released anchors; WorldTests fail every run |
+| b/fix-audio-doors | #352 | fauna | done, ready for PR | b/fix-audio-doors@319b6b05 | GameAudio re-reads the live TerrainSource singleton each frame (stale copy read released anchors); WorldTests 14/14 |
 | R-28 r2, R-15 land | - | render-2 | active | render/cobble-depth, render/audit-fixes | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
