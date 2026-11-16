@@ -732,3 +732,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shares: Glow.hlsl PunchySampleSmooth stays the one coarse light map read (town, night, island).
 - Leftover reviews: b/fix-swapchain-stall c9672fcc looks fine and merges clean. Small note: `-maxqueued` accepts 0, but Unity's range is 1-10, so clamp q>=1. b/cloud-shadow-map 88ee4c89 merges clean but needs rework: its baked path returns saturate(density*3)*thickness, which skips main's R-20 r4 penumbra. It should store raw density and apply the edge after the read. It also needs a BENCH check, and WeatherSystem.cs is shared. render/audit-fixes, cobble-depth and one-surface now conflict with main. audit-fixes touches WaterPatchSystem (world-owned), so I'm asking before resolving it (rule 11).
 - NEXT: R-30 row 1.
+
+## R-34 row 2 (#332) - main merged after #423 - ready for PR (verified)
+- Branch `render/stone-trial` 03e09d9d. Merged origin/main. Flora and TerrainSurface merged without conflicts. In Cave.shader, the light loop now uses R-10's `toLight` (no `l` under real lights), so the wet stone highlight from lanterns uses toLight too. Ran AssetDatabase.Refresh, compile clean.
+- Re-shot with -stonewet 1: D:/Unity/PunchyMilestones/R-34/row2b/wet-merged-sheet.jpg (boulder-2, cliff-2, cave-2, wall-2 at noon; boulder-2 and cave-2 at 17:30). Wet stone is glossy and dark on boulders, wall blocks and the cave wall, the same as before the merge. NaN/sparkle probe at cave-2: 172 frames, 0 marked.
+- BENCH note: on the current layout the cliff-2 pose (3258.6,-428.7) now looks at open water, not cliff. Use boulder-2 and wall-2 (-3224.5,1602.0) for the main-vs-branch job, or tell me and I'll scout a new cliff pose.
+- NEXT: R-30 row 1.
