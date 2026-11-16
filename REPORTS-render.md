@@ -834,3 +834,10 @@ with main d95e7ff1); compiles, no suite run yet.
 ## 11-16 render: R-30 merged with main (#454), text only
 - render/foliage-realism@161ecc3a, pushed, merge-tree clean against main. The Flora.shader and FloraImpostor.shader conflicts with #454 are resolved to main's PunchySurfaceLight block. The leaf transmission now gets its open-sky factor from PunchyLit as (1 - lit.wide) * (1 - lit.cloud) * ps.sunReach, the same terms it used before, and its self-shadow from lit.sun.shadowAttenuation. Neither shader does its own shadow lookups any more, so there is one lighting path. Main's old `through` term stays replaced by R-30's transmission.
 - Not compiled yet (no editor, RAM). Waiting for the 6 GB ping, then one editor session runs: R-30 compile and look check, R-22 r1 checks, stone-include checks.
+
+## 11-16 render: R-30 checked after the main merge; stopped on RAM before the other two
+- render/foliage-realism@161ecc3a (no new commits). Compiles clean after Refresh (only the usual include warnings). Sparkle probe (label r30, 360 frames, oak and pine at noon): creature marked 0, other bad 0, hot 0, so NaN 0.
+- Look: main moved the trees, so the old row2c framings now miss them. Re-framed on a lone Oak at (614, 746) and a lone Pine at (696, 593) (found with -place tree:), noon and backlit at 5 and 30 m: PunchyMilestones/R-30/row2c/merged2. Leaves read as in r2b (toned down, Pine LeafThinness 1.4), no black or blown canopies, shadows land as before.
+- Not done: the same framings on plain main for a side-by-side. The tree was on main aeb9a5a8 and compiled when free RAM fell to 2.5 GB (other editors at 4-7 GB each), so I closed my editor (graceful exit) and put the tree back on render/foliage-realism.
+- Still to do, in the next editor slot: main A/B for R-30 (list R-30/work/m2.txt), the stone-include checks (diff vs main, NaN, EditMode test) and the R-22 r1 runs. Note: -sparkleprobe needs a label after it; the bare flag at the end of PlayArgs runs nothing.
+- Ask: ping me when 6 GB or more is free again.
