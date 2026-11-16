@@ -29,6 +29,17 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// P-37 r3 row 2 (#369): a walk-in house's kit boxes stop a creature, its doorway stops one unless its door is
+        /// open, and its floor and the room inside don't (a made-up house, turned and scaled).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator WalkIn_WallsBlockCreatures()
+        {
+            yield return null;
+            Assert.AreEqual("", Game.Hook<string>("WalkInWallProblems"));
+        }
+
+        /// <summary>
         /// #24 phase 2 row 3: on the pinned seed, no dungeon has more creature picks (each a bit in its dead mask) than
         /// the mask holds, once every dungeon is registered.
         /// </summary>

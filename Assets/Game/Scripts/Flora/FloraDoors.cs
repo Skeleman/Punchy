@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -55,6 +56,19 @@ namespace Punchy.Flora
             Shader.SetGlobalInteger(CountId, open.Count);
             // Daylight for the doors' own rhythm (the sky's night, which flora passes don't all include).
             Shader.SetGlobalFloat(DayId, 1f - Shader.GetGlobalFloat(NightId));
+        }
+
+        /// <summary>
+        /// P-37 r3 row 2 (#369): the doors open half way or more, as (x, z), into <paramref name="into"/>; returns how many.
+        /// Creatures pass a walk-in house's doorway only while its door is open (Fauna/WalkInWalls).
+        /// </summary>
+        public static int OpenSnapshot(NativeArray<float2> into)
+        {
+            var n = 0;
+            for (int i = 0; i < open.Count && n < into.Length; i++)
+                if (open[i].w >= 0.5f)
+                    into[n++] = new float2(open[i].x, open[i].z);
+            return n;
         }
     }
 }
