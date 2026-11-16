@@ -151,3 +151,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: #451 merged, W-172 rows 2-6 (#365): cave water source, tunnel mouths and sides, tunnel variety, horse-size passages, camp layouts. Fauna fingerprint E764AAEC, landmarks 117 689D5348.
 - 11-16: #452 merged, W-166 row 3 (#336): built stone (ruins, fountains, forums, cave linings) and creature cloth and bone use the material library.
 - 11-16: #453 merged, M-06 row 3b (#412): Lab species such as Frostdeer form herds in their biomes. Host+joiner check owed in the next playtest build.
+- 11-16: #454 merged, R-23 row 2 (#298): one surface lighting path for terrain and built pieces (job 82 pass).
+- 11-16: #455 merged, R-15 rows 1-3 (#269): shader audit fixes incl. WaterPatchSystem; row 4 waits on bench job 62.
