@@ -1568,3 +1568,11 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - No shot (merge row).
 - Risks: CreatureRenderSystem.cs is shared with other gear work; whichever branch lands second merges it.
 - Shares: Items/Gear kit system (rule 33); main's job gear post items fold into it in row 1.
+
+## player-2 - P-39 row 1 (#397) d-pad menus, the stick walks - done (verified)
+- Branch player/menus @ a22150ae (stacked on unmerged take-items 487dd137). Files: Settings/Overlay, UI/MenuNav, Player/PlayerInputSystem, Camera/ThirdPersonCamera, Interact/Doors, Items/Items.
+- Overlay now has AnyOpen = Frozen (main menu, talk: walk stopped, cursor freed) or FieldMenu (in-world panel, held per frame). MenuNav reads only the d-pad and arrow keys; with a field menu up the player walks on the left stick and WASD (jump/crouch/dive dropped), and look works. The Fauna gates (Interact, attack, emotes) still hold through AnyOpen, so no Fauna edit was needed.
+- Check `-invpad` (virtual pad: Select, stick up 1 s, DpadRight x2, DpadLeft, A, B): solo stick walked 5.03 m with the panel open, focus 0 -> 5 -> 11 -> 5 (1 s holds, so key repeat), B closes, 0 exceptions. Host: 5.06 m, same steps, 0 exceptions. No joined client run (RAM ~1 GB free; local input only, no net tables touched).
+- Shots: D:/Unity/PunchyMilestones/P-39/row1-solo.png (cyan while shaders compiled), row1-host.png.
+- Risks: the editor had a stale subscene header after the branch switch; ForceReimport plus a fresh import worker fixed it (editor only).
+- Shares: extends Overlay (one menu-state system) and MenuNav (one focus system for every menu); no parallel found.
