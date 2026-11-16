@@ -37,6 +37,10 @@ namespace Punchy.Dungeon
     public static class TempleSockets
     {
         public const int PerKind = 15;
+        /// <summary>The torch prop's box height (DungeonSpawner.PropPlace, a small Interactable): a sconce in a room lower than this above it gets no socket.</summary>
+        const float TorchPropHeight = 1f;
+        /// <summary>How far (xz) clutter stays from a chest spot: the chest's half width plus a clutter box, with room to spare.</summary>
+        const float ChestClear = 1.4f;
 
         struct Candidate
         {
@@ -205,15 +209,33 @@ namespace Punchy.Dungeon
                     break;
                 }
             }
-            // Torches: each one is something to light or put out.
+            // Torches: each one is something to light or put out. P-46: not one whose room (the nearest with its floor
+            // below the sconce: rooms stack) is too low for the prop's 1 m box above it (a narrow hall's torch under a
+            // chamber: the spawner finds no clear spot for it there).
             for (int k = 0; k < set.RuinSconces.Length; k++)
             {
                 var s = set.RuinSconces[k];
+                int home = -1;
+                var homeD = float.MaxValue;
+                for (int i = 0; i < n; i++)
+                {
+                    var r = rooms[i];
+                    if (r.FloorAt(s.At.x) > s.At.y)
+                        continue;
+                    var d = math.length(math.max(0f, math.max(new float2(r.U0 - s.At.x, r.V0 - s.At.z), new float2(s.At.x - r.U1, s.At.z - r.V1))));
+                    if (d < homeD)
+                        (homeD, home) = (d, i);
+                }
+                if (home >= 0 && s.At.y + TorchPropHeight > rooms[home].Ceil)
+                    continue;
                 cands.Add(new Candidate { Q = s.At, Face = s.N, Kind = SocketKind.Interactable, Size = SocketSize.Small, Tags = SocketTags.None, Room = -1 });
             }
             // Guards at doorways: a creature socket on each doorway (Doorway).
             foreach (var d in doors)
                 cands.Add(new Candidate { Q = d.q + new float3(0f, 0.05f, 0f), Face = new float2(1f, 0f), Kind = SocketKind.Creature, Size = SocketSize.Medium, Tags = SocketTags.Doorway, Room = d.a });
+            // P-46: no clutter on a chest's floor spot (a corner's clutter sat 0.3 m from that corner's chest, inside it).
+            var chests = cands.FindAll(c => c.Kind == SocketKind.Chest);
+            cands.RemoveAll(c => c.Kind == SocketKind.Clutter && chests.Exists(o => math.distance(o.Q.xz, c.Q.xz) < ChestClear && math.abs(o.Q.y - c.Q.y) < 1f));
 
             // About PerKind of each kind, picked evenly through the candidates (in the order made, so it's stable).
             var kept = new List<Candidate>();
