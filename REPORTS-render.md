@@ -792,3 +792,11 @@ with main d95e7ff1); compiles, no suite run yet.
 - Materials: world/material-library-2 doesn't touch Flora.hlsl. It edits Flora.shader's bark and built-stone lines (Stone.hlsl include, builtStone/rubble marks), a different hunk from mine (the lighting block), so it should merge clean.
 - Risks: noon is unchanged in principle (the lobe needs the sun behind the leaf), but I didn't reshoot it. The cost is one normalize and a few multiplies per leaf pixel. BENCH 102 could add an off/on pair if wanted.
 - Shares: extends the one flora lighting path (Flora.hlsl, used by the mesh and the impostor; rule 33). Parallel not folded in: grass and moss have their own lighting and no light through blades yet.
+
+## R-30 r2b #323 - leaf thinness per species - done (verified)
+- render/foliage-realism@b80b9cf8. New FloraSpecies.LeafThinness (0-2, default 1 = the r2 look), sent to the mesh and impostor shaders as one small buffer per flora layer, indexed by model like the bounds buffers. Set: Pine 1.8, Spruce 1.6, EmberPine and Juniper 1.4, Birch 1.25, cacti 0.25-0.3. Dark needles need more than 1 because the light is tinted by the leaf colour.
+- Backlit sheet: PunchyMilestones R-30/row2b/sheet-backlit.png (before / r2 / r2b; also Assets/Temp/shots/R-30-r2b-pine.png). Pines now warm through clearly at 5 m and 30 m; oaks unchanged from r2. At 5 m the pine reaches about oak brightness and leans amber: if it reads too hot, lower Pine/Spruce to about 1.4 in their species assets (data only, no code).
+- Noon sheet: row2b/sheet-noon.png (before vs r2b). Leaves look the same; only the sky and clouds differ (weather).
+- Test merge with world/material-library-2@e4d2d902: git merge-tree clean (exit 0). Merged Flora.shader keeps both the thinness term and the Stone.hlsl lines. No scratch branch pushed.
+- Risks: material-library-2 adds Fir and WhitePine without LeafThinness, so they get 1 (dim like r2 pines); set about 1.6 after it lands. Flora.shader gains one varying (TEXCOORD11); the impostor's ground varying is now float3.
+- Shares: one per-species value on the shared flora species data (rule 33), read by both mesh and impostor. Not folded in: grass and moss still have no light through blades.
