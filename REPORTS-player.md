@@ -1576,3 +1576,11 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Shots: D:/Unity/PunchyMilestones/P-39/row1-solo.png (cyan while shaders compiled), row1-host.png.
 - Risks: the editor had a stale subscene header after the branch switch; ForceReimport plus a fresh import worker fixed it (editor only).
 - Shares: extends Overlay (one menu-state system) and MenuNav (one focus system for every menu); no parallel found.
+
+## player-2 - P-39 row 2 (#397) one in-world FieldMenu - done (verified)
+- Branch player/menus @ 144a2ce9 (stacked on unmerged take-items 487dd137). New UI/MenuTabs, UI/FieldMenu; edits UI/MainMenu, Items/Items, Items/Containers, Items/Quests, Player/PlayerStats.
+- Select (View) / Tab / I opens FieldMenu; B closes. Tabs: Items (inventory, worn, open container), Quests (quest log), Status (stats moved out of Start, plus "Carrying X / Y kg"). Start keeps Character, Multiplayer and the settings tabs. LB/RB (Q/E) switch tab in both menus; RB no longer drops from the inventory. "-fieldmenu <Tab>" opens it for shots; "-inventory" opens Items.
+- Check: solo `-invpad`: "FieldMenu: open on Items", the stick walked 5.04 m with it open, the d-pad moved focus, B closed, 0 game exceptions. Host `-takequests 2 -fieldmenu Quests`: in game, quest log shows. No joined client run (RAM low; local UI only, no net tables).
+- Shots: D:/Unity/PunchyMilestones/P-39/row2-items-solo.png, row2-status-solo.png, row2-quests-host.png.
+- Risks: Containers.OpenContainer now opens the menu on Items (same behaviour as before, new route). The editor logs PlayArgs.txt sharing violations from the test harness (not game code).
+- Shares: MenuTabs is the one tab system for MainMenu and FieldMenu (rule 33); Items/Quests/Status register tabs like MainMenu.AddTab.
