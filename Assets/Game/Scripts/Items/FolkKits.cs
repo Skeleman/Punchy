@@ -168,13 +168,14 @@ namespace Punchy.Items
                     else
                     {
                         // (A-106: a posted sweeper's broom, a shoveller's spade; a roofer's hands are on its rope. A well
-                        // keeper's bucket is on the well's rope, a post prop; a fire tender conjures its flame; anyone else
-                        // tending carries one.)
+                        // keeper's bucket is on the well's rope, a post prop; a fire tender conjures its flame; an innkeeper's
+                        // hands are both at its counter, A-132; anyone else tending carries one.)
                         if (job == FolkJob.AshSweeper)
                             tool = ItemTable.Broom;
                         else if (job == FolkJob.SnowShoveller || job == FolkJob.SandClearer)
                             tool = ItemTable.Shovel;
-                        if (job != FolkJob.WellKeeper && job != FolkJob.FireTender && job != FolkJob.Roofer && !clearer)
+                        if (job != FolkJob.WellKeeper && job != FolkJob.FireTender && job != FolkJob.Roofer && job != FolkJob.Innkeeper &&
+                            !clearer)
                             other = ItemTable.Bucket;
                         if (!bare)
                             k.Head = FolkKit.Of(job == FolkJob.SnowShoveller ? ItemTable.Woolcap : ItemTable.StrawHat);
