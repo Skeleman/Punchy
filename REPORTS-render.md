@@ -866,3 +866,8 @@ with main d95e7ff1); compiles, no suite run yet.
 - EditMode MaterialLibraryTests: 4/4 passed.
 - Before/after on stone.txt (summit, coast, lake, town at noon): before is main aeb9a5a8 (the branch's base), in W-166/stone-include/before and after; side-by-side in W-166/stone-include/ab.jpg. The terrain and stone faces look the same. The whole-frame diff is not zero (mean 7-23), but it comes from things that vary between runs: clouds, water waves, the drifting rocks over the coast and plant sway. The removed Shaders/Stone.hlsl only did `#include "Materials/Stone.hlsl"`, so the compiled TerrainSurface shader is the same code either way.
 - Ready for PR.
+
+## 11-16 render: R-22 r1 compiles on main, slot ended on RAM
+- render/far-island@98bc7ca2 (WIP, pushed). The 893d70a0 merge left one compile error, a stray `return 0f;` in UpdateFarIsland that my earlier no-editor edit put in. It is fixed and the branch now compiles clean.
+- Free RAM then fell to 3.5 GB in edit mode, before any play run, so I closed the editor cleanly. The tree is clean on render/far-island and there was no scene backup.
+- Still to do next slot: list2 runs (medium-off, high-on with sparkle, high-off), seams/coast check, final commit, BENCH ask; then the lava far-light re-check (#302, -891,-2021 at dusk).
