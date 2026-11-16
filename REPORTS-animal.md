@@ -5245,3 +5245,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Shares: the one WaterPatchSystem splash source list (Splashes) the player and waders already use; no second ring system.
 - Ready for PR. R-38 (render/playtest-1114 cf8ef6e9) reviewed: behind -sunstep only, no conflict with my branches.
 - NEXT (stopped for v0.16): row 2 (sized TraceSystem.Splash for dolphin breaches). far-life still waits on the rule 11 answer.
+
+## 11-15 A-129 rows 1-3 (#393, folk): dialogue.json live in a build, options design note - done (verified)
+- folk/dialogue-archive 469a1080 (row 2 d51ab1ff, origin/main merged clean at 3d3472c3, row 3 note 469a1080).
+- Build check, row 1 (was UNVERIFIED): one running dev build first read StreamingAssets (250 talk lines). A dialogue.json put beside the exe then won and was read live. A bad copy was turned down whole ("2 bad entries, keeping the last good one"), with both named by path and line: an unclosed { in conversation.Any.favour[0].text and an unknown "when" in cultures.Any.lines[13]. The fixed copy was read again. The process was killed by PID and the beside-exe copy removed. No shot (log check).
+- Row 3: docs/design/dialogue-options.md. Lines get an optional `options` list (say/then/do, 1-4) and Answer gets Options plus FolkConversation.Choose. The default Accept/Decline pair comes from code, so there's one choice system (rule 33). Nothing built yet.
+- Rule 11 ask, player lane: when options are carded, FolkTalk shows Answer.Options (keys 1-4) instead of its built-in Accept/Decline and calls Choose on a pick. accept/decline stay FolkTalk's via Items. No new network: words stay local and folk actions use the existing FolkTalkRpc. A host-state `do` (pay, give) would be its own ask.
+- Solo/host/client: text per machine, nothing new sent. No timing done.
+- Ready for PR: folk/dialogue-archive.
+- NEXT: proposed A-131 = folk side of options (parse, validation, Answer.Options, Choose, tests; no UI). Second option: fold quests.json loading and the hermit WorkSets lines onto LiveJsonFile.

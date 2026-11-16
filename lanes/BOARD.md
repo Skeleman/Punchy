@@ -21,7 +21,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-130 | #404 | fauna | next | - | Put dune palms back on W-126's clearing mask |
 | M-06 r1 | #412-414 | lab | active | fauna/model-lab-2 - | Turntable wobble, then the body-data note (stop for Zach) |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
-| A-129 r2-3 | #393 | folk | active | folk/dialogue-archive d51ab1ff | In-build dialogue.json check; row 3 design note |
+| A-129 r1-3 | #393 | folk | ready | folk/dialogue-archive 469a1080 | Supervisor: PR; player lane rule 11 ask for options wiring; proposed next A-131 (folk side of options) |
 | R-38 r2 | #366 | render | blocked | render/playtest-1114 c1b30b46 | Rows 0,1,3,4 merged #409; row 2 needs far-lights 5fe0ce36 |
 | R-25 r3 | #302 | render | ready? | render/far-lights 5fe0ce36 | Land before R-38 row 2 |
 | R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
