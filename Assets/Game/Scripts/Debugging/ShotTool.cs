@@ -137,6 +137,11 @@ namespace Punchy.Debugging
                 waiting = "load veil";   // W-151: never a picture of the veil (or of it fading out)
                 return false;
             }
+            if (Punchy.CameraRig.ThirdPersonCamera.SkyHeld)
+            {
+                waiting = "sky hold";   // P-37: the start view still on the sky, or tilting down from it
+                return false;
+            }
             var terrain = world.GetExistingSystemManaged<TerrainStreamingSystem>();
             if (terrain != null && !terrain.ShotIdle)
             {

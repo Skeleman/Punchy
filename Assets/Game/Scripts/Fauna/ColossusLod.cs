@@ -126,6 +126,7 @@ namespace Punchy.Fauna
                         Positions = new NativeList<float3>(Allocator.Persistent),
                         Normals = new NativeList<float3>(Allocator.Persistent),
                         Colours = new NativeList<float4>(Allocator.Persistent),
+                        Families = new NativeList<float2>(Allocator.Persistent),
                     };
                     pending.Add((i, lod, job, job.Schedule()));
                 }
@@ -159,6 +160,8 @@ namespace Punchy.Fauna
                 mesh.SetNormals(job.Normals.AsArray());
                 if (job.Colours.Length == job.Positions.Length)
                     mesh.SetColors(job.Colours.AsArray());
+                if (job.Families.Length == job.Positions.Length)
+                    mesh.SetUVs(3, job.Families.AsArray());
                 var indices = new NativeArray<int>(job.Positions.Length, Allocator.Temp);
                 for (int i = 0; i < indices.Length; i++)
                     indices[i] = i;
@@ -172,6 +175,7 @@ namespace Punchy.Fauna
                 job.Positions.Dispose();
                 job.Normals.Dispose();
                 job.Colours.Dispose();
+                job.Families.Dispose();
             }
             pending.Clear();
             source.Dispose();
@@ -237,6 +241,7 @@ namespace Punchy.Fauna
                 p.job.Positions.Dispose();
                 p.job.Normals.Dispose();
                 p.job.Colours.Dispose();
+                p.job.Families.Dispose();
             }
             if (pending.Count > 0)
                 source.Dispose();
@@ -263,6 +268,8 @@ namespace Punchy.Fauna
             public float Cell;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colours;
+            /// <summary>W-166 r4: uv3 (material family, kind), one per output vertex, when the source has it.</summary>
+            public NativeList<float2> Families;
 
             public void Execute()
             {
@@ -278,6 +285,11 @@ namespace Punchy.Fauna
                 var colours = new NativeArray<Color>(hasColours ? n : 0, Allocator.Temp);
                 if (hasColours)
                     md.GetColors(colours);
+                // (W-166 r4: a face's material family is a label, not a blend: a far face takes its first source face's.)
+                var hasFamilies = md.HasVertexAttribute(VertexAttribute.TexCoord3);
+                var families = new NativeArray<Vector2>(hasFamilies ? n : 0, Allocator.Temp);
+                if (hasFamilies)
+                    md.GetUVs(3, families);
                 var count = md.GetSubMesh(0).indexCount;
                 var indices = new NativeArray<int>(count, Allocator.Temp);
                 md.GetIndices(indices, 0);
@@ -315,6 +327,7 @@ namespace Punchy.Fauna
                 var corners = new NativeList<int3>(count / 6 + 16, Allocator.Temp);
                 var tcol = new NativeList<float4>(count / 6 + 16, Allocator.Temp);
                 var counts = new NativeList<int>(count / 6 + 16, Allocator.Temp);
+                var tfam = new NativeList<float2>(hasFamilies ? count / 6 + 16 : 0, Allocator.Temp);
                 for (int t = 0; t + 2 < count; t += 3)
                 {
                     int i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
@@ -336,6 +349,8 @@ namespace Punchy.Fauna
                     corners.Add(k);
                     tcol.Add(colour);
                     counts.Add(1);
+                    if (hasFamilies)
+                        tfam.Add(families[i0]);
                 }
                 for (int u = 0; u < corners.Length; u++)
                 {
@@ -350,6 +365,8 @@ namespace Punchy.Fauna
                         Normals.Add(soup || !hasNormals ? flat : math.normalizesafe(nsum[cell], flat));
                         if (hasColours)
                             Colours.Add(soup ? colour : csum[cell] / sum[cell].w);
+                        if (hasFamilies)
+                            Families.Add(tfam[u]);
                     }
                 }
             }
