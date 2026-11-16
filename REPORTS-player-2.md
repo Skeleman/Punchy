@@ -180,3 +180,19 @@ Needs from world (send via supervisor first, card row 3): row 1 shell changes (F
 - Caveat: any new RPC field changes the NetCode RPC hash, so an older build can't join a newer one either way. "Old clients default off" only holds within the same build.
 - Next: the editor slot to compile rows 1 and 3 together, run the suite, then host + client on 7983 with `-seamless`: walk in and out, door from inside, chest contents equal on both machines, ambient and camera inside.
 - 11-16 follow-up: supervisor approved the Flora.hlsl change. It's done in c58c890b, touching only the door-match lines: an entry with w<0 forces the leaf shut, and open is clamped to >= 0 after the loop. CRLF kept. Uncompiled. The RPC hash note goes in the PR body and the release notes (A-124 precedent). Stopped until the editor slot.
+
+### P-37 r3 rows 1 + 3: compiled and verified, player/seamless-2@c58c890b (11-16)
+- Compile: no CS errors. Flora.shader has no errors (ShaderUtil). The dev build succeeded (about 35 min, mostly Burst AOT running alongside fishing's build).
+- EditMode 17/17. PlayMode 56/58, two known failures:
+  - FolkConversationTests.LiveFolk_InnkeeperAtCounter: folk's fix is on folk/innkeeper-test-order.
+  - WorldTests.Setup_SpawnRainAndShot: timed out at 180 s in the suite, passes 1/1 alone.
+- Host + client on 7983 with `-seamless` on the host only, each running `-walkin 10 -atdoor 10 -usedoor 10`:
+  - The joiner logs "the host walks into its houses; this client follows". Both build the same 11 walk-in houses (doors 10, 13, 20, 25, 27, 28, 38, 39, 42, 44, 47).
+  - Both walk through door 10 into house 0, reaching depth 1.00. Indoor ambient goes 0.55 -> 0.17 warm, and the camera arm goes 0 -> 2.6. Pushing at the side wall stops at the wall box. Both walk back out ("out of the walk-in house"). No exceptions on either machine.
+  - The door chests match on both: door 10 empty, door 20 Stick x1, door 42 Mushroom x1, each "1 room stores joined".
+- Solo with `-seamless`: the same walk in and out.
+- Default host + client (no flag): no walk-in houses, 53 doors lead inside (42 + 11 with -seamless), and the joiner is in game. Teleport rooms are unchanged.
+- Not covered by the port (manual playtest): being blocked by a shut door, and using the door from inside. The port only starts once the door is open. Both are built on DoorBoxes (added while the door is shut) and Doors.TestInside.
+- model.DoorBoxes keeps its name and shape (public readonly List<KitBox> on the model), ready for fauna/walkin-walls. merge-tree with origin/main (7 ahead) is clean.
+- PR body / release note: IslandVersionRpc gains a byte, so the NetCode RPC hash changes. Old and new builds can't join each other (A-124 precedent).
+- Editor closed with EditorApplication.Exit. The slot is free.
