@@ -1003,3 +1003,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Causes: blades are thin and short (3.3 cm wide, 0.23 m tall at 55/m2); tufts of 5 leave gaps between clumps; thinning past FullDensityRange lowers coverage at 25 m; a dark round disc near the camera with a hard edge shows in every variant, today's too (look into it in row 2).
 - Sheet for Zach: PunchyMilestones/R-31/R-31-noon-pin1.jpg (5 tiles, coverage under each). Probe: GrassCoverageProbe.Measure; prototype switch: GroundDetailSystem.SetProto(0-4). NaN 0, Grass.shader compiles clean.
 - Row 2 not started. Editor closed.
+
+### R-40 handoff (11-16), render/soft-wide-shadow@251d95b1, PR #513
+- Wide shadows use bilinear 3x3-tent PCF; the hand-off weight is URP's own real-shadow fade; one shadow per point, max(real, wide) normalised, so there is no washout band and no double shadow.
+- Colossus, noon and 8:00, 45/90 m, clouds pinned: 0 errors, NaN 0, low-sun frames match main outside the shadow (2-3% px); noon 90 m shadow solid (main: faint outline).
+- Sheet: PunchyMilestones/R-40/R-40-sheet.png. Lesson: wait for ShaderUtil.anythingCompiling and pin clouds before A/B shots.
+- Next: R-31 row 2 per the queue.
