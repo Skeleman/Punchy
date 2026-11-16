@@ -191,3 +191,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #497 #24 p2 r3 (#24): a joined player now sees the same dungeon creatures dead as the host (late joiners too).
 - 11-16: #498 A-134 r5 (#460): steal while you are inside a room and the guard waits, then walks to the door and says "Halt!" when you step out.
 - 11-16: #500 render/hour-sync-doc, testing.md note: set the hour and take frozen shots on the host (from the #494 check).
+- 11-16: #501 folk/innkeeper-test-order, innkeeper PlayMode tests remake town members after setting the hour (test-only).
