@@ -153,3 +153,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #453 merged, M-06 row 3b (#412): Lab species such as Frostdeer form herds in their biomes. Host+joiner check owed in the next playtest build.
 - 11-16: #454 merged, R-23 row 2 (#298): one surface lighting path for terrain and built pieces (job 82 pass).
 - 11-16: #455 merged, R-15 rows 1-3 (#269): shader audit fixes incl. WaterPatchSystem; row 4 waits on bench job 62.
+- 11-16: #456 merged, W-166 row 4 part (#336): sunken temple walls and flagstones use the shared cut stone.
