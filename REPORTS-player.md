@@ -1516,3 +1516,29 @@ Results:
   Rule 11 ask: (a) I port main's fauna gear into the kits (deep fauna edits), (b) land take-items with folk kits
   drawn for players only, or (c) the fauna lane ports it.
 - **Shares:** extends the one Items world-item path (Add/ItemSpawnRpc) and the Pier wharf lookup pattern; no new system.
+
+## P-41 suite + P-38 port size (2026-11-15, supervisor agent in Punchy-player)
+- **Suite, player/fishing@461f138c:** 40 passed, 1 failed, 17 skipped (58) in 1312 s, with 8 other editors open.
+  The one failure is the known load flake: Setup_SpawnRainAndShot hit its 180 s timeout (the shot was saved).
+  Re-run alone: passed in 29 s. Editors exited on their own in batchmode, so none were left open. Fishing is ready to merge.
+- **P-38 take-items, option (a): stopped before merging, because the port is over a day.** Merging main into it
+  conflicts in 7 files: PoseGear, PoseGuard, CreatureRenderSystem, Items/Gear, CharacterTab, DebugControls.Flags,
+  multiplayer.md. Take-items replaced the old per-task gear block with kit items, where each look has its own exact
+  capsule count. main's gear is written against that old block, so it has to be rebuilt in the kit system rather than merged.
+  Work, with estimates:
+  1. Merge and simple conflicts (2 h).
+  2. A-106 jobs as kit items:
+     - sweeper broom swish, shoveller spade toss, roofer eave rope and coil, mender trestle and helm;
+     - FireTender spirit flame, IceCutter ice block and slab, snow shoveller knit cap;
+     - lamplighter pole and hook, ash/snow/sand heaps, the hermit chore, FolkJobs.Shown;
+     - this means about 9 new ItemTable ids (append-only), FolkKits.Fill entries, PostParts/LookParts counts and
+       Weapon animation (5-6 h).
+  3. A-128 Drape: armour apron split into bib and skirt (BodyParts 1->2), smith apron to the knee, and the ogre cape
+     and sash tails in Wrap (2 h).
+  4. Eyewear has two systems. main puts glasses and goggles in CreatureWorn.Eyes bits plus NetAvatars look.Eyewear
+     and HeldItem.Goggles. Take-items made Goggles a head armour item and dropped HeldItem.Goggles. Rule 33 says one
+     system, so this touches the network look table, which needs a rule 11 ask (2-3 h).
+  5. Model Lab PoseKit rebuilt on Dressed and the variable counts (1-2 h).
+  6. Verify: suite; pixel-diff the A-128 smith/ogre poses (4 clock values x 3 yaws); folk kits solo and host/client;
+     A-106 shots in snow, ash and desert settlements (3-4 h).
+  Total about 15-19 h. Branch untouched at 487dd137. Needs: go/no-go, and the eyewear choice for item 4.

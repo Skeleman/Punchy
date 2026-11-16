@@ -27,12 +27,12 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
 | R-34 r2 | #332 | render | ready for PR | render/stone-trial 550ba9e0 | Verified; BENCH main vs branch asked; squash merge |
 | R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance |
-| P-38 | #372 | player | blocked | player/take-items 487dd137 | main merge aborted (fauna gear vs kits); rule 11 ask a/b/c in REPORTS-player |
+| P-38 | #372 | player | blocked | player/take-items 487dd137 | option (a) sized at about 15-19 h (over a day), stopped; eyewear needs rule 11 (net look); go/no-go in REPORTS-player |
 | P-33 | #266 | player | blocked | player/fishing 461f138c | Fishing ready for PR via P-41; row 4 waits on Zach's feel notes |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
 | P-39 | #397 #398 | player | next | - | Menus d-pad/stick, Start/Select, facing prompts |
 | P-40 | #396 | player-2 (supervisor agent) | active | player/dismount (tree Punchy-docs) | Dismount on size change, jump off |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
-| P-41 | #266 | player (supervisor agent) | done | player/fishing 461f138c | Ready for PR (suite not run: RAM); take-items waits on rule 11 ask |
+| P-41 | #266 | player (supervisor agent) | done | player/fishing 461f138c | Ready for PR; suite 40/1/17, the one failure was the rain-shot load flake, which passed when re-run alone |
 | M-07 r1 | #260 | lab | r1 done; waits on Zach's OK + W-174 API answer | lab/map-editor 0dea2a94 | docs/agents/map-editor.md: sparse delta before BuildPlaces, empty file keeps pins |
