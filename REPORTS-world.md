@@ -8227,3 +8227,14 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Shots:** PunchyMilestones/W-172/w172-lava-cone-{far,crater}.png.
 - **Shares:** none new (an existing landmark type in a biome list).
 - Next: W-174 row 2 (natural cutaways) on world/ground-edits.
+
+## W-166 row 3 (#336): built stone + creature gear. Ready for PR (verified)
+- **Branch:** world/material-library-2@0f99276b (tree Punchy-materials). Stone b24503bc, tune e4d2d902 (stronger joints and tints, rendering.md "built materials" section), gear 0da4e5d5, merge of origin/main 0f99276b.
+- **Merge:** origin/main (A-133 #448) merged in, so the fauna/material-library commits are now plain main history. One conflict, in MaterialLibraryTests.cs. I kept this branch's side, which adds the gear families and Stone/Bone and lists the TerrainSurface stone forwarder as the one pending include. MaterialLibraryTests 4/4 after the merge, 0 compile errors.
+- **Stone verified:** Ruin (rubble), Fountain and Forum (cut), at noon and low light, at 3 and 15 m. NaN 0 in every shot. Pixels changed at noon, 3 m: Ruin 35,373, Fountain 31,152, Forum 143,305. Sheets: PunchyMilestones/W-166/W166_stone-close-{noon3,noon15,low3,low15}.jpg.
+- **Gear verified:** a human guard on patrol (HumanVillage centre) carrying a kettle hat, spear and sash. Before is _PunchyPlainGear=1 (all gear shaded as body), after is the family includes. Noon: NaN 0/0, 24,341 px changed. Low light: NaN 0/0, 23,691 px changed. Sheets: W166_gear-human-{noon,low}.jpg.
+- **Tunnel (Cave.shader's lining on Stone.hlsl):** cave 29. Before is main's Cave.shader, after is this branch. NaN 0 in both, 107,617 px changed. The cut courses read. The pale specks are the existing grit glint, not the new stone. Sheet: W166_tunnel.jpg.
+- **For render:** TerrainSurface.shader still includes the old Shaders/Stone.hlsl forwarder. Point it at Materials/Stone.hlsl, then delete the forwarder and empty the test's Pending list.
+- **Noted (not done):** R-30's FloraSpecies.LeafThinness should be about 1.6 for the new Fir and WhitePine once both land. I am not adding the field.
+- **BENCH:** the built-stone close-up stays in job 101 (cost about the same as brick).
+- Next: row 4 sweep (a town per culture plus a dungeon, at 3, 15 and 60 m).

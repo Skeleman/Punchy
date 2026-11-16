@@ -13,7 +13,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r3 | #336 | materials | stone: compiled + tests 3/3, shots pending (RAM); gear WIP on top of A-133 | world/material-library-2 1bf93cce (tree Punchy-materials) | A-133 merged #448: merge main in; built stone close-up into BENCH 101 |
+| W-166 r3 | #336 | materials | stone + gear + tunnel verified (NaN 0, diffs, sheets in PunchyMilestones/W-166); main merged, tests 4/4; ready for PR | world/material-library-2 0f99276b (tree Punchy-materials) | built stone close-up into BENCH 101; render: drop the Stone.hlsl forwarder; next row 4 sweep |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
