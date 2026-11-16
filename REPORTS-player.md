@@ -1685,3 +1685,11 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Dev build of 769a3e0d (main + P-39 + P-42) is done. Joined-client runs held up: UDP 7979 is held by another tree's dev build (Punchy-world Builds/Dev, PID 108972), so my editor host can't bind. Waiting for it to free.
 - Shares: MenuNav stays the one focus path for every menu (rule 33).
 - Port 7979 clash (01:43): my editor host bound 7979 in the gap between other lanes' runs, and the world lane's #259 joiner (Punchy-world, rj259 join3) joined it (host showed players 2). I stopped my host at once, so join3/host3 from about 01:43 aren't clean. The joined-client runs (P-42 replies, P-43 ride) still need a turn on the port. The build is ready at Punchy-docs Builds/Dev.
+
+## P-45 row 0: joiner runs (#24, 2026-11-16, fishing agent)
+- Done (verified). Dev build of 7f7866a4 (main): TMPBUILD Succeeded. TmpP33Build.cs and its .meta deleted (never committed).
+- Herd pair `-goto -1848,549 -herdlog -netwatch Frostdeer -quitafter 120`: 0 exceptions on host and client. Both see the same 11 Frostdeer (ghosts 151-154 at matching spots), herd set hash 68AD74C2 on both.
+- Ride-fit pair (host `mount -body Human`, join `rider -body Cat`): mount PASS, rider PASS (on, still on after it grew, down when TooHeavy, on again, jump got down). 0 exceptions.
+- Port 7979 clash (about 01:37): my first herd join went to the world lane's #259 host (Punchy-world Builds/Dev, PID 108972, `-host -autowalk`, log rj259/host2.log) because it held 7979. My run was thrown away and redone once the port was free. The world lane's host2 may show a stray client for about 2 min. The port is fixed in code (GameBootstrap.Port), so lanes running joiner tests at the same time collide. Suggestion: a `-port` flag, or a BENCH-QUEUE-style slot for 7979.
+- Logs: Punchy-player Logs/p45/herd-{host,join}.log, ride-{host,join}.log.
+- Shares: no code; the runs use NetWatch and RideFit as they are.
