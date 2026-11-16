@@ -5283,3 +5283,13 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Questions for Zach: (1) Is one re-pin OK for quadruped RestPitch, and later one for Bulge, or straight tapers and upright-only lean? (2) Should a saved Lab variant be a new species asset or a CreatureTunables entry?
 - Shares: species, limb data and MaterialLibrary only (none changed). Pins untouched.
 - NEXT: blocked on Zach's OK for rows 3-5.
+
+## A-108 r2 (#298) far life: main merged in, done (verified)
+- fauna/far-life@1a3a7131 merges origin/main. Rule 11 world-file edits, append-only: IslandCache Format 3 -> 4 (main had already taken 3 for W-168 cave sockets, so herds take 4), Visit(Herds) after CaveSockets; TerrainSource Herds blob, left out of Equals; IslandV2 reset, free and assign lines plus the herd bake as the last bake step. World-file diff vs main: 3 files, +11/-3.
+- Other conflicts: CreatureAnimator reach line taken from fauna/lying-legs (identical); FaunaDirector keeps TeardownHerds() then DisposeBuilds().
+- Numbers: [herds] 1127 herds, 4264 animals, 5500 spots from 41 herding entries (522 ms). Fauna fingerprint 859112C9 (same as main). WorldTests 14/14 (landmark pins included).
+- The one rebake: the Format 4 bump invalidates every island cache once; first play after the merge rebakes for everyone.
+- No shot (merge row; behaviour unchanged from r2's verified shots).
+- Risk: merge order with A-130 (dune-groves re-pins to 9EFF3BCF); whichever lands second keeps the other's pin.
+- Shares: island cache / TerrainSource blob pattern (same as Scarps, CliffKit, CaveSockets). No parallel found.
+- NEXT: A-126 rows 2-4 on fauna/playtest-1114.

@@ -15,7 +15,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r2 | #336 | materials | active | world/material-library (tree Punchy-materials) | Wood library, shared includes, test |
 | A-126 r2-4 | #367 | fauna | active | fauna/playtest-1114 527e2f14 | Ledge hands, shimmy prompt, steer ridden animals |
-| A-108 r2 | #298 | fauna | next | fauna/far-life d0524eaa | Rule 11 answered YES 11-15: fauna makes the 3 world-file edits on the merge |
+| A-108 r2 | #298 | fauna | ready for PR | fauna/far-life 1a3a7131 | Main merged in; island cache Format 4 = one rebake; fingerprint 859112C9 |
 | A-113 | no issue | fauna | ready? | flora/tree-variety f92b1fef | Merge main in, re-pin, hand off |
 | A-110 | #298 | fauna | active | fauna/one-population 70d27698 | Rows to r7b |
 | A-130 | #404 | fauna | ready for PR | fauna/dune-groves 7b2624eb | Done: desert biomes on the clearing mask, palm groves; fingerprint 9EFF3BCF |
