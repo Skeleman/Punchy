@@ -6,7 +6,7 @@
 // (every tree cell, so it's the same forest the streaming places). It fades in exactly where its trees fade out: a
 // texel's trees end where FloraCull.compute ends an always-drawn tree (its size reach x pixels per metre, kept between
 // the layer's radius and its far radius), so the hand-over goes by size on screen (rule 20), never fixed metres.
-// Inside the layer's radius it also stands in for the trees the cull thins out, so the cover reads the same density
+// Inside the layer's radius it also stands in for the trees the cull thins out (the same ramp), so the cover reads the same density
 // on both sides of the hand-over. Crowns break into ~8 m clumps (self-shaded) while those are big enough on screen,
 // the cover thickens at grazing angles as real crowns would hide the ground between them, the canopy's height edges
 // shade the ground beside a forest on the side away from the sun, and its height steps tilt the normal so slopes of
@@ -16,6 +16,7 @@ SAMPLER(sampler_PunchyCanopyData);
 TEXTURE2D(_PunchyCanopyColour);    // rgb mean crown colour (sRGB texture, so linear here), a mean tree height / scale.y
 float4 _PunchyCanopyRect;          // xy the map's corner (m), z 1 / its width (1/m; 0: no map yet), w a texel's width (m)
 float4 _PunchyCanopyReach;         // x pixels per metre the trees' reach goes by (0: none past the radius), y the tree layer's radius, z its far radius, w the share kept past it
+float _PunchyCanopyThinFrom;       // where the cull starts thinning the trees out (m; FloraCull.compute's _Thin.x)
 float4 _PunchyCanopyScale;         // x reach scale, y height scale (m), z strength (0: off), w pixels per metre now (Detail in)
 #define PUNCHY_CANOPY_SIZE 1024.0
 
@@ -39,7 +40,7 @@ float4 PunchyCanopyRead(TEXTURE2D_PARAM(map, mapSampler), float2 uv, float lod)
 half PunchyCanopyApply(float3 p, float distance, half3 viewDir, inout half3 albedo, inout half3 normalWS)
 {
     float radius = _PunchyCanopyReach.y;
-    [branch] if (_PunchyCanopyRect.z <= 0 || _PunchyCanopyScale.z <= 0 || distance < radius * 0.85)
+    [branch] if (_PunchyCanopyRect.z <= 0 || _PunchyCanopyScale.z <= 0 || distance < min(_PunchyCanopyThinFrom, radius * 0.85))
         return 0;
     float2 uv = (p.xz - _PunchyCanopyRect.xy) * _PunchyCanopyRect.z;
     [branch] if (any(uv < 0) || any(uv > 1))
@@ -56,7 +57,7 @@ half PunchyCanopyApply(float3 p, float distance, half3 viewDir, inout half3 albe
     // the share the cull thins out of them.
     float end = clamp(d.g * _PunchyCanopyScale.x * _PunchyCanopyReach.x, radius, max(_PunchyCanopyReach.z, radius));
     half handoff = smoothstep(end * 0.88, end, distance);
-    half thinned = (1 - _PunchyCanopyReach.w) * smoothstep(radius * 0.85, radius, distance);
+    half thinned = (1 - _PunchyCanopyReach.w) * smoothstep(min(_PunchyCanopyThinFrom, radius * 0.85), radius, distance);
     half fadeIn = max(handoff, thinned) * _PunchyCanopyScale.z;
 
     // Crowns in ~8 m clumps while a clump is a couple of pixels or more; seen low, the gaps between them close up.

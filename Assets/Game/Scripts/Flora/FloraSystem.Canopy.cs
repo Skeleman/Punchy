@@ -54,6 +54,7 @@ namespace Punchy.Flora
         static readonly int CanopyRectId = Shader.PropertyToID("_PunchyCanopyRect");
         static readonly int CanopyReachId = Shader.PropertyToID("_PunchyCanopyReach");
         static readonly int CanopyScaleId = Shader.PropertyToID("_PunchyCanopyScale");
+        static readonly int CanopyThinId = Shader.PropertyToID("_PunchyCanopyThinFrom");
 
         static bool FlagOff(string flag)
         {
@@ -87,6 +88,7 @@ namespace Punchy.Flora
             Shader.SetGlobalTexture(CanopyDataId, CanopyData);
             Shader.SetGlobalTexture(CanopyColourId, CanopyColour);
             Shader.SetGlobalVector(CanopyReachId, new Vector4(ppm, trees.Radius, trees.FarRadius, trees.Settings.ThinTo));
+            Shader.SetGlobalFloat(CanopyThinId, trees.Settings.ThinFrom * trees.Radius);   // (as the cull's _Thin.x)
             var view = Punchy.Settings.DetailPolicy.Current.Data;
             Shader.SetGlobalVector(CanopyScaleId, new Vector4(CanopyReachScale, CanopyHeightScale, 1f,
                 view.PixelsPerMetre * math.max(view.Detail, 0.1f)));
@@ -138,7 +140,6 @@ namespace Punchy.Flora
                 Tints = canopyTint,
                 Corner = CanopyCorner,
                 Texel = CanopyExtent / CanopyMapSize,
-                CellSize = FloraPlacement.CellSize(Trees.TileSize, Trees.CellSize),
                 Sums = canopySums,
                 SumsB = canopySumsB
             }.Schedule(CanopyMapSize, 4);
@@ -221,19 +222,20 @@ namespace Punchy.Flora
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float4> Models, Tints;
             public float2 Corner;
-            public float Texel, CellSize;
+            public float Texel;
             [NativeDisableParallelForRestriction] public NativeArray<float4> Sums, SumsB;
 
             public void Execute(int row)
             {
                 ref var f = ref Flora.Value;
+                var cellSize = f.CellSizes[FarReachLayer];   // (the size Place itself steps by)
                 var area = 1f / (Texel * Texel);
-                var y0 = (int)math.ceil((Corner.y + row * Texel) / CellSize);
-                var y1 = (int)math.ceil((Corner.y + (row + 1) * Texel) / CellSize);
+                var y0 = (int)math.ceil((Corner.y + row * Texel) / cellSize);
+                var y1 = (int)math.ceil((Corner.y + (row + 1) * Texel) / cellSize);
                 for (int x = 0; x < CanopyMapSize; x++)
                 {
-                    var x0 = (int)math.ceil((Corner.x + x * Texel) / CellSize);
-                    var x1 = (int)math.ceil((Corner.x + (x + 1) * Texel) / CellSize);
+                    var x0 = (int)math.ceil((Corner.x + x * Texel) / cellSize);
+                    var x1 = (int)math.ceil((Corner.x + (x + 1) * Texel) / cellSize);
                     float4 a = 0f, b = 0f;
                     for (int cy = y0; cy < y1; cy++)
                     for (int cx = x0; cx < x1; cx++)
