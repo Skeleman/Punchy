@@ -234,6 +234,30 @@ namespace Punchy.Interact
             return n;
         }
 
+        /// <summary>
+        /// The species a plot's building is drawn from, as FloraPlacement.PlotSpecies picks it: the biggest town
+        /// (largest radius, lowest index on a tie) builds its house, seat, inn, smithy, store and workshop plots from
+        /// its layout's Kit Building. Only walk-ins use it; room types stay keyed on the layout building.
+        /// </summary>
+        static FloraSpecies PlacedSpecies(ref SettlementSetBlob towns, in SettlementPlot plot, FloraSpecies species, List<SettlementLayout> layouts)
+        {
+            if (plot.Settlement < 0 || plot.Settlement >= towns.Settlements.Length)
+                return species;
+            if (plot.Role != PlotRole.House && plot.Role != PlotRole.Seat && plot.Role != PlotRole.Inn &&
+                plot.Role != PlotRole.Smithy && plot.Role != PlotRole.Store && plot.Role != PlotRole.Workshop)
+                return species;
+            ref var town = ref towns.Settlements[plot.Settlement];
+            if (town.Layout < 0 || town.Layout >= layouts.Count || layouts[town.Layout].KitBuilding == null)
+                return species;
+            for (int i = 0; i < towns.Settlements.Length; i++)
+            {
+                var r = towns.Settlements[i].Radius;
+                if (r > town.Radius || (r == town.Radius && i < plot.Settlement))
+                    return species;
+            }
+            return layouts[town.Layout].KitBuilding;
+        }
+
         /// <summary>The rooms, once the island and its settlements are in: one per house type with an inside.</summary>
         bool Build(World world)
         {
@@ -249,6 +273,7 @@ namespace Punchy.Interact
             built = true;
             worldSeed = terrain.World.Seed;
             var buildings = SettlementBaking.Buildings(palette.Landmarks);
+            var layouts = SettlementBaking.Layouts(palette.Landmarks);
             ref var set = ref terrain.Settlements.Value;
 
             // Each door anchor's plot (the door stands 0.75 x the plot's half depth + 1.4 m out from its centre).
@@ -306,10 +331,15 @@ namespace Punchy.Interact
                     doorRoom[d] = r;
                     // P-37 r3 (#369): a house walked into is its own inside. Its type's room is still made above (so room
                     // indices, seeds and stores match the teleport rooms'), but its door leads nowhere: Use opens it.
-                    if (r >= 0 && species.Form == FloraForm.KitBuilding && StructureKit.WalkIn(species.KitShape) &&
-                        FloraGenerator.HouseInterior(species, out _, out var walkInside))
+                    // P-51 row 2: so is an elf tower (round: its inside is a circle, all its storeys up to the eaves).
+                    // (By what really stands there: the biggest town builds its houses from its layout's Kit Building.)
+                    var placed = PlacedSpecies(ref set, plot, species, layouts);
+                    var tower = placed.Form == FloraForm.Tower && StructureKit.WalkInTower;
+                    if (r >= 0 && (tower || placed.Form == FloraForm.KitBuilding && StructureKit.WalkIn(placed.KitShape)) &&
+                        FloraGenerator.HouseInterior(placed, out _, out var walkInside))
                     {
-                        AddWalkIn(plot.Centre, plot.Facing, math.min(new float2(walkInside.x, walkInside.z) * 0.5f, plot.Half), doorY[d], walkInside.y, d, r);
+                        var half = math.min(new float2(walkInside.x, walkInside.z) * 0.5f, plot.Half);
+                        AddWalkIn(plot.Centre, plot.Facing, half, doorY[d], walkInside.y, d, r, tower ? math.cmin(half) : 0f);
                         doorRoom[d] = -1;
                     }
                 }
@@ -318,7 +348,7 @@ namespace Punchy.Interact
             foreach (var r in doorRoom)
                 if (r >= 0) enterable++;
             if (walkIns.Count > 0)
-                Debug.Log($"Interiors: {walkIns.Count} houses walked into (seamless), in {walkInCells.Count} cells; doors {string.Join(", ", walkIns.ConvertAll(w => w.Door))}");
+                Debug.Log($"Interiors: {walkIns.Count} houses walked into (seamless), in {walkInCells.Count} cells; doors {string.Join(", ", walkIns.ConvertAll(w => w.Radius > 0f ? $"{w.Door} (tower)" : $"{w.Door}"))}");
             Debug.Log($"Interiors: {rooms.Count} rooms (one per house type with an inside), {InteriorCells.Count} boxes; {doors.Count} doors, {matched} matched to a house, {enterable} lead inside");
             for (int r = 0; r < rooms.Count; r++)
                 Debug.Log($"Interiors: room {r} {rooms[r].Type.name}: {rooms[r].Max.x - rooms[r].Min.x:F1} x {rooms[r].Max.y - rooms[r].Min.y:F1} x {rooms[r].Max.z - rooms[r].Min.z:F1} m, seed {RoomSeed(terrain.World.Seed, r):X8}, {rooms[r].Furniture}");
@@ -660,6 +690,7 @@ namespace Punchy.Interact
         {
             UpdateWalkIn();
             WalkInTest();
+            ClimbTowerTest();
             if (WalkInAmbient())
                 return;
             indoors = Mathf.MoveTowards(indoors, inRoom >= 0 ? 1f : 0f, Time.deltaTime / 0.6f);

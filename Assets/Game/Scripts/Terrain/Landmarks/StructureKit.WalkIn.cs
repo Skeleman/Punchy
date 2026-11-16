@@ -26,6 +26,9 @@ namespace Punchy.Terrain
         /// <summary>Whether this kit shape is walked into this session (row 1: the storm house, with Seamless on).</summary>
         public static bool WalkIn(KitShape s) => Seamless && s == KitShape.StormHouse;
 
+        /// <summary>Whether elf towers are walked into this session (P-51 row 2: with Seamless on, a stair up their storeys).</summary>
+        public static bool WalkInTower => Seamless;
+
         /// <summary>
         /// A walk-in house's door step height (m). DoorBay lays 0.16 m. With the 0.5 m plinth floor solid, that left a
         /// 0.34 m second rise, over the 0.32 m step a body climbs. 0.25 m makes both rises climbable, as a ruin's step is.

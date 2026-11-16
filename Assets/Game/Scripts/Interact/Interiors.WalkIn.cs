@@ -26,6 +26,8 @@ namespace Punchy.Interact
         {
             public float2 Centre, Facing, Half;
             public float Floor, Height;
+            /// <summary>A round house's inner radius (an elf tower's, P-51 row 2), or 0 for a rectangle (Half).</summary>
+            public float Radius;
             public int Door, Room;
         }
 
@@ -53,10 +55,11 @@ namespace Punchy.Interact
             builtSeamless = StructureKit.Seamless;
         }
 
-        void AddWalkIn(float2 centre, float2 facing, float2 half, float floor, float height, int door, int room)
+        void AddWalkIn(float2 centre, float2 facing, float2 half, float floor, float height, int door, int room, float radius = 0f)
         {
             var i = walkIns.Count;
-            walkIns.Add(new WalkIn { Centre = centre, Facing = math.normalizesafe(facing, new float2(0f, 1f)), Half = half, Floor = floor, Height = height, Door = door, Room = room });
+            walkIns.Add(new WalkIn { Centre = centre, Facing = math.normalizesafe(facing, new float2(0f, 1f)), Half = half, Floor = floor, Height = height, Radius = radius,
+                                     Door = door, Room = room });
             walkInOf[door] = i;
             var r = math.cmax(half) + 1f;
             var lo = (int2)math.floor((centre - r) / WalkInCell);
@@ -85,10 +88,12 @@ namespace Punchy.Interact
                 var to = p.xz - w.Centre;
                 var along = math.dot(to, w.Facing);
                 var across = math.dot(to, new float2(-w.Facing.y, w.Facing.x));
-                if (math.abs(across) > w.Half.x || math.abs(along) > w.Half.y || p.y < w.Floor - 0.5f || p.y > w.Floor + w.Height + 0.5f)
+                if (p.y < w.Floor - 0.5f || p.y > w.Floor + w.Height + 0.5f)
+                    continue;
+                if (w.Radius > 0f ? math.lengthsq(to) > w.Radius * w.Radius : math.abs(across) > w.Half.x || math.abs(along) > w.Half.y)
                     continue;
                 house = i;
-                depth = math.saturate((w.Half.y - along) / 1.5f);
+                depth = math.saturate(((w.Radius > 0f ? w.Radius : w.Half.y) - along) / 1.5f);
                 return true;
             }
             return false;
@@ -102,6 +107,14 @@ namespace Punchy.Interact
         float3 WalkInChestAt(in WalkIn w)
         {
             var across = new float2(-w.Facing.y, w.Facing.x);
+            if (w.Radius > 0f)
+            {
+                // A round tower: against the wall, 50° round from the doorway away from the stair's foot, on its ground
+                // floor (no plinth).
+                var round = math.radians(-50f);
+                var at = w.Centre + (w.Facing * math.cos(round) + across * math.sin(round)) * math.max(w.Radius - 0.5f, 0f);
+                return new float3(at.x, w.Floor, at.y);
+            }
             var xz = w.Centre + w.Facing * math.max(w.Half.y - 1.1f, 0f) + across * math.max(w.Half.x - 0.45f, 0f);
             return new float3(xz.x, w.Floor + WalkInPlinth, xz.y);
         }
