@@ -5605,3 +5605,23 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - (c) Thefts in the per-machine quests save (each player keeps their own, re-sent on join) as the interim until the world save. OK?
 - **Shares (rule 33):** extends Households (A-105) and FolkConversation's Willing/refuses path, and uses DESIGN-items-save's owner int. There is one owner check for every take path and one witness check for owner and guard. No second household or save system.
 - NEXT: row 1 (folk files only) now. Rows 2-3 wait on your rule 11 OK for items 1-5.
+
+## A-119 (#339): rider and mount share one size - ready for review
+- **Branch:** fauna/ride-size @ d2d408a3 (origin/main 893d70a0 merged in, clean). 13 files, +459/-32.
+- **What:** while seated, a rider and its mount use the pair's size for every distance decision (detail step, pose rate, think range, trace, let-go range, send radius), measured from the mount's spot. `Riding.Pair` runs at every seating point (RideSystem.SeatJob, RideSeatSystem, PlayerRideSystem Carry/SeatOthers) and writes `RidePair.PairNext` on both; RidePairSystem (OrderFirst, local/server/client) copies it to `Pair`. The shared helpers read it: CreatureMotion.SeenAt/SeenFrom/SeenSpeed/ApparentSize, CreatureBrainSystem.ThinkRange, FaunaDirector.LetGoRange, CreatureRelevancySystem.SendRadius. Players riding and being ridden (A-104) go through the same call.
+- **Nothing new sent:** RidePair is local, worked out on each machine from Holder. No ghost field, no RPC.
+- **Probe** (`-ridesize`, Debugging/RideSizeTest.cs): rides a horse with a human rider at 6 m/s from 20 m out past despawn, logging every 10 m. "Before" runs the same code on copies of the state with the pair record cleared. 3 runs, all PASS. Final run: 707 paired frames; drawn differently now 0 (before 509); frozen 0; ranges differ 0; NaN 0; both let go in the same frame (816).
+
+| | horse (mount) | rider |
+|---|---|---|
+| size used, now | 2.22 m pair | 2.22 m pair |
+| now | g0 full pose rate to 100 m, g1 from 110 m, half pose rate from 140 m; think 119 m, send 200 m, let go 170 m | identical, same frames, 0.00 m apart |
+| before (own size) | 1.46 m: g1 at 70 m, half pose rate at 100 m, no shadow at 160 m, g2 at 170 m; think 80 m | 0.25 m but forced to full (old Ride shortcut): g0, full pose rate and shadow all the way |
+
+  Before, the rider was over-detailed, not frozen, so it mismatched its horse from 70 m on.
+- **Shots:** D:/Unity/PunchyMilestones/A-119/ a119-ride-60m.png, a119-ride-140m.png, a119-strip-60m.png, a119-strip-140m.png, a119-strips.png. The 60 m shot shows the pair clearly. At 140 m a rise hides them from the start camera, so that shot is landscape only (the log carries the 140 m evidence). There is no 200 m shot because both bodies are let go together at 170 m (despawn), which the card's "past despawn" covers.
+- **Fingerprint:** Fauna_Fingerprint passes before and after the main merge. The merged fingerprint matches main's pin 4BEFEA91, so no re-pin and no history note (the card moves no placement and changes no blob).
+- **Rule 11 item (player-lane file, clear at review):** `Scripts/Fauna/PlayerRide.cs` (last touched by P-43, #396). Two small additions, both calls to the shared `Riding.Pair`: one in `Carry` (about line 362: Pair then SetComponentData on the mount) and one block in `SeatOthers` (about lines 488-492). Riding.cs and the other seat code are fauna files.
+- **Docs:** docs/agents/fauna.md has an A-119 line.
+- Editor closed, Temp/PlayArgs.txt deleted. No timing done.
+- NEXT: M-06 row 5 (#414, Lab blueprint buildings on W-175 UnitDef) if you assign it.

@@ -16,7 +16,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-166 r3-4 | #336 | materials | r4 sweep: rule 11 asks in REPORTS-world (Colossus.shader uv3 family channel; items off URP Lit); Materials/Library.hlsl pushed | world/material-library-3 7b152200 | supervisor: OK the two asks; render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
-| A-119 | #339 | fauna | next | fauna/ride-size | rider and mount share one size (batches/A-119.md) |
+| A-119 | #339 | fauna | ready for review | fauna/ride-size d2d408a3 | probe PASS (drawn differently 0, NaN 0); main merged, fauna 4BEFEA91 unchanged; rule 11: PlayerRide.cs 2 Riding.Pair calls |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
