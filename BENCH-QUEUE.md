@@ -979,3 +979,8 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - 99a view: an open grassland vantage looking over 300 m to 1.5 km of herds, then the biggest town at dusk. Record CPU main-thread ms, GPU ms and the [herds] log line.
 - 99b view: at sea beside a dolphin pod or trout school, Clear noon. Record CPU ms (one ground sample per splashing swimmer each frame).
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms per arm.
+
+## Job 100 (2026-11-15, QUEUED after 99; render-2 lane, R-39 merged #432): flames by screen size, darker nights
+- Arm: main d2dfcd1b (B) against d2dfcd1b^1 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds.
+- View: the biggest town at 22:00 from about 150 m up (the R-39 row 1 glide spot), then from 600 m. Record CPU main-thread ms and GPU ms. Far flames now hand over instead of stopping at 150 m.
+- Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms.
