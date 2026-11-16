@@ -186,3 +186,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #490 P-37 r2 (#369): players no longer light the dark themselves; every new character starts with a torch, and the cave lantern glows only while a light item is held (seen by other players too).
 - 11-16: #491 P-49 r3 (#27): dungeon and find quests now ask for their own quest-only items (Heirloom key, Elder staff, Lost key); random loot never hands these out, and old saves place them again.
 - 11-16: #495 A-134 r4 (#460): after a seen theft, someone at home now steps out of the door within seconds to confront you, then goes back in.
+- 11-16: #493 P-35 r2 (#26): every item now also has its own catalog asset, checked against the item table at start; nothing changes in play.
+- 11-16: #496 P-49 (#27): the Elder staff quest item is held in the hand like the Staff.
