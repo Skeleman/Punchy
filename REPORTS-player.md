@@ -1693,3 +1693,21 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Port 7979 clash (about 01:37): my first herd join went to the world lane's #259 host (Punchy-world Builds/Dev, PID 108972, `-host -autowalk`, log rj259/host2.log) because it held 7979. My run was thrown away and redone once the port was free. The world lane's host2 may show a stray client for about 2 min. The port is fixed in code (GameBootstrap.Port), so lanes running joiner tests at the same time collide. Suggestion: a `-port` flag, or a BENCH-QUEUE-style slot for 7979.
 - Logs: Punchy-player Logs/p45/herd-{host,join}.log, ride-{host,join}.log.
 - Shares: no code; the runs use NetWatch and RideFit as they are.
+
+## P-45 row 1: -place piece (#24, 2026-11-16, fishing agent)
+- Done (verified). player/dungeon-pieces 330ee17d. `-place piece:hall|deadend|pool` uses the shared TempleSockets.Touch/IsHall/IsDeadEnd rules (moved there from the socket builder, so shots and sockets agree; temple socket hash still B6F367A8). No new geometry, no TerrainSource hook, no second piece format.
+- Counts: 38 halls, 1 dead end in 47 temple rooms. Hall = room 29 (14 x 1 m corridor, roofed), dead end = room 46 (3 x 3 m, chest inside), pool = cave 13 Lake room (11 x 10 m, pool 17). Shots: hall down the corridor (sconce, clutter), dead end with chest and crow, pool with lantern.
+- Fix on the way: the editor builds the baked v1 island first, then v2 moves the temple ((1320,-2720) to (3520,360)). The first hall shot stood on sand above nothing. The piece is now placed again when the landmarks key changes (same pattern as A-74/A-78), and the hall camera looks down the corridor instead of at a side wall.
+- `-dungeonwalk 2:Human`: Cave 2 dungeons 78/78 legs, Ruin 1 (32 walked, 6 skipped), Temple 1 (32 walked, 6 skipped). Falls 0, stuck 0, body/camera clips 0 everywhere. 2 timeouts, both legs to a spot far above or below (ruin leg 29 25 m up, temple leg 39 7.5 m down), so not fall-through. 2 temple sockets in walls (a Chest socket box in 'Dungeon prop 3' at (3506.6,15.3,359.8), an Interactable at (3512.2,17.5,357.0)): P-7 data, left alone because the hash pins it. Could be a small follow-up.
+- Shots: Punchy-player Assets/Temp/shots/p45c (all 5), p45d (hall). Walk log: Punchy-player Temp/dungeonwalk.log.
+- Shares: TempleSockets owns the piece rules once; PlaceInTemple and the A-95 walk are reused as they are.
+
+## P-45 row 2: socket coverage check (#24, 2026-11-16, fishing agent)
+- Done (verified), no code. SocketDebugDraw (`-sockets`) draws every DungeonInfo, temple and caves alike (sockets-hall and sockets-pool shots in p45c, hall-b in p45d).
+- Sunken temple 105: 73 sockets from 47 rooms (creature 15, chest 13, wall decor 15, interactable 15, clutter 15), hash B6F367A8.
+- Caves: 30 dungeons, 765 sockets (creature 193, chest 76, wall decor 250, interactable 20, clutter 226), hash D74CD402 (= world lane pin).
+- Filled run (DungeonSpawner): 25 dungeons filled (24 caves + the temple), 25 loot rolls, 84 items, all 84 spawned. Temple dungeon: creatures 12, chests 12, wall 12, interactables 11, clutter 12. NearWater sockets are used (a bat and a cave salamander drink at theirs).
+
+## P-45 row 3: design note (#24, 2026-11-16, fishing agent)
+- Done. player/dungeon-pieces 44630e60, docs/design/dungeon-pieces.md: the pieces are the rooms we already have (temple halls, dead ends, chambers; cave Lake and other CaveRoomKit rooms); W-115 cave chambers and the buried ruin reuse them on the one FloorUnder ground; new free-standing rooms wait for W-174 (carved-field edits) and W-175 (parts); M-08 doesn't show temple pieces because the mesher is private (later, after W-175, not made public now).
+- Stopped for review. The branch has rows 1 and 3 (row 0 and 2 had no code). Ready for PR.

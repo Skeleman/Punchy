@@ -45,7 +45,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-23 r3 | #298 | render-2 | resumable: Sky.hlsl split WIP (no code change), editor checks pending (RAM) | render/one-surface-3@9795d6a3 | Refresh + ShaderHasError + pixel-diff vs main (expect 0), then Surface.hlsl moves per design note; compile time/variants to BENCH | Design note in render-2 handoff 11-16 |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
-| P-45 | #24 | player (fishing agent) | row 0 done (herd + ride-fit PASS); now row 1 -place piece | player/dungeon-pieces | Rows 0-2 per batches/P-45.md; stop after row 3 note |
+| P-45 | #24 | player (fishing agent) | rows 0-3 done; stopped for review, ready for PR | player/dungeon-pieces@44630e60 | -place piece:hall/deadend/pool, walk 0 falls, sockets checked, design note. Follow-up: 2 temple sockets in walls |
 | P-44 | #255, #276 | player | parked (Zach 11-16: can wait); rescoped to walk-on-moving-bodies for colossi and the galleon | - | Row 1 design note covers both; stop for review |
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
 | M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); Zach 11-15: towns and roads may be rebuilt/refit around edits; r2b bake hook waits only on W-174 | merged #425 | r2b blocked on W-174; world takes r2b after W-174 r2 (lab agent gone) |
