@@ -1,28 +1,25 @@
 #ifndef PUNCHY_STONE_INCLUDED
 #define PUNCHY_STONE_INCLUDED
 
-// R-34 trial: one stone look shared by boulders and built walls (Flora), cliff faces (TerrainSurface) and cave walls
-// (Cave), behind a global switch that is off by default, so nothing changes until it is picked. Our own code, written
-// from a list of traits (no reference code):
+// R-34 (#332): the one stone surface (rule 33), the base of steep terrain faces and cliff kit pieces (TerrainSurface),
+// cave walls (Cave), and boulders and built stone (Flora). Zach picked the wet look as the base rock (11-15). The big
+// shapes stay with each caller (R-19's beds, ledges and slabs on cliffs; the cave's strata); this is the surface on
+// them. Our own code, written from a list of traits (no reference code):
 // - ridged, multiplicative relief: three octaves of the shared detail texture's height, each folded into a ridge and
 //   squared, each one's strength scaled by the one below, so the bumps cluster on worn ridges, not even noise;
 // - a crevice / edge mask from that relief: dark brown down in the crevices, pale sandy on the edges, mineral specks;
-// - two specular lobes (broad and sharp) and a grazing Fresnel, all held back in the crevices;
-// - darker on downward faces.
-// Two ways (the card's (a) and (b)): dry keeps the relief and colouring with no lobes (the shader's own shine stays);
-// wet adds the lobes and Fresnel, replacing the shader's own wet gloss, and darkens like rain. Row 2 ties wet to the
-// real wetness once Zach picks.
+// - darker on downward faces;
+// - wet only: two specular lobes (broad and sharp) and a grazing Fresnel, held back in the crevices, and the darkening.
+// Dry stone keeps the relief and colouring with no lobes. Wetness is the caller's real wetness (rain, drying over time,
+// shores and fall spray, cave damp), so the shine comes and goes with it.
 // Every octave, the specks and the colouring fade out by their own on-screen size (footprint: metres one pixel
-// covers), never by fixed metres (rule 20), into the shader's own tone, so a far stone looks as it does now.
+// covers), never by fixed metres (rule 20), into the caller's own tone, so a far stone keeps the biome's far tone.
 // The includer declares _PunchyCaveDetail and sampler_PunchyCaveDetail (rg bump, b height, a glint) before this file.
 
-float _PunchyStoneTrial;   // 0 off (default), 1 the dry trial, 2 the wet trial
+float _PunchyStoneWetMin;   // debug only (-stonewet): the least wetness stone shows; 0 in play
 
-// The trial's on/off, for a [branch].
-bool PunchyStoneOn() { return _PunchyStoneTrial > 0.5; }
-
-// How wet the trial stone is: 0 in the dry trial, 1 in the wet one.
-half PunchyStoneWet() { return _PunchyStoneTrial > 1.5 ? 1 : 0; }
+// The stone's wetness from the caller's real wetness (0..1).
+half PunchyStoneWetness(half realWet) { return saturate(max(realWet, _PunchyStoneWetMin)); }
 
 // 0 when a feature of this period (m) is under a few pixels, 1 once it spans eight.
 half PunchyStoneFade(float period, float footprint) { return smoothstep(3, 8, period / max(footprint, 1e-5)); }
@@ -43,7 +40,7 @@ half4 PunchyStoneOctave(float3 p, float3 w, float scale, float footprint)
 half PunchyStoneRidge(half b, half fade) { half r = 1 - abs(b * 2 - 1); return lerp(0.33, r * r, fade); }
 
 // The stone's surface at p: changes albedo and n, and gives the crevice amount (0 on edges, 1 deep down) for the
-// lighting below. wet from PunchyStoneWet; rainWet is the wetness the caller's own wet darkening already applies.
+// lighting below. wet from PunchyStoneWetness; rainWet is the wetness the caller's own wet darkening already applies.
 void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout half3 albedo, inout half3 n, out half crevice)
 {
     float3 w = pow(abs(n), 4);
@@ -75,7 +72,7 @@ void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout
     half speck = step(0.965, frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453)) * PunchyStoneFade(0.07, footprint);
     albedo = lerp(albedo, half3(0.86, 0.84, 0.78), speck * 0.6 * (1 - crevice));
     albedo *= 1 - 0.35 * saturate(-n.y) * f1;
-    // The wet trial on dry ground: the darkening rain would have brought (the caller's own covers rain).
+    // Forced wetness (debug) on dry ground: the darkening rain would have brought (the caller's own covers real wet).
     albedo *= lerp(1, 0.62, saturate(wet - rainWet));
 }
 

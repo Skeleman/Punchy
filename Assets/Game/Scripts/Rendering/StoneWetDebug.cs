@@ -3,36 +3,50 @@ using UnityEngine;
 namespace Punchy.Rendering
 {
     /// <summary>
-    /// R-34 row 1 (#332): the wet-stone look trial (Stone.hlsl) on boulders, built stone, steep rock faces and cave
-    /// walls. Off by default; "-stonetrial 1" shows the dry trial (relief and crevice/edge colouring), "-stonetrial 2"
-    /// the wet one (adds the gloss lobes and grazing sky). Cosmetic and local. <see cref="Mode"/> can be set at
-    /// runtime (shot scripts).
+    /// R-34 row 2 (#332): a debug override for the shared stone surface (Stone.hlsl). In play the stone's wetness is
+    /// the world's own (rain drying over time, shores, fall spray, cave damp). "-stonewet 0..1" sets the least wetness
+    /// stone shows, for shots of the wet look without waiting for rain. Cosmetic and local. <see cref="WetMin"/> can be
+    /// set at runtime (shot scripts).
     /// </summary>
-    public class StoneTrial : MonoBehaviour
+    public class StoneWetDebug : MonoBehaviour
     {
-        /// <summary>0 off (default), 1 dry, 2 wet.</summary>
-        public static int Mode;
+        /// <summary>The least wetness stone shows (0: the world's own).</summary>
+        public static float WetMin;
 
-        static readonly int TrialId = Shader.PropertyToID("_PunchyStoneTrial");
-        static StoneTrial instance;
+        static readonly int WetMinId = Shader.PropertyToID("_PunchyStoneWetMin");
+        static StoneWetDebug instance;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Create()
         {
             // (Read here, not in a static initialiser: Play mode may start without a domain reload.)
-            Mode = Mathf.Clamp(Mathf.RoundToInt(Number("-stonetrial", 0f)), 0, 2);
-            if (instance != null)
+            WetMin = Mathf.Clamp01(Number("-stonewet", 0f));
+            Shader.SetGlobalFloat(WetMinId, WetMin);
+            if (WetMin <= 0f || instance != null)
                 return;
-            var go = new GameObject("StoneTrial");
+            var go = new GameObject("StoneWetDebug");
             DontDestroyOnLoad(go);
-            instance = go.AddComponent<StoneTrial>();
+            instance = go.AddComponent<StoneWetDebug>();
         }
 
-        void LateUpdate() => Shader.SetGlobalFloat(TrialId, Mode);
+        /// <summary>Sets the override from a shot script (adds the updater if the launch flag didn't).</summary>
+        public static void Set(float wetMin)
+        {
+            WetMin = Mathf.Clamp01(wetMin);
+            Shader.SetGlobalFloat(WetMinId, WetMin);
+            if (instance == null)
+            {
+                var go = new GameObject("StoneWetDebug");
+                DontDestroyOnLoad(go);
+                instance = go.AddComponent<StoneWetDebug>();
+            }
+        }
+
+        void LateUpdate() => Shader.SetGlobalFloat(WetMinId, WetMin);
 
         void OnDestroy()
         {
-            Shader.SetGlobalFloat(TrialId, 0f);
+            Shader.SetGlobalFloat(WetMinId, 0f);
             if (instance == this)
                 instance = null;
         }

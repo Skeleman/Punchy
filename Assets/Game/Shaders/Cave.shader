@@ -189,7 +189,10 @@ Shader "Punchy/Cave"
                 // Where daylight comes in (a mouth) the fine detail fades towards the terrain's own level beside it, so
                 // the walls don't turn sharply grainier at the opening (G-35).
                 float detailStrength = s7.x * lerp(1, 0.35, openness);
-                n = normalize(n + nudge * detailStrength * (1 - terrain) * (1 - slick));
+                // R-34 row 2: bare rock and dressed stone take their surface from the shared stone (Stone.hlsl, below), so
+                // the cave's own fine grain stays off it (no double noise). Not ice, crystal facets, bone or wood.
+                float stoneShare = _PunchyCaveDetailReady > 0 && _Dressed > -0.5 && _Dressed < 1.5 ? (1 - terrain) * (1 - slick) * (1 - s3.z) : 0;
+                n = normalize(n + nudge * detailStrength * (1 - terrain) * (1 - slick) * (1 - stoneShare));
 
                 // Faceted rock (ore, crystal): each triangle shaded with its own flat face normal (from screen
                 // derivatives), so the angular walls read as planes meeting at sharp edges, each catching the light
@@ -205,7 +208,7 @@ Shader "Punchy/Cave"
                 // detail takes the light tone (frost on ice), sunken detail the dark one (deep blue in its recesses).
                 float blotch = PunchyValueNoise(p.xz * 0.35 + p.y * 0.2) * 0.6 + PunchyValueNoise(p.xy * 1.3 + p.z) * 0.4;
                 float strata = 0.5 + 0.5 * sin(p.y * s1.w * 6.2832 + PunchyValueNoise(p.xz * 0.2) * 4);
-                float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * detailStrength);
+                float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * detailStrength * (1 - stoneShare));
                 half3 rock = lerp(s1.rgb, s0.rgb, tone) * input.data.y;
                 // The floor: its own two tones with grit (sand, gravel, ash, frost crust).
                 half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
@@ -397,17 +400,17 @@ Shader "Punchy/Cave"
                 // Slick ice: the deep, clear tone of the rock and a mirror gloss.
                 rock = lerp(rock, s1.rgb * 0.8, slick * 0.7);
                 gloss = lerp(gloss, 0.97, slick);
-                // R-34 trial (off by default): bare walls and dressed stone take the shared stone look (Stone.hlsl), its
-                // wet trial's lobes replacing the gloss highlight. Not ice, nor the ground's share.
+                // R-34 row 2: the shared stone's surface (Stone.hlsl); wet where the cave is damp, its lobes replacing the
+                // gloss highlight there. Not ice, nor the ground's share (that takes it below, as the terrain does).
                 half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
                 half3 stoneN0 = n;
                 float stoneFootprint = length(fwidth(p));
-                [branch] if (PunchyStoneOn() && _PunchyCaveDetailReady > 0 && dressed < 1.5)
+                [branch] if (stoneShare > 0.001)
                 {
-                    stoneOn = (1 - terrain) * (1 - slick);
-                    stoneWet = PunchyStoneWet();
+                    stoneOn = stoneShare;
+                    stoneWet = PunchyStoneWetness(damp);
                     half3 stoneRock = rock, stoneN = n;
-                    PunchyStoneSurface(p, stoneFootprint, stoneWet, damp, stoneRock, stoneN, stoneCrevice);
+                    PunchyStoneSurface(p, stoneFootprint, stoneWet, damp * (dressed > -0.5 && dressed < 0.5), stoneRock, stoneN, stoneCrevice);
                     rock = lerp(rock, stoneRock, stoneOn);
                     n = normalize(lerp(n, (float3)stoneN, stoneOn));
                     gloss *= 1 - stoneOn * stoneWet;
@@ -438,7 +441,7 @@ Shader "Punchy/Cave"
                     cloudShadow = PunchyCloudShadow(p);
                     Light sun = GetMainLight(TransformWorldToShadowCoord(p));
                     light += sun.color * saturate(dot(n, sun.direction)) * sun.shadowAttenuation * openness * (1 - cloudShadow);
-                    [branch] if (stoneOn * stoneWet > 0)
+                    [branch] if (stoneOn * stoneWet > 0.01)
                         shine += sun.color * sun.shadowAttenuation * openness * (1 - cloudShadow) * PunchyStoneSpec(n, stoneN0, view, sun.direction, stoneCrevice, stoneWet) * stoneOn;
                 }
                 half3 through = 0;
@@ -453,7 +456,7 @@ Shader "Punchy/Cave"
                     float3 h = normalize(l.direction + view);
                     shine += lit * pow(saturate(dot(n, h)), shininess) * saturate(gloss + metallic * 0.6 + facets * 0.8) * glint;
                     through += lit * (0.35 + 0.65 * saturate(0.5 - 0.5 * dot(n, l.direction)));
-                    [branch] if (stoneOn * stoneWet > 0)
+                    [branch] if (stoneOn * stoneWet > 0.01)
                         shine += lit * PunchyStoneSpec(n, stoneN0, view, l.direction, stoneCrevice, stoneWet) * stoneOn;
                 LIGHT_LOOP_END
 
@@ -484,7 +487,7 @@ Shader "Punchy/Cave"
                 // Sheen: a soft rim where the wall turns away, lit by whatever light reaches it, with a faint floor of
                 // its own so even near-black rock (obsidian) keeps its shape out of the lantern's reach.
                 color += lerp(s0.rgb, 1, 0.3) * pow(1 - saturate(dot(n, view)), 3) * s7.z * (light * 0.5 + 0.035);
-                [branch] if (stoneOn * stoneWet > 0)
+                [branch] if (stoneOn * stoneWet > 0.01)
                     color += SampleSH(reflect(-view, n)) * lerp(_Darkness, 1, openness) * PunchyStoneFresnel(n, view, stoneCrevice, stoneWet) * stoneOn;
                 // The atmosphere (fog and weather marches) only where daylight reaches; deep inside it would be lerped away.
                 if (openness > 0.001)
@@ -497,21 +500,18 @@ Shader "Punchy/Cave"
                 [branch] if (terrain > 0.001)
                 {
                     half wet = PunchyWetnessAt(p.xz).r * openness;
-                    // The terrain's rock grain on steep faces (TerrainSurface: the shared detail at 0.6, three ways).
+                    // Steep faces take the shared stone surface, as the terrain's rock faces do (R-34 row 2), so the seam
+                    // matches; the PBR call's own wet gloss stands in for the lobes on this thin share.
                     float3 groundNormal = shape;
-                    half rockShade = 1;
+                    half3 groundAlbedo = input.color.rgb;
                     half steep = 1 - smoothstep(0.55, 0.8, shape.y);
-                    if (steep > 0.01 && _PunchyCaveDetailReady > 0)
+                    [branch] if (steep > 0.01 && _PunchyCaveDetailReady > 0)
                     {
-                        float3 q = p * 0.6;
-                        float3 tw = pow(abs(shape), 4);
-                        tw /= tw.x + tw.y + tw.z;
-                        half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
-                                 + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz) * tw.y
-                                 + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy) * tw.z;
-                        half2 rb = (rd.rg - 0.5) * 0.8 * steep;
-                        groundNormal = normalize(shape + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
-                        rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
+                        half3 sa = groundAlbedo, sn = shape;
+                        half sc;
+                        PunchyStoneSurface(p, stoneFootprint, PunchyStoneWetness(wet), wet, sa, sn, sc);
+                        groundAlbedo = lerp(groundAlbedo, sa, steep);
+                        groundNormal = normalize(lerp(shape, (float3)sn, steep));
                     }
                     InputData ground = (InputData)0;
                     ground.positionWS = p;
@@ -523,7 +523,7 @@ Shader "Punchy/Cave"
                     ground.normalizedScreenSpaceUV = inputData.normalizedScreenSpaceUV;
                     ground.shadowMask = half4(1, 1, 1, 1);
                     SurfaceData groundSurface = (SurfaceData)0;
-                    groundSurface.albedo = input.color.rgb * rockShade * lerp(1, 0.72, wet);
+                    groundSurface.albedo = groundAlbedo * lerp(1, 0.72, wet);
                     groundSurface.smoothness = lerp(0.15, 0.45, wet);
                     groundSurface.occlusion = 1;
                     groundSurface.alpha = 1;

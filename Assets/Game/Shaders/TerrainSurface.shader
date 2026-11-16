@@ -469,16 +469,15 @@ Shader "Punchy/Terrain Surface"
                 }
                 // R-19: the rock on steep faces. Strata: a thick and a thin set of beds by height, wandering slowly
                 // along the face so they aren't contour lines, each bed's top a ledge (the normal tips up where the beds
-                // step out). Grain: the caves' shared detail read on the two side planes the face is nearest
-                // (biplanar: a face this steep never needs the top one), at 2 m and 12 m. Every part fades by its own
+                // step out). The surface on them is the shared stone (Stone.hlsl, R-34 row 2: it replaced the old 2 m grain and
+                // 12 m mottle, so there is no double noise). Every part fades by its own
                 // on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans), never by metres.
-                half rockBand = 0, rockGrain = 0, rockMottle = 0, rockBlock = 0, rockLedge = 0;
+                half rockBand = 0, rockBlock = 0, rockLedge = 0;
                 [branch] if (rockFace > 0.001)
                 {
                     float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
                     float pxm = ppm / max(distance, 0.01);
                     half thickF = saturate((6.0 * pxm - 2) / 2), thinF = saturate((1.4 * pxm - 2) / 2);
-                    half fineF = saturate((2.0 * pxm - 2) / 2), coarseF = saturate((12.0 * pxm - 2) / 2);
                     bool rockNoise = _PunchyRockCost.x < 0.5, rockTwo = _PunchyRockCost.y < 0.5;
                     float y = input.positionWS.y;
                     [branch] if (rockNoise)
@@ -518,27 +517,6 @@ Shader "Punchy/Terrain Surface"
                             s = PunchyValueNoise(float2((xz.x + xz.y) * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, y * 0.75));
                         half far = lerp(0.45, 1, saturate((1.0 * pxm - 2) / 3));
                         rockBlock = (smoothstep(0.36, 0.64, s) - 0.5) * 0.9 * blockF * far;
-                    }
-                    [branch] if (_PunchyCaveDetailReady > 0 && max(fineF, coarseF) > 0.001)
-                    {
-                        half3 vn = normalize(input.normalWS);
-                        half2 bw = pow(abs(vn.xz), 4);
-                        bw /= max(bw.x + bw.y, 1e-4);   // (nan-safe: never 0/0, even on a level pixel at the blend's edge)
-                        float3 wp = input.positionWS;
-                        [branch] if (fineF > 0.001)
-                        {
-                            half4 d = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, wp.zy * 0.5) * bw.x
-                                    + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, wp.xy * 0.5) * bw.y;
-                            half2 rb = (d.rg - 0.5) * 0.8 * fineF * rockFace;
-                            normalWS = normalize(normalWS + half3(0, rb.y, rb.x) * bw.x + half3(rb.x, rb.y, 0) * bw.y);
-                            rockGrain = (d.b - 0.5) * fineF;
-                        }
-                        [branch] if (coarseF > 0.001)
-                        {
-                            half4 c = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, wp.zy * 0.083 + 0.37) * bw.x
-                                    + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, wp.xy * 0.083 + 0.61) * bw.y;
-                            rockMottle = (c.b - 0.5) * coarseF;
-                        }
                     }
                 }
 
@@ -600,27 +578,29 @@ Shader "Punchy/Terrain Surface"
                 // R-19: steep faces take the rock's colour: the biome's own steep surface (its slope layer already
                 // picks red sandstone on the mesas, glass plate in the glass desert, grey rock in the mountains), its hue
                 // kept, greyed only where grass grew (a grassy bank turns to stone, not green stone), then banded,
-                // blocked, grained and shaded under its ledges. Mesa strata already band the colour strongly, so the beds add less there.
+                // blocked and shaded under its ledges. Mesa strata already band the colour strongly, so the beds add less there.
                 [branch] if (rockFace > 0.001)
                 {
                     half luma = dot(albedo, half3(0.3, 0.5, 0.2));
                     half3 rock = lerp(albedo, luma.xxx * half3(1.03, 0.98, 0.92), 0.6 * input.extra.y);
                     half lessOnStrata = 1 - 0.6 * input.strata;
                     rock *= (1 + rockBand * 1.0 * lessOnStrata) * (1 + rockBlock * 0.7 * lessOnStrata)
-                          * (1 + rockGrain * 0.6) * (1 + rockMottle * 0.7) * (1 - rockLedge * 0.45);
+                          * (1 - rockLedge * 0.45);
                     albedo = lerp(albedo, rock, rockFace);
                 }
-                // R-34 trial (off by default): steep faces take the shared stone look (Stone.hlsl) on top of the beds and
-                // ledges above. Its footprint from the same reference pixels as R-19's fades (screen size, not metres).
+                // R-34 row 2: steep faces (and the cliff kit pieces, drawn with this material) take their surface from the
+                // shared stone (Stone.hlsl) on the beds and ledges above. Its footprint from the same reference pixels as
+                // R-19's fades (screen size, not metres). Wet from rain (drying over time), shores and fall spray.
                 half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
                 half3 stoneN0 = normalWS;
-                [branch] if (rockFace > 0.001 && PunchyStoneOn() && _PunchyCaveDetailReady > 0)
+                [branch] if (rockFace > 0.001 && _PunchyCaveDetailReady > 0)
                 {
                     float ppmS = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
                     stoneOn = rockFace;
-                    stoneWet = PunchyStoneWet();
+                    half realWet = max(wet, shore);
+                    stoneWet = PunchyStoneWetness(realWet);
                     half3 stoneAlbedo = albedo, stoneN = normalWS;
-                    PunchyStoneSurface(input.positionWS, max(distance, 0.01) / ppmS, stoneWet, wet, stoneAlbedo, stoneN, stoneCrevice);
+                    PunchyStoneSurface(input.positionWS, max(distance, 0.01) / ppmS, stoneWet, realWet, stoneAlbedo, stoneN, stoneCrevice);
                     albedo = lerp(albedo, stoneAlbedo, rockFace);
                     normalWS = normalize(lerp(normalWS, stoneN, rockFace));
                     // (Only the sky term follows the new normal: a second inline copy of the glow loops crashed FXC.)
@@ -656,7 +636,7 @@ Shader "Punchy/Terrain Surface"
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
-                // (The wet trial stone brings its own shine below, in place of rain's sheen.)
+                // (Wet stone brings its own shine below, in place of rain's sheen.)
                 surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle));
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
@@ -664,7 +644,7 @@ Shader "Punchy/Terrain Surface"
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
-                [branch] if (stoneOn * stoneWet > 0)
+                [branch] if (stoneOn * stoneWet > 0.01)
                 {
                     Light stoneSun = GetMainLight(inputData.shadowCoord);
                     half3 stoneV = inputData.viewDirectionWS;
