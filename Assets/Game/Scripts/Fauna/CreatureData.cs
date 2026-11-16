@@ -1130,6 +1130,27 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// M-06 row 4: what each segment of a species is made of (a SegmentMaterial, W-166 library family), in the same
+        /// order as <see cref="Looks"/> (segment 0 is the body). All Body (0) for a species that sets none. Kept off the
+        /// creature blob like the looks, so it never moves the fauna fingerprint.
+        /// </summary>
+        public static byte[] Materials(CreatureSpecies variant)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
+            var count = 1;
+            foreach (var p in parts)
+                count += p.Slot.Limb.Segments.Count;
+            var materials = new byte[count];
+            materials[0] = (byte)species.BodyMaterial;
+            var cursor = 1;
+            foreach (var p in parts)
+                foreach (var seg in p.Slot.Limb.Segments)
+                    materials[cursor++] = (byte)seg.Material;
+            return materials;
+        }
+
+        /// <summary>
         /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
         /// of, and only its own colours and size.
         /// </summary>

@@ -784,6 +784,10 @@ namespace Punchy.Fauna
                     var seg = Output[offset + i];
                     seg.Material.y = state.Position.y;
                     seg.Material.w = looksFrom < 0 ? 0f : SurfaceLook.Clamp(Looks.Value.Codes[looksFrom + i], furTier);
+                    // (M-06 row 4: what the segment is made of, from the library, unless the animator already chose,
+                    // as for a golden one.)
+                    if (looksFrom >= 0 && seg.Material.x == 0f)
+                        seg.Material.x = Looks.Value.Materials[looksFrom + i];
                     Output[offset + i] = seg;
                 }
                 // Appearing (its first moments: Clock counts from when it was made, here) or nearing the distance
