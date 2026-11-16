@@ -1012,7 +1012,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 
 ## Note (2026-11-16, supervisor): #463 moved placement: landmarks 117 547D4E79 (VolcanoCone takes an Ashlands spot at (-891,-2021), one Ashlands BoneGraveyard drops), fauna fingerprint 4BEFEA91. Re-baseline any Ashlands view and re-pin checks that read either.
 
-## Job 105 (2026-11-16, RUNNING 11-16 (q142.job, B = 3c3b50b1, A = 2b6ef9e3); world lane, W-174 row 2, #406/#403, branch world/ground-edits): ground-edit profile cost
+## Job 105 (2026-11-16, DONE 11-16: PASS, no frame or load cost (q142.job, B = 3c3b50b1, A = 2b6ef9e3); world lane, W-174 row 2, #406/#403, branch world/ground-edits): ground-edit profile cost
 - ShapeHeight gains a domain-warped cellular gully (1 cellular + 4 snoise) and a warped pass track (4 snoise) inside the pass box; landmark flats, garden beds, plot pads and paddy rims add 2-4 snoise each on their banks. Rule 21: the lane did not time it.
 - Arms: main (A) against world/ground-edits (B), same seed, -fpscap 0.
 - Record: island bake time, chunk stage time, time to world ready, and frame time standing at #403 (1116,42.7,1634) and at the dwarf mining camp (-1966,651).

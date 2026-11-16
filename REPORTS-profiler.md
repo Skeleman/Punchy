@@ -2,6 +2,17 @@
 
 Newest first.
 
+## Job 105: W-174 row 2 ground-edit profile cost (world/ground-edits 3c3b50b1 = B vs its merge-base main 2b6ef9e3 = A), 2026-11-16 (q142.job): **PASS, no frame or load cost**
+Medium, 1920x1080, uncapped, noon Clear, 3 rounds, arms alternated, each game a fresh launch. Views: #403's cut (1116,42.7,1634, on the floor) and the dwarf mining camp (-1966,651), yaw 0.
+
+| view | A GPU ms | B GPU ms | B vs A | A / B CPU ms | A / B 1% low fps |
+|---|---|---|---|---|---|
+| cut403 | 14.23 | 14.30 | +0.07 PASS | 19.73 / 19.80 | 20.5 / 16.1 |
+| mine | 15.17 | 15.17 | +0.00 PASS | 20.27 / 19.90 | 15.8 / 23.5 |
+
+- **Load:** both arms use the same island file (island-v3-3ad3dbbd), so the row-2 profile doesn't change the island hash. The first game (B r1) found no file and baked it in 54.2 s (world ready at 87 s). Every later game, A and B alike, loaded it in 1.15-1.37 s.
+- **World ready, cache loaded:** cut403 B 30.8 / 31.3 s vs A 31.1 / 30.8 / 32.0 s; mine B 35.1 / 36.3 / 33.9 s vs A 35.0 / 34.4 / 36.2 s. Level, well within 5%. The producers (caves rest-of-frame, caves stream, chunks apply) match between the arms.
+- 1% lows swing between rounds in both arms (4.9-30.6 fps), with no side ahead. The cut403 shot shows the cut face and its rim as #403 describes.
 ## Job 102: R-30 leaf looks (render/foliage-realism d86dc216 -leaftrial off/a/b/c; N = 9cec43a5, r1 without transmission), 2026-11-16 (q141.job): **(a) and (b) are not affordable at High; (c) costs +1.3-1.6 ms; transmission is free**
 High, 1920x1080, uncapped, Clear, 3 rounds, arms alternated, inside the oak grove (-place OakGrove). Both builds carry the bench-only TestHooks.Options.cs guard (see Job 97). No rule-23 bar on the card; High's +1 ms is shown for scale.
 
