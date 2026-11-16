@@ -5460,3 +5460,14 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - WorldTests (PlayMode): 14/14 pass with the fix, Fauna_Fingerprint included, and no released or deallocated errors in Editor.log. Caveat: the baseline without the fix also passed 14/14 in this tree, so I could not reproduce the world lane's failure here. The fix follows the stale-copy path the report names; please ask the world lane to re-run in their tree.
 - A-108 r4 is parked as a resumable WIP: fauna/far-details@5ce15aac (eagle over summits, dust behind walking herds in dusty biomes, dawn fish rings on far lakes; compiles; play checks and shots still to do). Resuming it next.
 - No collision with the W-166 gear row beyond the Wood/Metal note in the entry above.
+
+## 11-15 A-108 row 4 (#298) far eagle, herd dust, dawn lake rings [fauna] - ready for PR
+- Branch fauna/far-details@f670fdfd (from main 739e441e; code in 5ce15aac, f670fdfd only marks it verified). Render partials only: SkyBirds (eagle), Herds (dust), new LakeRings partial, 3 lines in CreatureRenderSystem.cs. No shader, simulation, spawn, network, ProjectSettings or FaunaDirector changes.
+- Eagle: each sky cell finds its highest ground once (5x5 grid); a summit at least 140 m up and 30 m over the cell's middle holds a lone eagle wheeling 25-55 m above it, mostly by day, less at dawn and dusk.
+- Dust: walking herds in dusty biomes leave a pale dithered trail behind them; it stops when the herd stops (herds walk only part of each leg).
+- Lake rings: fish rise on far lakes at dawn (and less at dusk). 128 m patches, 2 lanes each, a hash on the shared clock picks the spot (open lake, depth 1.5 m or more). Picked by on-screen size (rule 20): skipped under 1.5 px, faded out from 60 to 90 px where the water's own ripples take over. About 40 rings at once over the big west lake at 6:00.
+- Same on every machine: all seeded hashes plus the shared clock, nothing sent.
+- Shots (2560x1600): D:/Unity/PunchyMilestones/A-108/r4-summit-eagle.png (11:00, eagle against the sky over the summit), r4-herd-dust.png (noon, a walking herd with its trail), r4-dawn-lake-rings.png (6:30, from above). The rings and dust are on purpose subtle: thin and dithered.
+- Shot caveat: the dust herd is a dusty walking herd near spawn (~1025,712), not one from the far dunes. The dune herds are small and none was walking while I watched.
+- Checks: Fauna_Fingerprint passes (6A9E28E5). -sparkleprobe a108r4 at dawn: 360 frames, creature marked 0, other bad 0. WorldTests full run 12/14: Player_CrowFliesOutOfCaveThroughHitches timed out at 180 s and CaveWater_SurfaceMatchesAndPoolStirs then failed. Both pass when run alone (37 s and pass), so this looks like the known full-run timeout flake, not this row.
+- NEXT: wake fix (heavy rings behind fast dolphins) plus the CreatureAnimator tidy.

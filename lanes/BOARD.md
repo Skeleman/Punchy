@@ -15,7 +15,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r3 | #336 | materials | stone: compiled + tests 3/3, shots pending (RAM); gear WIP on top of A-133 | world/material-library-2 1bf93cce (tree Punchy-materials) | Supervisor: merge A-133 before this; built stone close-up into BENCH 101 |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
-| A-108 r2 | #298 | fauna | merged #428 | fauna/far-life | r4 WIP fauna/far-details@5ce15aac (eagle, herd dust, dawn lake rings; compiles, shots pending) |
+| A-108 r2 | #298 | fauna | merged #428 | fauna/far-life | r4 done, ready for PR: fauna/far-details@f670fdfd (eagle, herd dust, dawn lake rings; fingerprint holds, sparkle 0) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
