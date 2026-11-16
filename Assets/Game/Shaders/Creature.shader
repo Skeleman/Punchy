@@ -205,6 +205,8 @@ Shader "Punchy/Creature"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
+            #include "Surface.hlsl"
             // W-166 row 3: gear draws from the one material library, as built pieces do.
             #include "Materials/Metal.hlsl"
             #include "Materials/Wood.hlsl"
@@ -330,8 +332,12 @@ Shader "Punchy/Creature"
                 // How much world one pixel spans (m), taken here outside any branch, for the gear includes' fades.
                 float footprint = length(fwidth(input.positionWS));
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r) * (1 + 0.07 * _Shell);
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // The sun and its shadow tiers (real-time, wide, cloud) from Surface.hlsl, so a colossus's wide shadow
+                // darkens the deer standing in it as it darkens the ground.
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
                 half3 color;
                 // (_PunchyPlainGear, set by a debug probe: everything shaded as a body, for before/after shots.)
                 uint material = _PunchyPlainGear > 0.5 ? 0 : (uint)(input.material + 0.5);
@@ -572,7 +578,7 @@ Shader "Punchy/Creature"
                             lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
-                half3 final = PunchyAtmosphere(color, input.positionWS);
+                half3 final = PunchySurfaceFinish(color, ps);
                 [branch] if (_PunchySparkleProbe > 0)
                 {
                     probe |= SparkleBad((float3)color) ? 8u : 0u;
