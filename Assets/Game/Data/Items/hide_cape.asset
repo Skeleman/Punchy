@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3db6dc162a58fa344bd1e063f5af6395, type: 3}
+  m_Name: hide_cape
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Items.ItemAsset
+  Key: hide_cape
+  DisplayName: Hide cape
+  Colour: {r: 0.36, g: 0.27, b: 0.18, a: 1}
+  Accent: {r: 0.25, g: 0.19, b: 0.12, a: 1}
+  Stack: 1
+  Weight: 3
+  Slot: 4
+  Light: 0
+  Reach: 0
+  Cover: 0.3
+  Slots: 0
+  Damage: 0
+  Speed: 0
+  TwoHanded: 0
+  Weapon: 0
+  Armour: 0
+  Look: 2
+  Length: 0
+  Sheath: 0
+  Dyed: 0
+  Family: 7
+  AccentFamily: 8
+  Kind: 1
+  AccentKind: 0
+  Quest: 
+  Base: 
