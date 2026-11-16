@@ -207,3 +207,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-16: #515 W-174 r4b-5 (#405) one seam builder: no gaps round cave mouths, temple entrances and scarps (world). Playtest: walk the sunken temple's entrance and a cave mouth edge.
 - 2026-11-16: #516 W-175 (#415) a Cookhouse built from a JSON blueprint stands in human villages (world). Playtest: find it near 2957,-834.
 - 2026-11-16: #517 P-51 r3 (#337) elf tower roof hatch, roof deck and windows under -seamless (player-2). Playtest: climb to the deck.
+- 2026-11-16: #519 P-52 (#518) long frames move the player in 0.05 s pieces, no more walking out through tower walls on a hitch (player-2). Playtest: climb a tower stair while the game hitches.
