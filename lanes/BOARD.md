@@ -13,14 +13,14 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r3 | #336 | materials | stone: compiled + tests 3/3, shots pending (RAM); gear WIP on top of A-133 | world/material-library-2 1bf93cce (tree Punchy-materials) | Supervisor: merge A-133 before this; built stone close-up into BENCH 101 |
+| W-166 r3 | #336 | materials | stone: compiled + tests 3/3, shots pending (RAM); gear WIP on top of A-133 | world/material-library-2 1bf93cce (tree Punchy-materials) | A-133 merged #448: merge main in; built stone close-up into BENCH 101 |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
-| A-133 | #336 | fauna | done, ready for PR (main 27b11437 merged in, clean vs main) | fauna/material-library@1ccabebc | creature wood + metal via Materials/*.hlsl, forwarder deleted; diff only on spear shaft; MaterialLibraryTests 3/3, sparkle 0 |
+| A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
 | W-175 r1 | #415 | materials | done: audit doc, waiting for Zach's OK | world/material-library 14429012 (docs/agents/parts-and-units.md) | Stop: Zach OKs the parts/units proposal before row 2 |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1-r2 | #323 | render | r2 done (verified); r1 waiting on Zach | render/foliage-realism@d86dc216 | r2: FloraLeafTransmission (light through leaves) on mesh + impostor, sheet PunchyMilestones R-30/row2/sheet.png. r1 sheet with Zach, BENCH 102 queued. Next: Zach's leaf pick, then build it (shells per note) |
@@ -35,7 +35,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-124 r2 | #358 | folk | active | folk/gait (new) | Per-person gait styles; no new wire field |
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
-| b/fix-lake-ring-hash | #298 | fauna | done, ready for PR | b/fix-lake-ring-hash@8f754ec1 | lake ring seeds scrambled (BiomeSampling.Scramble); neighbour rises independent; fingerprint passes |
+| b/fix-lake-ring-hash | #298 | fauna | merged #447 | | lake ring seeds scrambled; follow-up: SkyBirds seeds the same unscrambled way |
 | R-28 r2, R-15 land | - | render-2 | active | render/cobble-depth, render/audit-fixes | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |

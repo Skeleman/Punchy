@@ -144,3 +144,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: #444 merged (A-108 r4, #298): far eagle over summits, dust behind far herds, fish rings on far lakes at dawn. Check: dawn at a lake, look across.
 - 11-15: #445 merged (#352): audio no longer reads a released terrain copy after a rebuild. Check: rebuild the world in play, listen near doors.
 - 11-15: #446 merged (P-31): dev flags -netsim (lag stage), -rttlog and -rejoin for multiplayer tests. Check: host plus joiner with -netsim 150,30,2; joiner RTT about 300 ms.
+- 11-15: #447 merged (A-108 follow-up, #298): dawn/dusk lake rings no longer rise in step across next-door patches.
+- 11-15: #448 merged (A-133, #336): creature gear wood and metal use the shared material library (spear shafts show the new grain).
