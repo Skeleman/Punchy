@@ -60,7 +60,7 @@ Same method as r4: the metre numbers stay, but each fade reads PunchyReferenceDi
 - Colossus clouds-off (the r3 darkening check): not settled. The r3 shots use a different view, so their brightness can't be compared with these, and the clouds-on set came from a different weather state. It needs a same-view clouds on/off pair on main.
 - Shots: PunchyMilestones/R-23/r45/branchD1 and mainD1 (Detail 1, clouds off). Detail 1.5 sets are in branch2 and main. Editor closed with EditorApplication.Exit; release tree clean.
 
-## DRAFT BENCH request, R-23 r4+r5 (for the coordinator to file after verification; not in BENCH-QUEUE)
+## BENCH request R-23 r4+r5: filed as Job 109 (11-16)
 ### Job (render-2 lane, R-23 r4+r5 #298, branch render/one-surface-5 9701f8a3, includes one-surface-4): detail fades on screen size
 - r4: the Creature fur/pattern and Flora relief/leaf/sheen/glow/cell fades read PunchyReferenceDistance (each camera's projection x Detail). The Flora.hlsl breath, twitch and flutter read PunchyMainReferenceDistance (`_PunchyViewPpm`). DetailPolicy sets `_PunchyDetail` and `_PunchyViewPpm` from beginContextRendering each frame. r5: TerrainSurface sheen/cobble/rock-face/cave-mouth/grain/rain and Water rippleNear do the same. Per-pixel cost added: one multiply and one divide per fade. At fov 60 the fade distances match main; elsewhere they move. Rule 21: the lane did not time it.
 - Reach note: at a narrow fov (zoom) the gated branches reach further, at a wide fov less far. Cobbles (`cobbleFade > 0.001`) and the rock-face/cave-mouth grain (`steep > 0.01`, cave detail sampling) are the costly ones. At fov 90 the rock-face grain ends at 52 m instead of 90 m; at fov 40 it reaches about 141 m.

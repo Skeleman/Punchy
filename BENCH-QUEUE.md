@@ -1045,3 +1045,13 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Views: (a) summit view `-goto -3460,2425` with the volcano in sight, clear; (b) the plume walk-in views `-goto -891,-421` and `-goto -891,-1171` at time 19.5 (list in PunchyMilestones/R-25/plume-reach/work/plume.txt); (c) a ground walk in open country as a control.
 - Record: CPU ms in LandmarkEffectSystem's gather, plume draw GPU ms (transparent pass), whole-frame GPU/CPU ms. Also run `-sparkleprobe plume` once on B at High (rule 24, NaN 0; render could not run it for lack of RAM).
 - Pass: B within 0.2 ms CPU and 0.5 ms GPU of A at (a) and (b), no change at (c), sparkle NaN 0. Report the numbers otherwise.
+
+## Job 109 (2026-11-16, QUEUED after 108; render-2 lane, R-23 r4+r5, #298, branch render/one-surface-5 9701f8a3, includes one-surface-4): detail fades on screen size
+- r4: the Creature fur/pattern and Flora relief/leaf/sheen/glow/cell fades read PunchyReferenceDistance (each camera's projection x Detail). The Flora.hlsl breath, twitch and flutter read PunchyMainReferenceDistance (`_PunchyViewPpm`). DetailPolicy sets `_PunchyDetail` and `_PunchyViewPpm` from beginContextRendering each frame. r5: TerrainSurface sheen/cobble/rock-face/cave-mouth/grain/rain and Water rippleNear do the same. Per-pixel cost added: one multiply and one divide per fade. At fov 60 the fade distances match main; elsewhere they move. Rule 21: the lane did not time it.
+- Reach note: at a narrow fov (zoom) the gated branches reach further, at a wide fov less far. Cobbles (`cobbleFade > 0.001`) and the rock-face/cave-mouth grain (`steep > 0.01`, cave detail sampling) are the costly ones. At fov 90 the rock-face grain ends at 52 m instead of 90 m; at fov 40 it reaches about 141 m.
+- Arms: main (A) against render/one-surface-5 (B), editor on each tree, ShaderCache (Library/ShaderCache) cleared first, -fpscap 0.
+- Record:
+  - full shader import time after the cache clear, and the variant count for Creature, Flora, FloraImpostor, TerrainSurface and Water;
+  - frame time at fov 60 and at fov 90, standing at the village (117,-470) with deer spawned, at a cliff face with a cave mouth in view, and at a lakeshore at noon in rain (puddles, ripples);
+  - one fov 40 sample at the cliff, for the rock-grain reach.
+- Expect fov 60 to be within noise of A, and fov 90 to be equal or cheaper. Report only; nothing fails.
