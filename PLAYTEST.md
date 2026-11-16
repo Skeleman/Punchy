@@ -202,3 +202,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #509 world/chunk-mesh-budget (#400): tunnel-entry hitch; chunk-mesh batches leave half the workers free, cave-mouth chunks count 5x. Playtest: walk into a tunnel and watch for a stall.
 - 11-16: #510 player/item-ids, P-35 r3 rows 2-5 (#26): item record ids, stacks, catalog in the world sync check. Playtest: take from a walk-in chest solo and as a joiner.
 - 11-16: #512 world/ground-holes, W-174 r4a (#405): one hole mask for cave mouths, temple entrances and scarp strips. Playtest: no plants standing in the sunken temple's opening or on scarp steps.
+- 2026-11-16: #513 R-40 (#511) soft wide shadows, one shadow per point at the URP hand-off (render).
