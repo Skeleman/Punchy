@@ -147,6 +147,20 @@ namespace Punchy.Items
             new ItemDef { Name = "Straw hat", Colour = new Color(0.82f, 0.7f, 0.42f), Accent = new Color(0.5f, 0.38f, 0.2f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.StrawHat },
             new ItemDef { Name = "Fisher's hat", Colour = new Color(0.34f, 0.38f, 0.3f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.FisherHat },
             new ItemDef { Name = "Satchel", Colour = new Color(0.4f, 0.25f, 0.13f), Accent = new Color(0.3f, 0.18f, 0.09f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Back, Slots = 4, Look = Punchy.Fauna.CreatureArmour.Satchel },
+            // A-106 + A-103 job gear at a worker's post, as items (P-38, rule 33): a roofer's guy rope and coil, a mender's
+            // trestle and the dented helm on it, a fire tender's spirit flame, what a sweeper or shoveller has cleared, an
+            // ice cutter's snow block and the ice block on it.
+            new ItemDef { Name = "Guy rope", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1.5f },
+            new ItemDef { Name = "Rope coil", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1f },
+            new ItemDef { Name = "Trestle", Colour = new Color(0.5f, 0.38f, 0.24f), Accent = new Color(0.36f, 0.24f, 0.13f), Stack = 1, Weight = 12f },
+            new ItemDef { Name = "Dented helm", Colour = new Color(0.3f, 0.31f, 0.33f), Stack = 1, Weight = 2f },
+            new ItemDef { Name = "Spirit flame", Colour = new Color(0.55f, 0.95f, 0.86f), Accent = new Color(0.45f, 0.85f, 0.78f), Stack = 1, Weight = 0f },
+            new ItemDef { Name = "Heap", Colour = new Color(0.6f, 0.58f, 0.55f), Stack = 1, Weight = 20f },
+            new ItemDef { Name = "Snow block", Colour = new Color(0.86f, 0.9f, 0.94f), Stack = 5, Weight = 15f },
+            new ItemDef { Name = "Ice block", Colour = new Color(0.62f, 0.8f, 0.9f), Stack = 5, Weight = 15f },
+            // P-38 row 3: eyewear as head items (A-103 row 5), put on with G or from the inventory.
+            new ItemDef { Name = "Glasses", Colour = new Color(0.04f, 0.04f, 0.05f), Stack = 1, Weight = 0.05f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Glasses },
+            new ItemDef { Name = "Glow goggles", Colour = new Color(0.32f, 0.85f, 0.45f), Accent = new Color(0.2f, 0.17f, 0.14f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.GlowGoggles },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
         /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>
@@ -158,7 +172,11 @@ namespace Punchy.Items
                           Bucket = 45, Bowl = 46, Jar = 47, Apple = 48, Bread = 49, Dough = 50, KneadingTable = 51, ChoppingBlock = 52, Log = 53,
                           Rope = 54, HotIron = 55, Creel = 56, Honeycomb = 57, Goggles = 58, KettleHat = 59, HornedHelm = 60, CrestedHelm = 61,
                           PotHelm = 62, SkullHelm = 63, Breastplate = 64, Cuirass = 65, Sash = 66, HideCape = 67, Apron = 68, LeatherApron = 69,
-                          BakerApron = 70, BakerCap = 71, StrawHat = 72, FisherHat = 73, Satchel = 74;
+                          BakerApron = 70, BakerCap = 71, StrawHat = 72, FisherHat = 73, Satchel = 74,
+                          GuyRope = 75, RopeCoil = 76, Trestle = 77, DentedHelm = 78, SpiritFlame = 79, Heap = 80, SnowBlock = 81, IceBlock = 82,
+                          Glasses = 83, GlowGoggles = 84;
+        /// <summary>A snow shoveller's knit cap (A-106), from the outfit rows.</summary>
+        public const byte Woolcap = 28;
 
         /// <summary>Whether each id above is still the item it names (an id is its index: one appended in the wrong place
         /// would shift them). Logged as an error if not.</summary>
@@ -174,6 +192,9 @@ namespace Punchy.Items
                 (PotHelm, "Pot helm"), (SkullHelm, "Skull helm"), (Breastplate, "Breastplate"), (Cuirass, "Leather cuirass"), (Sash, "Sash"),
                 (HideCape, "Hide cape"), (Apron, "Apron"), (LeatherApron, "Leather apron"), (BakerApron, "Baker's apron"), (BakerCap, "Baker's cap"),
                 (StrawHat, "Straw hat"), (FisherHat, "Fisher's hat"), (Satchel, "Satchel"),
+                (GuyRope, "Guy rope"), (RopeCoil, "Rope coil"), (Trestle, "Trestle"), (DentedHelm, "Dented helm"), (SpiritFlame, "Spirit flame"),
+                (Heap, "Heap"), (SnowBlock, "Snow block"), (IceBlock, "Ice block"), (Woolcap, "Woolcap"),
+                (Glasses, "Glasses"), (GlowGoggles, "Glow goggles"),
             };
             foreach (var (id, name) in named)
                 if (id >= Items.Length || Items[id].Name != name)
@@ -276,6 +297,7 @@ namespace Punchy.Items
             FolkKits.CheckLooks();
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
+            instance.StartPack();
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-pickup");
             if (at >= 0 && at + 1 < args.Length)
@@ -349,12 +371,14 @@ namespace Punchy.Items
                     added.Clear();
                     openedChests.Clear();
                     seededFor = default;
+                    rodsFor = default;
                 }
             }
             if (!TryTerrain(out var terrain))
                 return;
             RegisterChests();
             StockPosts();
+            LayRods(terrain);
             if (Hosting)
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())
@@ -375,6 +399,7 @@ namespace Punchy.Items
             UpdateQuests(terrain);
             Tests(terrain);
             GearTest();
+            EyewearKey();
             GearLootTest();
             SwingKeys();
             FishKeys(terrain);

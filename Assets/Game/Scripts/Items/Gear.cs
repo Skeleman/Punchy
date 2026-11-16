@@ -218,6 +218,45 @@ namespace Punchy.Items
             GearChanged();
         }
 
+        /// <summary>The item on the local player's head (255: nothing), for what the view makes of it (Eyewear.Vision).</summary>
+        public static byte OwnHead => instance != null ? instance.worn[(int)GearSlot.Head] : Nothing;
+
+        bool eyewearArg;
+
+        /// <summary>
+        /// A-103 row 5 as items (P-38 row 3): G, when no panel is open, puts this body's eyewear on (glasses over bat
+        /// eyes, glow goggles over any other; Eyewear.For) or takes it off, the pair coming from the pack (given one
+        /// first if it has none). "-eyewear" starts with it on. (No pad binding yet: the d-pad is the emotes'.)
+        /// </summary>
+        void EyewearKey()
+        {
+            if (eyewearArg && TryPlayer(out _))
+            {
+                eyewearArg = false;
+                ToggleEyewear();
+            }
+            var keyboard = Keyboard.current;
+            if (keyboard != null && !Punchy.UI.Overlay.AnyOpen && keyboard.gKey.wasPressedThisFrame)
+                ToggleEyewear();
+        }
+
+        void ToggleEyewear()
+        {
+            var fauna = FindAnyObjectByType<FaunaDirector>();
+            var pair = Eyewear.For(fauna != null && fauna.PlayerSpecies != null ? fauna.PlayerSpecies.Vision : 0f);
+            if (worn[(int)GearSlot.Head] == pair)
+            {
+                Unequip(GearSlot.Head);
+                Debug.Log($"Items: took off the {ItemTable.Items[pair].Name}");
+                return;
+            }
+            if (System.Array.FindIndex(slots, s => s.item == pair) < 0)
+                Grant(pair, 1);
+            Equip(System.Array.FindIndex(slots, s => s.item == pair));
+            if (worn[(int)GearSlot.Head] == pair)
+                Debug.Log($"Items: put on the {ItemTable.Items[pair].Name}");
+        }
+
         void Unequip(GearSlot place)
         {
             var item = worn[(int)place];
@@ -508,7 +547,7 @@ namespace Punchy.Items
             var heldLeft = false;
             if (wears && held == HeldItem.None && g.LeftHand != Nothing && HeldFor(g.LeftHand) != HeldItem.None)
                 (held, heldLeft) = (HeldFor(g.LeftHand), true);
-            var bits = wears ? WornBits(g.Head, g.Back) : (byte)0;
+            var bits = (byte)(wears ? WornBits(g.Head, g.Back) : 0);
             var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet), Back = Look(g.Back), Neck = Look(g.Neck) } : default;
             var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
             // (Put away, or past the middle of the reach: worn, not in hand; Zach 11-12 row 4.)
@@ -777,6 +816,7 @@ namespace Punchy.Items
             sheatheArg = System.Array.IndexOf(args, "-sheathe") >= 0;
             blockArg = System.Array.IndexOf(args, "-block") >= 0;
             sprintArg = System.Array.IndexOf(args, "-sprint") >= 0;
+            eyewearArg = System.Array.IndexOf(args, "-eyewear") >= 0;
         }
 
         float budgetAt;

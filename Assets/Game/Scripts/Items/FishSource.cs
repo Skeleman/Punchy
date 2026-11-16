@@ -11,6 +11,8 @@ namespace Punchy.Items
         public string Name;
         public byte Size;
         public float Strength;
+        /// <summary>Row 3: not a fish (an old boot, driftwood): reeled in and thrown back, nothing to keep yet.</summary>
+        public bool Junk;
     }
 
     /// <summary>
@@ -24,7 +26,22 @@ namespace Punchy.Items
     }
 
     /// <summary>
-    /// The stand-in catch table until A-100 lands (P-33 row 2): two or three fish by kind of water (sea, river, lake, cave),
+    /// The catch, from A-100's tables (P-33 row 3): FishCatch sorts the water by kind (sea shore, deep sea, harbour,
+    /// lake, river pool, rapids, swamp, cave pool, cave stream, small pool), and rolls a fish (or junk) by rarity, hour and
+    /// biome from the seed. False when nothing is there to bite (a puddle's empty row).
+    /// </summary>
+    public sealed class FaunaFishSource : IFishSource
+    {
+        public bool Next(in TerrainSource terrain, in GroundSample water, float3 at, uint seed, out FishBite bite)
+        {
+            var ok = Punchy.Fauna.FishCatch.Roll(terrain, water, at, seed, Punchy.Fauna.FishCatch.Hour(), out var r);
+            bite = new FishBite { Wait = r.Wait, Name = r.Name, Size = r.Size, Strength = r.Strength, Junk = r.Junk };
+            return ok;
+        }
+    }
+
+    /// <summary>
+    /// The stand-in catch table before A-100 (P-33 row 2; kept for tests): two or three fish by kind of water (sea, river, lake, cave),
     /// a bite 3-8 s after the bobber settles, a size from the fish's range, all from the seed.
     /// </summary>
     public sealed class StubFishSource : IFishSource

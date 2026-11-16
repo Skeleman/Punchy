@@ -206,7 +206,7 @@ namespace Punchy.Terrain
         /// <summary>The last placement's log line(s).</summary>
         public static string LastLog = "";
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)] // seed-derived: never the managed copy (BakeBurst)
         struct SampleJob : IJobParallelFor
         {
             public TerrainSource Source;

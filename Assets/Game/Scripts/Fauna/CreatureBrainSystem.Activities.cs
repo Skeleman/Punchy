@@ -87,11 +87,21 @@ namespace Punchy.Fauna
                 var underground = underRock || s.Position.y < Terrain.SampleHeight(s.Position.xz) - 2f;
                 var cover = CoverNow(in s, ref b);
                 M.Cover = cover;
-                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, cover, out var kind);
+                // A-121 row 2: the heat of any lit fire near (felt whether or not it came for it), and the berth it keeps.
+                var hottest = default(FireSpot);
+                var fireHeat = Fires.On ? Fires.HeatAt(s.Position.xz, Night, out hottest, out _) : 0f;
+                M.FireKeep = FireKeepFor(in s, ref b, in w, underground, fireHeat > 0f ? hottest.Heat : 0f);
+                var pressure = Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, cover, fireHeat, out var kind);
                 M.ComfortPressure = pressure;
                 M.ShelterRetry -= dt;
-                // Row 2: sheltering, it goes on its way once the weather out in the open lets up.
-                if (s.Mode == CreatureMode.Shelter && s.Stage >= 1 && s.StageTime > 8f &&
+                // A-121 row 2: too near a lit fire for its liking, it backs off; a fire-lover drifts back to one.
+                if (FireStep(ref s, ref b, fireHeat))
+                {
+                }
+                // Row 2: sheltering, it goes on its way once the weather out in the open lets up (a fire-lover sitting
+                // by a fire stays its while).
+                else if (s.Mode == CreatureMode.Shelter && s.Stage >= 1 && s.StageTime > 8f &&
+                    !(b.Comfort.LovesFire && (ShelterNeed)(byte)s.TargetHeight == ShelterNeed.Fire) &&
                     Comfort.Pressure(in b.Comfort, s.Individual, in w, Night, underground, ShelterNeed.None, out _) < 0.05f)
                 {
                     var rested = new Random(math.hash(new uint2(s.Individual, (uint)(Now * 10f))) | 1u);
@@ -188,6 +198,27 @@ namespace Punchy.Fauna
             float SleepTime(ref CreatureBlob b) =>
                 b.Active == ActiveTime.Day ? Night : b.Active == ActiveTime.Night ? 1f - Night : 0f;
 
+            /// <summary>Whether it has a house of its own (A-103/A-105: its household's door, not just any door near).</summary>
+            static bool HasOwnDoor(in CreatureState s) => math.lengthsq(s.OwnDoor.xz) > 0f;
+
+            /// <summary>
+            /// Whether a folk should be going home for the night, or staying in: past half its sleeping time (SleepTime)
+            /// for most; one with a house of its own heads home as the sun sets (A-105), and a child of a house is called
+            /// in an hour before that, from ChildHomeHour, and stays in till full day.
+            /// </summary>
+            bool Homeward(in CreatureState s, ref CreatureBlob b)
+            {
+                var sleepy = SleepTime(ref b);
+                if (!HasOwnDoor(s))
+                    return sleepy > 0.5f;
+                if (b.Child && b.Active == ActiveTime.Day && Hour >= ChildHomeHour)
+                    return true;
+                return sleepy > (b.Child ? 0.25f : 0.4f);
+            }
+
+            /// <summary>The hour a housed child is called in (A-105): an hour before the 18:00 sunset.</summary>
+            const float ChildHomeHour = 17f;
+
             /// <summary>
             /// The weighted activities, in the order the roll is spent on them. Those marked * can fail to start (no
             /// water, tree, web or flight found); then the roll, already spent, falls to the next * one that has any
@@ -205,8 +236,10 @@ namespace Punchy.Fauna
             /// forced   Flit        drawn to light                                             always               Flit
             /// forced   Breach       breaches, awake                                            30%                  soar (Wander 2)
             /// forced   Patrol       guard on shift / night guard by day                        always               StartPatrol / Home, Sleep
+            /// forced   Lamps        lamplighter, its dusk / dawn round due (A-115)             always               StartRound
             /// forced   Hermit       hermit, its day at the shelter                             HermitDay            HermitDay
             /// forced   Camper       traveller, its night at camp                               CamperNight          CamperNight
+            /// forced   FolkLife     turtle child / old turtle at midday / sea folk child       50% / 5% / 35%       slide / lie in the sun / chase a fish
             ///          (a fisher with no spot looks for one; none, and it's townsfolk)
             /// forced   Rooted       rooted                                                     always               Sleep / Idle
             /// forced   Disguised    passes for a plant                                         asleep, or 85%       Sleep / Rest
@@ -217,6 +250,8 @@ namespace Punchy.Fauna
             /// urgent   PlayRing     child by day, homed                                        30%                  StartPlayRing
             /// urgent   Hearth       townsfolk at dusk, room at the fire                        80%                  StartHearth
             ///          (the roll is drawn here)
+            /// urgent   Board        grown townsfolk by day, room at the board (A-116)          sheet due: always    StartPoster
+            ///                                                                                  else 25% morning, 7% StartBoard
             /// urgent   Greet        friendly, a person near its range, awake                   35% + lonely 60%     Greet
             /// urgent   Roost        roosting species                                           always               StartRoost / NightLoop
             /// urgent   Burrow       burrower in its sleeping time with sleep weight            has or digs one      Burrow
@@ -251,13 +286,13 @@ namespace Punchy.Fauna
             enum DecideStep : byte
             {
                 // forced, before the senses
-                Shield, Flit, Breach, Patrol, Hermit, Camper, FisherSpot, Rooted, Disguised,
+                Shield, Flit, Breach, Patrol, Lamps, Hermit, Camper, FolkLife, FisherSpot, Rooted, Disguised,
                 // the senses and the weights
                 Senses,
                 // forced, after the senses
                 Nest,
                 // urgent: the roll is drawn between Hearth and Greet, as it always was, so every draw stays where it was
-                HuntGame, Raid, PlayRing, Hearth, Roll, Greet, Roost, Burrow, Chores,
+                HuntGame, Raid, PlayRing, Hearth, Roll, Board, Greet, Roost, Burrow, Chores,
                 Count
             }
 
@@ -304,8 +339,10 @@ namespace Punchy.Fauna
                     case DecideStep.Flit: return DecideFlit(ref s, ref b, ref rng);
                     case DecideStep.Breach: return DecideBreach(ref s, ref b, ref rng, sleepy);
                     case DecideStep.Patrol: return DecidePatrol(ref s, ref rng);
+                    case DecideStep.Lamps: return s.Job == (byte)FolkJob.Lamplighter && OnRound(s) && StartRound(ref s);
                     case DecideStep.Hermit: return s.Task == CreatureTask.Hermit && HermitDay(ref s, ref b, ref rng, sleepy);
                     case DecideStep.Camper: return s.Task == CreatureTask.Camper && CamperNight(ref s, ref rng);
+                    case DecideStep.FolkLife: return (b.TurtleJobs || BedWalk && b.Child) && DecideFolkLife(ref s, ref b, ref rng, sleepy);
                     case DecideStep.FisherSpot:
                         // (A fisher finds its spot the first time: none within reach, and it's just one of the townsfolk.)
                         if (s.Task == CreatureTask.Fish && sleepy < 0.5f && math.all(s.WorkSpot == float2.zero) && !FindFishingSpot(ref s))
@@ -357,6 +394,11 @@ namespace Punchy.Fauna
                                                c.W[(int)Weighted.Climb] + c.W[(int)Weighted.Web] + c.W[(int)Weighted.Fly] + c.W[(int)Weighted.Home] +
                                                c.W[(int)Weighted.Swim] + c.W[(int)Weighted.Lounge] + c.W[(int)Weighted.Surface]);
                         return false;
+                    case DecideStep.Board:
+                        // Townsfolk by day now and then stop at the notice board to read it (after the roll, so its draw stays where it was);
+                        // with a sheet of the town's due up, the first free to goes and pins it (A-116 row 2).
+                        return BoardTime(in s, ref b, sleepy) &&
+                               (StartPoster(self, ref s) || rng.NextFloat() < BoardChance && StartBoard(self, ref s, ref rng));
                     case DecideStep.Greet: return DecideGreet(ref s, ref b, ref rng, sleepy, c.Player);
                     case DecideStep.Roost: return DecideRoost(ref s, ref b, ref rng, sleepy);
                     case DecideStep.Burrow: return DecideBurrow(ref s, ref b, ref rng, sleepy, c.W[(int)Weighted.Sleep]);
@@ -385,12 +427,12 @@ namespace Punchy.Fauna
                 if (prey != Entity.Null && Lookup.TryGetValue(prey, out var preyAt) && math.distance(States[preyAt].Position.xz, s.Position.xz) < 20f)
                     hunt *= 1.5f;
                 // Climbers go up trees to sit, and to sleep (they sleep up there, not on the ground).
-                var climb = b.Climbing > 0f && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
+                var climb = b.Climbing > 0f && Climbing.CanClimb(b.ClimbSkill, Climbing.Tree) && HasFlora && !flier ? b.Climbing * (sleepy > 0.5f ? 8f : 2.5f) : 0f;
                 // Townsfolk sit a while by the well, or lie back on the ground near it, by day.
                 var lounge = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.3f && Night < 0.3f && s.Task != CreatureTask.Patrol ? 0.2f * awake : 0f;
                 // Townsfolk now and then go for a swim, in the warm middle of the day.
                 // (Water folk wade and swim in the shallows near home far more often: #10.)
-                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol ? (0.12f + b.Wades * 1.2f) * awake : 0f;
+                var swim = b.Upright && b.Hands && s.Leash > 0f && sleepy < 0.2f && Night < 0.2f && s.Task != CreatureTask.Patrol && !b.WalksBed ? (0.12f + b.Wades * 1.2f) * awake : 0f;
                 if (climb > 0f && sleepy > 0.5f)
                     sleep *= 0.2f;
                 // Web spinners spend most of their time in their web.
@@ -422,12 +464,14 @@ namespace Punchy.Fauna
                 if (posted && sleepy > 0.5f && !dayWork)
                     sleep = 0f;
                 // Townsfolk go indoors through their door: for the night (all but the watch), and now and then by day.
+                // (A-105: a housed child is called in earlier, at the first of the dusk, and stays in till full day.)
                 var home = 0f;
                 if (b.Upright && s.Leash > 0f && s.Task != CreatureTask.Watch && FindDoor(ref s))
                 {
-                    home = sleepy > 0.5f ? 14f : 0.15f * awake;
-                    if (sleepy > 0.5f)
-                        work = sleep = 0f;
+                    var homeward = Homeward(s, ref b);
+                    home = homeward ? 14f : 0.15f * awake;
+                    if (homeward)
+                        work = sleep = play = 0f;
                 }
                 w[(int)Weighted.Work] = work;
                 w[(int)Weighted.Home] = home;
@@ -455,7 +499,7 @@ namespace Punchy.Fauna
             /// </summary>
             bool DecideShield(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
-                if (!b.ShunsLight || s.Held == HeldItem.Goggles || !LightNear(in s, ref b))
+                if (!b.ShunsLight || Punchy.Items.FolkKits.Shaded(in s) || !LightNear(in s, ref b))
                     return false;
                 SetMode(ref s, CreatureMode.Idle);
                 s.Action = IdleAction.ShieldEyes;
@@ -933,6 +977,12 @@ namespace Punchy.Fauna
             void Play(Entity self, ref CreatureState s, ref CreatureBlob b, ref Random rng,
                       ref float targetSpeed, ref float desiredLook, ref float bow, ref bool moving)
             {
+                // (A-103 row 3: a sea folk child after a fish has no partner playing back.)
+                if (s.Stage == CreatureAnimator.ChaseFish)
+                {
+                    ChaseFish(ref s, ref b, ref rng, ref targetSpeed, ref desiredLook, ref moving);
+                    return;
+                }
                 s.Timer -= Dt;
                 if (!Lookup.TryGetValue(s.Partner, out var p) || s.Timer <= 0f ||
                     s.ModeTime > 1.5f && (States[p].Mode != CreatureMode.Play || States[p].Partner != self))

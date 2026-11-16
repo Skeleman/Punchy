@@ -64,8 +64,32 @@ namespace Punchy.Flora
         /// Timber (Z-30): while set, bark is marked as wood (Bark + 0.02) and carries its grain's direction, the object
         /// axis nearest the length of the piece being built (each primitive sets it: GrainAlong), in its vertex colour's
         /// alpha (0.25 X, 0.5 Y, 0.75 Z), for the flora shader's grain. Builders set it round planks, posts and beams.
+        /// Shorthand for Family == Punchy.Terrain.MaterialFamily.Wood (W-166): clearing it returns to the builder's BaseFamily.
         /// </summary>
-        public bool Wood;
+        public bool Wood
+        {
+            get => Family == Punchy.Terrain.MaterialFamily.Wood;
+            set
+            {
+                if (value) Family = Punchy.Terrain.MaterialFamily.Wood;
+                else if (Family == Punchy.Terrain.MaterialFamily.Wood) Family = BaseFamily == Punchy.Terrain.MaterialFamily.Wood ? Punchy.Terrain.MaterialFamily.None : BaseFamily;
+            }
+        }
+        /// <summary>
+        /// W-166: what the bark built next is made of (MaterialLibrary). Wood draws through Shaders/Materials/Wood.hlsl;
+        /// the other families are counted (BarkFamilies) so a test can tell no built piece is left without a material.
+        /// </summary>
+        public Punchy.Terrain.MaterialFamily Family;
+        /// <summary>The family a built form's untagged bark is (FloraGenerator.FormFamily): Family returns to it on Clear.</summary>
+        public Punchy.Terrain.MaterialFamily BaseFamily;
+        /// <summary>
+        /// W-166: the kind of wood (MaterialLibrary.Wood) the wood built next is: it rides on the wood mark as
+        /// Bark + 0.015 + kind * 0.0025, which the flora shader decodes to pick the kind's grain and tone.
+        /// </summary>
+        public Punchy.Terrain.WoodKind WoodKind;
+        readonly int[] barkFamilies = new int[16];
+        /// <summary>Bark vertices built per Punchy.Terrain.MaterialFamily since the last Clear (W-166's material test).</summary>
+        public int BarkVerticesOf(Punchy.Terrain.MaterialFamily family) => barkFamilies[(int)family];
         /// <summary>
         /// A built surface's look (W-99), while non-zero: 1 planks, 2 shingles, 3 thatch (StructureKit.KitSurface), 4 a
         /// shingle course laid as geometry (FloraGenerator.RoofCourses: the shader draws only its tiles), 5 a sawn log end
@@ -102,7 +126,8 @@ namespace Punchy.Flora
             colors.Clear();
             data.Clear();
             indices.Clear();
-            Wood = false;
+            Family = BaseFamily;
+            System.Array.Clear(barkFamilies, 0, barkFamilies.Length);
             Surface = 0;
             Unfounded = false;
             unfounded.Clear();
@@ -118,16 +143,29 @@ namespace Punchy.Flora
             var wood = (Wood || Surface > 0) && part == FloraPart.Bark && !BarkVeins && !BarkSeams && !BarkStrata;
             if (wood)
                 c.a = grainCode + Mathf.Clamp(Surface, 0, 5) * 0.02f;
+            if (part == FloraPart.Bark)
+                barkFamilies[(int)(Surface == 3 ? Punchy.Terrain.MaterialFamily.Thatch : wood ? Punchy.Terrain.MaterialFamily.Wood : Family)]++;
             if (Unfounded)
                 unfounded.Add(positions.Count);
             positions.Add(p);
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.02f : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
+
+        /// <summary>W-166 row 3: the fraction a built family's plain bark carries on the part, so Flora.shader draws it
+        /// through that family's include (Shaders/Materials). Slots sit between the wood band (0.01-0.035) and the
+        /// glowing seams (over 0.15), clear of rock strata (0.08); 0 for families drawn the default way.</summary>
+        public static float FamilyMark(Punchy.Terrain.MaterialFamily family) => family switch
+        {
+            Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
+            Punchy.Terrain.MaterialFamily.Brick => 0.115f,
+            Punchy.Terrain.MaterialFamily.Ice => 0.13f,
+            _ => 0f
+        };
 
         public void Triangle(int a, int b, int c)
         {
@@ -631,6 +669,48 @@ namespace Punchy.Flora
                     return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// W-136: where what's been built crosses the level plane at <paramref name="y"/>, as segments (x0, z0, x1, z1),
+        /// each turned so its solid side is on its left (from the faces' normals), so closed loops wind one way and their
+        /// signed area is the cross-section's. Leaves, petals and cloth don't count: the ground contact is what stands on it.
+        /// </summary>
+        public void Slice(float y, List<Vector4> into)
+        {
+            Span<Vector3> hits = stackalloc Vector3[3];
+            for (int t = 0; t + 2 < indices.Count; t += 3)
+            {
+                int i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
+                var part = Mathf.RoundToInt(data[i0].y);
+                if (part == (int)FloraPart.Foliage || part == (int)FloraPart.Petal || part == (int)FloraPart.Cloth)
+                    continue;
+                var n = 0;
+                Cross(positions[i0], positions[i1], y, hits, ref n);
+                Cross(positions[i1], positions[i2], y, hits, ref n);
+                Cross(positions[i2], positions[i0], y, hits, ref n);
+                if (n != 2)
+                    continue;
+                var p = hits[0];
+                var q = hits[1];
+                var d = q - p;
+                if (d.x * d.x + d.z * d.z < 1e-8f)
+                    continue;
+                var normal = normals[i0] + normals[i1] + normals[i2];
+                if (d.x * normal.z - d.z * normal.x < 0f)
+                    (p, q) = (q, p);
+                into.Add(new Vector4(p.x, p.z, q.x, q.z));
+            }
+        }
+
+        static void Cross(Vector3 a, Vector3 b, float y, Span<Vector3> hits, ref int n)
+        {
+            if ((a.y < y) == (b.y < y) || n >= 3)
+                return;
+            // The same edge from either face gives the same point: lerp from the lower end.
+            if (a.y > b.y)
+                (a, b) = (b, a);
+            hits[n++] = Vector3.Lerp(a, b, (y - a.y) / (b.y - a.y));
         }
 
         /// <summary>The mesh of what's been built (main thread).</summary>

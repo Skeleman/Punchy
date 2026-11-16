@@ -201,10 +201,12 @@ Shader "Punchy/Creature"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP   // R-10: street lights and lanterns as Forward+ real lights
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
-            #include "Metal.hlsl"
+            #include "Materials/Metal.hlsl"
+            #include "Materials/Wood.hlsl"
             #include "Grounding.hlsl"
 
             float _PunchyNoFur; // A-92, #230: 0 gives bodies fur strands and coat patches, 1 ("-nofur") plain
@@ -252,16 +254,17 @@ Shader "Punchy/Creature"
             // What gear is made of, shaded so it reads for what it is from across a town, not just close to: metal
             // mirrors the sky and the ground and flashes in the sun; leather has a soft sheen, cloth none; wood is
             // grained along its length; bone is ivory and waxy. (Bodies keep their own soft light, in Frag.)
-            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS)
+            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS, float4 positionCS, float footprint)
             {
                 half3 sun = light.color * shadow;
                 half ndl = dot(n, light.direction);
                 half ndv = saturate(dot(n, v));
-                half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n);
+                // (Real lights too, R-10: Glow.hlsl's shared falloff, so a lantern lights gear as it lights the ground.)
+                half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n) + PunchyRealLights(positionWS, n, positionCS);
                 float angle = atan2(surface.y, surface.x);
                 if (material == 3)
                 {
-                    // Metal: the shared look (Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
+                    // Metal: the shared look (Materials/Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
                     // highlight and glints, on a diffuse dimmed to under half, here on a hammered face (the normal
                     // nudged a little, cell by cell).
                     float3 dent = float3(Noise3(surface * 38), Noise3(surface * 38 + 7.1), Noise3(surface * 38 + 13.7)) - 0.5;
@@ -290,12 +293,12 @@ Shader "Punchy/Creature"
                 }
                 if (material == 4)
                 {
-                    // Wood: grain running along its length, wavering, with darker streaks.
-                    half grain = sin(angle * 7 + surface.z * 1.3 + Noise3(float3(surface.xy * 6, surface.z * 0.8)) * 5);
-                    half streak = 0.8 + 0.2 * grain + 0.1 * (Noise3(float3(surface.xy * 30, surface.z * 2)) - 0.5);
+                    // Wood: the shared look (Materials/Wood.hlsl, as every plank and post in the world), grained
+                    // along the piece's length (surface.z, metres) and across its face; oak, the gear's own colour.
+                    half3 wood = PunchyWoodGrain(albedo, surface.z, surface.xy, footprint, PUNCHY_WOOD_OAK, 0);
                     half diffuse = saturate(ndl * 0.75 + 0.25);
                     half gloss = pow(saturate(dot(reflect(-v, n), light.direction)), 16) * 0.08;
-                    return albedo * streak * (sun * diffuse + ambient) + sun * gloss;
+                    return wood * (sun * diffuse + ambient) + sun * gloss;
                 }
                 // Bone: towards ivory, a waxy sheen, small dark pits.
                 half3 ivory = lerp(albedo, half3(0.86, 0.81, 0.68), 0.35);
@@ -316,6 +319,8 @@ Shader "Punchy/Creature"
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 half3 n = SafeNormal(input.normalWS, v);
                 probe |= SparkleBad((float3)n) ? 2u : 0u;
+                // How much world one pixel spans (m), taken here outside any branch, for the wood grain's fade-out.
+                float footprint = length(fwidth(input.positionWS));
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r) * (1 + 0.07 * _Shell);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
@@ -377,34 +382,62 @@ Shader "Punchy/Creature"
                             float near = 1 - smoothstep(4, 14, dist);
                             if (surf <= 4)
                                 albedo *= lerp(0.92, 1.06, patch);
-                            if (surf == 1 || surf == 2)
+                            if (surf == 1)
                             {
-                                // Feathers (1): overlapping rounded vanes in staggered rows, a darker edge where each
-                                // overlaps the next, a faint sheen. Scales (2): the same layout, smaller and tighter, each
-                                // a small dome with a dark groove round it, and a little gloss.
-                                float cell = surf == 1 ? 0.022 : 0.009;
+                                // Feathers (A-123 row 3): soft contour feathers in staggered rows, each a long rounded vane
+                                // whose tip lies over the base of the row behind it, pointing away from the head. The look's
+                                // high nibble (SurfaceLook.FeatherBody, FeatherFlight) says which way: 1 the segment runs
+                                // towards the head, so tips point down -z; 2 flight feathers on a wing or tail, long and
+                                // narrow with a shaft, tips out along +z; 0 tips along +z. The vane rises from its tucked-in
+                                // base to its tip and back down where the next row overlaps (no hard seam), with a thin darker
+                                // edge along its rounded tip and a faint shadow on the base it covers. Little gloss, a faint
+                                // sheen on dark plumage (a crow's). Thin parts keep at least 6 (flight 10) feathers around so
+                                // flat wings don't turn into big tiles. Pattern and bump fade by on-screen size (the cell's
+                                // pixel width), not distance.
+                                uint fl = len;
+                                float fcell = fl == 2 ? 0.018 : 0.024;
+                                float flong = fl == 2 ? 6 : 1.4;
+                                float faround = max(fl == 2 ? 10.0 : 6.0, round(6.2831853 * r / fcell));
+                                float fz = (fl & 1) ? -sp.z : sp.z;
+                                float2 fuv = float2(angle * faround, fz / (fcell * flong));
+                                float frow = floor(fuv.y);
+                                fuv.x += frac(frow * 0.5);
+                                float2 ff = frac(fuv) - float2(0.5, 0);
+                                float fd = length(float2(ff.x * (fl == 2 ? 2.4 : 2), ff.y));
+                                half fpix = max(fwidth(fuv.x), fwidth(fuv.y));
+                                half ffine = saturate(1.5 - fpix * 2.5);
+                                half fbump = saturate(1.5 - fpix * 6);
+                                half fringe = smoothstep(0.78, 0.95, fd) * (1 - smoothstep(0.95, 1.15, fd)) * ffine;
+                                half tucked = (1 - smoothstep(0, 0.22, ff.y)) * ffine;
+                                half fshaft = fl == 2 ? (1 - smoothstep(0, 0.05, abs(ff.x))) * (1 - ff.y) * ffine : 0;
+                                half barbs = 1 - 0.05 * ffine * (1 - Noise3(float3(ff.x * 9 + frow, ff.y * 3, 2.9)));
+                                half dark = 1 - saturate(dot(albedo, half3(0.3, 0.59, 0.11)) * 4);
+                                albedo *= (1 - 0.14 * fringe) * (1 - 0.08 * tucked) * (1 + 0.08 * fshaft) * barbs *
+                                          lerp(0.96, 1.04, Noise3(float3(frow, floor(fuv.x), 1.7)));
+                                // On near-black plumage a darker edge can't show: there each vane's edge and tip catch a
+                                // faint cool lift instead, so a crow reads as layered feathers rather than one smooth hide.
+                                albedo += dark * (0.014 * fringe + 0.006 * saturate(ff.y - 0.3) * (1 - smoothstep(0.8, 1, fd)) * ffine + 0.01 * fshaft) * half3(0.85, 0.92, 1);
+                                h = smoothstep(0, 0.8, ff.y) * (1 - smoothstep(0.8, 1, ff.y)) * (1 - smoothstep(0.7, 1.05, fd)) * 0.0008 * fbump;
+                                // The sheen sits on each vane (strongest toward its tip, none in the fringe or the tucked
+                                // base), broad and soft, so it breaks up feather by feather instead of one glossy sweep.
+                                half fsheen = lerp(1, 0.6 + 0.4 * saturate(0.3 + ff.y) * (1 - 0.6 * fringe) * (1 - 0.5 * tucked), ffine);
+                                wrap = 0.35; rimK = 0.3; spec = (0.02 + 0.07 * dark) * fsheen; specPow = 8 + 8 * dark;
+                            }
+                            else if (surf == 2)
+                            {
+                                // Scales: small domes in staggered rows, a dark groove round each, a little gloss.
+                                float cell = 0.009;
                                 float around = max(3, round(6.2831853 * r / cell));
-                                float2 uv = float2(angle * around, sp.z / (cell * (surf == 1 ? 1.3 : 0.8)));
+                                float2 uv = float2(angle * around, sp.z / (cell * 0.8));
                                 float row = floor(uv.y);
                                 uv.x += frac(row * 0.5) * 1.0;
                                 float2 f = frac(uv) - float2(0.5, 0);
                                 float d = length(float2(f.x * 2, f.y));
                                 float fine = saturate(1.5 - max(fwidth(uv.x), fwidth(uv.y)) * 2.5);
-                                if (surf == 1)
-                                {
-                                    half edge = smoothstep(0.75, 1.0, d) * fine;
-                                    half shaft = (1 - smoothstep(0, 0.06, abs(f.x))) * (1 - f.y) * fine;
-                                    albedo *= (1 - 0.28 * edge) * (1 + 0.1 * shaft) * lerp(0.95, 1.05, Noise3(float3(row, floor(uv.x), 1.7)));
-                                    h = (1 - saturate(d)) * 0.0015 * near * fine;
-                                    rimK = 0.3; spec = 0.12; specPow = 12;
-                                }
-                                else
-                                {
-                                    half groove = smoothstep(0.7, 0.95, d) * fine;
-                                    albedo *= (1 - 0.35 * groove) * lerp(0.9, 1.08, Noise3(float3(row, floor(uv.x), 3.3)));
-                                    h = (1 - saturate(d * d)) * 0.0012 * near * fine;
-                                    wrap = 0.2; rimK = 0.15; spec = 0.35; specPow = 30;
-                                }
+                                half groove = smoothstep(0.7, 0.95, d) * fine;
+                                albedo *= (1 - 0.35 * groove) * lerp(0.9, 1.08, Noise3(float3(row, floor(uv.x), 3.3)));
+                                h = (1 - saturate(d * d)) * 0.0012 * near * fine;
+                                wrap = 0.2; rimK = 0.15; spec = 0.35; specPow = 30;
                             }
                             else if (surf == 3)
                             {
@@ -508,11 +541,12 @@ Shader "Punchy/Creature"
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
                     half ndv = saturate(dot(n, v));
                     half rim = pow(1 - ndv, 3) * rimK;
-                    // (Plus the light of glowing plants and hot rock near it: W-18.)
+                    // (Plus the light of glowing plants and hot rock near it, W-18, and real lights with the same falloff, R-10.)
                     // Grounded (Grounding.hlsl): darker underneath (belly, chin, the undersides of limbs) and where it
                     // meets the ground; the ambient light dimmed fully, the sun's in part.
                     half ground = _PunchyNoGrounding > 0.5 ? 1 : PunchyCreatureGrounding(input.positionWS.y - input.ground, n.y);
-                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n));
+                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n)
+                            + PunchyRealLights(input.positionWS, n, input.positionCS));
                     if (spec > 0)
                     {
                         // The highlight (A-97), white rather than the albedo's colour, kept within a few times the sun.
@@ -526,7 +560,7 @@ Shader "Punchy/Creature"
                 }
                 else
                     // (Gear is grounded by its downward faces only: it carries no ground height.)
-                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS) *
+                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS, input.positionCS, footprint) *
                             lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));

@@ -53,7 +53,7 @@ namespace Punchy.Fauna
                                    new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f), faded, SegmentMaterial.Wood);
             }
 
-            void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
+            internal void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
             {
                 for (int i = 0; i < GuardParts; i++)
                     Output[at + i] = default;

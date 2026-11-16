@@ -14,7 +14,9 @@ namespace Punchy.Net
     /// travels as its index here, so every machine must have the same list in the same order (append, never reorder).
     /// For each remote NetPlayer this spawns a creature puppet of their species, coat and individual, which
     /// PlayerAvatarSystem drives from the interpolated ghost; it also tells the network which body the local player
-    /// has (FaunaDirector's Player Species), and the menu's Multiplayer tab can switch it.
+    /// has (FaunaDirector's Player Species), and the menu's Multiplayer tab can switch it. It also owns the local player's
+    /// eyewear (A-103 row 5): G puts the pair on or takes it off (glasses over bat eyes, glow goggles over any other),
+    /// it's drawn on every body that wears it, and LocalVision is how the local view takes the light (BatVision).
     /// </summary>
     public class NetAvatars : MonoBehaviour
     {
@@ -41,6 +43,50 @@ namespace Punchy.Net
 
         /// <summary>The colouring the local player picked on the Character tab (-1: the one their individual draws).</summary>
         public int LocalCoat = -1;
+
+        /// <summary>
+        /// A-124: the build the local player picked on the Character tab (a BodyBuilds.Player code), for their current
+        /// body (each body remembers its own); -1: the one their individual rolls.
+        /// </summary>
+        public int LocalBuild = -1;
+        CreatureSpecies buildSpecies;
+
+        /// <summary>A-124: the local player's build as sent (BodyBuilds.Player): the one picked, else their individual's.</summary>
+        public byte LocalBuildCode => LocalBuild >= 0 ? (byte)LocalBuild : BodyBuilds.PlayerDefault(individual);
+
+        /// <summary>The Character tab key a body's picked build is kept under.</summary>
+        public static string BuildKey(CreatureSpecies s) => "Punchy.Build." + (s != null ? s.name : "");
+
+        /// <summary>A-124: picks (and keeps) the local player's build for their current body; -1 goes back to their own.</summary>
+        public void SetLocalBuild(int code)
+        {
+            LocalBuild = code < 0 ? -1 : code & 255;
+            if (Fauna == null || Fauna.PlayerSpecies == null)
+                return;
+            PlayerPrefs.SetInt(BuildKey(Fauna.PlayerSpecies), LocalBuild);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>Hands the local build to the body FaunaDirector keeps (each body's own pick, reloaded on a switch).</summary>
+        void SyncLocalBuild()
+        {
+            if (Fauna == null)
+                return;
+            if (Fauna.PlayerSpecies != buildSpecies)
+            {
+                buildSpecies = Fauna.PlayerSpecies;
+                LocalBuild = buildSpecies != null ? PlayerPrefs.GetInt(BuildKey(buildSpecies), -1) : -1;
+            }
+            var code = individual != 0 ? LocalBuildCode : -1;
+            if (code != Fauna.PlayerBuild && code >= 0 && buildSpecies != null)
+                Debug.Log($"[look] own {buildSpecies.name} build {BodyBuilds.PlayerBuild((byte)code)} height step {BodyBuilds.PlayerHeightStep((byte)code)}");
+            Fauna.PlayerBuild = code;
+        }
+
+        float BodyVision => Fauna != null && Fauna.PlayerSpecies != null ? Fauna.PlayerSpecies.Vision : 0f;
+
+        /// <summary>How the local view takes the light (0 normal, 1 a bat's): the body's own, replaced by what's worn.</summary>
+        public static float LocalVision { get; private set; }
 
         void OnEnable() => Punchy.UI.MainMenu.AddTab("Character", 5, nav => CharacterTab.Draw(this, nav));
 
@@ -70,6 +116,10 @@ namespace Punchy.Net
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-body")
                     SetLocalSpecies(PlayableSpecies.FindIndex(s => s != null && s.name == args[i + 1]));
+            SyncLocalBuild();
+            // (How that sees: the view's exposure, bloom and haze, made at runtime beside this.)
+            if (GetComponent<Punchy.CameraRig.BatVision>() == null)
+                gameObject.AddComponent<Punchy.CameraRig.BatVision>();
         }
 
         void OnDisable()
@@ -94,6 +144,9 @@ namespace Punchy.Net
 
         void Update()
         {
+            SyncLocalBuild();
+            // (Eyewear is a head item since P-38 row 3: Items' gear puts it on, syncs it and draws it.)
+            LocalVision = Eyewear.Vision(BodyVision, Punchy.Items.Items.OwnHead);
             // The client world, or the local world when playing alone (our own look applies there too).
             var client = NetWorlds.Client;
             if (client == null || !client.IsCreated)
@@ -122,9 +175,9 @@ namespace Punchy.Net
                 Debug.LogWarning($"NetAvatars: the player's species '{Fauna.PlayerSpecies.name}' isn't in Playable Species, so other players see a capsule.");
             }
             if (speciesQuery.IsEmpty)
-                em.CreateSingleton(new LocalPlayerSpecies { Index = local }, "LocalPlayerSpecies");
+                em.CreateSingleton(new LocalPlayerSpecies { Index = local, Build = LocalBuildCode }, "LocalPlayerSpecies");
             else
-                speciesQuery.SetSingleton(new LocalPlayerSpecies { Index = local });
+                speciesQuery.SetSingleton(new LocalPlayerSpecies { Index = local, Build = LocalBuildCode });
 
             // Our own body wears our look (FaunaDirector respawns it whenever it rebuilds).
             if (individual != 0 && avatarQuery.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
@@ -160,8 +213,10 @@ namespace Punchy.Net
                             math.lengthsq(position) > 1e-6f;
                 remotes.TryGetValue(ghost, out var remote);
                 var has = remote.Puppet != Entity.Null && em.Exists(remote.Puppet);
-                var same = has && remote.Look.Species == look.Species && remote.Look.Coat == look.Coat && remote.Look.Individual == look.Individual;
+                var same = has && remote.Look.Species == look.Species && remote.Look.Coat == look.Coat && remote.Look.Individual == look.Individual &&
+                           remote.Look.Build == look.Build;
                 if (wants && same)
+                    // (What they wear, eyewear too, is Items' gear: P-38 row 3.)
                     continue;
                 if (has)
                     em.DestroyEntity(remote.Puppet);
@@ -181,8 +236,12 @@ namespace Punchy.Net
 
         Entity Spawn(EntityManager em, Entity ghost, NetPlayerLook look, float3 position)
         {
-            if (!blobs.TryGetValue(look.Species, out var blob))
-                blobs[look.Species] = blob = CreatureBlobBuilder.Build(PlayableSpecies[look.Species]);
+            // (A-124: in the build its owner picked, one blob per body and build.)
+            var kind = PlayableSpecies[look.Species];
+            var build = BodyBuilds.PlayerBuild(look.Build);
+            var key = look.Species * BodyBuilds.Count + build;
+            if (!blobs.TryGetValue(key, out var blob))
+                blobs[key] = blob = CreatureBlobBuilder.Build(kind, build: BodyBuilds.Of(kind.BuildRange, build));
             ref var b = ref blob.Value;
             var e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(RemoteAvatar));
             em.SetName(e, "RemotePlayerBody");
@@ -196,12 +255,14 @@ namespace Punchy.Net
             em.SetComponentData(e, new CreatureState
             {
                 Position = position,
-                Scale = (b.Size.x + b.Size.y) * 0.5f,   // (the species' middle size, as on its owner's screen)
+                Scale = BodyBuilds.PlayerScale(b.Size, look.Build),   // (the height its owner picked, as on their screen)
                 Mode = CreatureMode.Puppet,
                 Seed = look.Individual | 1u,
                 Individual = look.Individual
             });
             em.SetComponentData(e, new RemoteAvatar { Ghost = ghost, Species = Fauna != null ? Fauna.SpeciesIndex(PlayableSpecies[look.Species]) : -1 });
+            // (One line per puppet made: host and joined client logs show the same build for the same player.)
+            Debug.Log($"[look] remote player {kind.name} build {build} height step {BodyBuilds.PlayerHeightStep(look.Build)} scale {BodyBuilds.PlayerScale(b.Size, look.Build):F3}");
             return e;
         }
     }

@@ -1,7 +1,7 @@
 #ifndef PUNCHY_METAL_INCLUDED
 #define PUNCHY_METAL_INCLUDED
 
-// The metal look shared by procedural meshes (Flora.shader's metal parts) and creature gear (Creature.shader):
+// W-166 row 3: the one metal look (MaterialFamily.Metal), shared by procedural meshes (Flora.shader's metal parts) and creature gear (Creature.shader):
 // the colour comes mostly from tinted reflections of the sky, with a sharp sun highlight and glints that twinkle as
 // the surface moves and the view changes. Deterministic: the glints are hashed from `glintPos` (world position for
 // fixed things, object or segment space for moving ones), no time. Needs Sky.hlsl (PunchySkyColor) included first.

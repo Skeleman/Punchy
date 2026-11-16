@@ -38,6 +38,10 @@ MonoBehaviour:
   NearWater: 4
   OnlyNearWater: 1
   WetReach: 3
+  GroveSpacing: 90
+  GroveRadius: 18
+  GroveGain: 5
+  GroveStraggle: 0.12
   Solid: 1
   Variants: 4
   Seed: 35

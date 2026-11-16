@@ -137,6 +137,18 @@ namespace Punchy.Terrain
     /// A plant on a cave floor (a glowing mushroom, a crystal, a mossy shrub): placed at bake time from the seed, and
     /// drawn by CaveSystem with the flora system's meshes and material.
     /// </summary>
+    /// <summary>
+    /// W-147: a ladder a climber can go up (A-101 Climbability grade 1): from its foot to its top (where a climber steps
+    /// off), climbed from the Out side (horizontal, unit). On a flora model it's before the plant's own rotation and
+    /// scale (FloraModel.Ladders); in CaveSetBlob.Ladders and from FloraPlacement.NearLadders it's in the world.
+    /// Baked from the seed with everything else (rule 22).
+    /// </summary>
+    public struct ClimbLadder
+    {
+        public float3 Foot, Top, Out;
+        public byte Grade;
+    }
+
     public struct CavePlant
     {
         public float3 Position;
@@ -176,10 +188,13 @@ namespace Punchy.Terrain
 
     /// <summary>
     /// An underground waterfall: water pouring from a lip high on a chamber wall, out and down into a pool. Drawn by
-    /// LandmarkEffectSystem as a waterfall curtain and a mist plume, lit as under rock.
+    /// LandmarkEffectSystem as a waterfall curtain and a mist plume, lit as under rock, and, once it looks big enough,
+    /// as a fine water sheet by WaterPatchSystem (W-135 row 3).
     /// </summary>
     public struct CaveWaterfall
     {
+        /// <summary>How far a notch's water carries out from the lip as it falls (m): the reach when Reach is 0.</summary>
+        public const float NotchReach = 0.9f;
         /// <summary>The lip, on the wall.</summary>
         public float3 Lip;
         public float Width;
@@ -194,6 +209,8 @@ namespace Punchy.Terrain
         public float Spray;
         /// <summary>W-134 row 4 fix: how far out from the lip the water lands (m); 0 for a notch's usual short reach.</summary>
         public float Reach;
+        /// <summary>How far out from the lip the water lands (m): Reach, or NotchReach for a notch.</summary>
+        public float Carry => Reach > 0f ? Reach : NotchReach;
     }
 
     /// <summary>
@@ -281,6 +298,8 @@ namespace Punchy.Terrain
         public BlobArray<CaveRoom> Rooms;
         /// <summary>W-134 row 4: river chambers (each names its cave; a handful an island, so scanned whole).</summary>
         public BlobArray<CaveChamber> Chambers;
+        /// <summary>W-147: mines' ladder climbs (up shafts, between levels), in the world; a handful an island, so scanned whole.</summary>
+        public BlobArray<ClimbLadder> Ladders;
         public float2 GridOrigin;
         public float CellSize;
         public int2 GridSize;
@@ -620,6 +639,29 @@ namespace Punchy.Terrain
                                    : -SmoothMin(-air, Shape(s, p), math.max(s.Fillet, 0.05f));
             }
             return air;
+        }
+
+        /// <summary>
+        /// W-138 row 4b: distance from a point to the nearest solid speleothem (rod or block, not a carved notch) round
+        /// it, a large number with none. For the look only (a road tunnel's fallen stones take their own tone).
+        /// </summary>
+        public static float StoneDistance(ref CaveSetBlob set, float3 p)
+        {
+            var best = 1e9f;
+            if (set.SpeleothemCells.Length == 0)
+                return best;
+            var c = (int2)math.floor((p.xz - set.GridOrigin) / set.CellSize);
+            if (math.any(c < 0) || math.any(c >= set.GridSize))
+                return best;
+            var range = set.SpeleothemCells[c.y * set.GridSize.x + c.x];
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var s = ref set.Speleothems[set.SpeleothemItems[k]];
+                if (s.Carve > 0f || math.any(p < s.Min) || math.any(p > s.Max))
+                    continue;
+                best = math.min(best, s.Block != 0f ? Block(s, p) : Rod(s, p));
+            }
+            return best;
         }
 
         /// <summary>

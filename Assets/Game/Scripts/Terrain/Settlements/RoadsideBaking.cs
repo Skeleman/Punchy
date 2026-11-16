@@ -19,6 +19,8 @@ namespace Punchy.Terrain
         const float Apart = 260f;
         /// <summary>Clear ground between a landmark's edge and the road beside it (m).</summary>
         const float Verge = 3f;
+        /// <summary>W-138: how near a spur may pass a roadside landmark, as a share of its radius (its cleared middle).</summary>
+        const float SpurClear = 0.4f;
         /// <summary>No fork signpost within this far of a settlement's edge (m).</summary>
         const float TownClear = 80f;
 
@@ -43,7 +45,7 @@ namespace Punchy.Terrain
                                                    List<SettlementLayout> layouts, List<int> firstBuilding, List<SettlementPlot> plots)
         {
             var placed = new List<LandmarkInstance>();
-            CampsDry = CampsWet = 0;
+            CampsDry = CampsWet = Waystations = 0;
             if (roadside == null || roadside.Count == 0 || roads.Count == 0)
                 return placed;
             var src = source;   // local functions can't capture an in parameter
@@ -53,6 +55,50 @@ namespace Punchy.Terrain
                 hashes[e] = roadside[e].Type != null ? LandmarkBaking.NameHash(roadside[e].Type) : 0u;
             var roadStreets = streets.Count;
             var forks = new List<float2>();
+
+            // W-138 row 2b: a waystation at each end of a hand tunnel, first (so the spaced ones keep clear of it): an
+            // inn on the mountain side, a campsite on the marsh side, by its road out WaystationFrom to WaystationTo
+            // metres from the portal, on whichever side has room first; if the inn finds no ground gentle enough, a
+            // campsite there too.
+            foreach (var portal in RoadBaking.Portals)
+                foreach (var wanted in portal.North ? new[] { "LoneInn", "Campsite" } : new[] { "Campsite" })
+                    if (Waystation(portal, wanted))
+                    {
+                        Waystations++;
+                        break;
+                    }
+
+            bool Waystation(RoadBaking.Portal portal, string wanted)
+            {
+                var e = -1;
+                for (int k = 0; k < roadside.Count; k++)
+                    if (roadside[k].Type != null && roadside[k].Type.name == wanted)
+                        e = k;
+                if (e < 0 || portal.Out == null || portal.Out.Count < 2)
+                    return false;
+                var road = new RoadPath { Points = portal.Out, Width = portal.Width, Settlement = portal.Settlement, Other = -1 };
+                var done = false;
+                var along = 0f;
+                for (int i = 0; i < portal.Out.Count - 1 && !done; i++)
+                {
+                    var a = portal.Out[i];
+                    var b = portal.Out[i + 1];
+                    var length = math.distance(a, b);
+                    if (RoadBaking.IsBore(a, b))
+                    {
+                        along += length;
+                        continue;
+                    }
+                    for (var d = math.max(WaystationFrom, along); d <= math.min(WaystationTo, along + length) && !done; d += 10f)
+                    {
+                        var at = math.lerp(a, b, (d - along) / math.max(length, 1e-4f));
+                        var key = math.hash(new uint4(seed, (uint)(int)math.floor(at.x / 4f), (uint)(int)math.floor(at.y / 4f), 0x3A75A7u)) | 1u;
+                        done = Put(at, math.normalizesafe(b - a), road, e, key, 1f) || Put(at, math.normalizesafe(b - a), road, e, key, -1f);
+                    }
+                    along += length;
+                }
+                return done;
+            }
 
             foreach (var road in roads)
             {
@@ -64,6 +110,13 @@ namespace Punchy.Terrain
                     var a = road.Points[i];
                     var b = road.Points[i + 1];
                     var length = math.distance(a, b);
+                    // W-138: nothing beside a road where it runs through a mountain.
+                    if (RoadBaking.IsBore(a, b))
+                    {
+                        along += length;
+                        next = math.max(next, along);
+                        continue;
+                    }
                     while (next <= along + length)
                     {
                         var t = (next - along) / math.max(length, 1e-4f);
@@ -105,6 +158,8 @@ namespace Punchy.Terrain
                 {
                     var a = road.Points[atEnd ? road.Points.Count - 1 - i : i];
                     var b = road.Points[atEnd ? road.Points.Count - 2 - i : i + 1];
+                    if (RoadBaking.IsBore(a, b))
+                        break;   // W-138: no fence on through a tunnel
                     var n = math.max(1, (int)math.ceil(math.distance(a, b)));
                     for (int k = 0; k < n; k++)
                         points.Add(math.lerp(a, b, k / (float)n));
@@ -213,15 +268,21 @@ namespace Punchy.Terrain
                 }
                 if (pick < 0)
                     return;
+                Put(at, tangent, road, pick, key, (key & 2u) != 0 ? 1f : -1f);
+            }
+
+            // A roadside landmark of roadside[pick] beside the road at this spot on this side, with its spur and
+            // signpost, if the site is clear, dry and gentle enough.
+            bool Put(float2 at, float2 tangent, RoadPath road, int pick, uint key, float side)
+            {
                 var type = roadside[pick].Type;
                 var typeIndex = -1;
                 for (int k = 0; k < types.Count; k++)
                     if (types[k] == type)
                         typeIndex = k;
                 if (typeIndex < 0)
-                    return;
+                    return false;
                 var rng = new Random(key);
-                var side = (key & 2u) != 0 ? 1f : -1f;
                 var normal = new float2(-tangent.y, tangent.x) * side;
                 var radius = type.Radius;
                 var site = at + normal * (road.Width * 0.5f + Verge + radius * 0.75f);
@@ -229,23 +290,25 @@ namespace Punchy.Terrain
                 // Clear of settlements, other roadside landmarks, landmarks and roads (but its own road's spur end).
                 foreach (var s in settlements)
                     if (math.distance(site, s.Centre) < s.Radius + radius + 20f)
-                        return;
+                        return false;
                 foreach (var p in placed)
                     if (math.distance(site, p.Position) < Apart)
-                        return;
+                        return false;
                 if (src.Landmarks.IsCreated)
                 {
                     ref var set = ref src.Landmarks.Value;
                     for (int l = 0; l < set.Instances.Length; l++)
                         if (math.distance(site, set.Instances[l].Position) < set.Types[set.Instances[l].Type].Radius * set.Instances[l].Scale + radius + 15f)
-                            return;
+                            return false;
                 }
                 for (int k = 0; k < roadStreets; k++)
                 {
                     var st = streets[k];
                     var d = SegmentDistance(site, st.A.xz, st.B.xz);
-                    if (d < radius * 0.75f + st.Width * 0.5f + Verge - 0.5f)
-                        return;
+                    // W-138: a spur only has to miss the landmark's middle (it may lead past it, as a road would).
+                    var spur = k >= RoadBaking.SpurStreets.First && k < RoadBaking.SpurStreets.End;
+                    if (d < radius * (spur ? SpurClear : 0.75f) + st.Width * 0.5f + Verge - 0.5f)
+                        return false;
                 }
                 // Dry, gentle ground with no cave under it.
                 var lowest = float.MaxValue;
@@ -255,18 +318,18 @@ namespace Punchy.Terrain
                     var o = k == 0 ? float2.zero : new float2(math.cos(k * math.PI / 4f), math.sin(k * math.PI / 4f)) * radius * 0.8f;
                     var g = src.SampleGround(site + o);
                     if (g.HasWater && g.WaterSurface > g.Height - 0.5f || g.River > 0.02f || src.IsCaveHole(site + o))
-                        return;
+                        return false;
                     lowest = math.min(lowest, g.Height);
                     highest = math.max(highest, g.Height);
                 }
                 if (highest - lowest > type.MaxRelief || lowest < src.World.SeaLevel + 1.5f)
-                    return;
+                    return false;
                 // #72 (W-90): a campsite's pad is flattened to its centre's height, so a pool beside it can flood the pad
                 // (the swamp tent stood in water). Reject a site where any water within its radius stands over the pad.
                 if (type.Anchors == WildAnchors.Campsite && PadTouchesWater(src, site, radius, src.SampleHeight(site)))
                 {
                     CampsWet++;
-                    return;
+                    return false;
                 }
 
                 if (type.Anchors == WildAnchors.Campsite)
@@ -322,8 +385,15 @@ namespace Punchy.Terrain
                         Max = post + 1f
                     });
                 }
+                return true;
             }
         }
+
+        /// <summary>W-138 row 2b: how far along a hand tunnel's road out from its portal its waystation may stand (m).</summary>
+        const float WaystationFrom = 30f, WaystationTo = 250f;
+
+        /// <summary>W-138 row 2b: hand tunnel waystations placed in the last Place.</summary>
+        public static int Waystations;
 
         /// <summary>Roadside campsites placed and sites rejected for a wet pad in the last Place (W-90 log).</summary>
         public static int CampsDry, CampsWet;

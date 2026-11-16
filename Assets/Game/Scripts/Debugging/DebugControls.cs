@@ -273,6 +273,10 @@ namespace Punchy.Debugging
             SpawnRequested();
             PlaceByLedge();
             ClimbTest();
+            ClimbWatch();
+            KinCommands();
+            LedgeLipTest();
+            ColossusClimbTest();
             ActionTest();
             Watch();
             SettleGoto();
@@ -281,11 +285,15 @@ namespace Punchy.Debugging
             FlyCave();
             DungeonWalk();
             PlacePropPending();
+            PlaceLadderPending();
             PlaceAtLandmarkPending();
             PickSpeciesPending();
             PlaceAtBatFolkPending();
             RockWatch();
             Pose();
+            FishProbe();
+            FishLineup();
+            FishLurePose();
             Interact();
             ShotList();
             SolidStatsLog();
@@ -359,6 +367,13 @@ namespace Punchy.Debugging
             WalkerShot();
             MantrapShot();
             MimicShot();
+            BreathTest();
+            RideTest();
+            RideLifeTest();
+            RidePlayerTest();
+            DiveTest();
+            PlayerDiveTest();
+            NetWatch();
             ShotCam();
         }
 

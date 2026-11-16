@@ -342,6 +342,9 @@ namespace Punchy.Fauna
                         }
                     }
                 }
+                // A-121: no walker goes through a fire, near a player or not, and even on its last metres to a target.
+                if (Fires.On && !keepHeight && s.Fly < 0.5f && b.Habitat == Habitat.Land && !b.Haunts && s.Mode != CreatureMode.Held && !underRock)
+                    to = KeepOutOfFire(ref s, ref b, to, dt);
                 // A-44: near a player, cave walls, towers and icebergs are solid too: it slides along them by its own
                 // body's size, and one already in one is pushed out sideways.
                 if (nearSolids && !keepHeight && s.Fly < 0.5f && s.Mode != CreatureMode.Held && !b.CaveDweller && !underRock)
@@ -377,6 +380,8 @@ namespace Punchy.Fauna
                             var deep = math.smoothstep(b.StandHeight * s.Scale * 0.6f, b.StandHeight * s.Scale * 0.9f, g.WaterSurface - g.Height);
                             // (Low: the back a hand's breadth under, only the shoulders and the raised head out.)
                             var floatAt = g.WaterSurface - 0.24f * s.Scale + math.sin(s.Clock * 1.9f) * 0.02f * s.Scale;
+                            // Diving (A-102 row 2): CreatureMind.Dive under that, but never onto the bed.
+                            floatAt = math.max(floatAt - M.Dive, math.min(floatAt, g.Height + 0.3f * s.Scale));
                             s.Position.y = math.lerp(g.Height, floatAt, deep);
                         }
                     }
@@ -398,12 +403,7 @@ namespace Punchy.Fauna
                     // arcs up out of the water and back.
                     var g = Terrain.SampleGround(s.Position.xz);
                     var surface = g.HasWater ? g.WaterSurface : g.Height;
-                    // (A lava dweller basks at the surface, its back and head out: lava hides anything below it.)
-                    var y = b.Habitat == Habitat.Floats ? surface + b.StandHeight * 0.35f * s.Scale
-                          : b.LavaDweller ? surface + b.FrontRadius * s.Scale * 0.4f
-                          // (A-88 row 2: a lake school or bed fish keeps its own height over the bed, under the surface.)
-                          : s.SwimAbove > 0f && g.HasWater ? math.max(g.Height + 0.3f, math.min(g.Height + s.SwimAbove, surface - 0.6f))
-                          : surface - math.clamp((surface - g.Height) * 0.45f, 0.25f, b.SwimDepth);
+                    var y = SwimHeight(s, ref b, g, surface);
                     if (s.Air > 0f)
                     {
                         s.Air += dt / (0.6f + s.AirHeight * 0.35f);
@@ -416,6 +416,15 @@ namespace Punchy.Fauna
                 }
                 CreatureMotion.AdvancePhase(ref s, ref b, dt);
             }
+
+            /// <summary>The height a swimmer or floater keeps in the water at <paramref name="g"/> (not leaping).</summary>
+            static float SwimHeight(in CreatureState s, ref CreatureBlob b, GroundSample g, float surface) =>
+                // (A lava dweller basks at the surface, its back and head out: lava hides anything below it.)
+                b.Habitat == Habitat.Floats ? surface + b.StandHeight * 0.35f * s.Scale
+                : b.LavaDweller ? surface + b.FrontRadius * s.Scale * 0.4f
+                // (A-88 row 2: a lake school or bed fish keeps its own height over the bed, under the surface.)
+                : s.SwimAbove > 0f && g.HasWater ? math.max(g.Height + 0.3f, math.min(g.Height + s.SwimAbove, surface - 0.6f))
+                : surface - math.clamp((surface - g.Height) * 0.45f, 0.25f, b.SwimDepth);
 
             /// <summary>
             /// Whether buildings' walls stop it: anything walking (not a ghost, nor a bird on the wing or a climber),
@@ -772,7 +781,10 @@ namespace Punchy.Fauna
             /// <summary>Somewhere to go on foot or to land: walkable ground that isn't inside a building's walls.</summary>
             bool OpenGround(float2 xz) => Walkable(xz, Habitat.Land) && !(HasFlora && Walled(xz, 0.3f));
 
-            bool Walkable(float2 xz, Habitat habitat)
+            bool Walkable(float2 xz, Habitat habitat) => Walkable(xz, habitat, true);
+
+            /// <param name="fires">False: ground walkable but for a fire's flames still counts (A-121, steering round).</param>
+            bool Walkable(float2 xz, Habitat habitat, bool fires)
             {
                 var g = Terrain.SampleGround(xz);
                 var depth = g.HasWater ? g.WaterSurface - g.Height : -1f;
@@ -780,7 +792,10 @@ namespace Punchy.Fauna
                     return depth >= 0.7f;
                 if (habitat == Habitat.Floats)
                     return depth >= 0.3f;
-                return depth <= 0.15f && !Terrain.IsCaveHole(xz);
+                if (!(depth <= 0.15f || BedWalk) || Terrain.IsCaveHole(xz))
+                    return false;
+                // A-121: not in a fire's flames, nor on a lava pool's shallow rim.
+                return !InFireOrLava(xz, in g, depth, fires);
             }
 
             float SlopeAhead(float2 from, float2 to)

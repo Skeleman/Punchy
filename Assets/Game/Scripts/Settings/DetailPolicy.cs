@@ -348,9 +348,19 @@ namespace Punchy.Settings
         public const float RippleSize = 8.4f, RipplePixels = 196.4f;
         public const float OtherPlayerSize = 1.8f, BreathPixels = 21.04f;
         public const float CritterSize = 0.15f, CritterPixels = 2.004f;
+        /// <summary>A-109: a town's drawn-only far figure is not shown while it looks taller than this (reference pixels):
+        /// up close it is a few capsules, and the real folk are what belongs there. A 1.7 m figure inside about 75 m.</summary>
+        public const float FarFigureMaxPixels = 24f;
         /// <summary>Behind the camera a creature is still posed while bigger than this (reference pixels, no Detail):
         /// its shadow falls into view. A deer inside 25 m, as before; a 6 m beast inside 100 m.</summary>
         public const float BehindPixels = 56.12f;
+        /// <summary>Far herds (A-108 row 2; animal lane), by one member's torso length. A species lives in baked herds
+        /// when it comes in threes or this big at 300 m at the reference view (the same on every machine). A member is
+        /// drawn with legs above HerdLegsPixels, as a body and head above HerdBodyPixels, and below that as a single body
+        /// widened to HerdDotPixels, fading out between HerdFadePixels and HerdGonePixels.</summary>
+        public const float HerdSpeciesPixels = 2f;
+        public const float HerdLegsPixels = 6f, HerdBodyPixels = 1.5f, HerdDotPixels = 1.5f;
+        public const float HerdFadePixels = 0.5f, HerdGonePixels = 0.35f;
 
         /// <summary>How far something this big keeps this many reference pixels at the current view, Detail included
         /// (<see cref="SetView"/> first; before any view, the reference one at the current Detail).</summary>
@@ -411,6 +421,60 @@ namespace Punchy.Settings
         /// in by WaterFallFull, so it never pops; each quad of it is cut until a piece looks about WaterFallPiece across.
         /// </summary>
         public const float WaterFallOn = 300f, WaterFallFull = 520f, WaterFallPiece = 24f;
+
+        /// <summary>
+        /// W-135 row 1: from the surface, a cave chunk is drawn only near an opening (its walls open to the sky) that is in
+        /// view and looks bigger than this, held by Hysteresis. Small: an opening this size is a few pixels, so a
+        /// cave's walls come in long before they could show through it.
+        /// </summary>
+        public const float CaveOpeningPixels = 4f;
+
+        /// <summary>
+        /// W-135 row 2: cave wall levels. A chunk's walls are built at 0.5 m while a metre at its nearest point looks
+        /// bigger than Near, at 1 m while bigger than Mid, else at 2 m: at 1080p and 60° that is 0.5 m to about 47 m and
+        /// 1 m to about 94 m, so a voxel never grows past about 10 px.
+        /// </summary>
+        public const float CaveWallSize = 1f;
+        public static readonly Thresholds CaveWall = new Thresholds(20f, 10f, 0f);
+
+        /// <summary>
+        /// W-135 row 3 (rule 20): cave detail by how big it looks, not by fixed metres. Sizes in m, boundaries in reference
+        /// pixels, each tuned so the 60 degree view at 1080 lines gets the old range: plants (1 m) drawn to 60 m and at
+        /// their finest to 20 m, drips (1 m) to 25 m, a cave fall's spray (4 m) to 120 m and a pool's fish (0.3 m) to 35 m
+        /// past its rim, all x Detail as GraphicsSettings.DetailRange scaled them. With no Detail (they were fixed metres):
+        /// a room's flame (0.32 m) to 60 m, the surface hidden from 25 m to 45 m from a mouth (6 m), the world's glow
+        /// fading from 240 m to 320 m (8 m, its typical reach; never past the far map's edge) and a mouth's spill of light
+        /// from 60 m to 85 m (4 m; never past its scan radius). Pools and streams are drawn while their width is a couple
+        /// of pixels, inside the cave streaming radius.
+        /// </summary>
+        public const float CavePlantSize = 1f, CavePlantPixels = 15.59f, CavePlantFinestPixels = 46.77f;
+        public const float CaveDripSize = 1f, CaveDripPixels = 37.41f;
+        public const float CaveFallSize = 4f, CaveFallPixels = 31.18f;
+        public const float CaveFishSize = 0.3f, CaveFishPixels = 8.017f;
+        public const float RoomFlameSize = 0.32f, RoomFlamePixels = 4.988f;
+        public const float CaveMouthSize = 6f, SurfaceHiddenPixels = 124.7f, SurfaceShownPixels = 224.5f;
+        public const float WorldGlowSize = 8f, WorldGlowFromPixels = 31.18f, WorldGlowToPixels = 23.38f;
+        public const float SpillSize = 4f, SpillFromPixels = 62.35f, SpillToPixels = 44.01f;
+        /// <summary>A far town's glow map (R-25 row 3) fades in while a street light's 9 m of lit ground shrinks from
+        /// 33.67 to 25.51 pixels: 250 m to 330 m at the reference view, never past where the far map's own end.</summary>
+        public const float TownGlowSize = 9f, TownGlowFromPixels = 33.67f, TownGlowToPixels = 25.51f;
+        public const float CaveWaterPixels = 2f;
+
+        /// <summary>How far something this big keeps this many reference pixels at the current view, Detail left out:
+        /// for what used fixed metres (<see cref="ExtraReach(float, float)"/> without the x Detail).</summary>
+        public static float ViewReach(float size, float pixels)
+        {
+            var view = Current.Data;
+            return Reach(size, pixels, view.PixelsPerMetre > 0f ? view.PixelsPerMetre : PixelsPerMetreAt(ReferenceFov));
+        }
+
+        /// <summary>A fade's two ends by size (<see cref="ViewReach"/>), both scaled down together so the far one never
+        /// passes the cap (what the faded thing covers): a fade that runs from near to far.</summary>
+        public static float2 FadeReach(float size, float nearPixels, float farPixels, float cap)
+        {
+            var fade = new float2(ViewReach(size, nearPixels), ViewReach(size, farPixels));
+            return fade * math.min(1f, cap / math.max(fade.y, 1e-3f));
+        }
 
         public static Rule FloraRule(FloraClass c)
         {

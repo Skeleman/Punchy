@@ -1,5 +1,14 @@
 # Fauna: creatures, the player's body, folk and workers
 
+**Life at a distance (Zach, 2026-11-13):** the world should feel full of life from far off as well as near. Wild
+animals are simulated only close to players, so large or grouped kinds (herds, flocks, big single animals, folk in
+towns) need a drawn-only far form seeded from the same spawn tables, which hands over to real creatures without a pop
+or a double. Far forms cost no entities and nothing on the network.
+
+- Town far figures (A-109): `FaunaDirector.FarFolk.cs` places one figure per household member who is sure to spawn,
+  from household records and the shared clock, with no random draw; `CreatureRenderSystem.FarFolk.cs` draws them as
+  walkers (6 px and up) or motes and fades them out where the town has real folk. `-farfolk` logs counts and sizes.
+
 Read before changing creatures, behaviour, poses, the player's body, settlements' residents or workers.
 
 - `Fauna/` — `LimbType` (segments plus seven key poses), `CreatureSpecies` (body plus slots; can be a recoloured
@@ -95,3 +104,28 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
 - A-94: past 4x a person ShapeFor keeps growing breath (one curve, up to 8x more: bigger, slower, longer-lived, seen
   further). Colossi breathe through StoneColossi.ColdBreath (size measured off their meshes) and AmbienceSystem's puffs,
   so only in the cold and near the camera. Fliers breathe each exhale out in one burst (ExhaleFor), so no dotted trail.
+- A-104: a rider's Holder is minus its mount's ghost id (SoloMount solo); RideSystem gets it down on its mount's swim,
+  climb, sleep, fight, being picked up or death (Riding.Reason), to a clear spot (Riding.Clear). A mode written from the
+  main thread can be swapped by the brain before RideSystem sees it, so test the reasons with Riding.Reason directly.
+  The brain skips riders, so their ModeTime stands still while they ride; time a ride from when it is seen. Dungeon
+  posts (DungeonPost) never ride: DungeonPostSystem sends them back. A host's player is where its client last said, so
+  after teleporting the player wait a few seconds before spawning near it, or FaunaDirector lets the spawn go.
+- A-104 row 3: a riding player has PlayerRide; PlayerRideSystem (each machine, for its own player) seats it on its
+  mount every frame and PlayerMovementSystem skips it. Who it rides goes out as NetPlayerLook.Mount (the mount's
+  ghost id: a creature's, or the ridden player's NetPlayer), checked on arrival (a live ghost, not itself, not a pair).
+  Other machines seat that player's puppet from it (SeatOthers). The ridden one keeps control; the server isn't told,
+  so its creatures don't know a player sits on them (a town's pet can still climb onto that mount: it gets down).
+- A-117: a town's stable is a "stable" household (FaunaDirector.Stables) whose door is the paddock gate; its horses
+  (2-3 from its key) spawn after the residents with no rng drawn, leashed to the paddock, and get no OwnDoor. StableAt
+  must match FloraGenerator.Stable's frame. A hitching rail needs a green plot, so tiny towns may have none.
+- A-117 riders (FaunaDirector.Riders, RiderPaths): a stable horse ride is CreatureTask.Travel with Stage 1 (LeadOn to
+  WorkSpot), 2 (wait there for the next waypoint), 3 (ridden LeadOn to WorkSpot) and 0 (the road walk, which goes
+  straight for its stretch and never round walls, so a ridden horse only gets Stage 0 at the road's start). LeadOn
+  tests the body's middle and, for a horse, its hindquarters (Riding.LeadRear) against BuildingFootprints, which counts
+  stalls and hitching rails as buildings (FloraPlacement.IsBuilding). Town paths come from StreetRoute (Road == 0
+  streets, then string-pulled where Clear). Riders().clearance should read 0 overlaps; Despawn at 170 m cuts a
+  far ride short, and a lent horse's stable can be km away.
+- A-121: FireSpots is both the "keep out of the flames" list and the heat-source list (HeatAt) comfort reads. A
+  species' FireTemper (Auto: folk Ignores, friendly Wary, cold-blooded Basks, else Shy; set Loves by hand) and the
+  heat a creature can't bear give CreatureMind.FireKeep, a berth past the flame's edge (Fire.cs Berth/FireStep);
+  lovers drift to fires instead. Torches and lava are not heat sources yet. FireWatch (editor) Gather/Bands probes it.

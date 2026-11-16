@@ -134,15 +134,22 @@ namespace Punchy.Net
                 GUILayout.EndHorizontal();
             }
 
+            DrawBuild(avatars, nav, current);
+
             // Colourings, only when the species has several.
             if (current.Coats.Count >= 2)
             {
                 GUILayout.Space(6);
                 GUILayout.Label("Colour");
-                for (int row = 0; row < current.Coats.Count; row += 4)
+                // (Long names, like the folk's "Glacier robe, olive skin", go two to a row so none runs off the panel.)
+                var longest = 0;
+                foreach (var coat in current.Coats)
+                    longest = Mathf.Max(longest, coat.Name != null ? coat.Name.Length : 0);
+                var perRow = longest > 14 ? 2 : 4;
+                for (int row = 0; row < current.Coats.Count; row += perRow)
                 {
                     GUILayout.BeginHorizontal();
-                    for (int k = row; k < row + 4 && k < current.Coats.Count; k++)
+                    for (int k = row; k < row + perRow && k < current.Coats.Count; k++)
                     {
                         var label = current.Coats[k].Name;
                         if (nav.Button(k == avatars.LocalCoat ? "[" + label + "]" : label))
@@ -176,6 +183,48 @@ namespace Punchy.Net
                     if (nav.Button(k == current ? "[" + names[k] + "]" : names[k]) && k != current)
                         pick(k);
                 GUILayout.EndHorizontal();
+            }
+        }
+
+        /// <summary>
+        /// A-124: the body's build (one of the species' BodyBuilds.Count) and height (16 steps over its Size range),
+        /// stepped or rolled; "Own" goes back to the one this player's individual rolls. Sent as NetPlayerLook.Build.
+        /// </summary>
+        static void DrawBuild(NetAvatars avatars, MenuNav nav, CreatureSpecies current)
+        {
+            if (!current.BuildRange.Any)
+                return;
+            var code = avatars.LocalBuildCode;
+            var build = BodyBuilds.PlayerBuild(code);
+            var height = BodyBuilds.PlayerHeightStep(code);
+            GUILayout.Space(6);
+            GUILayout.Label(avatars.LocalBuild >= 0 ? "Build" : "Build (your own)");
+            GUILayout.BeginHorizontal();
+            if (nav.Button("< Build"))
+                build = (build + BodyBuilds.Count - 1) % BodyBuilds.Count;
+            GUILayout.Label($"{build + 1}/{BodyBuilds.Count}", GUILayout.Width(48));
+            if (nav.Button("Build >"))
+                build = (build + 1) % BodyBuilds.Count;
+            if (nav.Button("< Height"))
+                height = Mathf.Max(0, height - 1);
+            GUILayout.Label($"{height + 1}/16", GUILayout.Width(48));
+            if (nav.Button("Height >"))
+                height = Mathf.Min(15, height + 1);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            if (nav.Button("Roll"))
+            {
+                build = Random.Range(0, BodyBuilds.Count);
+                height = Random.Range(0, 16);
+            }
+            var own = avatars.LocalBuild >= 0 && nav.Button("Own");
+            GUILayout.EndHorizontal();
+            if (own)
+                avatars.SetLocalBuild(-1);
+            else if (BodyBuilds.Player(build, height) != code)
+            {
+                avatars.SetLocalBuild(BodyBuilds.Player(build, height));
+                Debug.Log($"CharacterTab: {current.name} build {build}, height step {height}");
             }
         }
     }

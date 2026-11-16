@@ -189,6 +189,17 @@ namespace Punchy.Items
                 case "Straw hat": k.Tube(0, new Vector3(0f, 0f, 0f), new Vector3(0f, 0.012f, 0f), 0.24f, 0.24f, 12); k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.1f, 0.1f); k.Tube(1, new Vector3(0f, 0.012f, 0f), new Vector3(0f, 0.03f, 0f), 0.102f, 0.1f, 10); break;
                 case "Fisher's hat": k.Tube(0, new Vector3(0f, 0f, 0f), new Vector3(0f, 0.012f, 0f), 0.18f, 0.17f, 10); k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.11f, 0.09f); break;
                 case "Satchel": k.Blob(0, new Vector3(0f, 0.07f, 0f), new Vector3(0.1f, 0.07f, 0.06f), 49u, 4, 8); k.Tube(1, new Vector3(-0.1f, 0.12f, 0f), new Vector3(0.1f, 0.12f, 0f), 0.012f, 0.012f, 4); break;
+                // P-38: job gear at a worker's post.
+                case "Guy rope": k.Tube(0, new Vector3(-0.1f, 0.02f, 0f), new Vector3(0.1f, 0.02f, 0f), 0.06f, 0.06f, 10); k.Tube(0, new Vector3(0.1f, 0.02f, 0f), new Vector3(0.3f, 0.01f, 0.1f), 0.012f, 0.012f, 4); break;
+                case "Rope coil": k.Tube(0, new Vector3(0f, 0f, 0f), new Vector3(0f, 0.07f, 0f), 0.17f, 0.15f, 10); break;
+                case "Trestle": k.Tube(1, new Vector3(0f, 0f, 0f), new Vector3(0f, 0.55f, 0f), 0.07f, 0.07f, 6); k.Tube(0, new Vector3(0f, 0.55f, 0f), new Vector3(0f, 0.59f, 0f), 0.3f, 0.3f, 10); break;
+                case "Dented helm": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.12f, 0.1f); break;
+                case "Spirit flame": k.Blob(0, new Vector3(0f, 0.1f, 0f), new Vector3(0.05f, 0.1f, 0.05f), 50u, 4, 8); k.Blob(1, new Vector3(0f, 0.02f, 0f), new Vector3(0.12f, 0.02f, 0.09f), 51u, 3, 8); break;
+                case "Heap": k.Blob(0, new Vector3(0f, 0.1f, 0f), new Vector3(0.3f, 0.12f, 0.3f), 52u, 5, 9); k.Blob(0, new Vector3(0.2f, 0.07f, 0.1f), new Vector3(0.16f, 0.08f, 0.16f), 53u, 4, 8); break;
+                case "Snow block": k.Tube(0, new Vector3(0f, 0f, 0f), new Vector3(0f, 0.35f, 0f), 0.2f, 0.2f, 8); break;
+                case "Ice block": k.Tube(0, new Vector3(0f, 0f, 0f), new Vector3(0f, 0.3f, 0f), 0.1f, 0.1f, 6); break;
+                case "Glasses": k.Blob(0, new Vector3(-0.035f, 0.015f, 0f), new Vector3(0.025f, 0.008f, 0.025f), 39u, 4, 8); k.Blob(0, new Vector3(0.035f, 0.015f, 0f), new Vector3(0.025f, 0.008f, 0.025f), 40u, 4, 8); k.Tube(0, new Vector3(-0.012f, 0.015f, 0f), new Vector3(0.012f, 0.015f, 0f), 0.004f, 0.004f, 4); break;
+                case "Glow goggles": k.Blob(0, new Vector3(-0.045f, 0.03f, 0f), new Vector3(0.04f, 0.025f, 0.04f), 41u, 4, 8); k.Blob(0, new Vector3(0.045f, 0.03f, 0f), new Vector3(0.04f, 0.025f, 0.04f), 42u, 4, 8); k.Tube(1, new Vector3(-0.13f, 0.02f, -0.02f), new Vector3(0.13f, 0.02f, -0.02f), 0.012f, 0.012f, 4); break;
                 case "Arrow": k.Tube(0, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, 0.3f), 0.008f, 0.008f, 5); k.Tube(1, new Vector3(0f, 0.012f, 0.3f), new Vector3(0f, 0.012f, 0.37f), 0.016f, 0.002f, 4); k.Tube(1, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, -0.2f), 0.026f, 0.012f, 3); break;
                 case "Cap": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.11f, 0.09f); k.Tube(1, new Vector3(-0.1f, 0.015f, 0.04f), new Vector3(0.1f, 0.015f, 0.04f), 0.012f, 0.012f, 4); break;
                 case "Helm": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.13f, 0.14f); k.Tube(1, new Vector3(0f, 0.12f, 0.12f), new Vector3(0f, 0.02f, 0.135f), 0.014f, 0.01f, 4); k.Tube(1, new Vector3(-0.13f, 0.02f, 0f), new Vector3(0.13f, 0.02f, 0f), 0.014f, 0.014f, 4); break;

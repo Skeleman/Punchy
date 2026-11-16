@@ -211,6 +211,56 @@ namespace Punchy.Fauna
                 return d;
             }
 
+            /// <summary>
+            /// A-117: WalkOn for a horse led or ridden through a town, and the one leading it: never into a building's,
+            /// stall's or fence's walls by its body's width (a horse at least 0.55 m either side, folk 0.3 m). Walled off,
+            /// it slides along the wall as MoveBody does, but right up to where it's going (a stable's gate is narrow);
+            /// boxed in, it waits. FaunaDirector hands it the way (gate, then streets) a waypoint at a time.
+            /// </summary>
+            float LeadOn(ref CreatureState s, ref CreatureBlob b, float3 target, float speed, float dt)
+            {
+                var before = s.Position.xz;
+                var yawBefore = s.Yaw;
+                var d = WalkOn(ref s, ref b, target, speed, dt);
+                if (!HasFlora)
+                    return d;
+                var to = s.Position.xz;
+                var radius = Riding.LeadRadius(ref b, s.Scale);
+                if (LeadFits(ref b, s.Scale, to, s.Yaw, radius) || !LeadFits(ref b, s.Scale, before, yawBefore, radius))
+                    return d;
+                var step = math.max(math.distance(to, before), 0.02f);
+                var heading = math.atan2(target.x - before.x, target.z - before.y);
+                var moved = false;
+                for (int k = 1; k <= 7 && !moved; k++)
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var angle = heading + side * k * 0.45f;
+                        var slide = before + new float2(math.sin(angle), math.cos(angle)) * step;
+                        // (Turned only part way, as it can in one step.)
+                        var yaw = yawBefore + math.clamp(WrapAngle(angle - yawBefore), -b.TurnRate * dt, b.TurnRate * dt);
+                        if (LeadFits(ref b, s.Scale, slide, yaw, radius))
+                        {
+                            to = slide;
+                            s.Yaw = yaw;
+                            moved = true;
+                            break;
+                        }
+                    }
+                if (!moved)
+                {
+                    to = before;
+                    s.Yaw = yawBefore;
+                    s.Speed = 0f;
+                }
+                s.Position.xz = to;
+                s.Position.y = Terrain.FloorUnder(new float3(to.x, s.Position.y + 0.8f, to.y), out _);
+                return d;
+            }
+
+            /// <summary>A-117: its middle and, for a horse, its hindquarters both clear of every wall by its width.</summary>
+            bool LeadFits(ref CreatureBlob b, float scale, float2 at, float yaw, float radius) =>
+                !Walled(at, radius) && (b.Upright || !Walled(Riding.LeadRear(ref b, scale, at, yaw), radius));
+
             // ------------------------------------------------------------------------------- swimming
 
             /// <summary>
@@ -249,11 +299,12 @@ namespace Punchy.Fauna
             /// <summary>
             /// Out for a swim: to the bank (0), in and swimming about from point to point in the deep water round Focus
             /// at a gentle breaststroke (1), back to the bank when the time's up or the day draws in (2), and standing
-            /// on the bank a while drying off, looking about (3).
+            /// on the bank a while drying off, looking about (3). Out in the deep water they dive (Diving).
             /// </summary>
             void Swimming(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, float walk, float idleLook,
-                          ref float targetSpeed, ref bool moving, ref float desiredLook)
+                          ref float targetSpeed, ref bool moving, ref float desiredLook, ref float vertical)
             {
+                Diving(ref s, ref b, ref rng, dt, s.Stage == 1, ref vertical);
                 switch (s.Stage)
                 {
                     case 0:
@@ -306,6 +357,58 @@ namespace Punchy.Fauna
                             Pause(ref s, ref b, ref rng);
                         break;
                 }
+            }
+
+            /// <summary>
+            /// A-102 row 2: folk out swimming dive (CreatureMind.Dive, below the height they float at; Advance puts them
+            /// there). An air breather goes down only with its breath full, as deep as Breath.MaxDive allows and the
+            /// water has room for, swims about down there, and turns for the surface while what's left still gets it up
+            /// (Breath.TimeToRise), then rests at the surface until its breath is back and a while more. A water
+            /// breather (sea folk) dives as deep as the water goes, stays a while at each depth and sometimes comes up.
+            /// Head down going down, up coming up (Vertical, which clients get). Only out in the deep water (dive is
+            /// false wading in and out, so they come up first); gasping (Breathe), always up.
+            /// </summary>
+            void Diving(ref CreatureState s, ref CreatureBlob b, ref Random rng, float dt, bool dive, ref float vertical)
+            {
+                var room = WaterDepth(s.Position.xz) - 0.6f * s.Scale;
+                var sea = b.BreathesWater;
+                if (!math.isfinite(M.Dive + M.DiveTo + M.DiveWait))
+                    M.Dive = M.DiveTo = M.DiveWait = 0f;
+                if (!dive || M.Gasping || room < 0.6f * s.Scale)
+                    M.DiveTo = 0f;
+                else if (M.DiveTo <= 0f)
+                {
+                    // At the surface (or on the way up): resting till its breath is back, then down again.
+                    if (M.Dive < 0.05f)
+                        M.DiveWait -= dt;
+                    var most = sea ? room : math.min(room, Breath.MaxDive(b.HoldBreath));
+                    if (M.Dive < 0.05f && M.DiveWait <= 0f && (sea || M.BreathUsed <= 0f) && most >= 0.6f * s.Scale)
+                    {
+                        M.DiveTo = rng.NextFloat(math.min(0.6f * s.Scale, most), most);
+                        M.DiveWait = rng.NextFloat(4f, 12f);
+                    }
+                }
+                else
+                {
+                    M.DiveTo = math.min(M.DiveTo, room);
+                    if (!sea && Breath.TimeToRise(M.BreathUsed, M.Dive, b.HoldBreath))
+                    {
+                        M.DiveTo = 0f;
+                        M.DiveWait = rng.NextFloat(3f, 10f);
+                    }
+                    else if (sea && math.abs(M.Dive - M.DiveTo) < 0.1f && (M.DiveWait -= dt) <= 0f)
+                    {
+                        // Somewhere else in the water column; now and then back up for a look about.
+                        M.DiveTo = rng.NextFloat() < 0.3f ? 0f : rng.NextFloat(0.3f, 1f) * room;
+                        M.DiveWait = rng.NextFloat(4f, 12f);
+                    }
+                }
+                var speed = (M.Gasping ? Breath.RiseSpeed : Breath.DiveSpeed) * dt;
+                var way = math.clamp(M.DiveTo - M.Dive, -speed, speed);
+                M.Dive = math.max(0f, M.Dive + way);
+                // (Pitched along the way it's going, levelling off as it gets there.)
+                if (speed > 0f && math.abs(way) > 1e-5f)
+                    vertical = -0.55f * way / speed * math.saturate(math.abs(M.DiveTo - M.Dive) / 0.4f + 0.3f);
             }
 
             // ------------------------------------------------------------------------------- fishers
@@ -787,6 +890,13 @@ namespace Punchy.Fauna
             /// </summary>
             bool FindDoor(ref CreatureState s)
             {
+                // (A-103: its own door first, when it has one no anchor marks: a turtle folk's igloo tunnel.)
+                if (math.lengthsq(s.OwnDoor.xz) > 0f)
+                {
+                    s.Anchor = new float3(s.OwnDoor.x, Terrain.SampleHeight(s.OwnDoor.xz), s.OwnDoor.z);
+                    s.AnchorYaw = s.OwnDoor.w;
+                    return true;
+                }
                 if (!Terrain.Anchors.IsCreated)
                     return false;
                 ref var set = ref Terrain.Anchors.Value;
@@ -837,31 +947,73 @@ namespace Punchy.Fauna
                         s.Target = door;
                         targetSpeed = walk;
                         moving = true;
-                        if (math.distance(s.Position.xz, door) < 0.4f)
+                        // (A-110 row 4: going round what stopped it, the spot Steer set, before making for the door again.)
+                        if (M.FollowHolder == 0 && M.FollowDetourTime > 0f)
+                        {
+                            M.FollowDetourTime -= dt;
+                            s.Target = M.FollowDetour;
+                            if (math.distance(s.Position.xz, M.FollowDetour) < 0.6f)
+                                M.FollowDetourTime = 0f;
+                        }
+                        // (A-105: the walk home to its own house can be a long one, in from the fields, a pier or the mine.)
+                        var toDoor = math.distance(s.Position.xz, door);
+                        if (toDoor < 0.4f)
+                        {
+                            s.Target = door;
                             NextStage(ref s);
-                        else if (s.ModeTime > 60f)
+                        }
+                        // (A-110 row 4: held up a few metres short of it, against a wall corner or a porch post, standing
+                        // or going round in circles, long after it should have got there: it steps through from there,
+                        // fading as it goes, not stuck in sight of its own door. Target keeps where it stepped from.)
+                        else if (toDoor < 8f && s.ModeTime > 12f + 2f * toDoor / math.max(walk, 0.3f) &&
+                                 (s.Speed < 0.15f || s.ModeTime > 60f))
+                        {
+                            s.Target = s.Position.xz;
+                            NextStage(ref s);
+                        }
+                        else if (s.ModeTime > (HasOwnDoor(s) ? 240f : 60f))
                             Pause(ref s, ref b, ref rng);
+                        // (A-110 row 7b: held far from its door. Steer gives upright folk no wall block, so its detour
+                        // never fires, and the wall slide can pin it in a building's inner corner, pulled to the door and
+                        // slid back, for a game hour. It backs off sideways a few metres, the side flipping every ten
+                        // seconds, then makes for the door again from there. // sim: metres of walking room)
+                        else if (toDoor > 8f && s.Speed < 0.2f && s.ModeTime > 5f && M.FollowHolder == 0 && M.FollowDetourTime <= 0f)
+                        {
+                            var toward = (door - s.Position.xz) / toDoor;
+                            var side = ((uint)(s.ModeTime / 10f) + s.Individual) % 2u == 0u ? 1f : -1f;
+                            var way = math.normalize(new float2(-toward.y, toward.x) * side - toward * 0.6f);
+                            M.FollowDetour = s.Position.xz + way * (2.5f * s.Scale + 2.5f);
+                            M.FollowDetourTime = 3f;
+                        }
                         break;
                     case 1:
+                    {
                         custom = true;
-                        s.Yaw = WrapAngle(s.AnchorYaw + math.PI);
+                        // (From where it stepped off, the doorstep or a few metres short: the longer way takes longer.)
+                        var from = s.Target;
+                        var span = math.max(through, math.distance(from, door) / 1.2f);
+                        var t = math.saturate(s.StageTime / span);
+                        var at = math.lerp(from, door - outward * 0.7f, t);
+                        var heading = door - outward * 0.7f - from;
+                        s.Yaw = math.lengthsq(heading) > 0.25f ? math.atan2(heading.x, heading.y) : WrapAngle(s.AnchorYaw + math.PI);
                         s.Speed = 0.6f;
-                        s.Position.xz = door - outward * (0.7f * math.saturate(s.StageTime / through));
+                        s.Position.xz = at;
                         s.Position.y = Terrain.SampleHeight(s.Position.xz);
-                        s.ActionTime = math.saturate(s.StageTime / through);
+                        s.ActionTime = t;
                         CreatureMotion.AdvancePhase(ref s, ref b, dt);
-                        if (s.StageTime >= through)
+                        if (s.StageTime >= span)
                             NextStage(ref s);
                         break;
+                    }
                     case 2:
                         custom = true;
                         s.Speed = 0f;
                         s.ActionTime = 1f;
-                        if (SleepTime(ref b) < 0.5f)
+                        if (!Homeward(s, ref b))
                             s.Timer -= dt;
                         // (A guard comes out when its watch begins, however long it meant to stay in: a night guard
                         // asleep through the day is out again at dusk.)
-                        if (s.Timer <= 0f || OnShift(s))
+                        if (s.Timer <= 0f || OnShift(s) || s.Job == (byte)FolkJob.Lamplighter && OnRound(s))
                             NextStage(ref s);
                         break;
                     default:
@@ -1017,6 +1169,54 @@ namespace Punchy.Fauna
 
             /// <summary>Where the player with this Holder id is, and which way they face (false if they've gone).</summary>
             bool FindHolder(int holder, out float3 position, out float yaw) => FindHolder(holder, out position, out yaw, out _);
+
+            /// <summary>
+            /// A-120: as below, and one of the folk too (a negative Holder, Interactions.FolkHolder), looked for in the
+            /// grid cells round `near` (the animal's own place: its folk is beside it). A folk carrier's species is -1, so
+            /// Hands falls back to the human's hold.
+            /// </summary>
+            bool FindHolder(int holder, float2 near, out float3 position, out float yaw, out int species)
+            {
+                if (!Interactions.ByFolk(holder))
+                    return FindHolder(holder, out position, out yaw, out species);
+                species = -1;
+                if (FindFolkHolder(holder, near, out var j))
+                {
+                    position = States[j].Position;
+                    yaw = States[j].Yaw;
+                    return true;
+                }
+                position = default;
+                yaw = 0f;
+                return false;
+            }
+
+            /// <summary>A-120: the snapshot index of the folk with this Holder key near a place (false if none).</summary>
+            bool FindFolkHolder(int holder, float2 near, out int index)
+            {
+                var c = Cell(near);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var e = Entities[j];
+                        if (Interactions.FolkHolder(e, Ghosts.HasComponent(e) ? Ghosts[e].ghostId : 0) == holder && !States[j].Gone)
+                        {
+                            index = j;
+                            return true;
+                        }
+                    }
+                    while (Grid.TryGetNextValue(out j, ref it));
+                }
+                index = -1;
+                return false;
+            }
+
+            /// <summary>A-120: this folk's own Holder key, for an animal it pets or carries.</summary>
+            int FolkKey(Entity self) => Interactions.FolkHolder(self, Ghosts.HasComponent(self) ? Ghosts[self].ghostId : 0);
 
             bool FindHolder(int holder, out float3 position, out float yaw, out int species)
             {
