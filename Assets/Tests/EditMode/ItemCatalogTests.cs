@@ -53,6 +53,16 @@ namespace Punchy.Tests
             }
         }
 
+        /// <summary>A field added to ItemDef must be added to ItemAsset too (and to its Fingerprint), or the catalog
+        /// would silently drop it.</summary>
+        [Test]
+        public void ItemAssetHasEveryItemDefField()
+        {
+            var asset = Game.GetType("Punchy.Items.ItemAsset");
+            foreach (var f in Game.GetType("Punchy.Items.ItemDef").GetFields(BindingFlags.Public | BindingFlags.Instance))
+                Assert.IsNotNull(asset.GetField(f.Name == "Name" ? "DisplayName" : f.Name), $"ItemAsset has no {f.Name}");
+        }
+
         [Test]
         public void FingerprintSeesAChange()
         {

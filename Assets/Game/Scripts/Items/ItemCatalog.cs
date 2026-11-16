@@ -149,6 +149,7 @@ namespace Punchy.Items
             void Add(uint v) { for (int s = 0; s < 32; s += 8) h = (h ^ ((v >> s) & 0xff)) * 1099511628211ul; }
             void F(float v) => Add(math.asuint(v));
             void C(Color c) { F(c.r); F(c.g); F(c.b); F(c.a); }
+            void S(string v) { Add(v == null ? 0xfffffffeu : 0xfffffffdu); if (v != null) foreach (var ch in v) Add(ch); }
             for (int i = first; i < table.Length; i++)
             {
                 var d = table[i];
@@ -161,6 +162,7 @@ namespace Punchy.Items
                 F(d.Damage); F(d.Speed); Add(d.TwoHanded ? 1u : 0u); Add(d.Weapon); F(d.Armour); Add(d.Look); F(d.Length);
                 Add((uint)d.Sheath); Add(d.Dyed ? 1u : 0u); Add((uint)d.Family); Add((uint)d.AccentFamily); Add(d.Kind);
                 Add(d.AccentKind);
+                S(d.Quest); S(d.Base);
             }
             return h;
         }
