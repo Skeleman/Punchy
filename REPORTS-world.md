@@ -8398,3 +8398,14 @@ Plan:
 - Risks: none for hashes. The band fade could shave a ridge that sits 55-110 m from a river; the falls 22 rim is the largest case seen.
 - Shares: GroundEdits (Band/Apply/EdgeNoise) now covers river carves, falls and pool lips. Parallel left out: settlement plot flattening and road cuts still use their own blends (later W-174 rows).
 - Next: M-07 r2b (world/map-edits-bake), then W-172 r7, then #400.
+
+## M-07 r2b (#260): map edits baked into the world (2026-11-16)
+
+- Branch world/map-edits-bake @ dd2cfa26 (main 0834e28b merged in, clean). Pushed. done (verified). **Ready for PR.**
+- Compile clean. EditMode PaintedEditsTests 2/2 (bake reads the same offsets as the map editor, edges and negative coordinates included; an empty file bakes as no file, with no blob and no cache-key change). WorldTests 17/17 with no edits file: landmarks 114 9786243F unchanged, log `[map-edits] none`. No re-pins.
+- **Rule 11 / PR body note:** WorldSync.Signature adds the line `edits <PaintedEdits.Content as 4 hex words>` only when the baked TerrainSource has edits. A world without edits keeps today's signature, so current hosts and clients still match. A client with other edits is refused like one with another seed; the mismatch warning now says "or map edits". (Coordinator approved this earlier.)
+- PaintedEditsCheck: one `[map-edits]` warning when painted tiles touch a settlement plot, garden bed, cave socket or river channel. It only reads and never fails the bake; it runs on bake, not on a cached load.
+- No shot: the row has no visual change without an edits file. The check is the unchanged landmark hash.
+- Risks: the first load after merge misses the island cache once (cache format 5). The map editor's base island bakes without edits, so switching between map editor and play re-bakes once each way.
+- Shares: TerrainSource (Edits blob next to the height inputs) and the existing island cache key. Parallel not folded in: W-174's GroundEdits record could later take painted edits as one more edit kind.
+- Next: W-172 r7 (cave walls), then #400.
