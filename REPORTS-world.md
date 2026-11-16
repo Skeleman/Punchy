@@ -8249,3 +8249,10 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Noted (not done):** R-30's FloraSpecies.LeafThinness should be about 1.6 for the new Fir and WhitePine once both land. I am not adding the field.
 - **BENCH:** the built-stone close-up stays in job 101 (cost about the same as brick).
 - Next: row 4 sweep (a town per culture plus a dungeon, at 3, 15 and 60 m).
+
+## W-172 rows 2-6 (#365): main merged twice. Ready for PR (verified)
+- **Branch:** world/playtest-1114@73b0d566. It merges origin/main c0d4a6f1 (c894c866) and then 27171bd2 (73b0d566, P-38 #450).
+- **Pins:** fauna E764AAEC (row 3 camps on top of main's Frostdeer #442, one-line note in WorldTests). Landmarks are unchanged at 117 689D5348. The 27171bd2 merge moved nothing, so the conflict kept this branch's line.
+- **Test:** WorldTests 14/14 after the 27171bd2 merge. After c894c866, the only failures were the known crow/cave-water flake (Player_CrowFliesOutOfCaveThroughHitches, plus CaveWater as a knock-on).
+- **Lava half-row:** world/ashlands-lava will be rebased onto this branch and re-pinned after the merge.
+- Next: #259 rejoin crash (terrain/glow/cave jobs in flight on leave), then the Ashlands cone re-pin, then W-174 row 2.
