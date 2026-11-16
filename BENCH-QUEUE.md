@@ -1038,3 +1038,10 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Pass: B within 0.5 ms GPU of A at (a), within 1.5 ms at (b) and (c); no new hitch over 2x median. Report the numbers otherwise. It overlaps world/far-lite (job 56), so note which arm main is on at the time.
 
 ## Note (2026-11-16, supervisor): #481 (W-174 r2) moved placement: landmarks 114 9786243F (roadside campsites moved, a fairy ring, two grottos dropped; a cave network and a lone inn are new), sunken temple socket hash C41A5BA2 (same 73 sockets). Fauna 4BEFEA91, cave sockets FCAA026F and 94 chests unchanged. Re-pin bench checks that read these. W-174 asks a cost line after row 2: start time and streaming on main 2b6ef9e3 vs 507d1d8f, Medium, ABBA, open-country walk; pass within 5% start time and no new streaming hitch over 2x median.
+
+## Job 108 (2026-11-16, QUEUED after 107; render lane, plume reach, #302, branch render/plume-reach 170f46a3): wider plume gather cost
+- Smoke plumes now fade by screen size (rule 20), so LandmarkEffectSystem gathers landmarks out to their plume reach (about 5.8 km for a 9 m plume at High) and draws more plumes far away. There is no off flag, so compare main (A) with the branch (B).
+- Arms: (A) main; (B) render/plume-reach. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames per arm.
+- Views: (a) summit view `-goto -3460,2425` with the volcano in sight, clear; (b) the plume walk-in views `-goto -891,-421` and `-goto -891,-1171` at time 19.5 (list in PunchyMilestones/R-25/plume-reach/work/plume.txt); (c) a ground walk in open country as a control.
+- Record: CPU ms in LandmarkEffectSystem's gather, plume draw GPU ms (transparent pass), whole-frame GPU/CPU ms. Also run `-sparkleprobe plume` once on B at High (rule 24, NaN 0; render could not run it for lack of RAM).
+- Pass: B within 0.2 ms CPU and 0.5 ms GPU of A at (a) and (b), no change at (c), sparkle NaN 0. Report the numbers otherwise.
