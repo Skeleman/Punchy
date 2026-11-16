@@ -122,3 +122,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: merged #422 (P-40, closes #396): you dismount when you no longer fit the mount; jump-off tested.
 - 11-15: merged #423 (R-25 row 3 #302, R-38 #366 closed): town lights stay steady as you walk in from 1 km; nothing switches on near you. Smooth sun step.
 - 11-15: merged #424 (profiler fix, job 42): -vsync and -maxqueued launch flags for benches.
+- 11-15: merged #425 (M-07 rows 1-2a, #260): Punchy > Map Editor in the Unity editor; raise, lower, smooth, flatten brushes with undo. Edits don't reach the game yet.
