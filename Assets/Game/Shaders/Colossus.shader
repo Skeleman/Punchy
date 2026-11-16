@@ -44,6 +44,7 @@ Shader "Punchy/Colossus"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             #include "Materials/Library.hlsl"
+            #include "Materials/Metal.hlsl"
 
             struct Attributes
             {
@@ -102,11 +103,20 @@ Shader "Punchy/Colossus"
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
-                surface.albedo = albedo;
+                // Metal (the library's one metal look, Metal.hlsl): dim diffuse, the colour mostly from tinted sky
+                // reflections, a sharp sun highlight and glints (riding on the piece: hashed in its pattern frame).
+                bool metal = (int)round(input.family.x) == 6;
+                surface.albedo = metal ? albedo * 0.45 : albedo;
                 surface.smoothness = 0.08;
                 surface.occlusion = 1;
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
+                [branch] if (metal)
+                {
+                    Light light = GetMainLight(inputData.shadowCoord);
+                    color += PunchyMetalShade(albedo, inputData.normalWS, inputData.viewDirectionWS, input.patternPos, light.color,
+                                              light.direction, light.shadowAttenuation * light.distanceAttenuation, 1, 0);
+                }
                 color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
                 color += input.albedo * (input.glow * _GlowStrength); // self-lit: no shadow, still hazed below
                 return half4(PunchyAtmosphere(color, input.positionWS), 1);
