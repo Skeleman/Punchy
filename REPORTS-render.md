@@ -859,3 +859,10 @@ with main d95e7ff1); compiles, no suite run yet.
 - Caveat: the skies differ (the main run is clearer, the branch run has more cloud). R-30 doesn't touch the sky, so this looks like the clouds being at a different point in each run. It accounts for most of the whole-frame pixel difference (noon mean about 22-26 against about 4-15 back-lit). The tree crops still include some sky, so I'm not giving a trees-only number.
 - Earlier, on this branch: compiles, NaN 0 (sparkleprobe r30).
 - The editor closed cleanly. Free RAM fell from 9 GB to 3.5 GB at the last shot and then to about 1 GB after play mode stopped. All shots had already finished. Stone-include (#452) and R-22 r1 did not start and are still resumable. Next slot: those two, in that order.
+
+## 11-16 render: stone-include verified (W-166 r3 tail, #452)
+- Branch render/stone-include@006e6c49 (already pushed, no new commit). AssetDatabase.Refresh: compile clean, 0 console errors, no shader errors in the log.
+- Sparkle probe (`-sparkleprobe stone`, 360 frames): 0 frames with markers, so NaN 0.
+- EditMode MaterialLibraryTests: 4/4 passed.
+- Before/after on stone.txt (summit, coast, lake, town at noon): before is main aeb9a5a8 (the branch's base), in W-166/stone-include/before and after; side-by-side in W-166/stone-include/ab.jpg. The terrain and stone faces look the same. The whole-frame diff is not zero (mean 7-23), but it comes from things that vary between runs: clouds, water waves, the drifting rocks over the coast and plant sway. The removed Shaders/Stone.hlsl only did `#include "Materials/Stone.hlsl"`, so the compiled TerrainSurface shader is the same code either way.
+- Ready for PR.
