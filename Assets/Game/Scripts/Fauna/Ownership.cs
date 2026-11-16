@@ -8,8 +8,8 @@ namespace Punchy.Fauna
     /// derived, never sent or stored: the storage in a house's room belongs to the household whose door leads into it
     /// (by the door's spot, as the households themselves are placed), so every machine names the same owner. Wild
     /// items, drops, loot, temple chests and the folk's spares belong to nobody (spares are how players try fishing, so
-    /// taking one is never theft). Every take path and the Use prompt ask this one place; Take is where row 3's
-    /// witnesses and thefts hook in.
+    /// taking one is never theft). Every take path and the Use prompt ask this one place; Took hands the owned takes
+    /// to Thefts (row 3: witnesses, guards, the thief's record).
     /// </summary>
     public static class Ownership
     {
@@ -58,13 +58,15 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// A take, on the machine that decides it (the host, or a solo game): <paramref name="player"/> is the taker's
-        /// NetworkId, or -1 for the local player. Owned takes are logged here; row 3 hands them on to the witnesses.
+        /// NetworkId, or -1 for the local player. Owned takes are logged here and handed to Thefts, which
+        /// FaunaDirector.ServeThefts judges (who saw, which guard goes).
         /// </summary>
         public static void Took(int owner, int player, string what)
         {
             if (owner == Nobody)
                 return;
             UnityEngine.Debug.Log($"[ownership] {(player < 0 ? "the local player" : $"player {player}")} took {what} from household {owner} ({Whose(owner, "house")})");
+            Thefts.Took(owner, player, what);
         }
     }
 }

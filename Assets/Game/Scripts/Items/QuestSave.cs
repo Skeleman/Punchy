@@ -36,6 +36,8 @@ namespace Punchy.Items
         {
             public string world;
             public SavedQuest[] quests;
+            /// <summary>This player's thefts (A-134 row 3, Thefts.Save); an older save without it reads as none.</summary>
+            public Punchy.Fauna.SavedTheft[] thefts;
         }
 
         class LostQuest
@@ -76,7 +78,7 @@ namespace Punchy.Items
                 return;
             if (!saveLoaded && (!Joined || !Q(client.EntityManager, Unity.Entities.ComponentType.ReadWrite<Unity.NetCode.NetworkId>()).IsEmpty))
                 LoadSave();
-            if (saveDirty && saveLoaded)
+            if (saveLoaded && (Punchy.Fauna.Thefts.TakeDirty() | saveDirty))
                 WriteSave();
             if (dropLostArg && Time.realtimeSinceStartup > 40f)
             {
@@ -118,6 +120,7 @@ namespace Punchy.Items
                 Debug.LogWarning($"Quests: couldn't read the save: {e.Message}");
                 return;
             }
+            Punchy.Fauna.Thefts.Load(file?.thefts);
             if (file?.quests == null)
                 return;
             var world = WorldHash();
@@ -191,7 +194,7 @@ namespace Punchy.Items
                 list.Add(lost.Saved);
             try
             {
-                File.WriteAllText(savePath, JsonUtility.ToJson(new QuestSaveFile { world = WorldHash(), quests = list.ToArray() }, true));
+                File.WriteAllText(savePath, JsonUtility.ToJson(new QuestSaveFile { world = WorldHash(), quests = list.ToArray(), thefts = Punchy.Fauna.Thefts.Save() }, true));
             }
             catch (System.Exception e)
             {
