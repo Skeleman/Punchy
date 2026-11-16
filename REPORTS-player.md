@@ -1815,3 +1815,10 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - No shot: this is data only, so the check is the numbers above.
 - Risk: a new ItemTable row needs the generator run again, or the start check and CatalogIsTheItemTable fail. That is the intent until row 3 makes the catalog the source.
 - Shares: ItemDef/ItemTable, the shared item definitions. The catalog mirrors them; nothing is copied by hand. Row 3 (network table, ItemStack, kit moves, join check) needs a rule 11 ask.
+
+## Add-on (P-49 follow-up, #27): Elder staff is held like the Staff, done (verified) - player/quest-staff-hold@55f9194b, ready for PR
+- Gear.cs HeldFor: any ItemTable row whose Base is "Staff" gives HeldItem.Staff, so the Elder staff works without its own case.
+- Checked in editor play mode, solo, with the body switched to Human (the saved body was Crow, which can't hold gear; it was put back after). The Elder staff was equipped in the right hand and the gear log read "our body: held Staff, weapon 0".
+- New HeldItemTests (Staff, Elder staff, Sword, empty hand). EditMode 18/18.
+- No shot: the check is the gear log above. Risk: none known; HeldItem syncs through the gear RPCs that already exist.
+- Shares: ItemDef.Base on the shared item definitions; the held-item path is unchanged.
