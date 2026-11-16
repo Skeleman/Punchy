@@ -60,29 +60,42 @@ namespace Punchy.Tests
             Assert.IsEmpty(problems, string.Join("\n", problems) + $"\n(families: {string.Join(", ", familyNames)})");
         }
 
+        // Each family's include: what defining its look by hand looks like, what drawing it looks like, and which
+        // shaders must draw it through the include (W-166 rows 2-3).
+        static readonly (string include, string defines, string draws, string[] users)[] Families =
+        {
+            ("Wood.hlsl", @"\w*(WoodGrain|LogEnd|Plank|Shingle)\w*", @"PunchyWood\w*\s*\(", new[] { "Flora.shader", "Cave.shader" }),
+            ("Thatch.hlsl", @"\w*(Thatch|Straw)\w*", @"PunchyThatch\w*\s*\(", new[] { "Flora.shader" }),
+        };
+
         [Test]
         public void OnlyTheFamilyIncludeDrawsAFamily()
         {
             var root = Path.Combine(Application.dataPath, "Game", "Shaders");
-            var definesWood = new Regex(@"^\s*(half3|half|float3|float)\s+\w*(WoodGrain|LogEnd|Plank|Shingle)\w*\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase);
-            var drawsWood = new Regex(@"PunchyWood\w*\s*\(");
             var problems = new List<string>();
-            foreach (var path in Directory.GetFiles(root, "*.*", SearchOption.AllDirectories)
-                         .Where(p => p.EndsWith(".shader") || p.EndsWith(".hlsl")))
+            var files = Directory.GetFiles(root, "*.*", SearchOption.AllDirectories)
+                .Where(p => p.EndsWith(".shader") || p.EndsWith(".hlsl")).ToArray();
+            foreach (var (include, definesName, drawsName, users) in Families)
             {
-                var name = Path.GetFileName(path);
-                var inMaterials = path.Replace('\\', '/').Contains("/Materials/");
-                var text = File.ReadAllText(path);
-                if (!inMaterials && !PendingWood.Contains(name) && definesWood.IsMatch(text))
-                    problems.Add($"{name} defines its own wood ({definesWood.Match(text).Value.Trim()}): draw it through Materials/Wood.hlsl");
-                if (!inMaterials && drawsWood.IsMatch(text) && !text.Contains("\"Materials/Wood.hlsl\""))
-                    problems.Add($"{name} draws wood without including Materials/Wood.hlsl");
-            }
-            foreach (var name in new[] { "Flora.shader", "Cave.shader" })
-            {
-                var text = File.ReadAllText(Path.Combine(root, name));
-                if (!text.Contains("\"Materials/Wood.hlsl\"") || !drawsWood.IsMatch(text))
-                    problems.Add($"{name} should draw its wood through Materials/Wood.hlsl");
+                var defines = new Regex(@"^\s*(half3|half|float3|float)\s+" + definesName + @"\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+                var draws = new Regex(drawsName);
+                var quoted = $"\"Materials/{include}\"";
+                foreach (var path in files)
+                {
+                    var name = Path.GetFileName(path);
+                    var inMaterials = path.Replace('\\', '/').Contains("/Materials/");
+                    var text = File.ReadAllText(path);
+                    if (!inMaterials && !(include == "Wood.hlsl" && PendingWood.Contains(name)) && defines.IsMatch(text))
+                        problems.Add($"{name} defines its own {include} look ({defines.Match(text).Value.Trim()}): draw it through Materials/{include}");
+                    if (!inMaterials && draws.IsMatch(text) && !text.Contains(quoted))
+                        problems.Add($"{name} draws {include}'s family without including Materials/{include}");
+                }
+                foreach (var name in users)
+                {
+                    var text = File.ReadAllText(Path.Combine(root, name));
+                    if (!text.Contains(quoted) || !draws.IsMatch(text))
+                        problems.Add($"{name} should draw its {include} family through Materials/{include}");
+                }
             }
             Assert.IsEmpty(problems, string.Join("\n", problems));
         }

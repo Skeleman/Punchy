@@ -37,6 +37,7 @@ Shader "Punchy/Flora"
             #include "Grounding.hlsl"
             #include "Metal.hlsl"
             #include "Materials/Wood.hlsl"
+            #include "Materials/Thatch.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
 
@@ -67,20 +68,6 @@ Shader "Punchy/Flora"
             /// them), mottling at 0.7, 2.5 and 9 m, and rain streaks down the walls. Each octave drops out as it gets
             /// too fine for the pixels (PunchyOctave) and those left are scaled up to the same contrast, so a far wall
             /// keeps a few octaves of variation instead of fading to one flat colour. Returns an albedo multiplier.
-            /// W-99: thatch (look 3: StructureKit.KitSurface.Thatch), straw strands down the slope in ragged layers, clumps
-            /// lighter and darker, a shadow under each layer, on the face's plane (Wood.hlsl's PunchyWoodFaceCoords). Each
-            /// scale drops out as it gets too fine for the pixels. Returns an albedo multiplier. (Its own include in W-166 row 3.)
-            half PunchyThatch(float3 p, float3 nOS, float footprint)
-            {
-                float across, row;
-                PunchyWoodFaceCoords(p, nOS, across, row);
-                float rr = row / 0.42 + (PunchyValueNoise(float2(across * 1.3, 3.7)) - 0.5) * 0.4;
-                half strand = PunchyValueNoise(float2(across * 38, row * 1.2)) * 0.6 + PunchyValueNoise(float2(across * 90 + 3.1, row * 2.5)) * 0.4;
-                half clump = PunchyValueNoise(float2(across * 4.0, row * 1.5 + 11.1));
-                half layer = smoothstep(0.62, 1.0, frac(rr)) * 0.32 * PunchyOctave(0.42, footprint);
-                return (1 + (strand - 0.5) * 0.6 * PunchyOctave(0.02, footprint) + (clump - 0.5) * 0.3 * PunchyOctave(0.25, footprint)) * (1 - layer);
-            }
-
             /// W-99: cloth's linen weave, on the facet's plane in the plant's own frame: 3 cm threads over and under in a
             /// check, a little uneven along each thread (slubs), and broad soft blotches; fading out with the pixels.
             half PunchyLinen(float3 p, float3 nOS, float footprint)
