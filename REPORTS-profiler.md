@@ -2,6 +2,36 @@
 
 Newest first.
 
+## Job 90: W-164 row 2 garden beds in the ground pass (world/level-gardens c378a480 = B vs main 3b192717 = A), 2026-11-15 (q132.job): PASS (one Medium round spoiled by my own stray editor; clean rerun to follow)
+**Setup:** shelf builds (runner checked), 1920x1080, uncapped, 12:00, Clear, arms alternated, 3 rounds, Medium and High. Views: the hermit garden (`-benchspot 140,22,-548,30`) and the default spawn, 60 s each. Then one `-freshisland` start per arm at High for the bake.
+
+**Load (`[start]` ledger, Player.log):**
+
+| | A | B | B - A |
+|---|---|---|---|
+| island bake (fresh island, High) | 22170 ms | 22138 ms | -32 ms |
+| world ready (fresh) | 76.1 s | 74.6 s | -1.5 s |
+| chunks start, total (High spawn, warm island) | 45721 | 45738 | +0.04 % |
+| chunks start, total (Medium spawn) | 25013 | 24273 | -3.0 % |
+| worst chunk apply ms / frame (High spawn / Medium spawn / fresh) | 86 / 67 / 82 | 84 / 68 / 79 | level |
+
+- **Bake within +0.2 s: PASS** (B 32 ms quicker, one start each, so noise). **Chunk stage within +3 %: PASS** (+0.04 % at High; Medium reads 3 % quicker).
+
+**Frame (GPU ms, mean of rounds):**
+
+| view | preset | A | B | **delta** | median frame (A / B) | CPU (A / B) |
+|---|---|---|---|---|---|---|
+| hermit garden | Medium | 13.27 | 13.35 (r2-r3; see below) | **+0.08** | 14.8 / 14.8 | 15.3 / 15.3 |
+| spawn | Medium | 13.17 | 13.2 | +0.03 | 15.77 / 15.77 | 16.03 / 16.1 |
+| hermit garden | High | 16.87 | 16.9 | +0.03 | 17.63 / 17.73 | 18.13 / 18.27 |
+| spawn | High | 17.13 | 17.37 | +0.23 | 19.63 / 19.67 | 20.0 / 20.0 |
+
+- **Rule 23: PASS.** Medium within +0.1 ms, High within +0.25, CPU level, slow frames level.
+- **Spoiled round:** B's first Medium garden game (18:54-18:57) ran while two batch-mode editors I'd started by mistake (a dry run of job 92's spec ran its analysis step) were up; I stopped them by PID within minutes. That game read 14.1 GPU, 20.2 ms CPU, 38 frames over the hitch bar, 1% low 14 fps; every other game read 0-1. report.py's all-rounds row says +0.33 FAIL with it in; I've left it out above. I'll rerun the Medium garden view clean after job 92.
+- The fresh-start row in report.py (+0.40 "FAIL") is a single game during the first stream, there for the ledger only; not a frame measurement.
+
+Cost: laptop total $934 (laptop session e163d8ab; 0 builds (shelf), 26 games).
+
 ## Job 91: R-32 row 2 grass blades in every shadow tier (main 244805ae = B, #355, vs main 3b192717 = A), 2026-11-15 (q131.job): PASS
 **Setup:** run on its own (job 88 had already run when I saw it folded in as arm C). Shelf builds (runner checked), 1920x1080, uncapped, 16:00, Clear, arms alternated, 3 rounds, Medium and High. Views: the lakeshore meadow (`-benchspot 470,1840`, yaw 0: the card gives no yaw for "facing the trees"; shot in results/sheets/grass_shadows.jpg) and `-place OakGrove`.
 
