@@ -78,48 +78,82 @@ namespace Punchy.Terrain
                 // Wide enough that the road (and half a metre more each side) is all floor, at least 3 m (head room is
                 // 1.45 times it). Shared with RoadBaking, which sizes each portal's cutting from it.
                 var radius = SettlementSampling.TunnelRadius(width);
-                // Past each portal by a little, so the passage's rounded end lies in the cutting and the portal opens
-                // full height instead of narrowing to the end cap.
-                var line = new List<float3>(points.Count + 2) { first + math.normalizesafe(first - points[1]) * TunnelOverrun };
-                line.AddRange(points);
-                line.Add(last + math.normalizesafe(last - points[points.Count - 2]) * TunnelOverrun);
                 // W-138 row 4: a long bore may have a side niche (a shrine's alcove) somewhere in its middle, where the
                 // hill over it is deep. A point split into the line there, and a smaller node out to one side. Its own
                 // roll (the tunnel's draws above are as they were).
                 var niche = Niche(source, points, radius, key, out var nicheSplit);
+                // W-172 row 5 (#262): side ways off a long bore (dead ends, chambers, a branch into a natural cave), each
+                // a split point on the road's line and a chain of smaller nodes out to one side. Their own roll again.
+                var sides = Sides(source, styles, points, radius, key, niche, caves, nodes, kinds);
+                // Every split in road order: the niche's first (its node stays right after its split), then the sides'.
+                var splits = new List<(int after, float3 at, int side)>();
                 if (niche.w > 0f)
-                    line.Insert((int)niche.w + 1, nicheSplit);
+                    splits.Add(((int)niche.w, nicheSplit, -1));
+                for (int s = 0; s < sides.Count; s++)
+                    splits.Add((sides[s].After, sides[s].Split, s));
+                splits.Sort((x, y) => x.after != y.after ? x.after.CompareTo(y.after)
+                    : math.distancesq(points[x.after - 1].xz, x.at.xz).CompareTo(math.distancesq(points[y.after - 1].xz, y.at.xz)));
+                // Past each portal by a little, so the passage's rounded end lies in the cutting and the portal opens
+                // full height instead of narrowing to the end cap.
+                var lineSide = new List<int>(points.Count + 2 + splits.Count) { -2 };   // -2 road, -1 niche split, s side s
+                var line = new List<float3>(points.Count + 2 + splits.Count) { first + math.normalizesafe(first - points[1]) * TunnelOverrun };
+                for (int k = 0; k < points.Count; k++)
+                {
+                    line.Add(points[k]);
+                    lineSide.Add(-2);
+                    foreach (var sp in splits)
+                        if (sp.after == k + 1)
+                        {
+                            line.Add(sp.at);
+                            lineSide.Add(sp.side);
+                        }
+                }
+                line.Add(last + math.normalizesafe(last - points[points.Count - 2]) * TunnelOverrun);
+                lineSide.Add(-2);
                 var cave = caves.Count;
                 var firstNode = nodes.Count;
                 var firstSegment = segments.Count;
-                // The niche's node goes right after the split point, so the first and last nodes (and the ones one in
-                // from them) stay the portals' (the portal kit, the daylight and the floor read them), and its segment
-                // after all the passage's.
+                // The niche's node goes right after the split point, and each side's chain right after its own, so the
+                // first and last nodes (and the ones one in from them) stay the portals' (the portal kit, the daylight
+                // and the floor read them); their segments after all the passage's.
                 var lineNodes = new int[line.Count];
                 var nicheNode = -1;
+                var sideNodes = new int[sides.Count];
                 for (int k = 0; k < line.Count; k++)
                 {
                     lineNodes[k] = nodes.Count;
                     nodes.Add(new CaveNode { Position = line[k] + new float3(0f, radius * TunnelArch * 0.45f, 0f), Radius = radius });
                     kinds.Add(CaveNodeKind.Passage);
-                    if (niche.w > 0f && k == (int)niche.w + 1)
+                    if (lineSide[k] == -1)
                     {
                         nicheNode = nodes.Count;
                         nodes.Add(new CaveNode { Position = niche.xyz + new float3(0f, TunnelNicheRadius * TunnelArch * 0.45f, 0f), Radius = TunnelNicheRadius });
                         kinds.Add(CaveNodeKind.Passage);
+                    }
+                    else if (lineSide[k] >= 0)
+                    {
+                        sideNodes[lineSide[k]] = nodes.Count;
+                        foreach (var (floor, r, kind) in sides[lineSide[k]].Chain)
+                        {
+                            nodes.Add(new CaveNode { Position = floor + new float3(0f, r * TunnelArch * 0.45f, 0f), Radius = r });
+                            kinds.Add(kind);
+                        }
                     }
                 }
                 for (int k = 1; k < line.Count; k++)
                     segments.Add(new CaveSegment { A = lineNodes[k - 1], B = lineNodes[k], Cave = cave });
                 if (nicheNode >= 0)
                     segments.Add(new CaveSegment { A = nicheNode - 1, B = nicheNode, Cave = cave });
+                for (int s = 0; s < sides.Count; s++)
+                    for (int j = 0; j < sides[s].Chain.Count; j++)
+                        segments.Add(new CaveSegment { A = j == 0 ? sideNodes[s] - 1 : sideNodes[s] + j - 1, B = sideNodes[s] + j, Cave = cave });
                 // Bored rock: smoother than a natural cave, a little blocky where it's broken away overhead.
                 var wall = new float4(rng.NextFloat(0.25f, 0.45f), 1f, 0f, 1.6f);
                 var rock = new float4(rng.NextFloat(0.15f, 0.35f), 1f, 0f, rng.NextFloat(0.1f, 0.35f));
                 float3 min = float.MaxValue, max = float.MinValue;
                 for (int n = firstNode; n < nodes.Count; n++)
                 {
-                    var reach = radius + 2.5f + CaveSampling.NoiseReach * wall.x + CaveSampling.JaggedReach * rock.x;
+                    var reach = nodes[n].Radius + 2.5f + CaveSampling.NoiseReach * wall.x + CaveSampling.JaggedReach * rock.x;
                     min = math.min(min, nodes[n].Position - reach);
                     max = math.max(max, nodes[n].Position + reach);
                 }
@@ -276,11 +310,11 @@ namespace Punchy.Terrain
                 var nextFrame = frameSpacing * 0.5f + 2f;
                 var total = 0f;
                 for (int si = cave.FirstSegment; si < cave.FirstSegment + cave.SegmentCount; si++)
-                    if (!NicheSegment(nodes, segments[si]))
+                    if (RoadSegment(nodes, cave, segments[si]))
                         total += math.distance(nodes[segments[si].A].Position.xz, nodes[segments[si].B].Position.xz);
                 for (int si = cave.FirstSegment; si < cave.FirstSegment + cave.SegmentCount; si++)
                 {
-                    if (NicheSegment(nodes, segments[si]))
+                    if (!RoadSegment(nodes, cave, segments[si]))
                         continue;
                     var a = nodes[segments[si].A].Position;
                     var b = nodes[segments[si].B].Position;
@@ -335,8 +369,16 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>A niche's segment (from its split point on the road's line out to the smaller niche node), not the road's.</summary>
-        static bool NicheSegment(List<CaveNode> nodes, CaveSegment s) => nodes[s.B].Radius < nodes[s.A].Radius - 0.01f;
+        /// <summary>A segment of the road's own line (both ends the bore's radius, as only its line nodes are), not a niche's or a side way's.</summary>
+        static bool RoadSegment(List<CaveNode> nodes, in CaveData cave, CaveSegment s)
+        {
+            var road = nodes[cave.FirstNode].Radius;
+            return nodes[s.A].Radius == road && nodes[s.B].Radius == road;
+        }
+
+        /// <summary>A niche's segment (from its split point on the road's line out to the niche node), not the road's or a side way's.</summary>
+        static bool NicheSegment(List<CaveNode> nodes, in CaveData cave, CaveSegment s) =>
+            nodes[s.A].Radius == nodes[cave.FirstNode].Radius && nodes[s.B].Radius == TunnelNicheRadius;
 
         /// <summary>
         /// W-138 row 4: the small things along a road tunnel (details tenet). The niche's shrine, its back to the rock;
@@ -377,10 +419,17 @@ namespace Punchy.Terrain
                 {
                     var a = nodes[segments[si].A];
                     var b = nodes[segments[si].B];
-                    if (!NicheSegment(nodes, segments[si]))
+                    if (RoadSegment(nodes, cave, segments[si]))
                     {
                         run.Add((a.Position, b.Position, a.Radius * cave.Profile.y * 0.45f));
                         total += math.distance(a.Position.xz, b.Position.xz);
+                        continue;
+                    }
+                    if (!NicheSegment(nodes, cave, segments[si]))
+                    {
+                        // A side way's (W-172 row 5: PlaceTunnelSides dresses those); no lamp across its mouth.
+                        if (a.Radius == radius)
+                            keepClear.Add(a.Position);
                         continue;
                     }
                     // The niche: a shrine against its back wall, facing the road.

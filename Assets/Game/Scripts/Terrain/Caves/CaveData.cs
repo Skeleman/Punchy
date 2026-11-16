@@ -447,11 +447,41 @@ namespace Punchy.Terrain
                 ref var pool = ref set.Pools[i];
                 if (pool.Hall > 0f)
                     continue;   // a lake carries its own floor (HallFloor), under its hall
-                var d = math.distance(xz, pool.Centre.xz);
-                if (d < pool.Radius * 1.2f)
-                    shape -= pool.Depth * math.smoothstep(pool.Radius * 1.2f, pool.Radius * 0.7f, d);
+                // Lobes only pull the rim in, so the plain distance is a safe first test (the noise is skipped far off).
+                if (math.distancesq(xz, pool.Centre.xz) >= pool.Radius * pool.Radius * 1.44f)
+                    continue;
+                var u = PoolAcross(pool, xz);
+                if (u < 1.2f)
+                    shape -= pool.Depth * math.smoothstep(1.2f, 0.7f, u);
             }
             return shape;
+        }
+
+        /// <summary>
+        /// W-172 (#277): how far across a pool's basin a spot is, 0 at the middle and 1 at the rim. A water pool's rim is
+        /// pulled in by up to about a third in a few smooth lobes (seeded by where the pool is), so no basin, and so no
+        /// shoreline, is a perfect disc. Inward only: a pool never reaches past its Radius, so every rim check and box
+        /// made from the Radius still holds. Lava keeps its round basin (its glow and surface are drawn as discs),
+        /// and a lake its own floor (HallFloor).
+        /// </summary>
+        public static float PoolAcross(in CavePool pool, float2 xz)
+        {
+            var off = xz - pool.Centre.xz;
+            var d = math.length(off);
+            if (pool.Lava > 0.5f || pool.Hall > 0f || d < 1e-4f)
+                return d / pool.Radius;
+            return d / (pool.Radius * PoolLobe(pool.Centre.xz, off / d));
+        }
+
+        /// <summary>
+        /// W-172: how far a water pool's rim reaches in a direction (unit, world xz), as a share of its Radius
+        /// (0.62..1): a few smooth lobes seeded by where the pool is. Shared by PoolAcross and a lake room's basin.
+        /// </summary>
+        public static float PoolLobe(float2 centre, float2 dir)
+        {
+            var seed = centre * 0.173f;
+            return 1f - 0.26f * (0.5f + 0.5f * noise.snoise(dir * 1.1f + seed))
+                      - 0.12f * (0.5f + 0.5f * noise.snoise(dir * 2.6f - seed));
         }
 
         /// <summary>
@@ -500,7 +530,9 @@ namespace Punchy.Terrain
                 var rib = Rib(c, p);
                 n += (rib * rib - 0.4f) * 0.75f * c.Wall.z * math.smoothstep(0.06f, 0.3f, up) * lift;
             }
-            return n;
+            // W-172 row 6: near the floor the relief never pushes rock in further than the height above it, so a strong
+            // facet or ridge can't leave a slab of rock floating at a rider's chest over a main path (c21's fin).
+            return math.min(n, math.max(0f, p.y - floorY - 0.35f) * 0.8f);
         }
 
         /// <summary>
@@ -829,10 +861,13 @@ namespace Punchy.Terrain
             air = math.max(air, -fill);
             if (r.Type == (int)CaveRoomType.Lake)
             {
-                // A round basin in the middle of the floor. A-91: a bowl, its sides sloping in (1 down in 1.6 across)
+                // A basin in the middle of the floor. A-91: a bowl, its sides sloping in (1 down in 1.6 across)
                 // rather than a sheer 1.6 m drop, so whoever walks in can walk back out (a main path may end here).
-                var radius = LakeRadius(r);
-                var across = math.length(l.xz - new float2(0f, r.HZ));
+                // W-172: its rim lobed like every water pool's (PoolLobe, in world directions so it matches the pool
+                // record's PoolAcross), so the lake's shoreline is not a disc.
+                var off = p.xz - r.Centre.xz;
+                var across = math.length(off);
+                var radius = LakeRadius(r) * (across > 1e-4f ? PoolLobe(r.Centre.xz, off / across) : 1f);
                 var side = (across - math.max(radius + math.min(l.y, 0f) * 1.6f, 0.5f)) * 0.53f;
                 air = math.min(air, math.max(side, math.max(-l.y - LakeDepth, l.y - 0.5f)));
             }
@@ -1075,11 +1110,13 @@ namespace Punchy.Terrain
                     ref var pool = ref set.Pools[i];
                     if (pool.Lava > 0.5f || pool.Centre.y <= surface)
                         continue;
-                    var d = math.distance(p.xz, pool.Centre.xz);
-                    if (d >= pool.Radius)
+                    if (math.distancesq(p.xz, pool.Centre.xz) >= pool.Radius * pool.Radius)
                         continue;
-                    // The floor at the middle is 0.12 m over the surface, sunk by FloorShape's basin.
-                    var b = pool.Centre.y + 0.12f - pool.Depth * math.smoothstep(pool.Radius * 1.2f, pool.Radius * 0.7f, d);
+                    var u = PoolAcross(pool, p.xz);
+                    if (u >= 1f)
+                        continue;
+                    // The floor at the middle is 0.12 m over the surface, sunk by FloorShape's (lobed) basin.
+                    var b = pool.Centre.y + 0.12f - pool.Depth * math.smoothstep(1.2f, 0.7f, u);
                     if (p.y > pool.Centre.y + WaterReachAbove || p.y < b - WaterReachBelow)
                         continue;
                     surface = pool.Centre.y;
