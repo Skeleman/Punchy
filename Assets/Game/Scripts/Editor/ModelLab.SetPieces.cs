@@ -31,6 +31,7 @@ namespace Punchy.EditorTools
 
         string[] setPieceNames;
         int setPieceVariant;
+        int setPieceVariantCount; // a building species' variant count; 0 for cave rooms (any seed)
         string setPieceNote = "";
         readonly List<Mesh> setPieceMeshes = new List<Mesh>();
 
@@ -52,7 +53,38 @@ namespace Punchy.EditorTools
         }
 
         /// <summary>Shows a set piece by its list name (see <see cref="SetPieceNames"/>), variant 0.</summary>
-        public static ModelLab LoadSetPiece(string name) => Load(name);
+        public static ModelLab LoadSetPiece(string name)
+        {
+            var w = Open();
+            w.setPieceVariant = 0;
+            w.LoadByName(w.nameField = name);
+            return w;
+        }
+
+        /// <summary>M-08 row 2: rebuilds the loaded set piece as another variant (a building's variant, clamped to its
+        /// species' count; a cave room's seed). Returns the variant shown.</summary>
+        public static int SetPieceVariant(int variant)
+        {
+            var w = Open();
+            w.StepSetPiece(variant);
+            return w.setPieceVariant;
+        }
+
+        void StepSetPiece(int variant)
+        {
+            if (family != Family.SetPiece || string.IsNullOrEmpty(loadedName))
+                return;
+            var name = loadedName;
+            var yaw = orbitYaw;
+            var pitch = orbitPitch;
+            var z = zoom;
+            setPieceVariant = math.max(0, variant);
+            LoadByName(name);
+            // (Stepping keeps the camera where it was, so variants compare in place.)
+            orbitYaw = yaw;
+            orbitPitch = pitch;
+            zoom = z;
+        }
 
         /// <summary>A set piece's meshes, bounds and size, or null if it is no set piece's name.</summary>
         public static string SetPieceInfo()
@@ -100,7 +132,8 @@ namespace Punchy.EditorTools
                 Debug.LogWarning($"Model Lab: no flora species called '{speciesName}'.");
                 return false;
             }
-            setPieceVariant = math.clamp(setPieceVariant, 0, species.Variants - 1);
+            setPieceVariantCount = math.max(1, species.Variants);
+            setPieceVariant = math.clamp(setPieceVariant, 0, setPieceVariantCount - 1);
             FloraModel model;
             try
             {
@@ -124,6 +157,7 @@ namespace Punchy.EditorTools
 
         bool BuildRoom(string typeName)
         {
+            setPieceVariantCount = 0;
             if (!Enum.TryParse(typeName, out CaveRoomType type))
             {
                 Debug.LogWarning($"Model Lab: no cave room type called '{typeName}'.");
@@ -266,13 +300,30 @@ namespace Punchy.EditorTools
             {
                 var pick = EditorGUILayout.Popup("Set piece", current, names);
                 if (pick >= 0 && pick != current)
+                {
+                    setPieceVariant = 0;
                     LoadByName(nameField = names[pick]);
+                }
             }
         }
 
         void DrawSetPiecePanel()
         {
             GUILayout.Label("Set piece", EditorStyles.boldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var isRoom = loadedName.StartsWith(RoomPrefix);
+                var v = setPieceVariant;
+                if (GUILayout.Button("<", GUILayout.Width(24f)))
+                    v--;
+                v = EditorGUILayout.IntField(isRoom ? "Seed" : "Variant", v);
+                if (GUILayout.Button(">", GUILayout.Width(24f)))
+                    v++;
+                if (GUILayout.Button("Random", GUILayout.Width(60f)))
+                    v = UnityEngine.Random.Range(0, isRoom ? 100000 : setPieceVariantCount);
+                if (v != setPieceVariant && v >= 0)
+                    StepSetPiece(v);
+            }
             EditorGUILayout.LabelField(setPieceNote, EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.HelpBox("View only: built by the game's own builders from its definitions. Editing and saving " +
                                     "buildings waits on W-175's unit format (M-06 row 5).", MessageType.Info);
