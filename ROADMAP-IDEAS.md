@@ -14,7 +14,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 ## World and far view
 - **Far views (#298).** The whole island in sight: ground to the horizon, far forest, far life. Shipped: far
   terrain ring to about 3 km (W-131), tree and shrub impostors (R-7, R-11), far herds (A-108 row 2, PR #428), one population (A-110, PR #430). Next: R-22 (whole-island ground,
-  far forest, weather haze, approved 11-13), R-23 (one lighting path). Shipped: A-108 row 4 details (far eagle, herd dust, dawn lake rings, PR #444); R-23 row 2 one surface lighting path (PR #454).
+  far forest, weather haze, approved 11-13), R-23 (one lighting path). Shipped: A-108 row 4 details (far eagle, herd dust, dawn lake rings, PR #444); R-23 row 2 one surface lighting path (PR #454); row 3 Sky.hlsl split and cloud/wide shadow dim only direct sun on every lit surface (PR #483). In flight: R-23 row 4 fades by screen size; R-22 row 1 whole island (draft PR #482).
 - **Cliffs (#281 closed, #327; DESIGN-cliffs.md). Top concern (Zach 11-15).** Cliffs built as the ground itself. Shipped: steep ground reads as layered
   rock (R-19), mountain tunnels (W-138). Shipped: the scarp builder W-155 (big cliffs and river banks, PR #377), the cliff kit on sea cliffs and mesas (W-150, PR #386); walk and climb (row 3) and the shared rock wall with
   caves (W-162, #327) come after; caves climb by the same method (W-144's routes fold into W-162). Shelves with homes, ruins and flora are later.

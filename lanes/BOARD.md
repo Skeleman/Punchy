@@ -46,7 +46,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | b/fix-lake-ring-hash | #298 | fauna | merged #447, #449 | | lake ring and sky-bird seeds scrambled |
 | fauna/lab-herds | #412 | fauna | merged #453 11-16; host+join check in next playtest build | fauna/lab-herds | stale comments: CreatureSpecies.FromHomes, FaunaDirector.Build MergeHomes |
 | R-28 r2 | #312 | render-2 | merged #454 (R-23 r2), #455 (R-15 r1-3); cobble-depth held for job 86 | render/cobble-depth@ce3ff5a7 ready for PR (BC1091 fixed, job 86 unblocked); render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); render/one-surface@5c25c3fd ready for PR (R-23 r2, job 82 pass) | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
-| R-23 r3 | #298 | render-2 | part A verified (118/122 same code, pixels within noise); part B next | render/one-surface-3@9795d6a3 | Refresh + ShaderHasError + pixel-diff vs main (expect 0), then Surface.hlsl moves per design note; compile time/variants to BENCH | Design note in render-2 handoff 11-16 |
+| R-23 r4 | #298 | render-2 | next, editor after world W-176 | render/one-surface-4 (new off main) | r3 merged PR #483. Row 4: Creature close-detail and bark relief fades by screen size (rule 20) |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-45 | #24 | player (fishing agent) | DONE, merged #466 | player/dungeon-pieces@44630e60 | -place piece:hall/deadend/pool, walk 0 falls, sockets checked, design note. Follow-up: 2 temple sockets in walls |
