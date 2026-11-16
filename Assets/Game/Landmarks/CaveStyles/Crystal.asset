@@ -92,3 +92,4 @@ MonoBehaviour:
   CrackBreakup: 0
   RoomChance: 0.6
   RoomWeights: {x: 3, y: 1, z: 0.3, w: 0.3}
+  RockKind: 5
