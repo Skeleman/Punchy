@@ -1775,3 +1775,18 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Play-mode suite on main 6b7bad3d plus the fix (batchmode, port 7982): 77 total, 57 passed, 0 failed, 20 skipped, 431 s. Setup_SpawnRainAndShot passed in 12 s (before: timed out at 660 s). "Weather: forced Clear" now runs (4 times in the log). Unity exited 0.
 - No shot (test change only).
 - Shares: Shots.Settled, the one ready-gated shot helper. Take is now used only by Explicit tests.
+
+## P-37 row 1 (#369): no loading screen, done (verified) - player/no-loading@ecbe31d9
+- Choice: hold the camera on the sky, not a fade. While the first load runs (and a client's join re-bake), ThirdPersonCamera looks up (pitch -85). Once the world is ready it tilts down over 1.4 s.
+- "World is ready" uses the same test as before: LoadVeil still tracks the load (near ring in, or 4 s after the island is up) but no longer paints it. The new `LoadVeil.FirstLoad` drives the hold. `-loadveil` brings back the old painted veil. Jump veils (camera moves over 300 m) still paint.
+- LoadVeil.cs is a world-lane file. The edit is narrow: one flag, two read-only properties and one early return in the painter. ShotTool.Ready also waits for "sky hold".
+- Verified on a dev build, port 7982, host plus joined client, each grabbing a screen every 1.5 s for 80 s:
+  - Host: veil on at 4.7 s, off at 33.6 s; sky held for the whole load, settled view by 42 s.
+  - Client (joined at about 35 s): veil on at 5.0 s, off at 19.9 s; sky held, settled by 27.6 s.
+  - 0 exceptions on either side.
+- Shots: D:/Unity/PunchyMilestones/P-37/row1/ (1-host-sky-hold, 2-client-join-sky-hold, 3-client-settled).
+- Row 2 finding (asking before editing): the light on the player's body in the dark is the automatic cave lantern in Terrain/Caves/CaveSystem.cs (world lane, 2703 lines, over the 2500 limit).
+  - What it does: UpdateLantern (line 2605) and LanternWanted (2626) turn on a point light at the player when FloorUnder says they are in a cave, scaled by depth. UpdateOtherLanterns (2669) does the same for other players. PlaceLantern (2650) goes through LightBudget (Carried) and also sets _PunchyLantern/_PunchyLanternColor for cave flora.
+  - Bat folk dark vision is separate (Camera/BatVision.cs, an exposure volume), so turning the lantern off leaves it alone.
+  - Plan if allowed: move the lantern into a new partial (CaveSystem.Lantern.cs) and have it follow a held light item (ItemDef.Light, the Torch has 11) instead of "in a cave". The starting torch goes in Items/Gear (player files): give one Torch to a character with no save.
+- Shares: LoadVeil (the one load/ready gate) drives the start view. No second "world ready" check.
