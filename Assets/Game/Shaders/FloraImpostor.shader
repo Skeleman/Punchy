@@ -188,7 +188,7 @@ Shader "Punchy/FloraImpostor"
                 if (!leafy)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
-                    half sheenFar = lerp(0.25, 1, smoothstep(30, 120, distance(positionWS, GetCameraPositionWS())));
+                    half sheenFar = lerp(0.25, 1, smoothstep(30, 120, PunchyReferenceDistance(distance(positionWS, GetCameraPositionWS()))));
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground);
                 }
                 color = PunchySurfaceFinish(color, ps);

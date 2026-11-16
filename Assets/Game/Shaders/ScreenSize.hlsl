@@ -3,8 +3,9 @@
 
 // DetailPolicy.ScreenSize for shaders (rule 20): how big something looks, in reference pixels (1080 lines at the
 // camera's real field of view, times Graphics Detail), never fixed metres. Reference pixels come from this camera's own
-// projection, so a zoom, a wider view or a reflection camera each get their own; Detail comes from DetailPolicy.SetView.
+// projection, so a zoom, a wider view or a reflection camera each get their own; Detail comes from DetailPolicy, set before every frame draws.
 float _PunchyDetail;   // GraphicsSettings.Detail (1 = Medium, as tuned); unset reads as 1
+float _PunchyViewPpm;  // the main camera's reference pixels a metre, times Detail (DetailPolicy); unset reads as the tuning view
 
 // Reference pixels a metre spans at 1 m: DetailPolicy.PixelsPerMetreAt(fov) = 1080 / (2 tan(fov / 2)), times Detail.
 float PunchyPixelsPerMetre()
@@ -24,6 +25,20 @@ float PunchyScreenSize(float size, float distance)
 float PunchyReferenceDistance(float distance)
 {
     return distance * 935.3 / PunchyPixelsPerMetre();
+}
+
+// The main camera's reference pixels a metre, for fades that must agree across passes: a vertex fade in a shared
+// include runs in shadow, depth and cache passes too, whose projections aren't the view's, so it reads the main
+// camera's from DetailPolicy instead of this pass's own.
+float PunchyMainPixelsPerMetre()
+{
+    return _PunchyViewPpm > 0 ? _PunchyViewPpm : 935.3 * (_PunchyDetail > 0 ? _PunchyDetail : 1.0);
+}
+
+// PunchyReferenceDistance at the main camera, the same in every pass.
+float PunchyMainReferenceDistance(float distance)
+{
+    return distance * 935.3 / PunchyMainPixelsPerMetre();
 }
 
 #endif

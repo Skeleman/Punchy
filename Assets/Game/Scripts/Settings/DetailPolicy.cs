@@ -65,12 +65,36 @@ namespace Punchy.Settings
                 Detail = GraphicsSettings.Detail,
                 Shadows = GraphicsSettings.Shadows
             };
-            // The shaders' screen-size fades (ScreenSize.hlsl) take their pixels from each camera's projection and Detail
-            // from here.
-            Shader.SetGlobalFloat(DetailId, GraphicsSettings.Detail);
+            PushShaderView();
         }
 
+        // The shaders' screen-size fades (ScreenSize.hlsl) read Detail and the main camera's reference pixels from these
+        // globals. They are set before every frame draws, from the render loop itself, so they never depend on a system
+        // calling SetView (a posed shot camera or a scene without critters still gets them), and a Detail change in
+        // GraphicsSettings reaches the shaders on the next frame.
         static readonly int DetailId = Shader.PropertyToID("_PunchyDetail");
+        static readonly int ViewPpmId = Shader.PropertyToID("_PunchyViewPpm");
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void InitShaderView()
+        {
+            UnityEngine.Rendering.RenderPipelineManager.beginContextRendering -= BeforeRender;
+            UnityEngine.Rendering.RenderPipelineManager.beginContextRendering += BeforeRender;
+            PushShaderView();
+        }
+
+        static void BeforeRender(UnityEngine.Rendering.ScriptableRenderContext context, System.Collections.Generic.List<UnityEngine.Camera> cameras)
+            => PushShaderView();
+
+        /// <summary>Sets the shaders' Detail and main-camera reference pixels a metre (times Detail) from the current
+        /// settings; before any camera, the tuning view's 60 degrees.</summary>
+        static void PushShaderView()
+        {
+            var detail = GraphicsSettings.Detail;
+            var cam = UnityEngine.Camera.main;
+            Shader.SetGlobalFloat(DetailId, detail);
+            Shader.SetGlobalFloat(ViewPpmId, PixelsPerMetreAt(cam != null ? cam.fieldOfView : ReferenceFov) * detail);
+        }
 
         public static float PixelsPerMetreAt(float fovDegrees)
             => ReferenceLines / (2f * math.tan(math.radians(math.clamp(fovDegrees, 5f, 170f)) * 0.5f));
