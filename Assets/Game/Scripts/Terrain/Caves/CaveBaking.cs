@@ -45,6 +45,17 @@ namespace Punchy.Terrain
         /// human walks under it upright past the wall noise: a squat passage near a mouth sinks its floor instead.
         /// </summary>
         const float MainHead = 2.8f;
+        /// <summary>
+        /// W-172 row 6: the clearance a main path keeps for a horse with its rider (m, floor to the lowest point of the
+        /// ceiling's noise, measured with the walk probe over all caves). The passage's planned top is lifted by the
+        /// share of the ceiling's jagged reach that the noise actually dips (CeilingDip), so the rider clears it.
+        /// </summary>
+        public const float RiderHead = 2.6f;
+        /// <summary>
+        /// W-172 row 6: the share of CaveSampling.JaggedReach a ceiling dips at worst on a main path. 0.75 left rocky
+        /// caves 0.1-0.4 m short (c2, c21 on the 11-15 layout), so the full reach.
+        /// </summary>
+        const float CeilingDip = 1f;
 
         /// <summary>A node a side passage can start from, and the way its own passage was heading there.</summary>
         struct Attach
@@ -137,7 +148,10 @@ namespace Punchy.Terrain
                 // too tall for the rock over its graded floor is made lower (down to MinMain of the passage radius)
                 // rather than sunk, so a chamber near a mouth is squat instead of a pit.
                 var tall = profile.y * (1.45f + (1f - flatness) * 0.65f);
-                var minMain = math.max(r * MinMain, MainHead / tall);
+                // W-172 row 6: the smallest radius whose top clears a ridden horse past the ceiling's noise. Main path
+                // nodes are never laid smaller, and never squashed below it (a thin roof sinks the floor instead).
+                var horse = (RiderHead + CaveSampling.JaggedReach * rock.x * CeilingDip) / tall;
+                var minMain = math.max(math.max(r * MinMain, MainHead / tall), horse);
                 void Grade(List<int> path, List<float> want, List<float> ceil)
                 {
                     var n = path.Count;
@@ -200,7 +214,7 @@ namespace Punchy.Terrain
                 // The entrance: starting just outside the face, so the passage cuts cleanly into it.
                 var start = MouthAt(inst, type);
                 var mouth = new float3(start.x, floor + r * 0.4f, start.y);
-                var previous = AddNode(mouth, r, CaveNodeKind.Passage);
+                var previous = AddNode(mouth, math.max(r, horse), CaveNodeKind.Passage);
                 var heading = math.atan2(forward.y, forward.x);
                 var p = start;
                 var steps = math.max(3, (int)math.ceil(type.CaveLength * Grow / NodeSpacing));
@@ -228,6 +242,7 @@ namespace Punchy.Terrain
                     var nodeRadius = k == steps ? chamber
                         : isChamber ? chamber * rng.NextFloat(0.6f, 0.85f)
                         : r * math.lerp(1f, rng.NextFloat(0.85f, 1.2f), wander);
+                    nodeRadius = math.max(nodeRadius, horse);
                     // Down by the cave's depth, and always a good way under the surface above.
                     var y = floor + r * 0.4f - type.CaveDepth * math.smoothstep(0.1f, 1f, t);
                     var top = k > 1 ? Ceiling(p, nodeRadius, k <= 3 ? forward : default) : float.MaxValue;
@@ -317,6 +332,8 @@ namespace Punchy.Terrain
                         bp += new float2(math.cos(bh), math.sin(bh)) * NodeSpacing;
                         var end = k == bsteps;
                         var nodeRadius = end ? chamber * rng.NextFloat(0.45f, 0.7f) : r * math.lerp(0.9f, rng.NextFloat(0.7f, 1.05f), wander);
+                        if (main)
+                            nodeRadius = math.max(nodeRadius, horse);
                         var top = Ceiling(bp, nodeRadius);
                         var y = math.min(math.lerp(origin.y, targetY, k / (float)bsteps), top);
                         var node = AddNode(new float3(bp.x, y, bp.y), nodeRadius, end ? CaveNodeKind.Chamber : CaveNodeKind.Passage);

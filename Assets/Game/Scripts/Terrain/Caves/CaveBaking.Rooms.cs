@@ -202,16 +202,18 @@ namespace Punchy.Terrain
                     }
             if (half * 2f < 1.9f)
                 return Miss(2);
-            room.DoorWidth = math.clamp(half * 2f - 0.6f, 1.6f, 2.4f);
-            room.DoorHeight = math.clamp(gap - 0.3f, 2f, 3f);
+            // W-172 row 6: a little wider and taller where the passage allows (a ridden horse goes through), and lowered
+            // in finer steps so a sloping roof doesn't cost the door 0.4 m at a time.
+            room.DoorWidth = math.clamp(half * 2f - 0.4f, 1.6f, 2.4f);
+            room.DoorHeight = math.clamp(gap - 0.2f, 2f, 3f);
             // The doorway's top corners must be in the passage's air too (a sloping roof lowers it).
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < 10; k++)
             {
                 var corner = room.World(new float3(room.DoorWidth * 0.5f, room.DoorHeight, -t - 0.3f));
                 var other = room.World(new float3(-room.DoorWidth * 0.5f, room.DoorHeight, -t - 0.3f));
                 if (source.CaveDistance(corner) < 0f && source.CaveDistance(other) < 0f)
                     break;
-                room.DoorHeight -= 0.4f;
+                room.DoorHeight -= 0.1f;
             }
             if (room.DoorHeight < 2f)
                 return Miss(3);
