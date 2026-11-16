@@ -5316,3 +5316,16 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Cost: cache hit unchanged; changed edits = one rebake. Numbers via BENCH-QUEUE after row 2.
 - Zach: refit (hashes move) vs places fixed; brush set raise/lower/smooth/flatten.
 - NEXT: stop for Zach's OK and the W-174 answer.
+
+## A-131 (#25) folk dialogue options [folk]
+
+### Row 1 - options data + Choose (no UI), done (verified)
+- folk/dialogue-options@67de6050. FolkConversation.Options.cs (new partial), FolkConversation.cs (+97/-34: ParseLine split, ParseConditions out, Answer.Options), TestHooks.Options.cs.
+- Lines take `options` (1-4 replies: say, then, do). Choose(who, shown, i) follows `then`, runs `do` from accept, decline, end and gesture:<emote> only; depth cap 3 (then the defaults). Reply-only topics never show in the topic list.
+- Default quest/item Accept/Decline is now the first options list (DefaultOptions, rule 33). Answer.ToString shows `replies: ...`.
+- Check (no shot; card asks none): FolkConversationTests 12/12 (Beast_Shots is Explicit, left out by filter). Options_ParseAndNameBadOnes names 8 bad kinds; Options_ChooseChain walks work > bees > honey (accept carries Item:honey) > stings, wave, goodbye; Options_DefaultAcceptDeclineUnchanged passes; archive shipped problems 0; 5760 answers per culture, 0 unfilled.
+- No host-state `do` (no pay/give), nothing on the wire, so no rule 11 ask from this row.
+- Ask (player lane, rule 11): FolkTalk still builds its own accept/decline from the offer; wiring Answer.Options and Choose into the talk UI is theirs.
+- Note: `-testFilter FolkConversationTests` also selects the Explicit Beast_Shots, which stalls on a busy machine; filter by test names.
+- Shares: FolkConversation talk book + JsonProblems (one dialogue system); the Accept/Decline pair folded in. No other parallel found.
+- NEXT: row 2 (hermit, innkeeper, guard exchanges).
