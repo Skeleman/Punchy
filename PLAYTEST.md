@@ -203,3 +203,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #510 player/item-ids, P-35 r3 rows 2-5 (#26): item record ids, stacks, catalog in the world sync check. Playtest: take from a walk-in chest solo and as a joiner.
 - 11-16: #512 world/ground-holes, W-174 r4a (#405): one hole mask for cave mouths, temple entrances and scarp strips. Playtest: no plants standing in the sunken temple's opening or on scarp steps.
 - 2026-11-16: #513 R-40 (#511) soft wide shadows, one shadow per point at the URP hand-off (render).
+- 2026-11-16: #514 P-51 r2 (#337) walk-in elf towers with a climbable stair under -seamless (player-2). Playtest: enter an elf tower, climb to the top floor.
