@@ -107,7 +107,8 @@ namespace Punchy.Terrain
         /// Blades per grass instance: a tuft fanned from one root (GroundDetail.hlsl ClumpMember), 1 for lone blades as
         /// before (-grassclumps 0). Prototype (Zach, 11-08): clumps sell a continuous field where even stubble didn't.
         /// </summary>
-        static readonly int ClumpBlades = System.Environment.CommandLine.Contains("-grassclumps 0") || ReadProto() == 4 ? 1 : 5;
+        static int ClumpBlades => NoClumps || Proto == 4 ? 1 : 5;
+        static readonly bool NoClumps = System.Environment.CommandLine.Contains("-grassclumps 0");
         /// <summary>Instances per square metre with clumps, as a share of GrassPerSquareMetre: half as many roots, five
         /// blades each, so about 2.5 times the blades, gathered in tufts.</summary>
         const float ClumpDensity = 0.5f;

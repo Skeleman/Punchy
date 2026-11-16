@@ -18,8 +18,9 @@ namespace Punchy.Debugging
         public static readonly float[] Distances = { 3f, 8f, 15f, 25f };
 
         /// <summary>Coverage at each of <see cref="Distances"/>, from the main camera as it stands. groundY is the
-        /// ground height under the camera (NaN: a raycast down finds it).</summary>
-        public static string Measure(float groundY = float.NaN, int width = 1920, int height = 1080)
+        /// ground height under the camera (NaN: a raycast down finds it). savePath, if given, keeps the probe
+        /// image (a PNG) to check the count against.</summary>
+        public static string Measure(float groundY = float.NaN, int width = 1920, int height = 1080, string savePath = null)
         {
             var cam = Camera.main;
             if (cam == null)
@@ -46,6 +47,8 @@ namespace Punchy.Debugging
             RenderTexture.active = rt;
             read.ReadPixels(new Rect(0, 0, width, height), 0, 0);
             read.Apply();
+            if (savePath != null)
+                System.IO.File.WriteAllBytes(savePath, read.EncodeToPNG());
             RenderTexture.active = prev;
             RenderTexture.ReleaseTemporary(rt);
             var px = read.GetPixels32();

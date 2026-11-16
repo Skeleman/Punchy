@@ -19,12 +19,23 @@ namespace Punchy.Terrain
     /// </summary>
     public partial class GroundDetailSystem
     {
-        /// <summary>The prototype in use, 0 for none, 1-4 for a-d (-grassproto). Read once.</summary>
-        static readonly int Proto = ReadProto();
+        /// <summary>The prototype in use, 0 for none, 1-4 for a-d (-grassproto, or SetProto for the sheet).</summary>
+        static int Proto = ReadProto();
+
+        /// <summary>Switches prototype in play (debug, for the R-31 sheet): every tile is rebuilt with the new counts.</summary>
+        public void SetProto(int proto)
+        {
+            Proto = math.clamp(proto, 0, 4);
+            DropTiles();
+        }
+
+        // Play mode starts without a domain reload: read the switch afresh each run (it can come from Temp/PlayArgs.txt).
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetProto() => Proto = ReadProto();
 
         static int ReadProto()
         {
-            var args = System.Environment.GetCommandLineArgs();
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-grassproto" && args[i + 1].Length == 1 && args[i + 1][0] >= 'a' && args[i + 1][0] <= 'd')
                     return args[i + 1][0] - 'a' + 1;

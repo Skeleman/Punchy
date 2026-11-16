@@ -93,9 +93,9 @@ void BuildBezierBladeVertex(Blade blade, uint instance, uint vertex, uint verts,
     // The clump's shared lean, with each blade turned a little off it and splayed out from the clump's centre.
     float2 centre;
     float2 clump = GrassClumpCell(blade.position.xz, centre);
-    float shared = clump.x * 6.2832;
+    float clumpTurn = clump.x * 6.2832;
     float2 out2 = blade.position.xz - centre;
-    float2 dir2 = lerp(float2(cos(blade.facing), sin(blade.facing)), float2(cos(shared), sin(shared)), 0.7)
+    float2 dir2 = lerp(float2(cos(blade.facing), sin(blade.facing)), float2(cos(clumpTurn), sin(clumpTurn)), 0.7)
                 + out2 / GRASS_CLUMP_SIZE * 0.6;
     dir2 = normalize(dir2 + 1e-4);
     float3 forward = float3(dir2.x, 0, dir2.y);
