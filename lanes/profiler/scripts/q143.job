@@ -1,0 +1,30 @@
+# Job 96b (world #400 request, 2026-11-16): Job 96's tunnel entry with the chunk-mesh budget. world/chunk-mesh-budget
+# landed on main as #509 (d2ac9d1c = B) over 9533f61b (A, its parent). q137b's route unchanged: from 20 m outside
+# W-172's mouth through the bore, 140 m at 6 m/s, gravity on the floor, noon Clear, Medium, -hitchms 33. 3 timed rounds
+# per arm, alternated; then one Profiler run per arm analysed for every main frame over 33 ms (BuildChunkMeshJob on
+# workers, JobHandle.Complete under CreatureRenderSystem).
+Q=q143; TITLE="job 96b tunnel entry, chunk-mesh budget"
+BUILDS="d2ac9d1 9533f61"
+VIEWS="entry"
+view() { echo "-goto -2049.7,674.5 -benchstops line -benchline -2049.7,674.5,-2128.5,789.8,6,-200 -benchhour 12 -benchweather Clear -hitchms 33"; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-d2ac9d1";; A) echo "Profile-9533f61";; esac; }
+ROUNDS=3; GFX="Medium"; REF=A; BAR=0.3
+after() {
+  [ -n "${DRY:-}" ] && return
+  for a in B A; do
+    local o t; o=$(arm $a); t=$Q-prof-$a-cs100-1
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$a ${o#Profile-} s100 1 -gfx Medium -fpscap 0 $(view entry) \
+      -profiler-enable -profiler-log-file "$W/q-$t.raw" -profiler-maxusedmemory 1073741824
+    check "$R/q-$t.log"
+    cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+    cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+    ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+        -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$t.txt")" -over 33 -logFile "$W/analyze-$t.log" )
+    cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+    rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+    [ -f "$R/$t.txt" ] && rm -f "$R/q-$t.raw"
+    echo "== $t"; grep -a "^OVER\|frames used" "$R/$t.txt" | cut -c1-400 | head -20
+  done
+  for f in "$L"/q-$Q-*.log; do echo "-- $(basename $f): $(grep -ac 'BenchRoute: hitch' $f) over 33 | $(grep -ah 'BenchRoute: hitch' $f | sort -k3 -rn | head -3 | cut -c1-90 | tr '\n' '|')"; done
+}

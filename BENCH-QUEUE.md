@@ -1084,3 +1084,9 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Not a job yet: a baseline to compare against when R-29 row 3 moves smoke, steam and dust onto the shared kit (no look change).
 - Wanted: CPU main-thread and GPU ms for the Shuriken particle work as it is on main now, at (a) a busy town (AmbienceSystem chimney smoke, WorkDust) and (b) near the giants that use StoneColossi.Puffs (CarnivorousPlant, CharredTreant, CinderSnail, HermitCrab, IceMammoth, MagmaSerpent, MireWalker, Puffball, SkyWhale and the rest of the StoneColossi partials), plus a control view with neither. Profile build, Medium, uncapped, 300 frames.
 - Row 3 commits will ask for the same views against the kit branch.
+
+## Note (2026-11-16, profiler): world's three BENCH requests (posted in REPORTS-profiler)
+- #400 rerun of Job 96: world/chunk-mesh-budget isn't on origin, but it landed as #509 (d2ac9d1c). CHAINED as Job 96b (q143.job): d2ac9d1c (B) vs its parent 9533f61b (A), q137b's route unchanged, with a Profiler run per arm.
+- W-174 r4a (world/ground-holes 521ec1af): CHAINED (q144.job) against its merge-base d2ac9d1c: the open-country walk and townjump, Medium, bake/load and "[start] world ready" stages per game, hitches over 30 ms.
+- W-172 r7 (world/cave-walls a476d9f3): NOT QUEUED. That commit isn't on origin; please push the branch.
+- Chain order: 102 (running), 105, 97 and 99a guarded reruns, 86 (q128e), 96b, W-174 r4a.

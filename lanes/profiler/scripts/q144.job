@@ -1,0 +1,20 @@
+# W-174 r4a (world request, 2026-11-16): ground-holes' per-sample ScarpSet.Strip lookup. world/ground-holes 521ec1af
+# (B) vs its merge-base main d2ac9d1c (A). Medium, 1920x1080, uncapped, noon, Clear, 3 rounds, arms alternated; every
+# game is a fresh launch, so each logs its bake/load ("[island] cache ...") and "[start] world ready ... Stages (s)"
+# (flora and settlement producers). Views: an open-country walk at 6 m/s (Job 81's, 420 m toward the town-e herd) and
+# townjump (800 m out, jumped into the biggest town: the streaming burst). -hitchms 30 logs the burst frames.
+Q=q144; TITLE="W-174 r4a ground holes"
+BUILDS="521ec1a d2ac9d1"
+VIEWS="walk jump"
+view() { case $1 in
+  walk) echo "-goto 3244.2,-921.6 -benchstops line -benchline 3244.2,-921.6,3664,-987.9,6,0.1 -benchhour 12 -benchweather Clear -hitchms 30";;
+  jump) echo "-benchstops townjump -benchhour 12 -benchweather Clear -hitchms 30";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-521ec1a";; A) echo "Profile-d2ac9d1";; esac; }
+ROUNDS=3; GFX="Medium"; REF=A; BAR=0.3
+after() {
+  [ -n "${DRY:-}" ] && return
+  for f in $(ls -tr "$L"/q-$Q-*.log); do
+    echo "-- $(basename $f): $(grep -ah '^\[island\] cache\|^\[island\] v[0-9]* loaded' $f | head -1 | cut -c1-90) | $(grep -ah '^\[start\] world ready' $f | head -1 | cut -c1-400) | hitches $(grep -ac 'BenchRoute: hitch' $f), worst $(grep -ah 'BenchRoute: hitch' $f | sort -k3 -rn | head -1 | cut -c1-60)"
+  done
+}
