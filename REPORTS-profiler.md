@@ -2,6 +2,14 @@
 
 Newest first.
 
+## Job 86: cobble bevel parallax (render/cobble-depth ce3ff5a7 = B vs merge-base 5b953a34 = A), 2026-11-16 (q128c.job): **still INVALID, B's rebuild has no terrain either; cause found (a stale shader cache), clean rebuild q128d.job chained**
+**What happened:** q128c rebuilt B to a fresh folder and its log shows no FXC crash, but B's screenshots again show flat blue ground with grass floating on it (A shows the desert sand). The reason: the rebuild compiled nothing. Its log has no `Compiling shader "Punchy/Terrain Surface"` lines at all. Unity took every TerrainSurface variant from Library/ShaderCache, i.e. the broken output left there by q128b's crashed FXC run. So B's numbers are again meaningless: GPU 8.07 vs 14.2 ms (Medium desert), 11.67 vs 17.17 (Medium town), 12.3 vs 22.43 (High desert), 15.9 vs 21.7 (High town). The 5-10 ms "gain" is just the missing terrain pass.
+
+**Next:** q128d.job, at the end of the current chain (after q137b). The chain moves Library/ShaderCache and ShaderCache.db aside before the job, so B's build compiles every shader fresh, then puts the old cache back. Its before() stops the job unless the build log shows the terrain shader compiling with no FXC crash. I'll check the screenshots for terrain before reporting numbers. The replaced cache is kept in the results folder, not deleted.
+- Correction to the q128b report: the `MicroFades` "potentially uninitialized variable" warning also appears in A's (main's) build, at TerrainSurface.shader(212), so it isn't from the cobble branch.
+- **Note for everyone building on a PC that hit an FXC crash:** Unity can cache the crashed variants, and later builds reuse them without warning. If a build loses a pass after an FXC crash, clear Library/ShaderCache before rebuilding.
+
+Cost: laptop total $942 (laptop session e163d8ab; 1 build, 24 games).
 ## Job 96: v0.16 tunnel entry (#400; v0.16.0 4e02a1b0), 2026-11-16 (q137.job): **FAIL, far worse than a hitch: 4.6-8.5 fps for the whole run, frames up to 5.5 s**; cause not yet profiled
 **Setup:** Profile build of v0.16.0, 1920x1080, Medium, uncapped, 12:00, Clear. The card gives the start (`-goto -2089,259.3,732`) but no heading.
 - I took the heading from `-benchface` at that point: the slope rises toward yaw 45. The ground there is 268.4, so the card's y = 259.3 is 9 m under the surface, i.e. in the bore or portal cut.

@@ -856,7 +856,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   screen-size LOD) and ScarpSkinSystem; ground detail instance counts near the scarps (B leaves a bare margin).
 - Pass (rule 23): B within 0.3 ms GPU of A at each view, or name what to trim (debris LOD0 first).
 
-## Job 86 (2026-11-14, INVALID 11-16 (q128b.job: B's build lost the terrain pass to an FXC crash; rebuild q128c.job chained after 96); B = ce3ff5a7, A = its merge-base 5b953a34; UNBLOCKED 11-15: BC1091 fixed on render/cobble-depth ce3ff5a7 (player build succeeds), rerun with B = ce3ff5a7; q128.job ready (q128.job); render lane, R-28 row 2, #312): cobble bevel parallax and stone normals
+## Job 86 (2026-11-14, INVALID 11-16 x2 (q128b.job: FXC crash; q128c.job: the rebuild reused the crashed shader cache, still no terrain); clean-cache rebuild q128d.job chained last; B = ce3ff5a7, A = its merge-base 5b953a34; UNBLOCKED 11-15: BC1091 fixed on render/cobble-depth ce3ff5a7 (player build succeeds), rerun with B = ce3ff5a7; q128.job ready (q128.job); render lane, R-28 row 2, #312): cobble bevel parallax and stone normals
 - main 1746d62a (A) vs `render/cobble-depth` 4cd4edd8 (B). Profile builds, 1920x1080, Medium and High, uncapped,
   12:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: desert town square `-benchspot -342,560`; town 73 centre `-benchspot 2972,-885`.
