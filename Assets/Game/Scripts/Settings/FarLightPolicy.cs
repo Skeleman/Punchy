@@ -6,13 +6,15 @@ namespace Punchy.Settings
     /// <summary>
     /// What a light seen from far off is (R-10 row 4c). Each has a row in <see cref="FarLightPolicy"/>'s table.
     /// - Window: a lit house's windows. StreetLight: a town's street lamp. Both are fire-lit, so they're in the Fire tier.
-    /// - Fire: a burning tree (the Ember Forest), a beacon tower's fire, surface lava.
+    /// - Fire: a burning tree (the Ember Forest), a beacon tower's fire.
     /// - GlowPlant: glowing mushrooms and other glowing plants (the fungal forest).
     /// - Crystal: glass crystals' faint inner glow.
     /// - Creature: glowing eyes and markings, colossus lanterns (in the table, not drawn as far points yet: they move).
     /// - Campfire: a landmark's own flame (a camp's fire, a shrine's strange fire), in its own colour (R-25 row 3).
+    /// - Lava: surface lava, in lava's own colour and lit every night (R-25 row 5: as Fire it went dark on nights
+    ///   without a forest fire, so the fissure showed no orange far off).
     /// </summary>
-    public enum FarLightKind : byte { Window, StreetLight, Fire, GlowPlant, Crystal, Creature, Campfire }
+    public enum FarLightKind : byte { Window, StreetLight, Fire, GlowPlant, Crystal, Creature, Campfire, Lava }
 
     /// <summary>How strong a kind of light reads far off, strongest first (Zach 11-10: lights aren't equal).</summary>
     public enum FarLightTier : byte { Fire, Glow, Faint }
@@ -30,7 +32,7 @@ namespace Punchy.Settings
     /// </summary>
     public static class FarLightPolicy
     {
-        public const int KindCount = 7;
+        public const int KindCount = 8;
 
         public struct Rule
         {
@@ -53,6 +55,14 @@ namespace Punchy.Settings
         /// 4c is 5 (Zach: "turn the intensity down a little"; the bloom and the tonemap clip the cores, so a far town
         /// reads about 25% dimmer, not 37%).</summary>
         public static float Brightness = 5f;
+
+        /// <summary>
+        /// The most a far light's brightest channel reaches on screen before the tonemap (R-25 row 6). Brighter is
+        /// eased under it with the other channels scaled alike, so a warm light keeps its hue: at 5-7 a window's orange core clipped to white under the Neutral tonemap, where the near windows read orange.
+        /// Only light over 0.4 of the cap is eased, so the faint halo is untouched. Divided by the exposure lift (bat
+        /// eyes) so it holds on screen. 0 turns the easing off.
+        /// </summary>
+        public static float CoreCap = 1.5f;
 
         /// <summary>The tier table: each tier's brightness against the Fire tier's.</summary>
         public static float TierStrength(FarLightTier tier)
@@ -84,6 +94,10 @@ namespace Punchy.Settings
                 // 56 px of its 9 m reach), so the point is full by then: it fades in from 90 px (94 m) to 60 px (140 m).
                 case FarLightKind.Campfire:
                     return new Rule { Tier = FarLightTier.Fire, Size = 1.2f, MinPixels = 4f, HaloReach = 4f, HaloShare = 0.15f, HazeShare = 0.05f, Reach = 9f, FadeFrom = 90f, FadeTo = 60f };
+                // One point a glow-map texel of lava: a wide core and halo so a field's points run into one warm sheet.
+                // Handed off from lava's own glow reach (30 m, SurfaceGlow.World): 90-56 px is 300-500 m at the default view.
+                case FarLightKind.Lava:
+                    return new Rule { Tier = FarLightTier.Fire, Size = 6f, MinPixels = 3f, HaloReach = 4f, HaloShare = 0.2f, HazeShare = 0.05f, Reach = 30f, FadeFrom = 90f, FadeTo = 56f };
                 case FarLightKind.Crystal:
                     return new Rule { Tier = FarLightTier.Faint, Size = 1f, MinPixels = 3f, HaloReach = 3f, HaloShare = 0.15f, HazeShare = 0.1f, Reach = 6f, FadeFrom = 56f, FadeTo = 30f };
                 default:

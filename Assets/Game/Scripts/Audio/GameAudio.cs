@@ -158,6 +158,7 @@ namespace Punchy.Audio
                 }
                 making = null;
             }
+            KeepTerrainLive();
             Echo();
             Water();
             Hum();

@@ -585,7 +585,8 @@ namespace Punchy.Fauna
                     // with a torch; running at a beast, the weapon levelled at it, held low and forward at the hip. (With
                     // the weapon worn, or an elf's bow on its back, the arms swing free.)
                     // (Anyone carrying a torch holds it up so, guard or not.)
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Task == CreatureTask.Patrol && s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf || s.Held == HeldItem.Torch))
+                    if (part.Role == LimbRole.Arm && (part.Side > 0f && s.Task == CreatureTask.Patrol && s.Held == HeldItem.SpearDrawn && b.GuardKit != GuardKit.Elf ||
+                                                      part.Side * CreatureOutfit.HeldSide(in s) > 0f && s.Held == HeldItem.Torch))
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.8f);
                         var torch = s.Held == HeldItem.Torch;
@@ -594,15 +595,19 @@ namespace Punchy.Fauna
                     }
                     // Reaching for the weapon, drawing it or putting it away: the right hand up over the shoulder to
                     // the back, or down across to the left hip, and back, in half a second.
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe))
+                    // (A player's the same, through its sheathe key: Outfit.Stow, the reach at its height half way; Zach
+                    // 11-12 row 4.)
+                    var playerReach = s.Mode == CreatureMode.Puppet && s.Outfit.Kept != 0 && s.Outfit.Stow != 0 && s.Outfit.Stow != 255;
+                    if (part.Role == LimbRole.Arm && part.Side > 0f && (s.Action == IdleAction.Draw || s.Action == IdleAction.Sheathe || playerReach))
                     {
-                        var reach = math.sin(math.saturate(s.ActionTime) * math.PI);
-                        var toBack = s.Task == CreatureTask.Hunt || GuardWeapons.OnBack(b.GuardKit, s.Scale, b.StandHeight);   // (a hunter's spear is always on its back)
+                        var reach = playerReach ? math.sin(s.Outfit.Stow / 255f * math.PI) : math.sin(math.saturate(s.ActionTime) * math.PI);
+                        var toBack = playerReach ? Punchy.Items.FolkKits.OnBack(s.Outfit.Kept - 1, b.StandHeight)
+                                   : s.Task == CreatureTask.Hunt || GuardWeapons.OnBack(b.GuardKit, s.Scale, b.StandHeight);   // (a hunter's spear is always on its back)
                         a += (j == 0 ? (toBack ? new float3(-2.5f, 0f, -0.35f) : new float3(-0.35f, 0f, 0.75f))
                             : j == 1 ? (toBack ? new float3(-1.4f, 0f, 0f) : new float3(-1.0f, 0f, 0f)) : float3.zero) * reach;
                     }
                     // A traveller's staff in the right hand: the arm a little forward and bent, planting it as it goes.
-                    if (part.Role == LimbRole.Arm && part.Side > 0f && s.Held == HeldItem.Staff)
+                    if (part.Role == LimbRole.Arm && part.Side * CreatureOutfit.HeldSide(in s) > 0f && s.Held == HeldItem.Staff)
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
@@ -610,10 +615,18 @@ namespace Punchy.Fauna
                     // A player's weapon (P-28): the right arm bent, ready, the weapon up before it; a swing raises it
                     // over the shoulder and brings it down fast. A spear in both hands, levelled; a bow held out in the
                     // left, the right drawing the string back to the cheek.
-                    if (part.Role == LimbRole.Arm && s.Outfit.Weapon != CreatureWeapon.None)
+                    // (Zach 11-12: a sack, a bowl or dough in both arms, held to the chest as the folk carry ore; nothing to
+                    // swing.)
+                    var wArms = s.Outfit.Weapon == CreatureWeapon.OreSack || s.Outfit.Weapon == CreatureWeapon.Bowl || s.Outfit.Weapon == CreatureWeapon.Dough;
+                    if (part.Role == LimbRole.Arm && wArms)
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        a += j == 0 ? new float3(-0.8f, 0f, part.Side * 0.5f) : j == 1 ? new float3(-1.75f, 0f, 0f) : float3.zero;
+                    }
+                    else if (part.Role == LimbRole.Arm && s.Outfit.Weapon != CreatureWeapon.None)
                     {
                         var wSwing = s.Outfit.Swing == 0 ? 0f : (s.Outfit.Swing - 1) / 254f;
-                        var wTwo = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow;
+                        var wTwo = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow || s.Outfit.Weapon == CreatureWeapon.GreatClub;
                         if (part.Side > 0f || wTwo)
                             a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
                         if (s.Outfit.Weapon == CreatureWeapon.Bow)
@@ -635,6 +648,26 @@ namespace Punchy.Fauna
                             var wStrike = math.smoothstep(0.6f, 0.72f, wSwing) * (1f - math.smoothstep(0.8f, 1f, wSwing));
                             a.x += j == 0 ? -0.5f - 2.0f * wLift - 0.4f * wStrike : j == 1 ? -0.9f - 0.5f * wLift + 0.6f * wStrike : 0f;
                         }
+                    }
+                    // Something in the left hand (Zach 11-12: there's no off hand, either holds anything): held ready as
+                    // the right holds its own, bent and a little up, and swung on its own button the same way
+                    // (Outfit.LeftSwing).
+                    var twoRight = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow || s.Outfit.Weapon == CreatureWeapon.GreatClub;
+                    if (part.Role == LimbRole.Arm && part.Side < 0f && s.Outfit.LeftHand != CreatureWeapon.None && !wArms && !twoRight)
+                    {
+                        var lSwing = s.Outfit.LeftSwing == 0 ? 0f : (s.Outfit.LeftSwing - 1) / 254f;
+                        var lLift = lSwing < 0.55f ? math.smoothstep(0f, 0.55f, lSwing) : 1f - math.smoothstep(0.55f, 0.72f, lSwing);
+                        var lStrike = math.smoothstep(0.6f, 0.72f, lSwing) * (1f - math.smoothstep(0.8f, 1f, lSwing));
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        a.x += j == 0 ? -0.5f - 2.0f * lLift - 0.4f * lStrike : j == 1 ? -0.9f - 0.5f * lLift + 0.6f * lStrike : 0f;
+                    }
+                    // Raised to block (Zach 11-12, Outfit.Block): that arm up before the face, bent, what it holds across
+                    // in front of it; a two-handed thing with both arms.
+                    var blockRight = (s.Outfit.Block & 1) != 0;
+                    if (part.Role == LimbRole.Arm && (part.Side > 0f && blockRight || part.Side < 0f && ((s.Outfit.Block & 2) != 0 || blockRight && twoRight)))
+                    {
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.9f);
+                        a += j == 0 ? new float3(-1.35f, 0f, part.Side * 0.4f) : j == 1 ? new float3(-1.5f, 0f, 0f) : float3.zero;
                     }
                     // Meeting a messenger bird: the left forearm raised out in front at chest height, bent, for it to land
                     // on; once it's there, the right hand across to take the roll from its leg.
@@ -742,8 +775,9 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
                         a += j == 0 ? new float3(-0.8f, 0f, part.Side * 0.5f) : j == 1 ? new float3(-1.75f, 0f, 0f) : float3.zero;
                     }
-                    // A lantern in the off hand: that arm held a little forward and bent, hardly swinging.
-                    if (part.Role == LimbRole.Arm && part.Side < 0f && s.Held == HeldItem.Lantern)
+                    // A lantern in hand (one of the folk's left, a player's either: CreatureOutfit.HeldSide): that arm held a
+                    // little forward and bent, hardly swinging.
+                    if (part.Role == LimbRole.Arm && part.Side * CreatureOutfit.HeldSide(in s) > 0f && s.Held == HeldItem.Lantern)
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.75f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.55f : 0f;
@@ -1474,8 +1508,16 @@ namespace Punchy.Fauna
         static float Haul(float t, bool right) => math.smoothstep(-0.6f, 0.6f, math.sin(t * 1.7f + (right ? 0f : math.PI)));
 
         /// <summary>
+        /// An innkeeper's chore at its counter (A-132): 1 while it wipes the counter down, 0 while it stacks mugs, easing
+        /// from one to the other every half minute or so (offset per innkeeper so a town's keepers don't switch together).
+        /// </summary>
+        static float Wiping(in CreatureState s) =>
+            math.smoothstep(-0.25f, 0.25f, math.sin(s.Clock * 0.11f + (s.Individual % 97) * 0.37f));
+
+        /// <summary>
         /// The rest of a tender's body by its job (A-33): a baker leans over its table, bobbing into each push; a healer
-        /// is bent right over its bowl, head down; a well keeper leans back against the rope's weight.
+        /// is bent right over its bowl, head down; a well keeper leans back against the rope's weight; an innkeeper
+        /// leans in to wipe its counter.
         /// </summary>
         static float3 TendBody(ref CreaturePart part, in CreatureState s, int joint)
         {
@@ -1495,6 +1537,9 @@ namespace Punchy.Fauna
                 case FolkJob.FireTender:
                     // Upright, head bowed a little over the flame.
                     return new float3(torso ? 0.04f : 0.22f, 0f, 0f);
+                case FolkJob.Innkeeper:
+                    // (A-132) Leaning over the counter to wipe it, upright again to stack the mugs; head down at the work.
+                    return new float3((torso ? 0.06f : 0.2f) + 0.14f * Wiping(in s), 0f, 0f);
                 default:
                     return float3.zero;
             }
@@ -1615,6 +1660,22 @@ namespace Punchy.Fauna
                             var toss = math.smoothstep(0.66f, 0.74f, p) * (1f - math.smoothstep(0.74f, 0.88f, p));
                             var low = right ? 0f : 0.15f;
                             return new float3(joint == 0 ? -0.45f + low - 0.85f * lift - 0.5f * toss : -0.3f - 0.45f * lift + 0.35f * toss, 0f, 0f);
+                        }
+                        case FolkJob.Innkeeper:
+                        {
+                            // (A-132) Two chores at the counter in turn. Wiping it down: the right hand scrubs round in
+                            // small circles on the top while the left rests flat. Stacking mugs: each hand in turn lifts
+                            // a mug up to the stack at chest height and comes back down for the next.
+                            var wipe = Wiping(in s);
+                            var circle = t * 2.4f;
+                            var wipeArm = right
+                                ? new float2(-0.6f + 0.12f * math.sin(circle), -0.75f + 0.16f * math.cos(circle))
+                                : new float2(-0.45f, -0.9f);
+                            var p = math.frac(t * 0.42f + (right ? 0f : 0.5f));
+                            var lift = math.smoothstep(0.05f, 0.3f, p) * (1f - math.smoothstep(0.45f, 0.7f, p));
+                            var stackArm = new float2(-0.5f - 0.65f * lift, -0.85f + 0.35f * lift);
+                            var arm = math.lerp(stackArm, wipeArm, wipe);
+                            return new float3(joint == 0 ? arm.x : arm.y, 0f, 0f);
                         }
                         case FolkJob.Roofer:
                         {
@@ -1990,11 +2051,6 @@ namespace Punchy.Fauna
             return math.lerp(0.55f, -0.3f, math.smoothstep(0.55f, 1f, p));
         }
 
-        /// <summary>
-        /// Two-bone IK on a leg's first two segments: moves the end of the second segment by delta, keeping the knee
-        /// bending the way it did. The rest of the leg (foot, toes) keeps its orientation and shifts with it.
-        /// Returns how far the end of the leg moved.
-        /// </summary>
         /// <summary>How far over its hips folk's shoulders are, in standing heights (near enough for every folk body).</summary>
         const float MantleShoulder = 0.5f;
 
@@ -2014,6 +2070,11 @@ namespace Punchy.Fauna
             return 0f;
         }
 
+        /// <summary>
+        /// Two-bone IK on a leg's first two segments: moves the end of the second segment by delta, keeping the knee
+        /// bending the way it did. The rest of the leg (foot, toes) keeps its orientation and shifts with it.
+        /// Returns how far the end of the leg moved.
+        /// </summary>
         static float3 PlaceFoot(ref CreatureBlob b, ref CreaturePart part,
                                 ref FixedList4096Bytes<float3> segPos, ref FixedList4096Bytes<quaternion> segRot,
                                 float3 delta, float scale)

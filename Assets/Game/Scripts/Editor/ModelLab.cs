@@ -33,7 +33,7 @@ namespace Punchy.EditorTools
     /// </summary>
     public partial class ModelLab : EditorWindow
     {
-        enum Family { Creature, Colossus }
+        enum Family { Creature, Colossus, SetPiece }
         enum Gait { Idle, Walk, Run }
 
         const string AssetPath = "Assets/Game/Resources/" + CreatureTunables.ResourcePath + ".asset";
@@ -456,6 +456,8 @@ namespace Punchy.EditorTools
         {
             Unload();
             name = name?.Trim() ?? "";
+            if (TryLoadSetPiece(name))
+                return;
             var guid = AssetDatabase.FindAssets(name + " t:" + nameof(CreatureSpecies))
                 .FirstOrDefault(g => Path.GetFileNameWithoutExtension(AssetDatabase.GUIDToAssetPath(g)) == name);
             if (guid != null)
@@ -536,6 +538,7 @@ namespace Punchy.EditorTools
             }
             colossus = null;
             trunk = null;
+            UnloadSetPiece();
             loadedName = "";
         }
 
@@ -648,6 +651,9 @@ namespace Punchy.EditorTools
             try
             {
                 var s = State(ref b);
+                // (P-38: post items are kit items now, so fill the kit as FolkKitSystem does, or a worker shows none.)
+                if (b.Upright && b.Hands)
+                    s.Kit = Punchy.Items.FolkKits.Fill(in s, ref b);
                 CreatureAnimator.Evaluate(ref b, in s, 0, in flat, output, 0);
                 CreatureRenderSystem.PoseKit(ref b, in s, output, b.Segments.Length);
                 modelMesh = Capsules(output, modelMesh, out bounds);
@@ -780,6 +786,8 @@ namespace Punchy.EditorTools
                 preview.DrawMesh(gridMesh, Matrix4x4.Translate(new Vector3(0f, ground + 0.002f, 0f)), lineMaterial, 0);
             if (family == Family.Creature && modelMesh != null)
                 preview.DrawMesh(modelMesh, Matrix4x4.identity, modelMaterial, 0);
+            if (family == Family.SetPiece)
+                DrawSetPieces();
             if (!close)
                 preview.DrawMesh(humanMesh, Matrix4x4.Translate(person), modelMaterial, 0);
             preview.Render(true);
@@ -803,9 +811,13 @@ namespace Punchy.EditorTools
                     DrawCreatureSliders();
                     DrawBuilder();
                 }
-                else
+                else if (family == Family.Colossus)
                     DrawColossusSliders();
-                DrawSaveReset();
+                if (family == Family.SetPiece)
+                    DrawSetPiecePanel();
+                else
+                    DrawSaveReset();
+                DrawSaveAsNew();   // (creatures only: M-06 row 3b)
             }
             GUILayout.EndScrollView();
             GUILayout.EndArea();
@@ -836,7 +848,7 @@ namespace Punchy.EditorTools
                 if (string.IsNullOrEmpty(loadedName))
                 {
                     EditorGUI.DrawRect(scene, new Color(0.2f, 0.2f, 0.22f));
-                    GUI.Label(new Rect(scene.x + 12f, scene.y + 12f, 400f, 20f), "Load a creature species or colossus kind (right).", EditorStyles.whiteLabel);
+                    GUI.Label(new Rect(scene.x + 12f, scene.y + 12f, 400f, 20f), "Load a creature species, colossus kind or set piece (right).", EditorStyles.whiteLabel);
                 }
                 else
                 {
@@ -860,7 +872,7 @@ namespace Punchy.EditorTools
             {
                 if (GUILayout.Button(playing ? "Pause" : "Play", GUILayout.Width(60f)))
                     playing = !playing;
-                using (new EditorGUI.DisabledScope(family == Family.Colossus))
+                using (new EditorGUI.DisabledScope(family != Family.Creature))
                 {
                     var g = (Gait)EditorGUILayout.EnumPopup(gait, GUILayout.Width(70f));
                     if (g != gait)
@@ -927,6 +939,7 @@ namespace Punchy.EditorTools
                 if (k >= 0 && k != currentKind)
                     LoadByName(nameField = kinds[k]);
             }
+            DrawSetPiecePicker();
             EditorGUILayout.Space();
         }
 

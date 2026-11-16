@@ -473,11 +473,13 @@ namespace Punchy.Interact
             {
                 target = 1;
                 prompt = $"{UseKey.Name}  go outside";
+                UseKey.Offer();
             }
             else if (math.distance(player.Position.xz, room.SwitchAt.xz) < 1.8f)
             {
                 target = 2;
                 prompt = $"{UseKey.Name}  {(lampsOn.Contains(inRoom) ? "put out" : "light")} the lamp";
+                UseKey.Offer();
             }
         }
 

@@ -69,6 +69,14 @@ namespace Punchy.Terrain
         /// <summary>How far from the camera <see cref="FarFixtures"/> is sure to be complete (m).</summary>
         public static float FarFixtureReach => FarRadius.z - MoveBeforeFarRescan;
 
+        /// <summary>R-39 (#401, #302): how far out (3D camera distance, m) LightBudget still wants the near glows: the
+        /// AmbientGlow hand-off's far end, which grows with Detail. Each layer is scanned at least this far (plus the
+        /// move before a rescan), so no glow the budget would light sits outside the scan and pops in at its edge (the
+        /// ground layer's 30 m used to cut glows off inside the 37 m hand-off, and further at higher Detail). A disc on
+        /// the ground this wide holds every plant within that 3D distance, from any height. Capped at the far scan's
+        /// radius per layer: past it the far map carries them anyway. Set by CaveSystem before Update.</summary>
+        public float NearReach;
+
         /// <summary>Call once a frame; picks up a finished scan and starts a new one when the camera has moved.</summary>
         public void Update(in TerrainSource source, BiomePalette palette, FloraSystem flora, float3 camPos)
         {
@@ -103,6 +111,7 @@ namespace Punchy.Terrain
                     Source = source,
                     ModelGlow = modelGlow,
                     Centre = camPos.xz,
+                    Reach = math.min(math.max(Radius, NearReach + MoveBeforeRescan), FarRadius),
                     CellSizes = cellSizes,
                     Positions = positions,
                     Colors = colors,
@@ -263,6 +272,8 @@ namespace Punchy.Terrain
             public TerrainSource Source;
             [ReadOnly] public NativeArray<float4> ModelGlow;
             public float2 Centre;
+            /// <summary>Each layer's search radius (m): Radius, widened to the near glows' 3D reach (NearReach).</summary>
+            public float3 Reach;
             public float3 CellSizes;
             public NativeList<float4> Positions, Colors;
             /// <summary>W-127: lit-window plants within SpillRadius (the tree layer's houses): xyz position, w yaw;
@@ -276,7 +287,7 @@ namespace Punchy.Terrain
                 for (int layer = 0; layer < 3; layer++)
                 {
                     var size = CellSizes[layer];
-                    var near = Radius[layer];
+                    var near = Reach[layer];
                     var r = layer == 2 ? math.max(near, SpillRadius) : near;
                     var lo = (int2)math.floor((Centre - r) / size);
                     var hi = (int2)math.floor((Centre + r) / size);

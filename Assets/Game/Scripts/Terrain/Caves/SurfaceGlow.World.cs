@@ -339,7 +339,7 @@ namespace Punchy.Terrain
                         continue;
                     Counts[2]++;
                     Splat(sums, texel, at, new float4(0f, LavaLight * look.y), LavaReach);
-                    FarPoints.Add(NewFarPoint(new float3(at.x, ground.WaterSurface + 1f, at.y), FarLavaLight * look.y, default, FarLightKind.Fire));
+                    FarPoints.Add(NewFarPoint(new float3(at.x, ground.WaterSurface + 1f, at.y), FarLavaLight * look.y, FarColor(LavaLight), FarLightKind.Lava));
                 }
                 // W-127: each beacon tower's fire, as a burning grove's worth of fire light round its square.
                 if (Source.Settlements.IsCreated)

@@ -19,6 +19,7 @@ namespace Punchy.Terrain
         /// </summary>
         void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
         {
+            Punchy.Settings.GlowLook.Upload();   // R-39 row 2: the night look's glow falloff (Glow.hlsl)
             Shader.SetGlobalVector(GlowMapParamsId, Vector4.zero);
             Shader.SetGlobalVector(GlowWorldParamsId, Vector4.zero);
             Shader.SetGlobalVector(GlowTownParamsId, Vector4.zero);
@@ -30,6 +31,8 @@ namespace Punchy.Terrain
                 nextFloraLookup = Time.unscaledTime + 1f;
                 flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
             }
+            // (R-39: the near scan reaches as far as the budget still wants a near glow, see SurfaceGlow.NearReach.)
+            surfaceGlow.NearReach = Punchy.Settings.LightBudget.GlowHandOff(Punchy.Settings.LightKind.AmbientGlow, TypicalGlowReach).y;
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
             var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
@@ -74,7 +77,7 @@ namespace Punchy.Terrain
                                                                   1f / (SurfaceGlow.MapSize * SurfaceGlow.MapTexel), 0f));
                 // (y: the night map, street lights only (W-127). Lit windows' light is indoor (P-21, item 31), so
                 // SurfaceGlow leaves them out of it: see the near tier below.)
-                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn * (1f - Underground), handOff.x * 0.7f, handOff.y));
+                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength * Punchy.Settings.GlowLook.Brightness, windowsOn * (1f - Underground), handOff.x * 0.7f, handOff.y));
                 // (R-10: from the Fixture hand-off, or nearer where the budget ran out first: past the nearest street
                 // light that neither a real light nor a slot lights in full, the map must carry them, or the town
                 // goes dark in between.)
