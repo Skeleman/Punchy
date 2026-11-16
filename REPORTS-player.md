@@ -1625,3 +1625,9 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Not run: joined client. 7.2 GB was free with the editor open, not enough for a second instance. The client sends the same Send(Request.Gesture) and quest/gift requests as the gesture menu and offers, but this run doesn't prove that path. Please queue it with P-43's pair run.
 - Shots: D:/Unity/PunchyMilestones/P-42/solo/talk-00-replies, talk-01-reply-offer, talk-02-reply-taken (.png). Viewed one: the window reads right.
 - Shares: one talk window and one offer path (rule 33). Replies reuse the topic choice list, the quest/gift Decide and the gesture request; A-131's FolkConversation does the branching. MenuNav merge resolution: see above.
+
+## P-38 main merge 3 (#372): merged main aa064602 (A-132 and others); pin unchanged - done (verified); ready for PR
+- Branch player/take-items @ b23a3c16 (merges main aa064602). Checked afterwards: it still merges cleanly with main c98364b6.
+- Only conflict: Fauna/CreatureRenderSystem.PoseGear.cs. Main's old job-gear block against the branch's removal of it (post items are kit items now). Resolved to the branch side, so the file matches 496abb7d. Fauna logic note: main's one change in that block (A-132 row 2, b80f3206: innkeepers carry no bucket) is not dropped. It is ported into Items/FolkKits.cs, where the Tend bucket rule now skips FolkJob.Innkeeper. Nothing else in fauna's logic changed.
+- Compile clean. Fingerprint 0654C913 (unchanged, no re-pin).
+- Suite 52/72 passed, 1 failed, 19 skipped. Lying_AnimalsGetUpBeforeMoving failed (an animal moved 0.35 m while down). LyingTests run alone: it passed ("fastest 0.000 m/s"). P-38 doesn't touch animal lying, so I count it as flaky. Note: a class filter also runs the Explicit Lying_Shots test.
