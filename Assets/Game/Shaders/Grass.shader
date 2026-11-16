@@ -33,8 +33,11 @@ Shader "Punchy/Grass Blades"
             #define PUNCHY_SURFACE_SHADOW_FADE
             #include "Surface.hlsl"
             #include "GroundDetail.hlsl"
+            #include "GrassShell.hlsl"
 
             StructuredBuffer<Blade> _Blades;
+            // R-31 row 1: blades drawn flat magenta for GrassCoverageProbe's coverage count.
+            float _PunchyGrassProbe;
 
             struct Varyings
             {
@@ -42,30 +45,52 @@ Shader "Punchy/Grass Blades"
                 float3 positionWS : TEXCOORD0;
                 half3  normalWS   : TEXCOORD1;
                 half4  color      : TEXCOORD2;   // rgb albedo, a = height fraction along the blade
+                float  grass      : TEXCOORD3;   // R-31 shells (prototype c): grass density for the strand cut
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
             {
-                Blade blade = _Blades[instance];
                 Varyings o;
                 float t;
                 float3 normal;
-                BuildBladeVertex(blade, instance, vertex, o.positionWS, normal, t);
+                if (_ShellMode > 0)
+                {
+                    half3 albedo;
+                    BuildShellVertex(instance, vertex, o.positionWS, normal, t, o.grass, albedo);
+                    o.color = half4(albedo, t);
+                }
+                else
+                {
+                    Blade blade = _Blades[instance];
+                    BuildBladeVertex(blade, instance, vertex, o.positionWS, normal, t);
+                    half3 albedo = blade.color.rgb;
+                    if (_GrassProto == 4)
+                        albedo *= GrassClumpTint(blade.position.xz);
+                    o.color = half4(albedo, t);
+                    o.grass = 1;
+                }
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = normal;
-                o.color = half4(blade.color.rgb, t);
                 return o;
             }
 
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
+                if (_ShellMode > 0)
+                    ShellClip(input.positionWS, input.color.a, input.grass);
+                if (_PunchyGrassProbe > 0)
+                    return half4(1, 0, 1, 1);
                 half3 n = normalize(frontFace ? input.normalWS : -input.normalWS);
                 n = normalize(n + half3(0, 0.6, 0));   // soften: blades read as a canopy, not as flat cards
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 half t = input.color.a;
 
-                // Darker in the shaded base of the tuft, lighter at the tips.
-                half3 albedo = input.color.rgb * lerp(0.45, 1.15, t);
+                // Darker in the shaded base of the tuft, lighter at the tips. R-31 prototypes: roots towards the
+                // ground's own tone (_GrassProtoShape.y; shells barely darken), tips lighter.
+                half rootMatch = _ShellMode > 0 ? 0.8 : _GrassProtoShape.y;
+                half3 albedo = input.color.rgb * lerp(lerp(0.45, 0.95, rootMatch), lerp(1.15, 1.3, rootMatch), t);
+                // Undo the blades' green lift at the root, so it meets the ground's colour.
+                albedo = lerp(albedo, albedo * half3(1.03, 0.85, 1.14), rootMatch * (1 - t));
                 albedo *= lerp(1, 0.8, PunchyWetnessAt(input.positionWS.xz).r);
 
                 // R-32 row 2: the same shadow tiers as the ground under the blades. URP's shadow fade (the ground's
@@ -80,6 +105,7 @@ Shader "Punchy/Grass Blades"
                 half shadow = lit.shadow;
                 half wrap = saturate(dot(n, light.direction) * 0.6 + 0.4);
                 half through = pow(saturate(dot(-v, light.direction)), 4) * t * 0.6;   // sunlight through the blade
+                through *= _GrassProto == 4 ? 1.8 * t : 1;                              // d: backlit tips glow
                 // Glowing plants and molten pools nearby light the grass round them too.
                 half3 color = albedo * (light.color * shadow * (wrap + through) + lit.ambient + lit.glow + lit.lights);
 
@@ -102,18 +128,38 @@ Shader "Punchy/Grass Blades"
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "GroundDetail.hlsl"
+            #include "GrassShell.hlsl"
 
             StructuredBuffer<Blade> _Blades;
 
-            float4 Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID) : SV_POSITION
+            struct Varyings
             {
-                float3 positionWS, normal;
-                float t;
-                BuildBladeVertex(_Blades[instance], instance, vertex, positionWS, normal, t);
-                return TransformWorldToHClip(positionWS);
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+                float2 shell      : TEXCOORD1;   // R-31 shells: height fraction, grass density
+            };
+
+            Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
+            {
+                Varyings o;
+                float3 normal;
+                float t, grass = 1;
+                half3 albedo;
+                if (_ShellMode > 0)
+                    BuildShellVertex(instance, vertex, o.positionWS, normal, t, grass, albedo);
+                else
+                    BuildBladeVertex(_Blades[instance], instance, vertex, o.positionWS, normal, t);
+                o.positionCS = TransformWorldToHClip(o.positionWS);
+                o.shell = float2(t, grass);
+                return o;
             }
 
-            half Frag(float4 positionCS : SV_POSITION) : SV_Target { return positionCS.z; }
+            half Frag(Varyings input) : SV_Target
+            {
+                if (_ShellMode > 0)
+                    ShellClip(input.positionWS, input.shell.x, input.shell.y);
+                return input.positionCS.z;
+            }
             ENDHLSL
         }
 
@@ -133,6 +179,7 @@ Shader "Punchy/Grass Blades"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
             #include "GroundDetail.hlsl"
+            #include "GrassShell.hlsl"
 
             StructuredBuffer<Blade> _Blades;
 
@@ -140,16 +187,23 @@ Shader "Punchy/Grass Blades"
             {
                 float4 positionCS : SV_POSITION;
                 half3 normalWS : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                float2 shell : TEXCOORD2;   // R-31 shells: height fraction, grass density
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
             {
-                float3 positionWS, normal;
-                float t;
-                BuildBladeVertex(_Blades[instance], instance, vertex, positionWS, normal, t);
                 Varyings o;
-                o.positionCS = TransformWorldToHClip(positionWS);
+                float3 normal;
+                float t, grass = 1;
+                half3 albedo;
+                if (_ShellMode > 0)
+                    BuildShellVertex(instance, vertex, o.positionWS, normal, t, grass, albedo);
+                else
+                    BuildBladeVertex(_Blades[instance], instance, vertex, o.positionWS, normal, t);
+                o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = normal;
+                o.shell = float2(t, grass);
                 return o;
             }
 
@@ -159,6 +213,8 @@ Shader "Punchy/Grass Blades"
             #endif
             )
             {
+                if (_ShellMode > 0)
+                    ShellClip(input.positionWS, input.shell.x, input.shell.y);
                 half3 n = NormalizeNormalPerPixel(input.normalWS);
                 outNormalWS = half4(front ? n : -n, 0);
             #ifdef _WRITE_RENDERING_LAYERS

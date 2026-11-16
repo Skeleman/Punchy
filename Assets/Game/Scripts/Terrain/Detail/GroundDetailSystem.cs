@@ -19,7 +19,7 @@ namespace Punchy.Terrain
     /// tile is drawn with one procedural instanced draw; far tiles draw a thinned subset (instances are stored in
     /// random order, so drawing a prefix thins evenly) and blades shrink away smoothly before the cut-off.
     /// </summary>
-    public class GroundDetailSystem : MonoBehaviour
+    public partial class GroundDetailSystem : MonoBehaviour
     {
         public Material GrassMaterial;
         public Material PebbleMaterial;
@@ -70,11 +70,14 @@ namespace Punchy.Terrain
             public int GrassCount, PebbleCount;
             public Bounds Bounds;
             public MaterialPropertyBlock GrassProps, PebbleProps;
+            public GraphicsBuffer Shell;              // R-31 prototype c only
+            public MaterialPropertyBlock ShellProps;
 
             public void Dispose()
             {
                 Grass?.Dispose();
                 Pebbles?.Dispose();
+                Shell?.Dispose();
             }
         }
 
@@ -98,13 +101,13 @@ namespace Punchy.Terrain
         EntityQuery othersQuery;
 
         int GridSamples => (int)TileSize + 1;
-        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale * (ClumpBlades > 1 ? ClumpDensity : 1f));
+        int MaxGrass => (int)(TileSize * TileSize * GrassPerSquareMetre * DensityScale * (ClumpBlades > 1 ? ClumpDensity : 1f) * ProtoCount);
 
         /// <summary>
         /// Blades per grass instance: a tuft fanned from one root (GroundDetail.hlsl ClumpMember), 1 for lone blades as
         /// before (-grassclumps 0). Prototype (Zach, 11-08): clumps sell a continuous field where even stubble didn't.
         /// </summary>
-        static readonly int ClumpBlades = System.Environment.CommandLine.Contains("-grassclumps 0") ? 1 : 5;
+        static readonly int ClumpBlades = System.Environment.CommandLine.Contains("-grassclumps 0") || ReadProto() == 4 ? 1 : 5;
         /// <summary>Instances per square metre with clumps, as a share of GrassPerSquareMetre: half as many roots, five
         /// blades each, so about 2.5 times the blades, gathered in tufts.</summary>
         const float ClumpDensity = 0.5f;
@@ -164,6 +167,7 @@ namespace Punchy.Terrain
             Punchy.Settings.DetailPolicy.SetView(cam);
             Shader.SetGlobalFloat(FullId, FullDensityRange);
             Shader.SetGlobalFloat(ClumpId, ClumpBlades);
+            SetProtoGlobals();
             Shader.SetGlobalVector(GrassTintId, new Vector4(GroundTint, GrassRange, 0f, 0f));
 
             if (playerQuery.TryGetSingleton<LocalTransform>(out var player))
@@ -253,7 +257,8 @@ namespace Punchy.Terrain
             pendingJob = new ScatterJob
             {
                 Origins = origins, Points = samples, Grid = g, TileSize = TileSize,
-                MaxGrass = MaxGrass, MaxPebbles = MaxPebbles, Blades = blades, Pebbles = pebbles, Counts = counts
+                MaxGrass = MaxGrass, MaxPebbles = MaxPebbles, Blades = blades, Pebbles = pebbles, Counts = counts,
+                HeightScale = ProtoHeight, WidthScale = ProtoWidth
             }.Schedule(count, 1, sample);
             pending = new Pending
             {
@@ -340,6 +345,7 @@ namespace Punchy.Terrain
                     tile.Pebbles.SetData(pebbles, i * maxPebbles, 0, tile.PebbleCount);
                     tile.PebbleProps.SetBuffer(PebblesId, tile.Pebbles);
                 }
+                BuildShells(tile, samples, i * g * g, g, o);
                 tiles[pending.Coords[i]] = tile;
             }
             DropPending();
@@ -354,7 +360,10 @@ namespace Punchy.Terrain
                 if (!GeometryUtility.TestPlanesAABB(frustum, tile.Bounds))
                     continue;
                 var nearest = math.distance(camXZ, math.clamp(camXZ, (float2)kv.Key * TileSize, ((float2)kv.Key + 1f) * TileSize));
-                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, GrassVertices * ClumpBlades, nearest, GrassRange, tile.Bounds);
+                var bladeVertices = Proto == 0 ? GrassVertices : BladeVertices(nearest);
+                tile.GrassProps.SetFloat(BladeVertsId, bladeVertices);
+                DrawSet(tile.Grass, tile.GrassCount, tile.GrassProps, GrassMaterial, bladeVertices * ClumpBlades, nearest, GrassRange, tile.Bounds);
+                DrawShells(tile, nearest);
                 DrawSet(tile.Pebbles, tile.PebbleCount, tile.PebbleProps, PebbleMaterial, PebbleVertices, nearest, PebbleRange, tile.Bounds);
             }
         }
@@ -464,6 +473,7 @@ namespace Punchy.Terrain
             public int Grid;
             public float TileSize;
             public int MaxGrass, MaxPebbles;
+            public float HeightScale, WidthScale;    // R-31 prototypes (1 for today's grass)
             [NativeDisableParallelForRestriction] public NativeArray<Blade> Blades;
             [NativeDisableParallelForRestriction] public NativeArray<Pebble> Pebbles;
             [NativeDisableParallelForRestriction] public NativeArray<int2> Counts;
@@ -491,8 +501,8 @@ namespace Punchy.Terrain
                     {
                         Position = new float3(origin.x + local.x, p.Height - 0.03f, origin.y + local.y),
                         Facing = shape.x * math.PI * 2f,
-                        Height = math.lerp(0.14f, 0.48f, shape.y * shape.y) * (0.55f + 0.45f * p.Grass),
-                        Width = math.lerp(0.011f, 0.022f, shape.z),
+                        Height = math.lerp(0.14f, 0.48f, shape.y * shape.y) * (0.55f + 0.45f * p.Grass) * HeightScale,
+                        Width = math.lerp(0.011f, 0.022f, shape.z) * WidthScale,
                         Bend = math.lerp(0.15f, 0.5f, shape.z),
                         Random = rng.NextFloat(),
                         // A touch brighter and more saturated than the ground colour, which already averages
