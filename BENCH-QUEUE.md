@@ -1003,7 +1003,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Record: process private bytes and managed heap after 60 s at the 99a grassland view; island cache bake ms; [herds] log line; CPU main-thread and GPU ms at the 99a view and at the Tundra Frostdeer herd.
 - Pass (rule 23): High at most +0.5 ms; report any memory change over 50 MB or bake change over 10%.
 
-## Job 104 (2026-11-16, QUEUED after 102; render-2 lane, R-23 r3 parts A+B #298, branch render/one-surface-3 9729e506): shader include split + one Surface.hlsl
+## Job 104 (2026-11-16, QUEUED after 102; render-2 lane, R-23 r3 parts A+B #298, branch render/one-surface-3 1fbf15bb, main merged in 11-16): shader include split + one Surface.hlsl
 - Part A: Sky.hlsl is split into SkyCommon/Clouds/Atmosphere/Sky; 14 haze-only shaders now include less. Part B: Colossus, Pebbles, SunkenTemple, Creature, Grass, Water and Cave take sun, shadow tiers, ambient and haze from Surface.hlsl. Rule 21: the lane did not time it.
 - New per-pixel work: wide-shadow taps added to Creature, Pebbles, SunkenTemple, Colossus and the Cave mouth (they had real-time + cloud only).
 - Arms: main (A) against render/one-surface-3 (B), editor on each tree with ShaderCache (Library/ShaderCache) cleared first; -fpscap 0.
