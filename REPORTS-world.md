@@ -8079,3 +8079,13 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **For fauna:** point Creature.shader at "Materials/Metal.hlsl", then delete Shaders/Metal.hlsl.
 - **Shares:** one include per family under Shaders/Materials (rule 33).
 - **BENCH:** none new; the row 2 wood-grain cost request still stands.
+
+## W-172 row 4 (#365): tunnel mouth framed in rock, lining reads as stone. Done (verified)
+- **Branch:** world/playtest-1114@f57c15dc. Shots in PunchyMilestones/W-172/: w172-r4-mouth-before(2), w172-r4-mouth-after, -after3 (clearest), w172-r4-lining-3m.
+- **Frame (CliffKit.PortalFrames):** every road tunnel portal now sits in rock: a buttress over each end of the headwall, a slab bedded over the coping, a fallen block where each wing ends. Positions come from the portal's own kit (TunnelPortalKit.Build), and each piece is nudged out until clear of the cutting. 12 portals x 5 = 60 pieces; own RNG per portal, so no existing cliff piece moves.
+- **Lining (Cave.shader, tunnel branch):** courses end at a hard line under the vault (noise removed), topped by a pale capping course with long joints, plus a shadow band where the vault rock overhangs. Mortar is wider and darker; block normals are bevelled. At 3 m the bed and head joints read clearly.
+- **Checks:** clean compile. Full PlayMode suite 39/41: Player_CrowFliesOutOfCaveThroughHitches timed out with the crow stuck on the hill over the cave 0 mouth (-1810, 66, -172), and CaveWater failed as the knock-on. This is the flake already logged for waterfall-sheets. The nearest portal frame (-1596,74) is 330 m away. WorldTests rerun in the same editor: 11/14 (crow, plus CaveWater and Place_PropFindsAndFramesWharf as knock-ons of the unfinished flight). Row 6 widens that mouth.
+- **Risks:** the rock pieces use the ground's rock colour, which reads bluish against the warm ashlar at this spot.
+- **Shares:** extends CliffKit (rule 33; the frame pieces are kit pieces). Parallel found but not folded in: the tunnel lining's brick is still the Cave.shader's own code, so it should move into the materials lane's Materials/Brick.hlsl when W-166 row 3 adds brick.
+- **BENCH:** none (+60 pieces against about 2290).
+- Next: W-174 note (world/ground-edits), then row 5.
