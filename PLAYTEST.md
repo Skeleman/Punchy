@@ -199,3 +199,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #506 fauna/walkin-walls-doors, P-37 r3 row 2 (#369): creatures stay out of walk-in houses unless the door is open.
 - 11-16: #507 world/cave-walls, W-172 r7 (#262): cave wall details by biome, rock and cave type. Playtest: fungi caps may look too dark; volcanic caves have none yet.
 - 11-16: #508 world/parts-units-4, W-175 r4-6 (#415): kit part format, building parts, nested units; Lab Snap joins button. No look change.
+- 11-16: #509 world/chunk-mesh-budget (#400): tunnel-entry hitch; chunk-mesh batches leave half the workers free, cave-mouth chunks count 5x. Playtest: walk into a tunnel and watch for a stall.
