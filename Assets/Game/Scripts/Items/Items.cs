@@ -259,12 +259,17 @@ namespace Punchy.Items
         int nextDrop = DropBase;
         int target = -1, targetChest = -1;
         string prompt;
-        bool panel;
+        /// <summary>The in-world menu is up (any tab; P-39, #397: the inventory is its Items tab).</summary>
+        static bool panel => Punchy.UI.FieldMenu.Open;
+        /// <summary>The menu shows the Items tab: the slots have the focus and the Use key drops, puts or takes.</summary>
+        static bool itemsTab => Punchy.UI.FieldMenu.Showing == ItemsTab;
+        const string ItemsTab = "Items", QuestsTab = "Quests";
         int selected, lastFocus = -1;
-        readonly Punchy.UI.MenuNav nav = new Punchy.UI.MenuNav();
+        static Punchy.UI.MenuNav nav => Punchy.UI.FieldMenu.Nav;
         bool padTest;
         float padAt;
         int padStep;
+        float3 stickFrom;
         Gamepad testPad;
         int pickupArg, pickupDone;
         bool dropArg, openChestArg;
@@ -303,7 +308,9 @@ namespace Punchy.Items
                 instance.spareOnlyArg = true;
             instance.dropArg = System.Array.IndexOf(args, "-drop") >= 0;
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
-            instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
+            // (P-39: the inventory and the quest log are tabs of the in-world menu; "-inventory" opens it there.)
+            Punchy.UI.FieldMenu.AddTab(ItemsTab, 0, instance.DrawItemsTab);
+            Punchy.UI.FieldMenu.AddTab(QuestsTab, 10, instance.DrawQuestsTab);
             instance.padTest = System.Array.IndexOf(args, "-invpad") >= 0;
             instance.itemRowArg = System.Array.IndexOf(args, "-itemrow") >= 0;
             var rowAt = System.Array.IndexOf(args, "-itemrow");
@@ -378,8 +385,8 @@ namespace Punchy.Items
                 Receive();
 
             FindTarget();
-            // (The Use key goes to the nearer of a door and an item, judged on last frame's distances.)
-            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && TargetDistance <= Doors.FacingDistance && TargetDistance <= FolkTalk.TargetDistance && UseKey.WasPressed())
+            // (FindTarget keeps a target only when it won the Use key: UseTarget.)
+            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && UseKey.WasPressed())
             {
                 if (target >= 0) Pickup(target);
                 else if (targetChest >= 0) OpenChest(targetChest);
@@ -469,31 +476,43 @@ namespace Punchy.Items
             TargetDistance = float.MaxValue;
             if (!TryPlayer(out var player))
                 return;
+            // (Items, chests and containers are all scored by the one facing rule, UseTarget; the best of them bids.)
             var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
+            var camera = Camera.main;
+            var look = camera != null ? math.normalizesafe(((float3)camera.transform.forward).xz) : forward;
+            var best = float.MaxValue;
             foreach (var kv in world)
             {
                 var to = kv.Value.Pos - player.Position;
                 var d = math.length(to.xz);
-                if (d >= TargetDistance || d > Reach || math.abs(to.y) > 1.5f || d > 0.4f && math.dot(math.normalizesafe(to.xz), forward) < 0.3f)
+                if (d > Reach || math.abs(to.y) > 1.5f)
                     continue;
-                (TargetDistance, target) = (d, kv.Key);
+                var score = UseTarget.Score(player.Position, forward, look, kv.Value.Pos);
+                if (score < best)
+                    (best, TargetDistance, target) = (score, d, kv.Key);
             }
             foreach (var (socket, pos) in ChestSockets())
             {
                 if (openedChests.Contains(socket))
                     continue;
                 var d = math.distance(pos.xz, player.Position.xz);
-                if (d < TargetDistance && d <= Reach && math.abs(pos.y - player.Position.y) < 1.5f)
-                    (TargetDistance, target, targetChest) = (d, -1, socket);
+                if (d > Reach || math.abs(pos.y - player.Position.y) >= 1.5f)
+                    continue;
+                var score = UseTarget.Score(player.Position, forward, look, pos);
+                if (score < best)
+                    (best, TargetDistance, target, targetChest) = (score, d, -1, socket);
             }
-            var before = TargetDistance;
-            FindContainer(player.Position, ref TargetDistance);
-            if (TargetDistance < before && targetContainer >= 0)
+            var before = best;
+            FindContainer(player.Position, forward, look, ref best, ref TargetDistance);
+            if (best < before && targetContainer >= 0)
                 (target, targetChest) = (-1, -1);
             else
                 targetContainer = -1;
-            if (TargetDistance > Doors.FacingDistance || TargetDistance > FolkTalk.TargetDistance)
+            if (!UseTarget.Bid(UseKind.Item, best))
+            {
+                (target, targetChest, targetContainer) = (-1, -1, -1);
                 return;
+            }
             if (target >= 0 || targetChest >= 0 || targetContainer >= 0)
                 UseKey.Offer();
             var key = UseKey.Name;
@@ -560,6 +579,9 @@ namespace Punchy.Items
                     return entities[i];
             return Entity.Null;
         }
+
+        /// <summary>What the local player carries and wears now (kg), for the Status tab.</summary>
+        public static float Carried => instance != null ? instance.CarriedWeight() : 0f;
 
         /// <summary>What the inventory and everything on weigh now (kg).</summary>
         float CarriedWeight()
@@ -935,37 +957,21 @@ namespace Punchy.Items
         }
 
         /// <summary>
-        /// The panel: Tab or I, or View on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
-        /// (arrows, d-pad, left stick) and Submit (Enter, A) or the Use key drops one of the focused slot's items.
+        /// The Items tab of the in-world menu (FieldMenu opens and closes it, reads the d-pad and moves the focus): while
+        /// it shows, the focus is on a slot, and Submit (Enter, A) or the Use key drops one of its items (puts it in, or
+        /// takes it out of, an open container).
         /// </summary>
         void UpdateInventoryKeys()
         {
-            if (Punchy.UI.Overlay.AnyOpen)
+            if (Punchy.UI.Overlay.Frozen)
                 return;
-            var keyboard = Keyboard.current;
-            var pad = Gamepad.current;
-            // (Any pad's View / B, not only Gamepad.current: P-16's virtual pad wasn't current on its first press. View
-            // since Zach 11-12: LB is the left hand's block.)
-            bool padLB = false, padB = false;
-            foreach (var g in Gamepad.all)
+            if (!itemsTab)
             {
-                padLB |= g.selectButton.wasPressedThisFrame;
-                padB |= g.buttonEast.wasPressedThisFrame;
-            }
-            var toggle = keyboard != null && (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame) || padLB;
-            if (toggle || panel && padB)
-            {
-                panel = toggle && !panel;
-                nav.Reset();
-                lastFocus = -1;
-                Debug.Log($"Items: inventory {(panel ? "open" : "closed")}");
-            }
-            if (!panel)
-            {
+                // (Closing the menu, or leaving its Items tab, steps back from an open container.)
                 openContainer = -1;
+                lastFocus = -1;
                 return;
             }
-            nav.ReadInput();
             if (nav.Active && nav.Focus != lastFocus)
             {
                 lastFocus = nav.Focus;
@@ -973,9 +979,8 @@ namespace Punchy.Items
                 Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
             }
             selected = nav.Focus;
-            // (In the panel the pad's A is its own Submit; the Use key, or RB, as before.)
-            var padRB = Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame;
-            if (target < 0 && targetChest < 0 && targetContainer < 0 && (UseKey.KeyWasPressed() || padRB))
+            // (In the menu the pad's A is its own Submit, and RB switches tab; the Use key as before.)
+            if (target < 0 && targetChest < 0 && targetContainer < 0 && UseKey.KeyWasPressed())
             {
                 if (openContainer >= 0 && selected >= Capacity) TakeFromContainer(openContainer, selected - Capacity);
                 else if (openContainer >= 0) Put(selected);
@@ -986,7 +991,9 @@ namespace Punchy.Items
 
         /// <summary>
         /// "-invpad": drives the panel with a virtual gamepad through the Input System (the real input path): View opens it,
-        /// d-pad right three times, A drops one, B closes it. Starts 45 s in (after any -pickup).
+        /// d-pad right three times, A drops one, B closes it. Starts 45 s in (after any -pickup). P-39 (#397): with the panel
+        /// open it also holds the left stick up for a step, and logs how far the player walked and where the focus went
+        /// (the stick walks, the d-pad alone moves the focus).
         /// </summary>
         void PadTest()
         {
@@ -1005,14 +1012,28 @@ namespace Punchy.Items
                 InputSystem.EnableDevice(testPad);
             }
             testPad.MakeCurrent();
-            GamepadButton[] script = { GamepadButton.Select, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
+            // (Start: a stand-in for "the left stick, held up": the pad's Start opens the main menu, so it's never pressed.)
+            GamepadButton[] script = { GamepadButton.Select, GamepadButton.Start, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
             var press = padStep % 2 == 0;
             var button = script[padStep / 2];
-            InputSystem.QueueStateEvent(testPad, press ? new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(button) : new UnityEngine.InputSystem.LowLevel.GamepadState());
+            var stick = button == GamepadButton.Start;
+            var state = new UnityEngine.InputSystem.LowLevel.GamepadState();
+            if (press && stick)
+                state.leftStick = new Vector2(0f, 1f);
+            else if (press)
+                state = state.WithButton(button);
+            if (stick && TryPlayer(out var at))
+            {
+                if (press)
+                    stickFrom = at.Position;
+                else
+                    Debug.Log($"Items: -invpad stick walked {math.distance(stickFrom.xz, at.Position.xz):0.00} m with the panel {(panel ? "open" : "closed")}; focus {nav.Focus} (active {nav.Active})");
+            }
+            InputSystem.QueueStateEvent(testPad, state);
             // (P-16: processed now, so this frame's actions and wasPressedThisFrame see it.)
             InputSystem.Update();
             if (press)
-                Debug.Log($"Items: -invpad presses {button} (pad enabled {testPad.enabled}, current {Gamepad.current == testPad}, {button} down {testPad[button].isPressed})");
+                Debug.Log($"Items: -invpad presses {(stick ? "left stick up" : button.ToString())} (pad enabled {testPad.enabled}, current {Gamepad.current == testPad}, {button} down {testPad[button].isPressed})");
             if (++padStep >= script.Length * 2)
             {
                 padTest = false;
@@ -1147,12 +1168,27 @@ namespace Punchy.Items
         // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
         void Start()
         {
-            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => !Punchy.UI.Overlay.AnyOpen && (prompt != null || panel), true);
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => !Punchy.UI.Overlay.Frozen && prompt != null, true);
+        }
+
+        /// <summary>Where the inventory stands: on the right, its top a quarter down the screen (higher for more rows).</summary>
+        Rect InventoryRect(float cell, float gap)
+        {
+            var w = 4 * cell + 5 * gap;
+            var rows = Capacity / 4;
+            return new Rect(Screen.width - w - 20f, Mathf.Max(80f, Screen.height * 0.25f - 28f - (rows - 4) * cell), w, rows * (cell + gap) + gap + 28f);
+        }
+
+        /// <summary>The in-world menu's Quests tab: the quest log, where the inventory stands.</summary>
+        void DrawQuestsTab(Punchy.UI.MenuNav menuNav)
+        {
+            var area = InventoryRect(74f, 6f);
+            DrawQuestLog(new Rect(area.x, area.y, area.width, Screen.height - area.y - 40f));
         }
 
         void DrawGui()
         {
-            if (Punchy.UI.Overlay.AnyOpen)
+            if (Punchy.UI.Overlay.Frozen)
                 return;
             if (prompt != null)
             {
@@ -1163,17 +1199,22 @@ namespace Punchy.Items
                 var height = promptStyle.CalcHeight(content, width);
                 GUI.Box(new Rect((Screen.width - width) * 0.5f, Screen.height * 0.72f, width, height), content, promptStyle);
             }
-            if (!panel)
-                return;
+        }
+
+        /// <summary>
+        /// The in-world menu's Items tab: the inventory on the right, an open container's pane left of it, what's worn
+        /// under it (P-39).
+        /// </summary>
+        void DrawItemsTab(Punchy.UI.MenuNav menuNav)
+        {
             slotStyle ??= new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.LowerCenter, wordWrap = true };
             const float cell = 74f, gap = 6f;
-            var w = 4 * cell + 5 * gap;
+            var area = InventoryRect(cell, gap);
+            var w = area.width;
             var rows = Capacity / 4;
-            var area = new Rect(Screen.width - w - 20f, Mathf.Max(8f, Screen.height * 0.25f - 28f - (rows - 4) * cell), w, rows * (cell + gap) + gap + 28f);
             // (P-20: the button for the device in use: the Use key, or A on a pad.)
             GUI.Box(area, $"Inventory   ({(InputGlyphs.Gamepad ? InputGlyphs.Path("<Gamepad>/buttonSouth") ?? "A" : UseKey.Current.ToString())}: drop one)");
             var colour = GUI.color;
-            nav.Begin();
             GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));
             for (int row = 0; row < rows; row++)
             {
@@ -1204,8 +1245,6 @@ namespace Punchy.Items
             GUILayout.EndArea();
             DrawContainerPane(cell, gap, area);
             DrawWorn(area, cell, gap);
-            DrawQuestLog(area);
-            nav.End();
             GUI.color = colour;
         }
     }
