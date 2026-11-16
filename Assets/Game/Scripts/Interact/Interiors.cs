@@ -30,7 +30,7 @@ namespace Punchy.Interact
     /// lamp 8 s after going in), "-leaveroom" (come back out 16 s after going in).
     /// </summary>
     [DefaultExecutionOrder(1000)]   // (after WeatherSystem sets the sky's ambient each frame: see LateUpdate)
-    public class Interiors : MonoBehaviour
+    public partial class Interiors : MonoBehaviour
     {
         struct Room
         {
@@ -43,6 +43,9 @@ namespace Punchy.Interact
             public string Furniture;
             public bool HasShelf;
             public bool HasHearth;
+            /// <summary>A-134: where its storage stands (the same in every house of its type); what's in it is each
+            /// door's own (Interiors.Storage).</summary>
+            public List<(float3 front, bool shelf)> Stores;
         }
 
         static Interiors instance;
@@ -185,6 +188,7 @@ namespace Punchy.Interact
             if (Time.realtimeSinceStartup < cullAt || rooms.Count == 0)
                 return;
             cullAt = Time.realtimeSinceStartup + 0.25f;
+            RegisterNearStorage();
             if (shown.Length != rooms.Count)
             {
                 shown = new bool[rooms.Count];
@@ -234,6 +238,7 @@ namespace Punchy.Interact
             if (palette?.Landmarks == null)
                 return false;
             built = true;
+            worldSeed = terrain.World.Seed;
             var buildings = SettlementBaking.Buildings(palette.Landmarks);
             ref var set = ref terrain.Settlements.Value;
 
@@ -336,11 +341,12 @@ namespace Punchy.Interact
                     Block(root.transform, new float3(x, min.y + 0.35f, z + half.z * 0.6f), new float3(0.5f, 0.3f, 0.1f), new Color(1f, 0.45f, 0.1f));
                 pieces.Add(kind);
             }
-            // P-14: storage, seeded: 0-2 of shelf / chest against the side walls' front halves (by the door), each a
-            // container (Items) with 0-3 starter items, now and then a surprise.
+            // P-14: storage, seeded: 0-2 of shelf / chest against the side walls' front halves (by the door). A-134: each
+            // is a container per door (its household's), registered near players (Interiors.Storage), not here.
             var storage = new List<string>();
-            var stores = rng.NextInt(0, 3);
-            for (int k = 0; k < stores; k++)
+            var stores = new List<(float3, bool)>();
+            var storeCount = rng.NextInt(0, 3);
+            for (int k = 0; k < storeCount; k++)
             {
                 var shelf = rng.NextBool();
                 float3 half = shelf ? new float3(0.2f, 0.8f, 0.6f) : new float3(0.25f, 0.25f, 0.4f);
@@ -353,10 +359,8 @@ namespace Punchy.Interact
                 if (shelf)
                     for (int b = 1; b < 4; b++)
                         Block(root.transform, new float3(x + (k == 0 ? 0.05f : -0.05f), min.y + b * 0.4f, z), new float3(0.34f, 0.04f, 1.2f), new Color(0.6f, 0.45f, 0.3f));
-                var id = Punchy.Items.Items.RoomBase + index * 4 + k;
-                var front = new float3(x + (k == 0 ? 0.7f : -0.7f), min.y, z);
-                Punchy.Items.Items.RegisterContainer(id, front, shelf ? "shelf" : "chest", math.hash(new uint3(RoomSeed(worldSeed, index), (uint)k, 0x5E1Fu)));
-                storage.Add($"{(shelf ? "shelf" : "chest")} {id}: {Punchy.Items.Items.DescribeContainer(id)}");
+                stores.Add((new float3(x + (k == 0 ? 0.7f : -0.7f), min.y, z), shelf));
+                storage.Add(shelf ? "shelf" : "chest");
             }
             pieces.Add(storage.Count > 0 ? "storage: " + string.Join("; ", storage) : "no storage");
             // The lamp hangs in the middle under the ceiling; its switch is on the door wall, beside the door.
@@ -380,6 +384,7 @@ namespace Punchy.Interact
                 Furniture = pieces.Count > 0 ? string.Join(", ", pieces) : "bare",
                 HasShelf = storage.Exists(x => x.StartsWith("shelf")),
                 HasHearth = pieces.Contains("hearth"),
+                Stores = stores,
             };
         }
 
@@ -433,6 +438,7 @@ namespace Punchy.Interact
             if (!CanEnter(door))
                 return false;
             var r = doorRoom[door];
+            RegisterStorageAt(door);
             cameFrom = door;
             inRoom = r;
             enteredAt = Time.realtimeSinceStartup;

@@ -102,6 +102,7 @@ namespace Punchy.Items
                 var file = JsonUtility.FromJson<QuestFile>(System.IO.File.ReadAllText(QuestPath));
                 quests = file?.quests ?? System.Array.Empty<QuestDef>();
                 Debug.Log($"Quests: {quests.Length} quests loaded ({why}): " + string.Join(" | ", System.Array.ConvertAll(quests, q => $"{q.id} [{q.type}] \"{q.text}\"")));
+                CheckQuestItems();
             }
             catch (System.Exception e)
             {
@@ -216,13 +217,8 @@ namespace Punchy.Items
             // (A dungeon quest's item counts once its chest has been opened: taken from there, not found elsewhere.)
             if (IsDungeon(q) && !DungeonChestOpen(board, slot))
                 return false;
-            var id = ItemId(q.item);
-            if (id < 0)
-                return false;
-            var have = 0;
-            foreach (var s in slots)
-                if (s.item == id) have += s.count;
-            return have >= math.max(q.count, 1);
+            // (P-49 r3: only items that fit the quest count: another quest's quest-only item never does.)
+            return ItemId(q.item) >= 0 && CountFor(q.id, q.item, slots) >= math.max(q.count, 1);
         }
 
         void BuildBoards(in TerrainSource terrain)

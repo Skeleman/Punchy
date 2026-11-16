@@ -250,6 +250,7 @@ namespace Punchy.Fauna
                 Mood = TalkMood(who),
                 Willing = Willing(who, out var pestered),
                 Pestered = pestered,
+                Wronged = Thefts.HeldAgainst(who.Individual),
                 Quest = QuestFor(who.Individual),
                 Group = who.PlayerGroup,
             };
@@ -467,7 +468,8 @@ namespace Punchy.Fauna
         {
             public FolkTalker Who;
             public string Mood;
-            public bool Willing, Pestered;
+            /// <summary>Wronged (A-134 row 3): the folk's household holds a theft against this player (Thefts).</summary>
+            public bool Willing, Pestered, Wronged;
             public string Quest;
             /// <summary>An animal player's group (FolkTalker.PlayerGroup).</summary>
             public string Group;
@@ -561,6 +563,8 @@ namespace Punchy.Fauna
             if (l.Willing.HasValue && l.Willing.Value != ctx.Willing)
                 return false;
             if (l.Pestered.HasValue && l.Pestered.Value != ctx.Pestered)
+                return false;
+            if (l.Wronged.HasValue && l.Wronged.Value != ctx.Wronged)
                 return false;
             var hasQuest = ctx.Quest != null;
             if (l.Need.HasValue && l.Need.Value != hasQuest || l.OfferKind == OfferKind.Quest && !hasQuest)
@@ -714,8 +718,9 @@ namespace Punchy.Fauna
                 FolkStance.Annoyed => -0.45f,
                 _ => 0f
             };
-            // (Asked too often lately: no, whoever it is, until the asks fade.)
-            if (pestered)
+            // (Asked too often lately: no, whoever it is, until the asks fade. Nor, while it holds, does a household the
+            // player stole from: A-134 row 3.)
+            if (pestered || Thefts.HeldAgainst(who.Individual))
                 return false;
             var p = who.Persona;
             return p.Trust * 0.55f + p.Warmth * 0.45f + bias + (p.Mood - 0.5f) * 0.1f - asked * 0.2f >= 0.42f;
@@ -859,7 +864,8 @@ namespace Punchy.Fauna
             public string[] Weather, Moods, Stances, Trades;
             /// <summary>beastTalk: the animal player's groups it fits (FolkConversation.GroupOf), or null for any.</summary>
             public string[] Groups;
-            public bool? Willing, Pestered, Need, Home, Job;
+            /// <summary>Wronged (A-134 row 3): the speaker's household holds a theft against the player.</summary>
+            public bool? Willing, Pestered, Need, Home, Job, Wronged;
             public bool Ends;
             /// <summary>beastTalk: what the folk does with this line, or null for its reaction's usual response.</summary>
             public BeastResponse? Response;
@@ -912,7 +918,7 @@ namespace Punchy.Fauna
         /// Reads a "conversation" section: { "topics": { id: label }, culture: { topic: [ line, ... ] } }. A line is a
         /// string, or an object with "text" and any of: a trait's name ("warmth": "high", or ["low", "mid"]), "state"
         /// ("tired", or ["hungry", "!busy"]: ! for not), "weather" (a ComfortKind: "Rain"), "mood", "stance", "trade",
-        /// "when", "willing", "pestered", "need", "home", "job" (true/false), "gesture", "offer" ("quest", "item:Berry",
+        /// "when", "willing", "pestered", "wronged", "need", "home", "job" (true/false), "gesture", "offer" ("quest", "item:Berry",
         /// "directions", "rumour", "discount", "refuses"), "ends", "weight". The beastTalk section reads the same, its topics
         /// the reactions ("pet", "puzzled", "wary", "scared", "repelled", "awed") and "bye", with "groups" (group → species
         /// names) and two more keys for a line: "group" (the animal player's groups) and "response" ("approach", "feed",
@@ -1008,7 +1014,7 @@ namespace Punchy.Fauna
         /// <summary>The keys a talk line can have, besides the persona traits' names (any other is a named problem: a typo).</summary>
         static readonly HashSet<string> LineKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "text", "gesture", "when", "weight", "weather", "mood", "stance", "trade", "group", "willing", "pestered", "need",
+            "text", "gesture", "when", "weight", "weather", "mood", "stance", "trade", "group", "willing", "pestered", "wronged", "need",
             "home", "job", "ends", "kin", "gone", "pet", "offer", "response", "state", "options"
         };
 
@@ -1070,6 +1076,7 @@ namespace Punchy.Fauna
             line.Groups = problems.Strings(o["group"], "group");
             line.Willing = problems.Bool(o, "willing");
             line.Pestered = problems.Bool(o, "pestered");
+            line.Wronged = problems.Bool(o, "wronged");
             line.Need = problems.Bool(o, "need");
             line.Home = problems.Bool(o, "home");
             line.Job = problems.Bool(o, "job");

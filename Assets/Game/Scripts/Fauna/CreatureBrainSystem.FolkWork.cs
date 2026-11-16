@@ -884,9 +884,9 @@ namespace Punchy.Fauna
             }
 
             /// <summary>
-            /// A door to go in by: one of the three Door anchors of its settlement nearest where it is (which of them,
-            /// by its individual number, so neighbours spread over the houses round them). False if there are none in
-            /// its range.
+            /// A door to go in by: its own house's (OwnDoor), or else one of the three Door anchors of its settlement
+            /// nearest where it is that no household owns (which of them, by its individual number, so neighbours
+            /// spread over the doors round them). False if there are none in its range.
             /// </summary>
             bool FindDoor(ref CreatureState s)
             {
@@ -909,10 +909,13 @@ namespace Punchy.Fauna
                     doors.Dispose();
                     return false;
                 }
-                // The nearest three, nearest first (a few insertion passes: the list is short).
+                // The nearest three, nearest first (a few insertion passes: the list is short). (A-134 row 1: not a
+                // household's own door: this folk has no house, so it isn't let into theirs.)
                 var nearest = new FixedList32Bytes<int>();
                 for (int k = 0; k < doors.Length; k++)
                 {
+                    if (HouseDoors.Contains(doors[k]))
+                        continue;
                     var d = math.distancesq(set.Anchors[doors[k]].Position.xz, s.Position.xz);
                     var at = nearest.Length;
                     while (at > 0 && math.distancesq(set.Anchors[nearest[at - 1]].Position.xz, s.Position.xz) > d)
@@ -925,6 +928,8 @@ namespace Punchy.Fauna
                     }
                 }
                 doors.Dispose();
+                if (nearest.Length == 0)
+                    return false;
                 var door = set.Anchors[nearest[(int)(s.Individual % (uint)nearest.Length)]];
                 s.Anchor = door.Position;
                 s.AnchorYaw = math.atan2(door.Facing.x, door.Facing.y);

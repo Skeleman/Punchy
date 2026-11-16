@@ -49,6 +49,32 @@ namespace Punchy.Items
 
         int Carries(int player, byte item) => carried.TryGetValue(player, out var bag) && bag.TryGetValue(item, out var n) ? n : 0;
 
+        /// <summary>P-49 r3 (#27): whether an item can complete a quest: it must be the item the quest names, and a
+        /// quest-only item (ItemDef.Quest) completes only the quest whose id it carries, never another's item check.</summary>
+        public static bool ItemFits(string questId, string questItem, int item) =>
+            item >= 0 && item < ItemTable.Items.Length && item == ItemId(questItem) && (ItemTable.Items[item].Quest == null || ItemTable.Items[item].Quest == questId);
+
+        /// <summary>How many of what a quest asks for these slots hold (only items that fit it: ItemFits).</summary>
+        public static int CountFor(string questId, string questItem, (byte item, int count)[] held)
+        {
+            var have = 0;
+            foreach (var s in held)
+                if (s.count > 0 && ItemFits(questId, questItem, s.item))
+                    have += s.count;
+            return have;
+        }
+
+        /// <summary>A quest whose item is another quest's quest-only item could never be done: said once, at load.</summary>
+        void CheckQuestItems()
+        {
+            foreach (var q in quests)
+            {
+                var id = ItemId(q.item);
+                if (id >= 0 && q.type != "clear" && q.type != "visit" && !ItemFits(q.id, q.item, id))
+                    Debug.LogError($"Quests: {q.id} asks for the {q.item}, which only quest {ItemTable.Items[id].Quest} can take");
+            }
+        }
+
         /// <summary>Whether the host lets a client's hand-in through: it carries what the quest asks for. Takes it off the tally if so.</summary>
         bool CheckHandIn(int player, int board, int slot)
         {
@@ -63,7 +89,7 @@ namespace Punchy.Items
             }
             var id = ItemId(q.item);
             var need = math.max(q.count, 1);
-            var have = id >= 0 ? Carries(player, (byte)id) : 0;
+            var have = ItemFits(q.id, q.item, id) ? Carries(player, (byte)id) : 0;
             if (id < 0 || have < need)
             {
                 Debug.LogWarning($"Quests: refused player {player}'s hand-in of {q.id} at board {board}: it claims {need} {q.item}, the host saw it carry {have}");

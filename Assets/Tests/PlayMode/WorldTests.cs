@@ -307,6 +307,17 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>W-176 (#475): no cave passage cuts a pit through another (side passages crossed each other at other
+        /// heights) and no passage floor drops off a ledge (side passages' dead ends fell 13-20 m into their chamber).</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator CaveLayout_NoPitsOrLedges()
+        {
+            var problems = Game.Hook<string>("CaveLayoutProblems");
+            LogWatch.Measure($"cave layout: {Game.HookField<string>("CaveLayoutTrail")}; {(problems == "" ? "no pits or ledges" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
         /// <summary>P-47: no two dungeon chests (the temple's, every cave's, the ruin rooms') share a container id, so a
         /// chest RPC names one chest on every machine.</summary>
         [UnityTest, Order(90)]
