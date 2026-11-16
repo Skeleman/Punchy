@@ -1822,3 +1822,69 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - New HeldItemTests (Staff, Elder staff, Sword, empty hand). EditMode 18/18.
 - No shot: the check is the gear log above. Risk: none known; HeldItem syncs through the gear RPCs that already exist.
 - Shares: ItemDef.Base on the shared item definitions; the held-item path is unchanged.
+
+## P-35 r3 (#26): one item model on the wire, rule 11 ask (design, editor-free, no code yet) - player/item-catalog
+Read on main 25558ed8: Gear.cs, Items.cs, Containers.cs, FolkKits.cs, CreatureData.cs (FolkKit), Thefts.cs, WorldSync.cs, NetPlayer.cs (NetPlayerLook), QuestSave.cs. Plan from DESIGN-items-save.md sections 2, 3 and 8, cut down to the smallest change.
+
+### 1. ItemStack layout (new file Items/ItemStack.cs, 12 bytes)
+- `struct ItemStack { ushort Item; ushort Count; uint Data; uint Owner; }`
+- Item: catalog id (ItemIds), 0 = nothing. That is ItemTable row + 1, the same +1 that FolkKit already uses. ItemTable rows and constants (ItemTable.Torch etc.) keep their numbers, so game code doesn't renumber. One helper pair (ItemStack.Row / ItemStack.Of) does the conversion. The 255 sentinel (`Gear.Nothing`) goes away.
+- Data: per-kind value, 0 for most items. Defined now, used in later rows (fish species and size, letter recipient).
+- Owner: household key (the same uint as Thefts.Key, 0 = nobody's). Defined now, used in the theft row.
+- Stacks merge only when Item, Data and Owner all match. Count is capped by ItemDef stack size.
+- Change from the design doc: Owner is a uint (Thefts' key), not an int.
+
+### 2. Kit moves (who holds what)
+- The host holds every player's kit (inventory plus worn places). Solo is its own host. Today the owner holds its inventory and tells the host what it wears.
+- Places: one `KitPlace` byte enum replaces GearSlot: RightHand, LeftHand, Sheath, Head, Face, Neck, Body, Back, Legs, Feet, then Bag 0..n. Hair and coat are not items. They leave the SlotRpc "HairPlace/HairColourPlace" trick and become NetPlayerLook fields.
+- Client → host `KitMoveRpc { byte From, To; ushort Count }`: move or split between any two places (wear, unwear, swap, bag shuffles).
+- Host → owner `KitSlotRpc { byte Place; ItemStack Stack }`: the truth for one place. The UI moves at once and snaps back if the host disagrees.
+- Host → everyone `NetPlayerKit` ghost component (the 10 worn places, ushort each). It replaces GearStateRpc, ArmourStateRpc and SlotStateRpc. A late joiner gets it for free.
+- Folk: the FolkKit struct (13 bytes, id+1) becomes the same 10 worn places in ushort, plus the 4 bag places. Post0/Post1 stay as two separate ushort fields on folk only. They are set-piece props, not kit, and moving them to set pieces is a later world/fauna row, not this one.
+
+### 3. Network tables and enums that change (one row, one merge, P-28 rule: new structs, never grown ones)
+| Retired | Replaced by |
+|---|---|
+| GearRpc, ArmourRpc, SlotRpc (client to host) | KitMoveRpc |
+| GearStateRpc, ArmourStateRpc, SlotStateRpc | NetPlayerKit ghost |
+| GrantRpc | KitSlotRpc |
+| DropRpc {byte Item, Count; Pos} | DropStackRpc {byte Place; ushort Count; float3 Pos} (the host knows what's in the place) |
+| ItemSpawnRpc {int Uid; byte Item, Count; Pos} | ItemPlacedRpc {int Uid; ItemStack Stack; float3 Pos} |
+| PutRpc {int Container; byte Item, Count} | PutStackRpc {int Container; byte Place; ushort Count} |
+| TakeRpc | unchanged shape (int Container; byte Slot), kept |
+| ContainerSlotRpc {int Container; byte Slot, Item, Count} | ContainerStackRpc {int Container; byte Slot; ItemStack Stack} |
+| GearSlot enum | KitPlace enum |
+| NetPlayerLook | + Hair, HairColour (byte each). Nothing removed: eyewear already rides gear (Head) since P-38 |
+
+Unchanged and additive-friendly: PickupRpc, ItemGoneRpc, OpenChestRpc, ChestOpenedRpc, quest RPCs, TheftRpc and TheftRecordRpc (these already name items by key string), and world uid ranges.
+
+### 4. Old clients and old saves
+- Old builds: any RPC or ghost change alters NetCode's protocol hash, so an old build is refused at connect, as with A-124's Build field. Nothing extra needed. I'll check that the joiner sees a "different version" line rather than a silent drop. If it's silent, a one-line message on the join screen is in the row.
+- Old saves: none hold item ids. The inventory is unsaved today, quests-save.json stores thefts by item name, and PlayerPrefs hold body, coat, hair and options only. Nothing to migrate. Future saves (row 7) store item keys, never ids.
+
+### 5. Join check (additive, lands first and alone)
+- New host → client `CatalogCheckRpc { ulong Fingerprint }`, sent beside IslandVersionRpc on connect. The client compares it with its own ItemCatalog.Fingerprint. On a mismatch it disconnects itself with "item catalog differs (host xxxx, ours yyyy)". The host logs the same.
+- Why a separate RPC and not folded into WorldCheckRpc's Signature: no existing struct grows, and the refusal says why. Folding it in would read as "different world".
+- What it catches: same code, different data (an edited or regenerated catalog), which the protocol hash can't see. Once row 5 makes the catalog the source of items, this becomes the main guard.
+
+### 6. Rows
+1. Catalog, done (#493).
+2. Join check alone (additive): CatalogCheckRpc in WorldSync, plus the test flag `-catalogsalt N` to force a mismatch. Verify: host+client on 7983 join. With the salt, the client is refused with the catalog line. Solo is unaffected. EditMode passes.
+3. ItemStack locally, no wire change: ItemStack and KitPlace types. The local inventory (Items.cs slots) and FolkKit hold ItemStacks behind today's API, and the network still sends today's bytes. Verify: EditMode tests for merge rules (Item, Data and Owner must match) and Row/Of. Solo: pick up, drop, equip, chest put/take as before. Shot not needed.
+4. Network in one merge: the section 3 table, host-held kits, NetPlayerKit, the folk kit in ushort, hair into NetPlayerLook. Verify:
+   - solo;
+   - host plus joined client (each equips, swaps hands, drops, picks up and uses a chest, and the other sees it);
+   - a late joiner sees worn gear;
+   - P-31's lag profile (snap-back seen at most once per refused move);
+   - an old build is refused.
+   One BENCH-QUEUE note for the profiler (ghost size for NetPlayerKit plus folk kits at 64 folk).
+5. Ids from records: ItemTable is generated from the catalog, and the start check flips direction.
+6. Data uses (eyewear as items, junk, fish species/size in Data), per the design doc's row 3.
+7. World save and profiles: by keys. Waits on Zach's section 10 answers.
+8. Theft by Owner: TheftRpc reads Stack.Owner.
+
+### 7. Asks
+- OK for rows 2-4 as above, with row 2 first and alone.
+- Folk Post0/Post1 stay as folk-only fields in row 4 (no set-piece move now): OK?
+- Owner as uint (Thefts.Key) instead of int: OK?
+- Files: Gear.cs 964, Items.cs 1464, Containers.cs 378, FolkKits.cs 510 and WorldSync.cs 483 lines, all under 2500. CreatureData.cs is 1718, and FolkKit stays there. New code goes in Items/ItemStack.cs and Items/Kit.cs. Touching CreatureData.cs (fauna-owned FolkKit) and WorldSync.cs (net) needs those lanes' OK through you.
