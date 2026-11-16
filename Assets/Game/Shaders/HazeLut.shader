@@ -15,7 +15,7 @@ Shader "Hidden/Punchy/HazeLut"
             #pragma vertex Vert
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
 
             float2 _HazeLutSize;   // texels across, down
 
@@ -54,7 +54,7 @@ Shader "Hidden/Punchy/HazeLut"
             #pragma vertex Vert
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
 
             float2 _SkyVolumesSize;   // texels across, down
 

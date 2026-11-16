@@ -14,8 +14,10 @@
 //   _PunchyLantern and _PunchyLanternColor itself (Flora.hlsl, Water.shader); without the flag lit.lantern is 0.
 // - PUNCHY_SURFACE_REAL_LIGHTS: real lights (PunchyRealLights, the glow's falloff) in lit.lights; the shader sets
 //   s.positionCS. Under Forward+ the lantern is one of them, so lit.lantern stays 0 there.
+// - PUNCHY_SURFACE_SHADOW_FADE: the real-time shadow fades out at the shadow distance as UniversalFragmentPBR fades it
+//   (URP's GetMainLight with the position), for diffuse shaders that sit on PBR ground (grass).
 //
-// Needs URP's Lighting.hlsl, Sky.hlsl, WideShadow.hlsl and Glow.hlsl included first.
+// Needs URP's Lighting.hlsl, Atmosphere.hlsl (or Sky.hlsl, which includes it), WideShadow.hlsl and Glow.hlsl included first.
 
 /// What the shader knows about the point it lights.
 struct PunchySurface
@@ -67,7 +69,11 @@ half PunchyShadowTiers(half realtime, half wide)
 PunchyLit PunchySurfaceLight(PunchySurface s)
 {
     PunchyLit lit;
+    #ifdef PUNCHY_SURFACE_SHADOW_FADE
+    lit.sun = GetMainLight(TransformWorldToShadowCoord(s.shadowPositionWS), s.shadowPositionWS, half4(1, 1, 1, 1));
+    #else
     lit.sun = GetMainLight(TransformWorldToShadowCoord(s.shadowPositionWS));
+    #endif
     lit.wide = PunchyWideShadow(s.shadowPositionWS, s.wideNormalWS);
     lit.cloud = PunchyCloudShadow(s.shadowPositionWS);
     lit.shadow = PunchyShadowTiers(lit.sun.shadowAttenuation, lit.wide) * (1 - lit.cloud);

@@ -241,7 +241,11 @@ namespace Punchy.Fauna
         float nextHouseWatch;
         readonly HashSet<uint> housesSeen = new HashSet<uint>();
         readonly Dictionary<uint, bool> housesInside = new Dictionary<uint, bool>();
+        readonly HashSet<uint> housesInNow = new HashSet<uint>();
         int houseArrivals, houseWrongDoor;
+        // (A-134 row 1 probe: the members seen going in at their own door, and lodgers going in, at a household's door.)
+        readonly HashSet<uint> membersHome = new HashSet<uint>();
+        int lodgerArrivals, lodgerAtHousehold;
 
         bool LogHouses
         {
@@ -348,6 +352,7 @@ namespace Punchy.Fauna
             });
             AssignPets(source, list);   // (A-120 row 1)
             Households.Set(list);
+            PublishHouseDoors(source);   // (A-134 row 1: lodgers keep out of these)
             var members = 0;
             foreach (var h in list)
                 members += h.Members.Length;
@@ -485,7 +490,8 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// A place in the house with this door (an igloo's, a dome's) for a folk homed by it; a child that finds it full
-        /// goes to another house of the same landmark with a grown-up in. -1: none (a lodger, homed by that door still).
+        /// goes to another house of the same landmark with a grown-up in. -1: that door is no household's; LodgerSlot: the
+        /// house is full, so the folk lodges and is not let in by that door (A-134 row 1, Settle).
         /// </summary>
         int TakeDoorSlot(float4 door, bool child)
         {
@@ -494,8 +500,12 @@ namespace Punchy.Fauna
             var m = FreeMember(Households.All[h], child, false);
             if (m >= 0)
                 return Take(h, m);
-            return child ? TakeHouseSlot(Households.All[h].Landmark, true) : -1;
+            var other = child ? TakeHouseSlot(Households.All[h].Landmark, true) : -1;
+            return other >= 0 ? other : LodgerSlot;
         }
+
+        /// <summary>TakeDoorSlot's answer for a housed folk whose door's house is full: it lodges.</summary>
+        const int LodgerSlot = -2;
 
         /// <summary>
         /// A free grown-up's place in the house nearest a hermit's shelter (within 6 m, in the same landmark), kept for
@@ -549,9 +559,15 @@ namespace Punchy.Fauna
             return house << 4 | member;
         }
 
-        /// <summary>Makes a newly spawned folk the household member its place is for: its Individual and its house's door.</summary>
+        /// <summary>
+        /// Makes a newly spawned folk the household member its place is for: its Individual and its house's door. A
+        /// lodger whose door's house was full (LodgerSlot: a full igloo's) loses that door (A-134 row 1): it isn't its
+        /// house, so at night it finds a door no household owns, or sleeps out.
+        /// </summary>
         static void Settle(ref CreatureState state, int slot)
         {
+            if (slot == LodgerSlot)
+                state.OwnDoor = default;
             if (slot < 0 || (slot >> 4) >= Households.All.Count)
                 return;
             var house = Households.All[slot >> 4];
@@ -613,20 +629,58 @@ namespace Punchy.Fauna
                 houseQuery = queryWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
             }
             var states = houseQuery.ToComponentDataArray<CreatureState>(Allocator.Temp);
+            // (A-134 row 1: in, per individual, from any of its states: a member's figure in a room shares its
+            // Individual, so judged one state at a time it would flip in and out each pass. In is stage 2, when it has
+            // stepped through and stands 0.7 m in from the door it used, not the step in from a few metres short.)
+            housesInNow.Clear();
+            foreach (var s in states)
+                if (s.Mode == CreatureMode.Home && s.Stage == 2)
+                    housesInNow.Add(s.Individual);
             foreach (var s in states)
             {
-                if (!Households.Of(s.Individual, out var house, out var m))
-                    continue;
                 // (A-105 row 2: each going in at a door, from the synced mode and stage, and whether that door is its
-                // own house's: the inside spot is 0.7 m in from the door it used.)
-                var inside = s.Mode == CreatureMode.Home && s.Stage >= 1;
+                // own house's.)
+                var inside = housesInNow.Contains(s.Individual);
                 housesInside.TryGetValue(s.Individual, out var was);
                 housesInside[s.Individual] = inside;
+                if (inside && !was && !(s.Mode == CreatureMode.Home && s.Stage == 2))
+                {
+                    housesInside[s.Individual] = false;   // (judged by the state that's in)
+                    continue;
+                }
+                if (!Households.Of(s.Individual, out var house, out var m))
+                {
+                    // (A-134 row 1: a lodger going in must not be at any household's door.)
+                    if (inside && !was)
+                    {
+                        lodgerArrivals++;
+                        if (Ownership.HouseAt(s.Position.xz) is var theirs && theirs != Ownership.Nobody)
+                        {
+                            lodgerAtHousehold++;
+                            Debug.Log($"[households] LODGER {FolkNames.Of(s.Individual)} in at house {theirs}'s door ({s.Position.x:F1}, {s.Position.z:F1}) " +
+                                      $"at {FishCatch.Hour():F2}h; {lodgerAtHousehold} of {lodgerArrivals} lodgers in at a household's door");
+                        }
+                        else
+                            Debug.Log($"[households] lodger {FolkNames.Of(s.Individual)} in at a door no household owns ({s.Position.x:F1}, {s.Position.z:F1}) at {FishCatch.Hour():F2}h");
+                    }
+                    continue;
+                }
                 if (inside && !was)
                 {
                     var own = math.distance(s.Position.xz, house.Door.xz) < 1.5f;
+                    // (A-134 row 1: wrong is another household's door; a door no household owns is a hall or a
+                    // workshop, a day's errand, not going home.)
+                    if (!own && Ownership.HouseAt(s.Position.xz) == Ownership.Nobody)
+                    {
+                        Debug.Log($"[households] errand {FolkNames.Of(s.Individual)} {house.Members[m].Role} in at a door no household owns " +
+                                  $"({s.Position.x:F1}, {s.Position.z:F1}) at {FishCatch.Hour():F2}h");
+                        continue;
+                    }
                     houseArrivals++;
                     houseWrongDoor += own ? 0 : 1;
+                    if (own && membersHome.Add(s.Individual))
+                        Debug.Log($"[households] probe: {membersHome.Count} folk home at their own door, {houseWrongDoor} wrong, " +
+                                  $"{lodgerAtHousehold} of {lodgerArrivals} lodgers at a household's door");
                     Debug.Log($"[households] home {FolkNames.Of(s.Individual)} {house.Members[m].Role} of {house.Kind} at ({house.Door.x:F1}, {house.Door.z:F1}) " +
                               $"landmark {house.Landmark}: {(own ? "own door" : $"WRONG door ({s.Position.x:F1}, {s.Position.z:F1})")} " +
                               $"at {FishCatch.Hour():F2}h; {houseArrivals} home, {houseWrongDoor} at a wrong door");
@@ -644,10 +698,13 @@ namespace Punchy.Fauna
         void TeardownHouses()
         {
             Households.Clear();
+            DropHouseDoors();
             TeardownFarFolk();   // (A-109: the far figures are built from these houses)
             housesSeen.Clear();
             housesInside.Clear();
             houseArrivals = houseWrongDoor = 0;
+            membersHome.Clear();
+            lodgerArrivals = lodgerAtHousehold = 0;
             houseQueryWorld = null;
             houseQuery = default;
             TeardownTownExceptions();   // (A-110 row 6: the list goes back into the rebuilt houses)

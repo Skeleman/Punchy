@@ -19,7 +19,7 @@
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Critters.hlsl"
 
             // Per wing: a quad from the body (x = 0) out to the tip (x = 1), front (z = 1) to back (z = -1).
