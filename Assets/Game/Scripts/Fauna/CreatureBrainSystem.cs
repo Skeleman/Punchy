@@ -1278,7 +1278,7 @@ namespace Punchy.Fauna
 
                 // Bat folk (#35): a light coming near breaks off what it was doing, to cover its face at once
                 // (DecideShield) rather than when its timer runs out.
-                if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && s.Held != HeldItem.Goggles &&
+                if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && !Punchy.Items.FolkKits.Shaded(in s) &&
                     (Free(s.Mode) || s.Mode == CreatureMode.Work) && !(s.Mode == CreatureMode.Idle && s.Timer <= 0.6f))
                     // (Straight into the cover, not via Decide next tick: a moment idle and facing the light, it would
                     // see the player and bolt instead. A-68.)
@@ -1923,8 +1923,9 @@ namespace Punchy.Fauna
                     var tool = ((s.Individual >> 9) % 3u) switch { 0u => HeldItem.Staff, 1u => HeldItem.Stick, _ => HeldItem.None };
                     if (s.Mode == CreatureMode.Wander && s.Stage == CarryGoods)
                         tool = HeldItem.OreSack;
-                    s.Held = !Below(s, ref b) && Night < 0.5f ? HeldItem.Goggles
-                           : s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
+                    // (Smoked goggles on the surface by day: a head item, so its hands stay free; P-38 row 3.)
+                    Punchy.Items.FolkKits.SetShades(ref s, !Below(s, ref b) && Night < 0.5f);
+                    s.Held = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
                 }
                 else if (b.Blind && b.Hands)
                     s.Held = ((s.Individual >> 7) & 3u) != 0 && s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? HeldItem.Staff : HeldItem.None;

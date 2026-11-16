@@ -110,9 +110,6 @@ namespace Punchy.Items
                 case HeldItem.Letter:
                     k.Hand = FolkKit.Of(ItemTable.Letter);
                     break;
-                case HeldItem.Goggles:
-                    k.Head = FolkKit.Of(ItemTable.Goggles);
-                    break;
             }
 
             // What it owns whatever's in hand: a traveller its pack and staff (the staff in the bag while a lantern's
@@ -234,7 +231,23 @@ namespace Punchy.Items
                 else
                     k.Bag2 = FolkKit.Of(other);
             }
+            // (A bat folk's smoked goggles, put on by its brain on the surface by day (SetShades), stay on its head.)
+            if (b.ShunsLight && Shaded(in s))
+                k.Head = s.Kit.Head;
             return k;
+        }
+
+        /// <summary>#35, P-38 row 3: whether a bat folk has its smoked goggles on (a head item in its kit, not a held
+        /// thing), so the light doesn't make it cover its face.</summary>
+        public static bool Shaded(in CreatureState s) => s.Kit.Head == FolkKit.Of(ItemTable.Goggles);
+
+        /// <summary>Puts a bat folk's smoked goggles on its head, or takes them off (only goggles: never another hat).</summary>
+        public static void SetShades(ref CreatureState s, bool on)
+        {
+            if (on)
+                s.Kit.Head = FolkKit.Of(ItemTable.Goggles);
+            else if (Shaded(in s))
+                s.Kit.Head = 0;
         }
 
         /// <summary>
@@ -314,6 +327,8 @@ namespace Punchy.Items
             28 => CreatureArmour.Woolcap,
             29 => CreatureArmour.Brimhat,
             ItemTable.Goggles => CreatureArmour.Goggles,
+            ItemTable.Glasses => CreatureArmour.Glasses,
+            ItemTable.GlowGoggles => CreatureArmour.GlowGoggles,
             ItemTable.KettleHat => CreatureArmour.KettleHat,
             ItemTable.HornedHelm => CreatureArmour.HornedHelm,
             ItemTable.CrestedHelm => CreatureArmour.CrestedHelm,

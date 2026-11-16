@@ -565,9 +565,6 @@ namespace Punchy.Fauna
     public static class CreatureWorn
     {
         public const byte Hat = 1, Pack = 2;
-        /// <summary>A-103 row 5: a player's eyewear (Eyewear): a small dark pair of glasses, or chunky glow goggles. Eyes
-        /// is both, the bits NetAvatars owns (Items' gear keeps them).</summary>
-        public const byte Glasses = 4, Goggles = 8, Eyes = Glasses | Goggles;
     }
 
     /// <summary>How the body draws a player's weapon (P-28; the item table's ItemDef.Weapon). 0 for none.</summary>
@@ -686,6 +683,11 @@ namespace Punchy.Fauna
         /// <summary>Head: guards' helmets by folk (a human's kettle hat, a dwarf's horned helm, an elf's crested helm, a
         /// goblin's dented pot, an ogre's beast skull), a baker's cap, a straw hat, a fisher's hat, smoked goggles.</summary>
         public const byte KettleHat = 6, HornedHelm = 7, CrestedHelm = 8, PotHelm = 9, SkullHelm = 10, BakerCap = 11, StrawHat = 12, FisherHat = 13, Goggles = 14;
+        /// <summary>P-38 row 3 (A-103 row 5 as items): a small dark pair of glasses (bat eyes see normally), chunky glow
+        /// goggles (any other eyes see as a bat's). Eyewear says which a body wants.</summary>
+        public const byte Glasses = 15, GlowGoggles = 16;
+        /// <summary>Whether this head look sits over the eyes and leaves the head's hair showing.</summary>
+        public static bool OverEyes(byte head) => head == Goggles || head == Glasses || head == GlowGoggles;
         /// <summary>Body: a guard's breastplate (with shoulder pads), a leather cuirass (with leather pads), an apron down
         /// the front: plain cloth (a stallholder's), leather (a smith's), floury white (a baker's).</summary>
         public const byte Breastplate = 5, Cuirass = 6, Apron = 7, LeatherApron = 8, BakerApron = 9;
@@ -765,10 +767,7 @@ namespace Punchy.Fauna
         /// <summary>A rolled message: on a messenger bird's leg, then in the hands of the one who took it, reading it.</summary>
         Letter,
         /// <summary>A chunk of honeycomb a raiding bear knocked down, on the ground at its nose while it licks at it.</summary>
-        Honey,
-        /// <summary>Smoked goggles over the eyes (bat folk on the surface by day, #35): worn, not held, so the light
-        /// doesn't make it cover its face.</summary>
-        Goggles
+        Honey
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>

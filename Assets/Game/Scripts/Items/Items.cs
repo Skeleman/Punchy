@@ -158,6 +158,9 @@ namespace Punchy.Items
             new ItemDef { Name = "Heap", Colour = new Color(0.6f, 0.58f, 0.55f), Stack = 1, Weight = 20f },
             new ItemDef { Name = "Snow block", Colour = new Color(0.86f, 0.9f, 0.94f), Stack = 5, Weight = 15f },
             new ItemDef { Name = "Ice block", Colour = new Color(0.62f, 0.8f, 0.9f), Stack = 5, Weight = 15f },
+            // P-38 row 3: eyewear as head items (A-103 row 5), put on with G or from the inventory.
+            new ItemDef { Name = "Glasses", Colour = new Color(0.04f, 0.04f, 0.05f), Stack = 1, Weight = 0.05f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Glasses },
+            new ItemDef { Name = "Glow goggles", Colour = new Color(0.32f, 0.85f, 0.45f), Accent = new Color(0.2f, 0.17f, 0.14f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.GlowGoggles },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
         /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>
@@ -170,7 +173,8 @@ namespace Punchy.Items
                           Rope = 54, HotIron = 55, Creel = 56, Honeycomb = 57, Goggles = 58, KettleHat = 59, HornedHelm = 60, CrestedHelm = 61,
                           PotHelm = 62, SkullHelm = 63, Breastplate = 64, Cuirass = 65, Sash = 66, HideCape = 67, Apron = 68, LeatherApron = 69,
                           BakerApron = 70, BakerCap = 71, StrawHat = 72, FisherHat = 73, Satchel = 74,
-                          GuyRope = 75, RopeCoil = 76, Trestle = 77, DentedHelm = 78, SpiritFlame = 79, Heap = 80, SnowBlock = 81, IceBlock = 82;
+                          GuyRope = 75, RopeCoil = 76, Trestle = 77, DentedHelm = 78, SpiritFlame = 79, Heap = 80, SnowBlock = 81, IceBlock = 82,
+                          Glasses = 83, GlowGoggles = 84;
         /// <summary>A snow shoveller's knit cap (A-106), from the outfit rows.</summary>
         public const byte Woolcap = 28;
 
@@ -190,6 +194,7 @@ namespace Punchy.Items
                 (StrawHat, "Straw hat"), (FisherHat, "Fisher's hat"), (Satchel, "Satchel"),
                 (GuyRope, "Guy rope"), (RopeCoil, "Rope coil"), (Trestle, "Trestle"), (DentedHelm, "Dented helm"), (SpiritFlame, "Spirit flame"),
                 (Heap, "Heap"), (SnowBlock, "Snow block"), (IceBlock, "Ice block"), (Woolcap, "Woolcap"),
+                (Glasses, "Glasses"), (GlowGoggles, "Glow goggles"),
             };
             foreach (var (id, name) in named)
                 if (id >= Items.Length || Items[id].Name != name)
@@ -387,6 +392,7 @@ namespace Punchy.Items
             UpdateQuests(terrain);
             Tests(terrain);
             GearTest();
+            EyewearKey();
             GearLootTest();
             SwingKeys();
             FishKeys(terrain);

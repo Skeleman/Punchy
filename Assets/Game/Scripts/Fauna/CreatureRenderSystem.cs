@@ -116,10 +116,7 @@ namespace Punchy.Fauna
         /// P-23's hat (brim and crown) and pack, then the hands' looks (Weapon), then what's worn (Armour). Of a body as
         /// drawn (Dressed).
         /// </summary>
-        static int HatPackCount(in CreatureState s) => ((s.Worn & CreatureWorn.Hat) != 0 ? 2 : 0) + ((s.Worn & CreatureWorn.Pack) != 0 ? 1 : 0) +
-                                                       ((s.Worn & CreatureWorn.Eyes) != 0 ? EyewearParts : 0);
-        /// <summary>A player's eyewear (A-103 row 5), after its hat and pack: two lenses and a bridge or strap.</summary>
-        const int EyewearParts = 3;
+        static int HatPackCount(in CreatureState s) => ((s.Worn & CreatureWorn.Hat) != 0 ? 2 : 0) + ((s.Worn & CreatureWorn.Pack) != 0 ? 1 : 0);
         /// <summary>(The right hand's look, then the left's: Zach 11-12, there's no off hand, either holds anything.)</summary>
         static int HandsCount(in CreatureState s) => LookParts(s.Outfit.Weapon, false) + LookParts(s.Outfit.LeftHand, false);
         /// <summary>Capsules a hand look takes (Weapon's shapes): in the fist, or sheathed on the back or at the hip.
@@ -143,7 +140,7 @@ namespace Punchy.Fauna
         {
             0 => 0,
             CreatureArmour.BakerCap => 1,
-            CreatureArmour.HornedHelm or CreatureArmour.Goggles => 3,
+            CreatureArmour.HornedHelm or CreatureArmour.Goggles or CreatureArmour.Glasses or CreatureArmour.GlowGoggles => 3,
             CreatureArmour.SkullHelm => 4,
             _ => 2
         };
