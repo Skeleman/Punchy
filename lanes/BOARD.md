@@ -31,7 +31,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-33 | #266 | player | blocked | player/fishing 461f138c | Fishing ready for PR via P-41; row 4 waits on Zach's feel notes |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
 | P-39 | #397 #398 | player | next | - | Menus d-pad/stick, Start/Select, facing prompts |
-| P-40 | #396 | player-2 (supervisor agent) | active | player/dismount (tree Punchy-docs) | Dismount on size change, jump off |
+| P-40 | #396 | player-2 (supervisor agent) | ready for PR | player/dismount@6c66a3c6 (tree Punchy-docs) | Verified solo/host/client; supervisor opens PR; rule 11 asks in REPORTS |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | done | player/fishing 461f138c | Ready for PR; suite 40/1/17, the one failure was the rain-shot load flake, which passed when re-run alone |

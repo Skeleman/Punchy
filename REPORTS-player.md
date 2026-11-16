@@ -1542,3 +1542,13 @@ Results:
   6. Verify: suite; pixel-diff the A-128 smith/ogre poses (4 clock values x 3 yaws); folk kits solo and host/client;
      A-106 shots in snow, ash and desert settlements (3-4 h).
   Total about 15-19 h. Branch untouched at 487dd137. Needs: go/no-go, and the eyewear choice for item 4.
+
+## player-2 - P-40 (#396) dismount on size change + jump off - done (verified), ready for PR
+- Branch player/dismount @ 6c66a3c6 (from origin/main). New files only: Player/RideFitSystem.cs, Debugging/RideFitTest.cs (+ metas). DebugControls untouched.
+- RideFitSystem (Local|ClientSimulation, before PlayerRideSystem): each frame re-runs Riding.Check for a riding player; on TooHeavy (rider x1.5 > mount) or Winged it adds PlayerRideAsk{Off}. When a remote mount's avatar respawns after its body change it re-finds the mount by MountGhost first, so growing keeps you on.
+- Jump-off for rides you don't steer was already on main (InteractionInputSystem); the test checks it. With A-126, jump steers creature mounts; jump-off stays for player mounts and unsteered rides.
+- Test `-ridefit [rider|mount] -ridefitshot <dir>`: solo PASS, host PASS (dog mount), pair PASS both ways (editor host + build client, then build host + editor client): on / still on after mount grew (BlackBear) / dropped after mount shrank to Cat (TooHeavy, 4.6 kg x1.5 vs 4.6 kg) / on again / jump got down. 0 exceptions in client/host build logs. Note: `-join` needs an address (`-join 127.0.0.1`).
+- Shots: D:/Unity/PunchyMilestones/P-40/{solo,host,pair-rider,pair-mount,rev-rider,rev-mount}/
+- Rule 11 asks (not made): (1) fold the fit check into PlayerRideSystem.Carry with a RideOff.Size reason and drop RideFitSystem; (2) A-126's RiderBody restore goes stale after a species change, re-read it on body change; (3) RideSystem (creature riders) needs the same check if creatures ever change size.
+- FINDING (not this card): InvalidOperationException in Ambience.LandmarkEffectSystem.TryGetFlora (CreateEntityQuery inside an exclusive transaction, line ~150 via NearChimneys/Gather) during editor host start.
+- Shares: extends Riding.Check / PlayerRideSystem (one ride system); parallel not folded: RideSystem for creature riders.
