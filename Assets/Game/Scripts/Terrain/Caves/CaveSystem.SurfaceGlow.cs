@@ -30,6 +30,8 @@ namespace Punchy.Terrain
                 nextFloraLookup = Time.unscaledTime + 1f;
                 flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
             }
+            // (R-39: the near scan reaches as far as the budget still wants a near glow, see SurfaceGlow.NearReach.)
+            surfaceGlow.NearReach = Punchy.Settings.LightBudget.GlowHandOff(Punchy.Settings.LightKind.AmbientGlow, TypicalGlowReach).y;
             surfaceGlow.Update(source, palette, flora, camPos);
             var night = Shader.GetGlobalFloat(NightId);
             var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
