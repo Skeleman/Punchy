@@ -27,7 +27,8 @@ namespace Punchy.Interact
     /// door takes them back out in front of the house they came in by. Each room has a lamp: Use switches it, and the
     /// host owns which lamps are on (UseLampRpc / LampStateRpc, as Doors does). Entering and leaving are each player's
     /// own (their own body moves). Test flags: "-enterdoor N" (stand at door N, open it, go in), "-lamp" (switch the
-    /// lamp 8 s after going in), "-leaveroom" (come back out 16 s after going in).
+    /// lamp 8 s after going in), "-leaveroom" (come back out 16 s after going in;
+    /// "-leaveroom N": N s after).
     /// </summary>
     [DefaultExecutionOrder(1000)]   // (after WeatherSystem sets the sky's ambient each frame: see LateUpdate)
     public partial class Interiors : MonoBehaviour
@@ -65,6 +66,7 @@ namespace Punchy.Interact
         GUIStyle promptStyle;
         int enterDoorArg = -1;
         bool lampArg, leaveArg;
+        float leaveAfter = 16f;
         float testAt, enteredAt;
         static Material material;
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -83,7 +85,11 @@ namespace Punchy.Interact
                 if (!int.TryParse(args[at + 1], out instance.enterDoorArg) && args[at + 1] == "shelf")
                     instance.enterDoorArg = ShelfDoor;
             instance.lampArg = System.Array.IndexOf(args, "-lamp") >= 0;
-            instance.leaveArg = System.Array.IndexOf(args, "-leaveroom") >= 0;
+            var leave = System.Array.IndexOf(args, "-leaveroom");
+            instance.leaveArg = leave >= 0;
+            if (leave >= 0 && leave + 1 < args.Length && float.TryParse(args[leave + 1], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var after))
+                instance.leaveAfter = after;
         }
 
         /// <summary>Whether door <paramref name="door"/>'s house has a room to go into.</summary>
@@ -616,7 +622,7 @@ namespace Punchy.Interact
                 lampArg = false;
                 SwitchLamp(inRoom);
             }
-            if (leaveArg && Time.realtimeSinceStartup > enteredAt + 16f)
+            if (leaveArg && Time.realtimeSinceStartup > enteredAt + leaveAfter)
             {
                 leaveArg = false;
                 Leave();
