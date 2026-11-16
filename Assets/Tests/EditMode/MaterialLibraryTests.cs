@@ -23,9 +23,9 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166): TerrainSurface.shader
-        // (render's) reaches stone through the old Shaders/Stone.hlsl forwarder.
-        static readonly (string include, string shader)[] Pending = { ("Stone.hlsl", "TerrainSurface.shader") };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). Empty since
+        // TerrainSurface.shader includes Materials/Stone.hlsl directly; kept so a future hand-off has a place to go.
+        static readonly (string include, string shader)[] Pending = { };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -96,7 +96,7 @@ namespace Punchy.Tests
             ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
             ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
-            ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader" }),
+            ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader", "TerrainSurface.shader" }),
             ("Bone.hlsl", @"\w*Bone(Pit|Line|Ivory)\w*", @"PunchyBone\w*\s*\(", new[] { "Creature.shader" }),
         };
 

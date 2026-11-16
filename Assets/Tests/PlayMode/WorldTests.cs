@@ -138,7 +138,8 @@ namespace Punchy.Tests
             yield return TestSceneSetup.Spawn("Deer", at.x + 2f, at.z);
             yield return TestSceneSetup.Weather(true);
             yield return TestSceneSetup.Seconds(2f);
-            Shots.Take("test-rain-deer");
+            // (P-50: the ready-gated ShotTool shot; the old immediate Shots.Take render stalled batchmode for minutes in rain.)
+            yield return Shots.Settled("test-rain-deer", 960, 540);
             yield return TestSceneSetup.Weather(false);
         }
 
@@ -300,6 +301,33 @@ namespace Punchy.Tests
             var problems = Game.Hook<string>("CaveSocketsMatchBuild");
             LogWatch.Measure($"{LogWatch.Last("[dungeon] caves:") ?? "no dungeon line"}; baked vs built: {(problems == "" ? "every cave the same" : problems)}");
             Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>P-47: no two dungeon chests (the temple's, every cave's, the ruin rooms') share a container id, so a
+        /// chest RPC names one chest on every machine.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator DungeonChests_IdsUnique()
+        {
+            var problems = Game.Hook<string>("ChestIdClashes");
+            var line = LogWatch.Last("[chests]") ?? "no chests line";
+            LogWatch.Measure($"{line}; ids: {(problems == "" ? "no clashes" : problems)}");
+            Assert.AreEqual("", problems);
+            StringAssert.DoesNotContain(" 0 chests", line);
+            yield return null;
+        }
+
+        /// <summary>P-46: the sunken temple's sockets are pinned (a hall torch too low for its prop dropped, clutter kept
+        /// off chest spots). A layout change moves the hash: re-pin it and add a BENCH-QUEUE note.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator TempleSockets_Pinned()
+        {
+            var line = LogWatch.Last("[dungeon] sunken temple");
+            LogWatch.Measure(line ?? "no sunken temple dungeon line");
+            if (line == null)
+                Assert.Inconclusive("the sunken temple was not built in this world");
+            StringAssert.Contains("73 sockets", line);
+            StringAssert.Contains("hash 2D2BFAEB", line);
             yield return null;
         }
 

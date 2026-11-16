@@ -41,7 +41,10 @@ half PunchyStoneRidge(half b, half fade) { half r = 1 - abs(b * 2 - 1); return l
 
 // The stone's surface at p: changes albedo and n, and gives the crevice amount (0 on edges, 1 deep down) for the
 // lighting below. wet from PunchyStoneWetness; rainWet is the wetness the caller's own wet darkening already applies.
-void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout half3 albedo, inout half3 n, out half crevice)
+// speckScale (0..1) scales the pale mineral specks: the library passes less on very dark rock (the salt tower's
+// basalt), where a fixed pale speck reads as a star; the form below without it keeps every other caller at 1.
+void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout half3 albedo, inout half3 n, out half crevice,
+                        half speckScale)
 {
     float3 w = pow(abs(n), 4);
     w /= max(w.x + w.y + w.z, 1e-5);
@@ -70,10 +73,15 @@ void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout
     albedo = lerp(albedo, lum * half3(1.35, 1.25, 1.05), edge * 0.55);
     float3 cell = floor(p * 30);
     half speck = step(0.965, frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453)) * PunchyStoneFade(0.07, footprint);
-    albedo = lerp(albedo, half3(0.86, 0.84, 0.78), speck * 0.6 * (1 - crevice));
+    albedo = lerp(albedo, half3(0.86, 0.84, 0.78), speck * 0.6 * speckScale * (1 - crevice));
     albedo *= 1 - 0.35 * saturate(-n.y) * f1;
     // Forced wetness (debug) on dry ground: the darkening rain would have brought (the caller's own covers real wet).
     albedo *= lerp(1, 0.62, saturate(wet - rainWet));
+}
+
+void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout half3 albedo, inout half3 n, out half crevice)
+{
+    PunchyStoneSurface(p, footprint, wet, rainWet, albedo, n, crevice, 1);
 }
 
 // The wet stone's two specular lobes from one light (times the light's colour and shadow): a broad one on the relief's
