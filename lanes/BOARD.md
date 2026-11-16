@@ -13,7 +13,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits (new) | Row 1 audit and design note, after world-pack lands |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r3 | #336 | materials | r2 done (verified); r3 next | world/material-library 34783390 (tree Punchy-materials) | Row 3: brick, thatch, plaster, metal, cloth, ice, one commit each |
+| W-166 r3 | #336 | materials | resumable: thatch/cloth/metal done (verified) | world/material-library ea9d2dab (tree Punchy-materials) | Next: mark bands + Materials/Brick, Plaster, Ice.hlsl, gallery per family; then W-175 r1 |
 | A-126 r2-4 | #367 | fauna | ready for PR | fauna/playtest-1114 d3d37437 | Main merged in (CreatureAnimator conflict kept both); lip + RidePlayer PASS; fingerprint 859112C9 |
 | A-108 r2 | #298 | fauna | ready for PR | fauna/far-life 1a3a7131 | Main merged in; island cache Format 4 = one rebake; fingerprint 859112C9 |
 | A-113 | no issue | fauna | ready for PR | flora/tree-variety 1edb7cd8 | Main merged in, re-pinned 836A95D6, WorldTests 14/14; re-pin again if dune-groves (9EFF3BCF) lands first |

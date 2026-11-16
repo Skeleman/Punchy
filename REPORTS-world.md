@@ -8064,3 +8064,18 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Shares:** extends MaterialLibrary + FloraGenerator.Materials (rule 33, one material system for all built pieces). Parallel found but not folded in: fauna and player wooden items.
 - **BENCH:** wood-grain cost in Flora.shader, comparing a town view before and after 34783390.
 - Next: row 3, one commit per family (brick, thatch, plaster, metal, cloth, ice); then W-175 row 1 audit.
+
+## W-166 row 3 (#336), materials lane: part done (verified: thatch, cloth, metal)
+- **Branch:** world/material-library: 91085518 thatch, 94d60eea cloth, ea9d2dab metal.
+  - Each family's look moved, unchanged, into Shaders/Materials/{Thatch,Cloth,Metal}.hlsl, and Flora.shader includes them.
+  - Shaders/Metal.hlsl stays behind as a one-line forwarder, so Creature.shader (fauna's) compiles untouched.
+- **Checks:**
+  - The material test now checks every family's include. Both tests pass.
+  - Flora, Creature and Cave shaders compile with 0 errors.
+  - A noon re-shoot of all 16 pieces gives NaN 0. Its object means are within the sky-drift noise seen on untouched pieces (code is identical, PunchyWoodFade == PunchyOctave).
+- **Left in row 3:** brick, plaster and ice. They have no look of their own yet, and the bark vertex mark has no family slot for them, only wood's 0.015-0.035 band.
+  - Next step: give each family a mark band in FloraMeshBuilder, then write Materials/{Brick,Plaster,Ice}.hlsl.
+  - Each is a look change, so each needs its own before/after gallery.
+- **For fauna:** point Creature.shader at "Materials/Metal.hlsl", then delete Shaders/Metal.hlsl.
+- **Shares:** one include per family under Shaders/Materials (rule 33).
+- **BENCH:** none new; the row 2 wood-grain cost request still stands.
