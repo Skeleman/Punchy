@@ -58,7 +58,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Playable races (#291).** Shipped (A-103): sea, bat and turtle folk; bat eyes see brighter.
 - **Breath (A-102).** Shipped: works like stamina; air breathers resurface; sea folk never run out.
 - **Households (#25, A-105).** Shipped: own homes, going home at dusk, family talk. Shipped: notice board (A-116), fire heat (A-121), doors and sound (A-122). Shipped: household
-  pets (#340, A-120, PR #389). Later, after items (P-35): owned items, and theft that angers owners and guards.
+  pets (#340, A-120, PR #389). Next: owned houses and items, and theft that angers owners and guards (A-134, #460).
 - **Conversation (#25).** Shipped: personalities, a conversation API, reactions to an animal player (A-93),
   hermit chores and talk (A-106), the player talk system (P-28). Shipped: a hand-editable text archive reloaded
   live (A-129, PR #416). Shipped: dialogue options, folk side (A-131, PR #420). Shipped: the innkeeper works the inn counter (A-132, PR #438). Next: the player talk UI shows the replies.

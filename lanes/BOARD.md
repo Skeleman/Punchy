@@ -16,6 +16,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-166 r3-4 | #336 | materials | r3 merged #452; r4 part merged #456 (temple on Stone.hlsl); sweep (items, colossi) queued after W-175 r2 | world/material-library-2 9d04c2d3 | render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
+| A-119 | #339 | fauna | next | fauna/ride-size | rider and mount share one size (batches/A-119.md) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
@@ -34,6 +35,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-42 | #25 | player-2 | rows 1-2 done, verified solo + host (client runs owed, RAM) | player/talk-replies@c34b3f4b (on player/menus) | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
 | P-43 | #396 | player-2 | merged #441 (joined-client pair run still owed) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
+| A-134 | #460 | folk | r0 audit next | folk/ownership | households own houses and items, theft (DESIGN-npc-ownership) |
 | A-124 r2 | #358 | folk | merged #458; #358 closed | folk/gait@7aa37dc3 | Per-person gait styles (verified solo + host/client, 28 clips, pins held); BENCH crowd-cost request in REPORTS-animal |
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
