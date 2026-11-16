@@ -240,3 +240,4 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Crystal arcs (FloraGenerator.Crystals): deferred to the editor slot. The plan is to keep the baked far tubes (W-101 far crackle) and swap the near LODs to kit arcs from model-space endpoints. The magnetic rock's orbiting shards need care.
 - Asked: a BENCH-QUEUE note for the Shuriken baseline (towns and the StoneColossi.Puffs giants), to measure against in row 3.
 - Next: editor slot (compile, material, 12-frame strips near and at 50 m, `-sparkleprobe` NaN 0, tune the ArcPixels fade), then row 3 one family per commit, with wind last for Zach's OK.
+- Coordinator (11-16): Kinds 7 to 8 is approved as part of the same change. Row 3 now also replaces the DrawBolts 160 m gather radius with a gather picked by screen size (rule 20), since render-2 owns that call site now.
