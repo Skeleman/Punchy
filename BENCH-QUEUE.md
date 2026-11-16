@@ -954,7 +954,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Pass: load +50 ms or less, frame +0.2 ms or less.
 - 11-15 note (supervisor): #385-#391 merged to main (37750588). Fauna fingerprint now 859112C9 (was DDE01A70 -> 43D1F778 with body-reads #385, then 859112C9 with the turtle robe panels #390; limb data only, no placement moved). Landmarks 117 689D5348 unchanged. Re-pin your baseline if a job compares it. The cliff kit (#386) adds pieces on sea cliffs and mesas, so a far-view cost check after it would be useful when the queue allows.
 
-## Job 96 (2026-11-15, REPORTED 11-16 (q137.job: FAIL, cause pending; Profiler run q137b.job chained last; heading asked) (q137.job, v0.16.0 4e02a1b0; heading probed with -benchface); v0.16 playtest #400): tunnel entry hitch
+## Job 96 (2026-11-15, REPORTED 11-16 (q137.job: FAIL, cause pending; q137b.job rerouted 11-16 along the bore from W-172's mouth -2061,691 (yaw 326), with the Profiler run; chained) (q137.job, v0.16.0 4e02a1b0; heading probed with -benchface); v0.16 playtest #400): tunnel entry hitch
 - Build: v0.16.0 (main 40478293 + bump). 1920x1080, Medium, uncapped.
 - View: start at -goto -2089,259.3,732 facing the tunnel; run in. Record the worst frames and what spikes (cave streaming, mesh builds, lights, GC).
 - Pass: no frame over 33 ms on entry. Report the cause and the owning system; the supervisor cards the fix.
@@ -981,19 +981,19 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - 99b view: at sea beside a dolphin pod or trout school, Clear noon. Record CPU ms (one ground sample per splashing swimmer each frame).
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms per arm.
 
-## Job 100 (2026-11-15, QUEUED after 99; render-2 lane, R-39 merged #432): flames by screen size, darker nights
+## Job 100 (2026-11-15, CHAINED 11-16 (q140.job); render-2 lane, R-39 merged #432): flames by screen size, darker nights
 - Arm: main d2dfcd1b (B) against d2dfcd1b^1 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds.
 - View: the biggest town at 22:00 from about 150 m up (the R-39 row 1 glide spot), then from 600 m. Record CPU main-thread ms and GPU ms. Far flames now hand over instead of stopping at 150 m.
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms.
 
-## Job 101 (2026-11-15, QUEUED after 100; materials lane, W-166 merged #437): brick parallax
+## Job 101 (2026-11-15, NEEDS A POSE 11-16 (no smithy/brick chimney spot on record); QUEUED after 100; materials lane, W-166 merged #437): brick parallax
 - Arm: main b04b5432 (B) against b04b5432^1 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds.
 - View: a town with kit stone chimneys and the smithy at noon, low sun, camera 3-15 m from the brick walls. Record CPU main-thread ms and GPU ms.
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms. Ice and plaster are math only; this mainly prices the brick mortar parallax.
 
 ## Note (2026-11-15, supervisor): fauna fingerprint on main is 0206544F since #442 (Frostdeer joins the species and Tundra lists; no placement moved). Re-pin any bench check that reads it.
 
-## Job 102 (2026-11-15, QUEUED after 101; render lane, R-30 r1 trial, branch render/foliage-realism 9cec43a5): leaf looks
+## Job 102 (2026-11-15, CHAINED 11-16 (q141.job; R-22 forest vantage pose asked); render lane, R-30 r1 trial, branch render/foliage-realism 9cec43a5): leaf looks
 -leaftrial off / a / b / c at the R-22 forest view and the oak glade, noon. Report GPU frame time, shadow pass time and flora triangles per mode. Questions: is (b) shells affordable at High, and what does (c) rim cost over off?
 Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the forest view, backlit (sun low behind the trees), GPU frame time.
 
@@ -1012,7 +1012,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 
 ## Note (2026-11-16, supervisor): #463 moved placement: landmarks 117 547D4E79 (VolcanoCone takes an Ashlands spot at (-891,-2021), one Ashlands BoneGraveyard drops), fauna fingerprint 4BEFEA91. Re-baseline any Ashlands view and re-pin checks that read either.
 
-## Job 105 (2026-11-16, QUEUED; world lane, W-174 row 2, #406/#403, branch world/ground-edits): ground-edit profile cost
+## Job 105 (2026-11-16, CHAINED 11-16 (q142.job, B = 3c3b50b1, A = 2b6ef9e3); world lane, W-174 row 2, #406/#403, branch world/ground-edits): ground-edit profile cost
 - ShapeHeight gains a domain-warped cellular gully (1 cellular + 4 snoise) and a warped pass track (4 snoise) inside the pass box; landmark flats, garden beds, plot pads and paddy rims add 2-4 snoise each on their banks. Rule 21: the lane did not time it.
 - Arms: main (A) against world/ground-edits (B), same seed, -fpscap 0.
 - Record: island bake time, chunk stage time, time to world ready, and frame time standing at #403 (1116,42.7,1634) and at the dwarf mining camp (-1966,651).

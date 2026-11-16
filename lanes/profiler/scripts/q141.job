@@ -1,0 +1,17 @@
+# Job 102 (R-30 r1 trial + r2, render/foliage-realism): leaf looks and light through leaves. High (the card's question:
+# is (b) shells affordable at High), 1920x1080, uncapped, Clear, 3 rounds, arms alternated, -benchflora (flora instances
+# and triangles in view and in the shadow lists).
+# Arms: off / a / b / c = -leaftrial on d86dc216 (r2: the trial flag plus FloraLeafTransmission); N = 9cec43a5 (r1: the
+# same trial code, no transmission), so N vs off prices the transmission.
+# Views: inside the oak grove (-place OakGrove, as job 84) at noon; the same at 18:30, low sun (backlit only where the
+# grove's sun side happens to be behind the trees: -place sets the heading). The R-22 forest vantage has no pose on
+# record (asked). The laptop's GPU pass timers read nothing, so the shadow pass isn't split here (RenderDoc can).
+Q=q141; TITLE="job 102 leaf looks"
+BUILDS="d86dc21 9cec43a"
+VIEWS="noon dusk"
+view() { case $1 in
+  noon) echo "-place OakGrove -benchstops here -benchhour 12 -benchweather Clear -benchflora";;
+  dusk) echo "-place OakGrove -benchstops here -benchhour 18.5 -benchweather Clear -benchflora";; esac; }
+ARMS="off a b c N"
+arm() { case $1 in off) echo "Profile-d86dc21";; a|b|c) echo "Profile-d86dc21 -leaftrial $1";; N) echo "Profile-9cec43a";; esac; }
+ROUNDS=3; GFX="High"; REF=off; BAR=1

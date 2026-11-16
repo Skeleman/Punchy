@@ -1,23 +1,23 @@
-# Job 96 Profiler run only (q137's third game crashed at exit, and job.sh stops on a crash, so after() never ran).
+# Job 96 rerun along the bore, with the Profiler run q137 lost (its third game crashed at exit; job.sh stops on a crash).
 # Job 96 (v0.16 playtest #400): tunnel entry hitch on v0.16.0 (4e02a1b0). Medium, 1920x1080, uncapped, noon, Clear.
-# The card gives the start (-2089,259.3,732, "facing the tunnel") but no heading. before() stands there with
-# -benchface (dist 0: faces up the slope, where a portal is cut) and reads the yaw it logs; the run is then a 120 m
-# -benchline along that yaw at 6 m/s holding the start height (height -200 keeps y, so it goes into the bore rather
-# than over the hill). -hitchms 33 logs every frame over the bar. 3 plain runs, then one with the Profiler on,
-# analysed for every main frame over 33 ms. Shots on round 1 show whether the run went in.
+# The card gives the start (-2089,259.3,732, "facing the tunnel") but no heading. q137 guessed yaw 45 from -benchface
+# and climbed the hill instead (y 261 -> 278). W-172 row 4 puts the tunnel mouth at -2061,263.2,691, 50 m from the
+# card's point, so the bore runs mouth -> start at yaw 325.7. This run is the entry: from 20 m outside the mouth on the
+# road (-2049.7,674.5), carried through the mouth, past the card's point and 70 m on (-2128.5,789.8), 140 m at 6 m/s.
+# Height -200: only x and z are carried and the game's gravity keeps the player on the bore floor. -hitchms 33.
+# 3 timed runs (q137's went the wrong way), then one with the Profiler on, analysed for every main frame over 33 ms.
+# Round 1 takes shots, to show the run is in the bore.
 Q=q137b; TITLE="job 96 tunnel entry"
 BUILDS="4e02a1b"
-VIEWS=""   # (the 3 timed runs are in q137; this is only the Profiler run, which q137 lost to an exit crash)
-view() { local y; y=$(cat "$R/q137-yaw" 2>/dev/null || echo 0)
-  local x1 z1; read x1 z1 < <(python -c "import math;y=math.radians($y);print(round(-2089+120*math.sin(y),1),round(732+120*math.cos(y),1))")
-  echo "-goto -2089,259.3,732 -benchstops line -benchline -2089,732,$x1,$z1,6,-200 -benchhour 12 -benchweather Clear -hitchms 33"; }
+VIEWS="entry"
+view() { echo "-goto -2049.7,674.5 -benchstops line -benchline -2049.7,674.5,-2128.5,789.8,6,-200 -benchhour 12 -benchweather Clear -hitchms 33"; }
 ARMS="A"
 arm() { echo "Profile-4e02a1b"; }
 ROUNDS=3; GFX="Medium"
 after() {
   [ -n "${DRY:-}" ] && return
   local t=$Q-prof-cs100-1
-  BENCHW=1920 BENCHH=1080 runcsv Profile-4e02a1b $Q-prof 4e02a1b s100 1 -gfx Medium -fpscap 0 $(view run) \
+  BENCHW=1920 BENCHH=1080 runcsv Profile-4e02a1b $Q-prof 4e02a1b s100 1 -gfx Medium -fpscap 0 $(view entry) \
     -profiler-enable -profiler-log-file "$W/q-$t.raw" -profiler-maxusedmemory 1073741824
   check "$R/q-$t.log"
   cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null

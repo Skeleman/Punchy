@@ -1,0 +1,15 @@
+# Job 100 (R-39 merged #432): flames by screen size, darker nights. Merge d2dfcd1b (B) vs its first parent 64eb4790 (A).
+# Profile builds, 1920x1080, Medium and High, uncapped, 22:00, Clear, 3 rounds, arms alternated.
+# Views over town 73 (centre 2972,-885, the biggest town; the R-25 night-lights town), carried 150 m over the ground:
+#  glide150: the R-39 row 1 strip, 300 m in from the south straight to the centre at 6 m/s (the flames hand over as the
+#            camera closes; -hitchms 33 logs any switch spike);
+#  far600:   600 m south of the centre at 150 m up, drifting 30 m north at 1 m/s (far flames, now kept past 150 m).
+Q=q140; TITLE="job 100 far flames"
+BUILDS="d2dfcd1 64eb479"
+VIEWS="glide150 far600"
+view() { case $1 in
+  glide150) echo "-goto 2972,-1185 -benchstops line -benchline 2972,-1185,2972,-885,6,150 -benchhour 22 -benchweather Clear -hitchms 33";;
+  far600)   echo "-goto 2972,-1485 -benchstops line -benchline 2972,-1485,2972,-1455,1,150 -benchhour 22 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-d2dfcd1";; A) echo "Profile-64eb479";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3   # (High's bar is +0.5 ms per the card; the report checks it by hand)

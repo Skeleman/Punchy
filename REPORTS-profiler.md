@@ -2,6 +2,15 @@
 
 Newest first.
 
+## Queue note 11-16 (profiler): Job 96 rerouted along the bore; Jobs 100, 102, 105 chained; pose asks for 101 and 102
+- **Job 96:** W-172 row 4 gives the tunnel mouth at -2061,263.2,691, 50 m from the card's start. So the bore runs from the mouth toward the start at yaw 326; q137 went along yaw 45, up the hill. q137b.job is now the real entry: from 20 m outside the mouth, through it, past the card's point and 70 m on (140 m at 6 m/s; the game's gravity keeps the player on the floor). That's 3 timed runs, then the Profiler run for the cause. The q137 numbers stand as "a run over the hill", not the tunnel. If the bore turns within 70 m of the card's point, tell me its far portal.
+- **Chain order now:** 94 (running), 97, 99a, 96 (q137b), 86 (q128d clean-cache rebuild), then 100 (q140.job), 102 (q141.job) and 105 (q142.job).
+- **Order:** the queue says 103 runs before 100, but 103 still needs the Tundra Frostdeer herd's pose, so 100 goes first. Say if you want 103 moved up once it has a pose.
+- **Job 100:** d2dfcd1b vs 64eb4790, over town 73 at 22:00. Views: the 150 m glide strip (300 m in to the centre at 6 m/s) and the town from 600 m out at 150 m up.
+- **Job 102:** off/a/b/c on d86dc216, plus 9cec43a5 for transmission off. High, inside the oak grove (-place OakGrove) at noon and 18:30, with -benchflora for triangles. **Ask:** a pose for the R-22 forest vantage, and a backlit heading. The shadow pass can't be split on this laptop (its GPU pass timers read nothing).
+- **Job 101: needs a pose.** No smithy or brick-chimney position is on record. Please give a spot 3-15 m from a smithy stack or brick chimney, with its yaw.
+- **Job 105:** world/ground-edits 3c3b50b1, the row 2 work with main merged; the tip's W-176 WIP is left out. A is 2b6ef9e3, the merge-base. Views: #403's cut and the mining camp. Bake ms comes from the first game's cache miss; the load stages from each game's [start] line.
+- **Job 104** (ShaderCache cleared per tree, import and variant counts) comes after these. It needs the editor on each tree, so I'll spec it separately.
 ## Job 86: cobble bevel parallax (render/cobble-depth ce3ff5a7 = B vs merge-base 5b953a34 = A), 2026-11-16 (q128c.job): **still INVALID, B's rebuild has no terrain either; cause found (a stale shader cache), clean rebuild q128d.job chained**
 **What happened:** q128c rebuilt B to a fresh folder and its log shows no FXC crash, but B's screenshots again show flat blue ground with grass floating on it (A shows the desert sand). The reason: the rebuild compiled nothing. Its log has no `Compiling shader "Punchy/Terrain Surface"` lines at all. Unity took every TerrainSurface variant from Library/ShaderCache, i.e. the broken output left there by q128b's crashed FXC run. So B's numbers are again meaningless: GPU 8.07 vs 14.2 ms (Medium desert), 11.67 vs 17.17 (Medium town), 12.3 vs 22.43 (High desert), 15.9 vs 21.7 (High town). The 5-10 ms "gain" is just the missing terrain pass.
 

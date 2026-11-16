@@ -1,0 +1,21 @@
+# Job 105 (W-174 row 2, #406/#403): ground-edit profile cost. world/ground-edits 3c3b50b1 (B: row 2's natural profile
+# with main 2b6ef9e3 merged; the branch tip 222d22b1 adds W-176 WIP, left out) vs 2b6ef9e3 (A, the merge-base).
+# Medium, 1920x1080, uncapped, noon, Clear, 3 rounds, arms alternated. Each game is a fresh launch, so each logs its
+# load: the first game of a new island hash bakes ("[island] cache miss no file N ms"), later ones load the cache; and
+# every game logs "[start] world ready ... Stages (s)" (island start/ready, chunk producers). after() lists them per arm.
+# Views: #403's cut (1116,42.7,1634: on the floor under that point) and the dwarf mining camp (-1966,651), yaw 0.
+Q=q142; TITLE="job 105 ground edits"
+BUILDS="3c3b50b 2b6ef9e"
+VIEWS="cut403 mine"
+view() { case $1 in
+  cut403) echo "-goto 1116,42.7,1634 -benchstops spot -benchspot 1116,42.7,1634,0 -benchhour 12 -benchweather Clear";;
+  mine)   echo "-goto -1966,651 -benchstops spot -benchspot -1966,651,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-3c3b50b";; A) echo "Profile-2b6ef9e";; esac; }
+ROUNDS=3; GFX="Medium"; REF=A; BAR=0.3
+after() {
+  [ -n "${DRY:-}" ] && return
+  for f in $(ls -tr "$L"/q-$Q-*.log); do
+    echo "-- $(basename $f): $(grep -ah '^\[island\] cache\|^\[island\] v[0-9]* loaded' $f | head -1 | cut -c1-90) | $(grep -ah '^\[start\] world ready' $f | head -1 | cut -c1-400)"
+  done
+}
