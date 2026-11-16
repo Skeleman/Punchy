@@ -29,6 +29,9 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | player/menus | P-39 (#397) | player-2 | In flight. |
 | fauna/material-library | A-133 | fauna | In flight. |
 | player/talk-replies | P-42 | player-2 | In flight. |
+| folk/gait | A-124 r2 (#358) | folk | In flight. |
+| render/audit-fixes-wip | R-15 | render-2 | WIP; lands with render/audit-fixes. |
+| world/material-library-2 | W-166 gear (+A-133) | materials | In flight. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
