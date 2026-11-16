@@ -74,5 +74,26 @@ namespace Punchy.Tests
             copy.SetValue(row, 0);
             Assert.AreNotEqual(Fingerprint(table, 0), Fingerprint(copy, 0));
         }
+
+        /// <summary>P-35 r3 row 2: the join check's print is never 0 (0 would read as "no catalog") and is the same each
+        /// time it's asked, and the -catalogsalt test flag changes what WorldSync compares.</summary>
+        [Test]
+        public void JoinPrintIsStableAndSaltChangesIt()
+        {
+            var print = (ulong)Catalog.GetProperty("JoinPrint").GetValue(null);
+            Assert.AreNotEqual(0ul, print);
+            Assert.AreEqual(print, (ulong)Catalog.GetProperty("JoinPrint").GetValue(null));
+            var sync = Game.GetType("Punchy.Net.WorldSync");
+            var salt = sync.GetField("CatalogSalt");
+            var old = (ulong)salt.GetValue(null);
+            try
+            {
+                salt.SetValue(null, 0ul);
+                Assert.AreEqual(print, (ulong)sync.GetProperty("CatalogPrint").GetValue(null));
+                salt.SetValue(null, 7ul);
+                Assert.AreNotEqual(print, (ulong)sync.GetProperty("CatalogPrint").GetValue(null));
+            }
+            finally { salt.SetValue(null, old); }
+        }
     }
 }
