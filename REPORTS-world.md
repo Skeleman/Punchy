@@ -8296,3 +8296,11 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Rule 11 ask 2, items (player-owned):** ground items draw with ItemMaterial, which is URP Lit with one colour per submesh, so no family can reach them. Proposal: ItemDef gains a family and kind per part. ItemMeshes writes white vertex colours plus uv3. ItemMaterial moves to Colossus.shader with the part colour as _BaseColor, the same haze as the world. Player makes these edits; I can do it if the supervisor prefers. This changes the look of ground items (haze, cloud shadow, family detail), so it needs a before/after.
 - **Not affected:** TerrainSurface's forwarder (render).
 - Next: wait for the rule 11 OK. In the meantime I start the next W-175 family (camps, docks) on its own branch, as the supervisor ordered.
+
+## 11-16 W-172 lava half-row: rebased on main, re-pinned (world/ashlands-lava 99fd4710)
+
+- Rebased onto origin/main 112c8cdd (one commit: VolcanoCone joins Ashlands' landmark list).
+- Landmarks: 117, probe hash 547D4E79 (unchanged from the branch: VolcanoCone takes the Ashlands spot at (-891,-2021), one Ashlands BoneGraveyard at (-733,-2944) drops, the other 115 unmoved).
+- Fauna fingerprint re-pinned E764AAEC -> 4BEFEA91 (spawn plots shift with the moved landmarks).
+- WorldTests 14/14 in play mode. Ready for review and merge. Profiler: world layout moved (one landmark), re-pin any bench that names the fingerprint.
+- Next: W-174 row 2 on world/ground-edits.
