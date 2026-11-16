@@ -201,6 +201,7 @@ Shader "Punchy/Creature"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP   // R-10: street lights and lanterns as Forward+ real lights
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
@@ -252,12 +253,13 @@ Shader "Punchy/Creature"
             // What gear is made of, shaded so it reads for what it is from across a town, not just close to: metal
             // mirrors the sky and the ground and flashes in the sun; leather has a soft sheen, cloth none; wood is
             // grained along its length; bone is ivory and waxy. (Bodies keep their own soft light, in Frag.)
-            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS)
+            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS, float4 positionCS)
             {
                 half3 sun = light.color * shadow;
                 half ndl = dot(n, light.direction);
                 half ndv = saturate(dot(n, v));
-                half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n);
+                // (Real lights too, R-10: Glow.hlsl's shared falloff, so a lantern lights gear as it lights the ground.)
+                half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n) + PunchyRealLights(positionWS, n, positionCS);
                 float angle = atan2(surface.y, surface.x);
                 if (material == 3)
                 {
@@ -536,11 +538,12 @@ Shader "Punchy/Creature"
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
                     half ndv = saturate(dot(n, v));
                     half rim = pow(1 - ndv, 3) * rimK;
-                    // (Plus the light of glowing plants and hot rock near it: W-18.)
+                    // (Plus the light of glowing plants and hot rock near it, W-18, and real lights with the same falloff, R-10.)
                     // Grounded (Grounding.hlsl): darker underneath (belly, chin, the undersides of limbs) and where it
                     // meets the ground; the ambient light dimmed fully, the sun's in part.
                     half ground = _PunchyNoGrounding > 0.5 ? 1 : PunchyCreatureGrounding(input.positionWS.y - input.ground, n.y);
-                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n));
+                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n)
+                            + PunchyRealLights(input.positionWS, n, input.positionCS));
                     if (spec > 0)
                     {
                         // The highlight (A-97), white rather than the albedo's colour, kept within a few times the sun.
@@ -554,7 +557,7 @@ Shader "Punchy/Creature"
                 }
                 else
                     // (Gear is grounded by its downward faces only: it carries no ground height.)
-                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS) *
+                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS, input.positionCS) *
                             lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
