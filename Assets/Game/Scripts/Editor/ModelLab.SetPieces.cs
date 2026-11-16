@@ -32,6 +32,12 @@ namespace Punchy.EditorTools
         string[] setPieceNames;
         int setPieceVariant;
         int setPieceVariantCount; // a building species' variant count; 0 for cave rooms (any seed)
+        // M-08 row 3: the side list of what the piece is made of; each row names the drawn mesh it highlights on hover (-1: none).
+        readonly List<(string Label, int Mesh)> setPieceParts = new List<(string, int)>();
+        int setPieceHover = -1;
+        MaterialPropertyBlock dimBlock;
+        static readonly string[] RoomGroupNames = { "Stone", "Trim", "Wood", "Cyan crystal", "Violet crystal", "Pale" };
+        static readonly string[] RoomShapeNames = { "box", "crystal", "drum" };
         string setPieceNote = "";
         readonly List<Mesh> setPieceMeshes = new List<Mesh>();
 
@@ -68,6 +74,17 @@ namespace Punchy.EditorTools
             var w = Open();
             w.StepSetPiece(variant);
             return w.setPieceVariant;
+        }
+
+        /// <summary>M-08 row 3: the loaded set piece's part rows, as the side list shows them.</summary>
+        public static string[] SetPiecePartRows() => Open().setPieceParts.Select(r => r.Label).ToArray();
+
+        /// <summary>Highlights part row i as a hover would (-1 clears), for checks and shots.</summary>
+        public static void HoverSetPiecePart(int row)
+        {
+            var w = Open();
+            w.setPieceHover = row >= 0 && row < w.setPieceParts.Count ? w.setPieceParts[row].Mesh : -1;
+            w.Repaint();
         }
 
         void StepSetPiece(int variant)
@@ -150,6 +167,7 @@ namespace Punchy.EditorTools
             foreach (var m in model.Lods)
                 if (m != null)
                     DestroyImmediate(m);
+            setPieceParts.Add(($"{species.name}: one merged mesh (LOD 0). Naming its walls, roofs and trim needs the kit's part list from the grower (flora hook, asked).", -1));
             setPieceNote = $"{species.Form}" + (species.Form is FloraForm.KitBuilding or FloraForm.KitRuin ? $" {species.KitShape} ({species.KitCulture})" : "") +
                            $", variant {setPieceVariant} of {species.Variants}; drawn at scale 1 (towns scale buildings to their folk).";
             return setPieceMeshes.Count > 0;
@@ -192,7 +210,10 @@ namespace Punchy.EditorTools
                 if (meshes[g] == null)
                     continue;
                 CaveRoomKit.Colours((int)type, g, out var rock, out _);
+                var before = setPieceMeshes.Count;
                 AddShaded(meshes[g], rock);
+                if (setPieceMeshes.Count > before)
+                    setPieceParts.Add((RoomGroupLabel(open, g), before));
                 DestroyImmediate(meshes[g]);
             }
             setPieceNote = $"{type} room {room.HX * 2f:0.0} x {room.HZ * 2f:0.0} m, {room.Height:0.0} m high, seed {room.Seed}; ceiling left off. " +
@@ -204,6 +225,26 @@ namespace Punchy.EditorTools
         /// A cave room of this type as the bake plans one (CaveBaking.Rooms: its size ranges, a door to fit), facing +Z
         /// from the origin, picked from the seed. (The ranges are copied from the bake, which keeps them inline.)
         /// </summary>
+        /// <summary>One room group's row: its name and its parts counted by shell (walls, floor, door frame) or set
+        /// piece (what the room type adds) and by shape, e.g. "Stone: 40 shell boxes, 6 set drums".</summary>
+        static string RoomGroupLabel(CaveRoomKit.Kit kit, int group)
+        {
+            var counts = new int[2, RoomShapeNames.Length];
+            for (int i = 0; i < kit.Parts.Count; i++)
+            {
+                var p = kit.Parts[i];
+                if (p.Group == group)
+                    counts[i < kit.SetFrom ? 0 : 1, math.min((int)p.Shape, RoomShapeNames.Length - 1)]++;
+            }
+            var bits = new List<string>();
+            for (int k = 0; k < 2; k++)
+                for (int sh = 0; sh < RoomShapeNames.Length; sh++)
+                    if (counts[k, sh] > 0)
+                        bits.Add($"{counts[k, sh]} {(k == 0 ? "shell" : "set")} {RoomShapeNames[sh]}{(counts[k, sh] == 1 ? "" : sh == 0 ? "es" : "s")}");
+            var name = group < RoomGroupNames.Length ? RoomGroupNames[group] : "Group " + group;
+            return $"{name}: {string.Join(", ", bits)}";
+        }
+
         static CaveRoom SampleRoom(CaveRoomType type, uint seed)
         {
             var pick = new Unity.Mathematics.Random(math.hash(new uint2(seed, (uint)type + 0x5e7u)) | 1u);
@@ -283,13 +324,18 @@ namespace Punchy.EditorTools
                 if (m != null)
                     DestroyImmediate(m);
             setPieceMeshes.Clear();
+            setPieceParts.Clear();
+            setPieceHover = -1;
             setPieceNote = "";
         }
 
         void DrawSetPieces()
         {
-            foreach (var m in setPieceMeshes)
-                preview.DrawMesh(m, Matrix4x4.identity, modelMaterial, 0);
+            // Hovering a part row in the side list dims every other mesh, so the row's parts stand out.
+            dimBlock ??= new MaterialPropertyBlock();
+            dimBlock.SetColor("_Color", new Color(0.3f, 0.3f, 0.3f, 1f));
+            for (int i = 0; i < setPieceMeshes.Count; i++)
+                preview.DrawMesh(setPieceMeshes[i], Matrix4x4.identity, modelMaterial, 0, setPieceHover >= 0 && i != setPieceHover ? dimBlock : null);
         }
 
         void DrawSetPiecePicker()
@@ -325,8 +371,32 @@ namespace Punchy.EditorTools
                     StepSetPiece(v);
             }
             EditorGUILayout.LabelField(setPieceNote, EditorStyles.wordWrappedMiniLabel);
+            DrawSetPieceParts();
             EditorGUILayout.HelpBox("View only: built by the game's own builders from its definitions. Editing and saving " +
                                     "buildings waits on W-175's unit format (M-06 row 5).", MessageType.Info);
+        }
+
+        /// <summary>M-08 row 3 (the cheaper version): the piece's parts as a side list; hovering a row highlights its mesh.</summary>
+        void DrawSetPieceParts()
+        {
+            if (setPieceParts.Count == 0)
+                return;
+            wantsMouseMove = true;
+            EditorGUILayout.LabelField("Parts", EditorStyles.miniBoldLabel);
+            var hover = -1;
+            foreach (var (label, mesh) in setPieceParts)
+            {
+                EditorGUILayout.LabelField(label, EditorStyles.wordWrappedMiniLabel);
+                if (mesh >= 0 && GUILayoutUtility.GetLastRect().Contains(Event.current.mousePosition))
+                    hover = mesh;
+            }
+            if (Event.current.type == EventType.Repaint && hover != setPieceHover)
+            {
+                setPieceHover = hover;
+                Repaint();
+            }
+            else if (Event.current.type == EventType.MouseMove)
+                Repaint();
         }
     }
 }
