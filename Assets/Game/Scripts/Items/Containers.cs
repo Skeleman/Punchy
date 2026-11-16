@@ -75,7 +75,7 @@ namespace Punchy.Items
                 var roll = rng.NextInt(0, 20);
                 if (isChest && roll == 19)
                 {
-                    c.Slots[k] = ((byte)rng.NextInt(ItemTable.Torch, ItemTable.Items.Length), 1);
+                    c.Slots[k] = (ItemTable.RandomLoot(ref rng, ItemTable.Torch), 1);
                     continue;
                 }
                 byte item = roll == 0 ? ItemTable.Key : roll < 6 ? (byte)6 : (byte)rng.NextInt(0, 6);

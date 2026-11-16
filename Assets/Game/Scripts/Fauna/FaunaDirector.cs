@@ -302,6 +302,7 @@ namespace Punchy.Fauna
             WatchHouses(source);   // (A-105 -households: on a client too)
             WatchFarFolk(source);  // (A-109 row 2: the towns' far figures, on every machine)
             ServeTownExceptions(); // (A-110 row 6: the host sends the towns' dead, a joined client applies them)
+            ServeDungeonExceptions(); // (#24 phase 2 row 3: the same for dungeon residents)
             ServeThefts();         // (A-134 row 3: the host or solo game judges takes, every client hears thefts)
             if (simWorld == null)
                 return;
@@ -365,7 +366,8 @@ namespace Punchy.Fauna
                 using (ResidentsMarker.Auto())
                 {
                     SpawnResidents(source);
-                    SendMembersIn();       // (A-110 row 4: a member whose day takes it indoors goes in at its door)
+                    StepOwnersOut();       // (A-134 row 4: one at home who saw a theft steps out at its door)
+                    SendMembersIn();      // (A-110 row 4: a member whose day takes it indoors goes in at its door)
                     MembersLegs();         // (A-110 row 5: far members only follow their day, on low-rate legs)
                     SpawnMembers(source);  // (A-110 row 3: each town household member as itself)
                     SpawnCaveDwellers(source);

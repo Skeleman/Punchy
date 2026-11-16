@@ -59,6 +59,9 @@ namespace Punchy.Fauna
                 theftsByPlayer.Clear();
                 theftsSentTo.Clear();
                 theftsServer = null;
+                ownerCalls.Clear();
+                ownersOut.Clear();
+                guardCalls.Clear();
             }
             Thefts.Today = Cycle != null ? Cycle.Day : 0;
             if (Households.Ready)
@@ -72,6 +75,8 @@ namespace Punchy.Fauna
                 else if (!host && !solo)
                     Thefts.Pending.Clear();   // (a joined client never decides one)
             }
+            if ((host || solo) && Households.Ready)
+                SendHeldGuards(host);
             if (host)
                 CatchUpThefts(simWorld);
             if (queryWorld != null && queryWorld.IsCreated && queryWorld.IsClient())
@@ -116,7 +121,7 @@ namespace Punchy.Fauna
                 for (int i = 0; i < states.Length; i++)
                 {
                     var s = states[i];
-                    if (s.Task != CreatureTask.Patrol || s.Mode != CreatureMode.Patrol && s.Mode != CreatureMode.Wander)
+                    if (!OnRounds(s))
                         continue;
                     var d = math.distance(s.Position.xz, spot);
                     if (d < guardD && d < TheftGuardReach)
@@ -156,6 +161,12 @@ namespace Punchy.Fauna
                               $"unseen ({home} at home, no guard on its rounds facing the door within {TheftSeeReach:F0} m)"));
                 if (seenBy == null)
                     continue; // nobody saw it: nobody holds it against the thief, so nothing is kept or sent
+                // (Row 4: seen from inside, one of them steps out at the door to face the thief.)
+                if (home > 0)
+                    CallOwnerOut(take.Owner, day, hour);
+                // (Row 5: no guard here because every player is away, inside a room say: it goes once someone is near.)
+                if (guard < 0 && NearestPlayer(spot) > Radius)
+                    HoldGuardCall(rpc);
                 if (host)
                 {
                     if (!theftsByPlayer.TryGetValue(rpc.Thief, out var list))
@@ -343,6 +354,16 @@ namespace Punchy.Fauna
             if (t.House < 0 || t.House >= Households.All.Count || Households.All[t.House].Key != t.Key || !Thefts.KnownItem(item))
             {
                 Debug.Log($"[thefts] dropped a theft of {item} from household {t.House}: no such household or item here");
+                return;
+            }
+            if (t.Seen == TheftGuardLate)
+            {
+                // (Row 5: a guard sent late to an earlier theft, which was taken in when it was judged: its line only.)
+                if (t.Guard != 0)
+                {
+                    theftLines.Add(new TheftLine { House = t.House, Guard = t.Guard, At = t.Chase, Item = item, Until = Time.time + TheftGuardLateWait });
+                    Debug.Log($"[thefts] guard {FolkNames.Of(t.Guard) ?? t.Guard.ToString()} is on its way to {Ownership.Whose(t.House, "house")}");
+                }
                 return;
             }
             if (t.Seen == 0)

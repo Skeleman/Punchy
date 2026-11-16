@@ -89,6 +89,41 @@ namespace Punchy.Fauna
 
         public static bool IsCreature(DungeonContent c) => c >= DungeonContent.CaveSalamander && c <= DungeonContent.Wolf;
 
+        /// <summary>
+        /// #24 phase 2: a dungeon's residents from its creature picks (<paramref name="picks"/>, from
+        /// <see cref="PickAll"/>), each with its post, in socket order. The one builder for the host's records and a
+        /// joined client's copy, so an ordinal (a resident's bit in the dead mask) means the same creature on both.
+        /// Returns the dungeon's creature picks: every one takes an ordinal, even one whose species is missing here.
+        /// </summary>
+        public static int Residents(DynamicBuffer<DungeonSocket> sockets, List<DungeonContent> picks, uint id, FaunaDirector director,
+                                    List<DungeonResident> into)
+        {
+            into.Clear();
+            var ordinal = 0;
+            for (int i = 0; i < sockets.Length; i++)
+            {
+                var s = sockets[i];
+                var c = picks[i];
+                if (!IsCreature(c))
+                    continue;
+                // (The ordinal counts every creature pick, so a species missing here doesn't shift the others' bits.)
+                var at = ordinal++;
+                var species = director.SpeciesIndex(c.ToString());
+                if (species < 0)
+                    continue;
+                var fwd = math.mul(s.Rot, new float3(0, 0, 1));
+                // (Every dungeon creature gets a post, even with nothing to do there: it marks it as the dungeon's,
+                // which the director's dungeon tier, not the wild one, makes and lets go.)
+                var post = DungeonPost.From(s, c);
+                post.Dungeon = id;
+                into.Add(new DungeonResident
+                {
+                    Socket = i, Ordinal = at, Species = species, Position = s.Pos, Yaw = math.atan2(fwd.x, fwd.z), Post = post
+                });
+            }
+            return ordinal;
+        }
+
         /// <summary>Picks for a whole dungeon, with a hash of (socket index, content) and counts per socket kind.</summary>
         public static uint PickAll(DynamicBuffer<DungeonSocket> sockets, List<DungeonContent> into, int[] counts)
         {
@@ -379,9 +414,13 @@ namespace Punchy.Fauna
             var shows = World == World.DefaultGameObjectInjectionWorld;
             if (!animals && !World.IsClient())
                 return;
+            // #24 phase 2 row 3: a joined client (no animals on this machine, its species table built) keeps its own
+            // copy of the residents, so it can read the host's dead masks.
+            var joined = !animals && director != null && director.SimWorld == null && director.SpeciesCount > 0 && !AnyServer();
             // A director rebuild (terrain re-baked) destroys every animal: register the residents again (the director
-            // keeps their dead and makes them near players), not the props.
-            if (animals && !filled.IsEmpty)
+            // keeps their dead and makes them near players), not the props. (On a joined client, also the dungeons
+            // filled before its species table was built.)
+            if ((animals || joined) && !filled.IsEmpty)
             {
                 using var done = filled.ToEntityArray(Allocator.Temp);
                 foreach (var d in done)
@@ -389,8 +428,9 @@ namespace Punchy.Fauna
                     if (EntityManager.GetComponentData<DungeonFilled>(d).Builds == director.Builds)
                         continue;
                     DungeonSpawner.PickAll(EntityManager.GetBuffer<DungeonSocket>(d, true), picks, counts);
-                    var made = RegisterCreatures(d);
-                    Debug.Log($"[dungeon] {World.Name} dungeon {d.Index}: animals rebuilt, {made} residents registered again");
+                    var made = RegisterCreatures(d, joined);
+                    Debug.Log($"[dungeon] {World.Name} dungeon {d.Index}: {(joined ? "joined client's copy" : "animals rebuilt")}, " +
+                              $"{made} residents registered again");
                 }
             }
             using var dungeons = fresh.ToEntityArray(Allocator.Temp);
@@ -433,8 +473,8 @@ namespace Punchy.Fauna
                     }
                     Debug.Log($"[dungeon] loot: dungeon {d.Index} type {type} seed 0x{lootSeed:x8}: {loot.Count} items, {spawned} spawned here:{list}");
                 }
-                if (animals)
-                    RegisterCreatures(d);
+                if (animals || joined)
+                    RegisterCreatures(d, joined);
                 else
                     EntityManager.AddComponentData(d, new DungeonFilled());
             }
@@ -477,42 +517,33 @@ namespace Punchy.Fauna
         /// <summary>
         /// #24 phase 2 row 2: hands the creature picks (already in <see cref="picks"/>) to the director as the dungeon's
         /// residents, each with its post, and marks the dungeon filled in this director build. The director makes each
-        /// one only while a player is near, and never again once it dies. Returns how many residents.
+        /// one only while a player is near, and never again once it dies. On a joined client (row 3) they are only its
+        /// copy, to read the host's dead masks against. Returns how many residents.
         /// </summary>
-        int RegisterCreatures(Entity d)
+        int RegisterCreatures(Entity d, bool joined)
         {
-            residents.Clear();
             var sockets = EntityManager.GetBuffer<DungeonSocket>(d, true);
             var info = EntityManager.HasComponent<DungeonInfo>(d) ? EntityManager.GetComponentData<DungeonInfo>(d) : default;
-            var id = info.Id;
-            var ordinal = 0;
-            for (int i = 0; i < sockets.Length; i++)
-            {
-                var s = sockets[i];
-                var c = picks[i];
-                if (!DungeonSpawner.IsCreature(c))
-                    continue;
-                // (The ordinal counts every creature pick, so a species missing here doesn't shift the others' bits.)
-                var at = ordinal++;
-                var species = director.SpeciesIndex(c.ToString());
-                if (species < 0)
-                    continue;
-                var fwd = math.mul(s.Rot, new float3(0, 0, 1));
-                // (Every dungeon creature gets a post, even with nothing to do there: it marks it as the dungeon's,
-                // which the director's dungeon tier, not the wild one, makes and lets go.)
-                var post = DungeonPost.From(s, c);
-                post.Dungeon = id;
-                residents.Add(new DungeonResident
-                {
-                    Socket = i, Ordinal = at, Species = species, Position = s.Pos, Yaw = math.atan2(fwd.x, fwd.z), Post = post
-                });
-            }
-            director.RegisterDungeon(FaunaDirector.DungeonKey(info.Type, id), residents);
+            DungeonSpawner.Residents(sockets, picks, info.Id, director, residents);
+            var key = FaunaDirector.DungeonKey(info.Type, info.Id);
+            if (joined)
+                director.RegisterSeenDungeon(World, key, residents);
+            else
+                director.RegisterDungeon(key, residents);
             if (EntityManager.HasComponent<DungeonFilled>(d))
                 EntityManager.SetComponentData(d, new DungeonFilled { Builds = director.Builds });
             else
                 EntityManager.AddComponentData(d, new DungeonFilled { Builds = director.Builds });
             return residents.Count;
+        }
+
+        /// <summary>Whether this process hosts (a server world): then its client world is the host's own, not a joined one.</summary>
+        static bool AnyServer()
+        {
+            foreach (var w in World.All)
+                if (w.IsServer())
+                    return true;
+            return false;
         }
 
         static Material propMaterial;
