@@ -38,16 +38,22 @@ Shader "Punchy/Terrain Surface"
             // environment cubemap, which is baked once and would show the wrong sky as weather changes.
             #define _ENVIRONMENTREFLECTIONS_OFF
             #include "TerrainSurface.hlsl"
+            #if defined(_CLUSTER_LIGHT_LOOP)
+                // Real lights go through PunchyRealLights below (one falloff with the glow), not URP's inverse square.
+                #undef _ADDITIONAL_LIGHTS
+            #endif
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
+            #include "RiverCurtains.hlsl"   // (R-21: rock beside a river fall is wet with spray)
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            #include "Stone.hlsl"
             // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
             float2 _PunchyWindDirection;
             half _PunchyWind;
@@ -64,6 +70,10 @@ Shader "Punchy/Terrain Surface"
             float _PunchyTerrainDetailPpm;
             // R-28: steps of the paving's offset parallax (DetailPolicy.TerrainParallaxSteps; 0 at Low: none).
             float _PunchyTerrainParallax;
+            // R-19 row 2: the steep rock's cost switches (SteepRockCost), all 0 by default = the full rock.
+            // x 1: no beds and no slabs (grain only). y 1: one noise octave where the beds, their wander and the slabs
+            // use two or more. z: reference pixels a 2.5 m slab must span before it shows (0: the default 2).
+            float4 _PunchyRockCost;
             // Where the marks are, coarsely (CreatureBurrowSystem's MarkMask): a cell 1 where some mark reaches into it,
             // and (x, z of the map's corner, cells per metre, cells across).
             TEXTURE2D(_PunchyBurrowMask);
@@ -346,8 +356,8 @@ Shader "Punchy/Terrain Surface"
                 o.cave = input.morph.w;
                 o.strata = input.strata.x;
                 o.paving = input.strata.yw;
-                o.hollow = half2(input.strata.z, input.soak.x);
-                o.under = input.soak.yzw;
+                o.hollow = half2(TerrainHollow(input), input.soak.x);
+                o.under = TerrainUnder(input);
                 return o;
             }
 
@@ -388,6 +398,12 @@ Shader "Punchy/Terrain Surface"
                 half detailFade = (_PunchyTerrainDetailPpm < 0 ? 1 - smoothstep(detailFar * 0.36, detailFar, distance)
                                                                : smoothstep(8.5, 23.6, metrePixels)) * detailMask;
                 float3 octaves = MicroFades(distance, detailFar) * detailMask;
+                // R-19 (#281): steep faces, over about 45 degrees by the mesh's own normal (so fine relief can't speckle
+                // it), blend from 40 to 55 degrees to layered rock (below). The top-down relief and grain would only
+                // smear down a face as streaks, so they give way to it.
+                half rockFace = (1 - smoothstep(0.574, 0.766, normalize(input.normalWS).y)) * (input.extra.w <= 0.01);
+                octaves *= 1 - rockFace;
+                detailFade *= 1 - rockFace;
                 float3 micro = max(octaves.x, max(octaves.y, octaves.z)) > 0.001 ? MicroDetail(p, octaves) : float3(0, 0, 0.5);
 
                 // Rain: flat ground collects puddles (dark, mirror-smooth, no relief); elsewhere wet ground just
@@ -402,6 +418,7 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
                                                 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
                           * (1 - saturate(input.extra.z * 2));
+                shore = max(shore, PunchyFallWet(input.positionWS) * (1 - saturate(input.extra.z * 2)));   // (R-21: fall spray)
                 // Item 22: only level ground pools (under about 10 degrees; the vertex normal, so fine relief can't
                 // tilt a flat into a slope or a slope into a flat).
                 half flatness = smoothstep(0.975, 0.99, normalize(input.normalWS).y);
@@ -416,6 +433,12 @@ Shader "Punchy/Terrain Surface"
                 half dip = smoothstep(0.0, 0.08, input.hollow.x) * (1 - 0.65 * porosity);
                 half puddle = smoothstep(0.82, 0.9, dip * 0.4 + puddleNoise * 0.6 + wet * 0.15) * flatness * smoothstep(0.1, 0.3, wet)
                             * (1 - 0.6 * input.extra.y);   // grass pokes through, but meadow dips still pool
+                // W-169: a pool (the 2.3 m noise) fades as it shrinks from 4 to 2 reference pixels (DetailPolicy.ScreenSize),
+                // before it could sparkle; the hollow itself already morphs away before any chunk that lacks it.
+                {
+                    float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                    puddle *= saturate((2.3 * ppm / max(distance, 0.01) - 2) / 2);
+                }
                 half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y)
                            * smoothstep(2.08, 7.8, metrePixels);   // (450-120 m at the reference view)
 
@@ -501,6 +524,7 @@ Shader "Punchy/Terrain Surface"
                 half rockShade = 1;
                 // (R-28: up close by screen size, 10.4-23.4 pixels a metre: 90-40 m at the reference view.)
                 half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * smoothstep(10.4, 23.4, metrePixels) * (input.extra.w <= 0.01);
+                steep *= 1 - rockFace;   // (R-19's rock carries its own grain)
                 // W-112: round a cave mouth (its cut field under 8 m) any ground takes the walls' grain at the walls' own
                 // scale, so the terrain doesn't turn smooth where it meets the finer cave rock. Only there: the rest of
                 // the ground pays nothing.
@@ -518,6 +542,58 @@ Shader "Punchy/Terrain Surface"
                     normalWS = normalize(normalWS + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
                     rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
                 }
+                // R-19: the rock on steep faces. Strata: a thick and a thin set of beds by height, wandering slowly
+                // along the face so they aren't contour lines, each bed's top a ledge (the normal tips up where the beds
+                // step out). The surface on them is the shared stone (Stone.hlsl, R-34 row 2: it replaced the old 2 m grain and
+                // 12 m mottle, so there is no double noise). Every part fades by its own
+                // on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans), never by metres.
+                half rockBand = 0, rockBlock = 0, rockLedge = 0;
+                [branch] if (rockFace > 0.001)
+                {
+                    float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                    float pxm = ppm / max(distance, 0.01);
+                    half thickF = saturate((6.0 * pxm - 2) / 2), thinF = saturate((1.4 * pxm - 2) / 2);
+                    bool rockNoise = _PunchyRockCost.x < 0.5, rockTwo = _PunchyRockCost.y < 0.5;
+                    float y = input.positionWS.y;
+                    [branch] if (rockNoise)
+                    {
+                        y += (PunchyValueNoise(p * 0.013 + 5.1) - 0.5) * 8;
+                        [branch] if (rockTwo)
+                            y += (PunchyValueNoise(p * 0.07 + 1.7) - 0.5) * 1.6;
+                        const float ey = 0.2;
+                        float2 bed = (float2(PunchyValueNoise(float2(y / 6.0, 19.7)), PunchyValueNoise(float2((y + ey) / 6.0, 19.7))) - 0.5) * thickF;
+                        [branch] if (rockTwo)
+                            bed += (float2(PunchyValueNoise(float2(y / 1.4, 23.1)), PunchyValueNoise(float2((y + ey) / 1.4, 23.1))) - 0.5) * 0.5 * thinF;
+                        rockBand = bed.x;
+                        half rise = (bed.y - bed.x) / ey;
+                        normalWS = normalize(normalWS + half3(0, saturate(rise) * 0.5 * rockFace, 0));
+                        rockLedge = saturate(-rise * 0.5);   // the underside of a bed lip sits in its own shade
+                    }
+                    // Slabs (1c): patches of lighter and darker stone, wide along the beds and short across them, of
+                    // mixed sizes. Soft-thresholded value noise on a warped domain, so there are no cell edges, no grid
+                    // and no straight seams (cells read as brickwork). Read along x and along z with the bed height,
+                    // so a face of any heading gets them. Softer far off: at distance they are mottling, not blocks.
+                    // Row 2: the slabs show once a 2.5 m slab spans slabPx reference pixels, full at twice that.
+                    half slabPx = _PunchyRockCost.z > 0 ? _PunchyRockCost.z : 2;
+                    half blockF = rockNoise ? saturate((2.5 * pxm - slabPx) / slabPx) : 0;
+                    [branch] if (blockF > 0.001)
+                    {
+                        float2 xz = input.positionWS.xz;
+                        half s;
+                        [branch] if (rockTwo)
+                        {
+                            float wy = y + (PunchyValueNoise(xz * 0.21 + 2.9) - 0.5) * 1.2;
+                            half sA = PunchyValueNoise(float2(xz.x * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, wy * 0.75));
+                            half sB = PunchyValueNoise(float2(xz.y * 0.22 + PunchyValueNoise(xz * 0.09 + 4.1) * 2.5, wy * 0.75 + 31.7));
+                            half sC = PunchyValueNoise(float2((xz.x + xz.y) * 0.5, wy * 1.6 + 9.3));
+                            s = (sA + sB) * 0.35 + sC * 0.3;
+                        }
+                        else   // one read across both headings, one warp: 2 noise reads instead of 6
+                            s = PunchyValueNoise(float2((xz.x + xz.y) * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, y * 0.75));
+                        half far = lerp(0.45, 1, saturate((1.0 * pxm - 2) / 3));
+                        rockBlock = (smoothstep(0.36, 0.64, s) - 0.5) * 0.9 * blockF * far;
+                    }
+                }
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = input.positionWS;
@@ -529,7 +605,8 @@ Shader "Punchy/Terrain Surface"
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
                 inputData.bakedGI = SampleSH(inputData.normalWS);
                 // Glowing plants and molten pools nearby light the ground round them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS);
+                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS)
+                                   + PunchyRealLights(input.positionWS, inputData.normalWS, input.positionCS);
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
@@ -587,6 +664,38 @@ Shader "Punchy/Terrain Surface"
                     // The rock grain's vertical streaks would drown the bands: mostly the bands, then.
                     rockShade = lerp(rockShade, 1, input.strata * 0.7);
                 }
+                // R-19: steep faces take the rock's colour: the biome's own steep surface (its slope layer already
+                // picks red sandstone on the mesas, glass plate in the glass desert, grey rock in the mountains), its hue
+                // kept, greyed only where grass grew (a grassy bank turns to stone, not green stone), then banded,
+                // blocked and shaded under its ledges. Mesa strata already band the colour strongly, so the beds add less there.
+                [branch] if (rockFace > 0.001)
+                {
+                    half luma = dot(albedo, half3(0.3, 0.5, 0.2));
+                    half3 rock = lerp(albedo, luma.xxx * half3(1.03, 0.98, 0.92), 0.6 * input.extra.y);
+                    half lessOnStrata = 1 - 0.6 * input.strata;
+                    rock *= (1 + rockBand * 1.0 * lessOnStrata) * (1 + rockBlock * 0.7 * lessOnStrata)
+                          * (1 - rockLedge * 0.45);
+                    albedo = lerp(albedo, rock, rockFace);
+                }
+                // R-34 row 2: steep faces (and the cliff kit pieces, drawn with this material) take their surface from the
+                // shared stone (Stone.hlsl) on the beds and ledges above. Its footprint from the same reference pixels as
+                // R-19's fades (screen size, not metres). Wet from rain (drying over time), shores and fall spray.
+                half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
+                half3 stoneN0 = normalWS;
+                [branch] if (rockFace > 0.001 && _PunchyCaveDetailReady > 0)
+                {
+                    float ppmS = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                    stoneOn = rockFace;
+                    half realWet = max(wet, shore);
+                    stoneWet = PunchyStoneWetness(realWet);
+                    half3 stoneAlbedo = albedo, stoneN = normalWS;
+                    PunchyStoneSurface(input.positionWS, max(distance, 0.01) / ppmS, stoneWet, realWet, stoneAlbedo, stoneN, stoneCrevice);
+                    albedo = lerp(albedo, stoneAlbedo, rockFace);
+                    normalWS = normalize(lerp(normalWS, stoneN, rockFace));
+                    // (Only the sky term follows the new normal: a second inline copy of the glow loops crashed FXC.)
+                    inputData.bakedGI += SampleSH(normalWS) - SampleSH(inputData.normalWS);
+                    inputData.normalWS = normalWS;
+                }
                 albedo *= rockShade;
                 albedo *= 1 - burrowDarken;
                 albedo = lerp(albedo, half3(0.33, 0.26, 0.20), saltDirt);
@@ -616,6 +725,8 @@ Shader "Punchy/Terrain Surface"
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
+                // (Wet stone brings its own shine below, in place of rain's sheen.)
+                surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle));
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
                 // R-28: the joints are rough and dull when dry and hold the water after rain (a wet sheen down in the
@@ -633,6 +744,13 @@ Shader "Punchy/Terrain Surface"
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
+                [branch] if (stoneOn * stoneWet > 0.01)
+                {
+                    Light stoneSun = GetMainLight(inputData.shadowCoord);
+                    half3 stoneV = inputData.viewDirectionWS;
+                    color.rgb += (stoneSun.color * stoneSun.shadowAttenuation * PunchyStoneSpec(normalWS, stoneN0, stoneV, stoneSun.direction, stoneCrevice, stoneWet)
+                                + SampleSH(reflect(-stoneV, normalWS)) * PunchyStoneFresnel(normalWS, stoneV, stoneCrevice, stoneWet)) * stoneOn * (1 - puddle);
+                }
 
                 // Puddles read like the rivers (W-43b): looking down, a dark see-through film over the ground (a cool
                 // tint, like the water body); at grazing angles the live sky, by the water's Fresnel, off a surface

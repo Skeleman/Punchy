@@ -29,8 +29,8 @@ namespace Punchy.Fauna
     /// ("house" in a town or fishing village, "hut" for a hermit, "igloo", "dome") and its members. All of it comes from
     /// the door's spot, so it is the same on every machine with nothing sent or stored. Taken marks the members out in
     /// the world just now (host only: the rest are away, or not yet spawned). Lost marks the members who have died (A-105
-    /// row 2, for this session): their beds stay empty, so nobody new moves in yet. A joined client marks the deaths it
-    /// saw (A-106 row 3), so its folk speak of them as lost too.
+    /// row 2, for this session): their beds stay empty, so nobody new moves in yet. A joined client sets a town's from
+    /// the host's town exceptions (A-110 row 6), so its folk speak of them as lost too.
     /// </summary>
     public sealed class Household
     {
@@ -39,6 +39,19 @@ namespace Punchy.Fauna
         public uint Key;
         public string Kind;
         public Kinsfolk[] Members;
+        /// <summary>A-117: the horses a "stable" household keeps (from its key; 0 for every other home).</summary>
+        public int Horses;
+        /// <summary>A-117 row 2: of those, how many are out under travellers or at other stables (Away), and how many
+        /// other stables' horses stand here for now (Guests). Host only (FaunaDirector.Riders).</summary>
+        public int Away, Guests;
+        /// <summary>The horses in its paddock now.</summary>
+        public int Present => Horses - Away + Guests;
+        /// <summary>A-120 row 1: the pet the household keeps (its species' name, null for none), the word its folk call
+        /// it by ("cat", "hen"), and its Individual, all from the key (FaunaDirector.AssignPets), so every machine knows
+        /// it by the same name.</summary>
+        public string Pet, PetWord;
+        public uint PetIndividual;
+        public string PetName => FolkNames.PetOf(PetIndividual) ?? "?";
         internal uint Taken, Pinned, Lost;
 
         public string NameOf(int member) => FolkNames.Of(Members[member].Individual) ?? "?";
@@ -52,8 +65,8 @@ namespace Punchy.Fauna
             _ => "head"
         };
 
-        /// <summary>Whether a member has died this session (the host marks each; a joined client the ones it saw go,
-        /// A-106 row 3: FaunaDirector.WatchKinLost).</summary>
+        /// <summary>Whether a member has died this session (the host marks each; a joined client a town's from the
+        /// host's town exceptions, A-110 row 6).</summary>
         public bool Gone(int member) => (Lost >> member & 1u) != 0;
 
         /// <summary>What member other is to member speaker. Elders are the head's parents, children the head's and the
@@ -161,9 +174,17 @@ namespace Punchy.Fauna
     public static class FolkNames
     {
         [System.Serializable]
-        class NameFile { public string[] feminine, masculine, either; }
+        class NameFile { public string[] feminine, masculine, either, pets; }
 
-        static string[] feminine, masculine;
+        static string[] feminine, masculine, pets;
+
+        /// <summary>A-120: a household pet's name, from its Individual (the pets list).</summary>
+        public static string PetOf(uint individual)
+        {
+            if (feminine == null)
+                Load();
+            return pets.Length > 0 ? pets[BiomeSampling.Scramble(individual ^ 0x50455421u) % (uint)pets.Length] : null;
+        }
 
         /// <summary>Whether a folk is feminine (she) or masculine (he), from its Individual.</summary>
         public static bool Feminine(uint individual) => (BiomeSampling.Scramble(individual ^ 0x53455821u) & 1u) != 0;
@@ -178,11 +199,12 @@ namespace Punchy.Fauna
 
         static void Load()
         {
-            feminine = masculine = System.Array.Empty<string>();
+            feminine = masculine = pets = System.Array.Empty<string>();
             try
             {
                 var read = JsonUtility.FromJson<NameFile>(File.ReadAllText(Path.Combine(Application.streamingAssetsPath, "folk-names.json")));
                 var either = read?.either ?? System.Array.Empty<string>();
+                pets = read?.pets ?? System.Array.Empty<string>();
                 feminine = Concat(read?.feminine, either);
                 masculine = Concat(read?.masculine, either);
             }
@@ -253,6 +275,12 @@ namespace Punchy.Fauna
                     for (int p = town.FirstPlot; p < town.FirstPlot + town.PlotCount; p++)
                     {
                         var plot = set.Plots[p];
+                        // (A-117: a town's stable is the stablekeeper household's home, its door the paddock gate.)
+                        if (StableAt(buildings, plot, scale, out var gate, out _, out _))
+                        {
+                            AddStable(list, town.Landmark, gate);
+                            continue;
+                        }
                         if (plot.Role != PlotRole.House || plot.Building < 0)
                             continue;
                         var species = plot.Building < buildings.Count ? buildings[plot.Building].Species : null;
@@ -318,6 +346,7 @@ namespace Punchy.Fauna
                 var d = math.distancesq(x.Door.xz, c).CompareTo(math.distancesq(y.Door.xz, c));
                 return d != 0 ? d : x.Key.CompareTo(y.Key);
             });
+            AssignPets(source, list);   // (A-120 row 1)
             Households.Set(list);
             var members = 0;
             foreach (var h in list)
@@ -423,6 +452,7 @@ namespace Punchy.Fauna
                 return;
             house.Lost |= 1u << m;
             house.Taken |= 1u << m;
+            TownMemberDied(house, m);   // (A-110 row 6: its town's list, sent to the clients)
             if (LogHouses)
                 Debug.Log($"[households] died {FolkNames.Of(s.Individual)} {house.Members[m].Role} of {house.Kind} at ({house.Door.x:F1}, {house.Door.z:F1}) landmark {house.Landmark}: bed left empty");
         }
@@ -493,18 +523,22 @@ namespace Punchy.Fauna
             return Take(best, m);
         }
 
-        static int FreeMember(Household house, bool child, bool needAdult)
+        static int FreeMember(Household house, bool child, bool needAdult) => FreeMember(house, house.Taken, child, needAdult);
+
+        /// <summary>The first free place of that kind in a house, by a tally of the places taken (the house's own, or
+        /// the far figures' (A-109), who are placed by the same rule without touching it).</summary>
+        static int FreeMember(Household house, uint taken, bool child, bool needAdult)
         {
             if (needAdult)
             {
                 var adultIn = false;
                 for (int m = 0; m < house.Members.Length; m++)
-                    adultIn |= house.Members[m].Role != Kin.Child && (house.Taken >> m & 1u) != 0;
+                    adultIn |= house.Members[m].Role != Kin.Child && (taken >> m & 1u) != 0;
                 if (!adultIn)
                     return -1;
             }
             for (int m = 0; m < house.Members.Length; m++)
-                if ((house.Members[m].Role == Kin.Child) == child && (house.Taken >> m & 1u) == 0)
+                if ((house.Members[m].Role == Kin.Child) == child && (taken >> m & 1u) == 0)
                     return m;
             return -1;
         }
@@ -610,15 +644,13 @@ namespace Punchy.Fauna
         void TeardownHouses()
         {
             Households.Clear();
+            TeardownFarFolk();   // (A-109: the far figures are built from these houses)
             housesSeen.Clear();
             housesInside.Clear();
             houseArrivals = houseWrongDoor = 0;
             houseQueryWorld = null;
             houseQuery = default;
-            // (A joined client's lost marks lived in these houses: its kin watch starts over too.)
-            kinMarked.Clear();
-            kinSeen.Clear();
-            kinWorld = null;
+            TeardownTownExceptions();   // (A-110 row 6: the list goes back into the rebuilt houses)
         }
     }
 }

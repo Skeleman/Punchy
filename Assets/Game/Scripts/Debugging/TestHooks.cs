@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Punchy.Ambience;
+using Punchy.Dungeon;
 using Punchy.Fauna;
 using Punchy.Flora;
 using Punchy.Player;
@@ -20,7 +21,7 @@ namespace Punchy.Debugging
     /// float[], string, Vector3) so the tests need no game types. Editor only: nothing here reaches a player build.
     /// Mid-session changes (weather, time, place, spawns) go through DebugControls.RunOptions, the same test flags as PlayArgs.
     /// </summary>
-    public static class TestHooks
+    public static partial class TestHooks
     {
         static EntityManager EM => World.DefaultGameObjectInjectionWorld.EntityManager;
 
@@ -91,6 +92,58 @@ namespace Punchy.Debugging
                 foreach (var ch in line)
                     h = (h ^ ch) * 16777619u;
             return $"{lines.Count} {h:X8}";
+        }
+
+        /// <summary>
+        /// A-117: every settlement plot as "role building x z" (the building by its index within its layout), FNV-1a
+        /// hashed: the layout hash ("plots hash"); with <paramref name="towns"/>, a line per town after it: its type, centre,
+        /// building plots (roles up to Stable, no green plots) and what stands on its stable plot, or "none".
+        /// </summary>
+        public static string LayoutHash(bool towns = false)
+        {
+            var pal = Palette();
+            if (!Source(out var s) || !s.Settlements.IsCreated || pal == null)
+                return "none";
+            ref var set = ref s.Settlements.Value;
+            var all = new List<LandmarkType>(pal.Landmarks);
+            LandmarkBaking.AddLooks(all);
+            var h = 2166136261u;
+            for (int i = 0; i < set.Plots.Length; i++)
+            {
+                var p = set.Plots[i];
+                // The building as its layout's own index, and the extra slots (well, signpost, ...) counted from the list's
+                // end, so appending a layout entry alone doesn't change the hash.
+                ref var lay = ref set.Layouts[set.Settlements[p.Settlement].Layout];
+                var local = p.Building < 0 ? "-" : p.Building - lay.FirstBuilding >= lay.BuildingCount - SettlementBaking.ExtraSlots
+                    ? "x" + (p.Building - lay.FirstBuilding - lay.BuildingCount + SettlementBaking.ExtraSlots)
+                    : (p.Building - lay.FirstBuilding).ToString();
+                foreach (var ch in $"{(int)p.Role} {local} {p.Centre.x:F1} {p.Centre.y:F1}")
+                    h = (h ^ ch) * 16777619u;
+            }
+            var sb = new System.Text.StringBuilder($"{set.Plots.Length} {h:X8}");
+            if (!towns)
+                return sb.ToString();
+            for (int t = 0; t < set.Settlements.Length; t++)
+            {
+                var town = set.Settlements[t];
+                var type = town.Type < all.Count ? all[town.Type] : null;
+                var layout = type != null ? type.Settlement : null;
+                int built = 0;
+                var stable = "none";
+                for (int i = town.FirstPlot; i < town.FirstPlot + town.PlotCount; i++)
+                {
+                    var p = set.Plots[i];
+                    if (p.Role <= PlotRole.Stable && p.Role != PlotRole.Landscaping)
+                        built++;
+                    if (p.Role != PlotRole.Stable)
+                        continue;
+                    var local = p.Building - set.Layouts[town.Layout].FirstBuilding;
+                    stable = layout != null && local >= 0 && local < layout.Buildings.Count && layout.Buildings[local].Species != null
+                        ? layout.Buildings[local].Species.name : "empty";
+                }
+                sb.Append($"\n{(type != null ? type.name : town.Type.ToString())} ({town.Centre.x:F0}, {town.Centre.y:F0}) plots {built} stable {stable}");
+            }
+            return sb.ToString();
         }
 
         /// <summary>Collects the island blobs of a source, boxed, so another source's blobs can be checked against them.</summary>
@@ -196,6 +249,34 @@ namespace Punchy.Debugging
             for (int i = 0; i < a.Length; i++)
                 if (a[i] != b[i]) return false;
             return true;
+        }
+
+        /// <summary>W-168: the island's baked cave sockets against CaveSockets.Build run now for each cave: "" when every
+        /// cave's sockets match byte for byte (and tunnels have none), else the first caves that differ.</summary>
+        public static string CaveSocketsMatchBuild()
+        {
+            if (!Source(out var s) || !s.Caves.IsCreated) return "no caves";
+            if (!s.CaveSockets.IsCreated) return "no baked cave sockets";
+            ref var set = ref s.Caves.Value;
+            ref var baked = ref s.CaveSockets.Value;
+            if (baked.Caves.Length != set.Caves.Length) return $"{baked.Caves.Length} ranges for {set.Caves.Length} caves";
+            var problems = new List<string>();
+            for (int cave = 0; cave < set.Caves.Length && problems.Count < 5; cave++)
+            {
+                var range = baked.Caves[cave];
+                if (set.Caves[cave].Tunnel != 0)
+                {
+                    if (range.Count != 0 || range.Tunnel == 0) problems.Add($"tunnel {cave} has sockets");
+                    continue;
+                }
+                var built = CaveSockets.Build(s, cave, s.World.Seed, out var chambers, out var deadEnds);
+                bool same = built.Count == range.Count && chambers == range.Chambers && deadEnds == range.DeadEnds
+                    && TempleSockets.Hash(built) == range.Hash;
+                for (int j = 0; same && j < built.Count; j++)
+                    same = Same(StructBytes(built[j]), StructBytes(baked.Sockets[range.First + j]));
+                if (!same) problems.Add($"cave {cave}: baked {range.Count} sockets hash {range.Hash:X8}, built {built.Count} hash {TempleSockets.Hash(built):X8}");
+            }
+            return string.Join("; ", problems);
         }
 
         /// <summary>W-140: every blob field of TerrainSource that the island file neither saves nor names as not cached
@@ -424,6 +505,113 @@ namespace Punchy.Debugging
                     r[FolkPersona.Count * 2] += 1f / n;
             }
             return r;
+        }
+
+        /// <summary>
+        /// The bad entries named in the shipped dialogue.json and weather-lines.json, as they'd be logged (A-129): none
+        /// expected. Each comes as "file: path (line n): what's wrong".
+        /// </summary>
+        public static string[] ArchiveProblems()
+        {
+            var found = new List<string>();
+            foreach (var (name, parse) in new (string, System.Action<string, JsonProblems>)[]
+                     {
+                         (DialogueArchive.FileName, (j, p) => DialogueArchive.Parse(j, p)),
+                         (WeatherLines.FileName, (j, p) => WeatherLines.Parse(j, p)),
+                     })
+            {
+                var problems = new JsonProblems();
+                try
+                {
+                    parse(System.IO.File.ReadAllText(JsonFiles.PathOf(name)), problems);
+                }
+                catch (System.Exception e)
+                {
+                    problems.Add(e.Message);
+                }
+                foreach (var problem in problems.All)
+                    found.Add($"{name}: {problem}");
+            }
+            return found.ToArray();
+        }
+
+        /// <summary>
+        /// The live reload (LiveJsonFile, A-129) on a scratch copy of the shipped dialogue.json in Temp: read it, then
+        /// break one culture line, one talk line and one word list and read it again. [first read's line count, line
+        /// count after the bad version (the kept one), the bad version's problems, line count after the fix];
+        /// ReloadError holds the bad version's logged problems.
+        /// </summary>
+        public static float[] ArchiveReload()
+        {
+            var path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", "Temp", "dialogue-reload-test.json");
+            var good = System.IO.File.ReadAllText(DialogueArchive.Path);
+            var file = new LiveJsonFile<DialogueArchive>(path, "DialogueTest", DialogueArchive.Parse, a => $"{a.Count} lines");
+            var r = new float[4];
+            try
+            {
+                System.IO.File.WriteAllText(path, good);
+                r[0] = file.Current?.Count ?? -1;
+                var bad = Newtonsoft.Json.Linq.JObject.Parse(good);
+                foreach (var culture in (Newtonsoft.Json.Linq.JObject)bad["cultures"])
+                {
+                    // (A line with no text, a "when" that isn't a time, a word list holding a number, and an unknown talk key.)
+                    var lines = (Newtonsoft.Json.Linq.JArray)culture.Value["lines"];
+                    lines.Add(new Newtonsoft.Json.Linq.JObject { ["txet"] = "Typo." });
+                    lines.Add(new Newtonsoft.Json.Linq.JObject { ["text"] = "Late, isn't it?", ["when"] = "midnight" });
+                    culture.Value["words"]["broken_list"] = new Newtonsoft.Json.Linq.JArray("fine", 7);
+                    break;
+                }
+                foreach (var culture in (Newtonsoft.Json.Linq.JObject)bad["conversation"])
+                    if (!culture.Key.StartsWith("_") && culture.Key != "topics" && culture.Key != "quests" && culture.Value is Newtonsoft.Json.Linq.JObject topics)
+                    {
+                        foreach (var topic in topics)
+                            if (topic.Value is Newtonsoft.Json.Linq.JArray talk)
+                            {
+                                talk.Add(new Newtonsoft.Json.Linq.JObject { ["text"] = "Hm {trade.", ["moood"] = "Grumpy" });
+                                break;
+                            }
+                        break;
+                    }
+                System.IO.File.WriteAllText(path, bad.ToString());
+                file.Reload();
+                r[1] = file.Current?.Count ?? -1;
+                ReloadError = file.Error;
+                r[2] = string.IsNullOrEmpty(file.Error) ? 0 : file.Error.Split('\n').Length;
+                System.IO.File.WriteAllText(path, good);
+                file.Reload();
+                var fixedCount = file.Current?.Count ?? -1;
+                r[3] = file.Error == null ? fixedCount : -1;
+            }
+            finally
+            {
+                System.IO.File.Delete(path);
+            }
+            return r;
+        }
+
+        public static string ReloadError;
+
+        /// <summary>
+        /// The words that come from dialogue.json's conversation.quests and beastTalk.topics (A-129 row 2), next to the
+        /// file's own entries: [find, clear, bring, bringMany, other, beast meet label, beast bye label] as said, then the
+        /// same seven as the file has them (null where it leaves one out).
+        /// </summary>
+        public static string[] ArchiveWords()
+        {
+            var archive = DialogueArchive.Current;
+            var beast = FolkConversation.Topics(new FolkTalker { Beast = true });
+            string Label(string id) => System.Array.Find(beast, t => t.Id == id).Label;
+            string File(Dictionary<string, string> d, string key) => d != null && d.TryGetValue(key, out var v) ? v : null;
+            var quests = archive?.Talk?.Quests;
+            var labels = archive?.BeastTalk?.Labels;
+            return new[]
+            {
+                FolkConversation.QuestWords("find", "SilverKey", null, 1), FolkConversation.QuestWords("clear", null, "Crow", 1),
+                FolkConversation.QuestWords("bring", "Berry", null, 1), FolkConversation.QuestWords("bring", "Berry", null, 5),
+                FolkConversation.QuestWords("chat", null, null, 1), Label("meet"), Label("bye"),
+                File(quests, "find"), File(quests, "clear"), File(quests, "bring"), File(quests, "bringMany"), File(quests, "other"),
+                File(labels, "meet"), File(labels, "bye"),
+            };
         }
 
         /// <summary>
@@ -712,6 +900,18 @@ namespace Punchy.Debugging
                 return "none";
             var job = (FolkJob)director.SimWorld.EntityManager.GetComponentData<CreatureState>(e).Job;
             return job.ToString();
+        }
+
+        /// <summary>A-117 row 2: the rides so far, every stable's paddock count and the walls clearance check
+        /// (FaunaDirector.RiderReport).</summary>
+        public static string Riders() =>
+            Object.FindAnyObjectByType<FaunaDirector>()?.RiderReport() ?? "no director";
+
+        /// <summary>A-117 row 2: someone rides out of the stable nearest the player now; false if none could.</summary>
+        public static bool RideOut()
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            return director != null && director.ForceDeparture();
         }
 
         /// <summary>
@@ -1376,6 +1576,93 @@ namespace Punchy.Debugging
             return lines.ToString();
         }
 
+        /// <summary>
+        /// A-118 row 1: the same species as LieClearance, posed by CreatureAnimator.Evaluate at x, z (heading 0, size 1)
+        /// with the lie weight stepped 0 to 1 by 0.02. One line per species: "name ext back pop @step/segment nan body", where ext is
+        /// the most any leg reaches lying (hip to foot over the leg's length, 1 = straight), back how far a foot lies
+        /// behind its hip (over the leg's length, 1 = straight out behind), pop the biggest jump of any segment between
+        /// steps (over the body length), nan the segments that came out NaN, and body the lying body's height over the
+        /// standing one.
+        /// </summary>
+        public static string LieExtension(float x, float z)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !Source(out var source))
+                return "";
+            var lines = new System.Text.StringBuilder();
+            var seen = new HashSet<string>();
+            for (int i = 0; i < director.SpeciesCount; i++)
+            {
+                var sp = director.SpeciesAt(i);
+                if (sp == null || !seen.Add(sp.name))
+                    continue;
+                var blob = CreatureBlobBuilder.Build(sp);
+                ref var b = ref blob.Value;
+                var legs = 0;
+                for (int p = 0; p < b.Parts.Length; p++)
+                    if (b.Parts[p].Role == LimbRole.Leg && b.Parts[p].Parent < 0)
+                        legs++;
+                if (b.Upright || legs < 4 || b.Habitat != Habitat.Land || b.Tunnels)
+                {
+                    blob.Dispose();
+                    continue;
+                }
+                var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+                var last = new NativeArray<float3>(b.Segments.Length, Allocator.Temp);
+                float ext = 0f, back = 0f, pop = 0f, body = 1f;
+                int nan = 0, popAt = 0;
+                var ground = source.SampleHeight(new float2(x, z));
+                for (int step = 0; step <= 50; step++)
+                {
+                    var lie = step / 50f;
+                    var s = new CreatureState
+                    {
+                        Position = new float3(x, ground, z), Yaw = 0f, Scale = 1f, Mode = CreatureMode.Rest, Lie = lie, Clock = 1f
+                    };
+                    CreatureAnimator.Evaluate(ref b, in s, 0, in source, output, 0);
+                    for (int g = 0; g < output.Length; g++)
+                    {
+                        var at = output[g].Position;
+                        if (math.any(math.isnan(at)) || math.any(math.isnan(output[g].Rotation.value)))
+                            nan++;
+                        else if (step > 0 && math.distance(at, last[g]) / math.max(b.BodyLength, 0.05f) > pop)
+                        {
+                            pop = math.distance(at, last[g]) / math.max(b.BodyLength, 0.05f);
+                            popAt = step * 1000 + g;
+                        }
+                        last[g] = at;
+                    }
+                    if (step == 50 && b.Segments.Length > 0)
+                        body = (output[0].Position.y - ground) / math.max(b.StandHeight, 1e-3f);
+                    if (lie < 0.98f)
+                        continue;
+                    var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
+                    for (int p = 0; p < b.Parts.Length; p++)
+                    {
+                        ref var part = ref b.Parts[p];
+                        if (part.Role != LimbRole.Leg || part.Parent >= 0)
+                            continue;
+                        var hip = output[part.FirstSegment].Position;
+                        var lastSeg = output[part.FirstSegment + part.SegmentCount - 1];
+                        var foot = lastSeg.Position + math.mul(lastSeg.Rotation, new float3(0f, 0f, lastSeg.Length));
+                        var length = 0f;
+                        for (int j = 0; j < part.SegmentCount; j++)
+                            length += output[part.FirstSegment + j].Length;
+                        if (length <= 1e-4f)
+                            continue;
+                        ext = math.max(ext, math.distance(hip, foot) / length);
+                        back = math.max(back, -math.dot(foot - hip, forward) / length);
+                    }
+                }
+                lines.Append(sp.name).Append(' ').Append(ext.ToString("0.00")).Append(' ').Append(back.ToString("0.00"))
+                     .Append(' ').Append(pop.ToString("0.000")).Append(" @").Append(popAt / 1000).Append('/').Append(popAt % 1000).Append(' ').Append(nan).Append(' ').Append(body.ToString("0.00")).Append('\n');
+                last.Dispose();
+                output.Dispose();
+                blob.Dispose();
+            }
+            return lines.ToString();
+        }
+
         /// <summary>A-92 row 1: the local player sat (1) or laid (2) down as the interact button would, or got up (0).</summary>
         public static bool RestPlayer(int how)
         {
@@ -1620,6 +1907,83 @@ namespace Punchy.Debugging
                 b.enabled = true;
             return true;
         }
+
+        /// <summary>The towns with a plan (A-110 row 2): [0] 1 once every plan is built, then each town's landmark
+        /// index, largest town first.</summary>
+        public static float[] TownPlans()
+        {
+            var towns = new List<TownPlan>(Whereabouts.Towns.Values);
+            towns.Sort((a, b) => a.Residents.Count != b.Residents.Count ? b.Residents.Count.CompareTo(a.Residents.Count) : a.Landmark.CompareTo(b.Landmark));
+            var result = new float[towns.Count + 1];
+            result[0] = FarFolk.Complete ? 1f : 0f;
+            for (int i = 0; i < towns.Count; i++)
+                result[i + 1] = towns[i].Landmark;
+            return result;
+        }
+
+        /// <summary>The clock Whereabouts goes by: [day, hour].</summary>
+        public static float[] TownClock()
+        {
+            var sky = Object.FindAnyObjectByType<Punchy.Weather.DayNightCycle>();
+            return sky == null ? new float[0] : new float[] { sky.Day, sky.TimeOfDay };
+        }
+
+        /// <summary>
+        /// One town's day by Whereabouts: [members, breaks (steps where a member moved further than its speed allows,
+        /// over the day and into the next), the worst such step as a multiple of what was allowed, the most outdoors
+        /// at once, the hour of that, legs that overran their time, the day's digest low 16 bits, high 16 bits].
+        /// </summary>
+        public static float[] TownDay(int landmark, int day)
+        {
+            if (!Whereabouts.Towns.TryGetValue(landmark, out var town))
+                return new float[0];
+            var breaks = Whereabouts.Breaks(town, day, out var worst);
+            var digest = Whereabouts.Digest(town, day, out var peak, out var peakHour);
+            return new float[] { town.Residents.Count, breaks, worst, peak, peakHour, town.Overruns, digest & 0xFFFFu, digest >> 16 };
+        }
+
+        /// <summary>
+        /// The town's plan built a second time from the records, as a machine that just joined would build it:
+        /// [the published plan's digest for the day low, high, the fresh plan's low, high, members in each].
+        /// </summary>
+        public static float[] TownRebuilt(int landmark, int day)
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null || !Source(out var source) || !Whereabouts.Towns.TryGetValue(landmark, out var town))
+                return new float[0];
+            var fresh = director.BuildTownPlanNow(source, landmark);
+            if (fresh == null)
+                return new float[0];
+            var a = Whereabouts.Digest(town, day, out _, out _);
+            var b = Whereabouts.Digest(fresh, day, out _, out _);
+            return new float[] { a & 0xFFFFu, a >> 16, b & 0xFFFFu, b >> 16, town.Residents.Count, fresh.Residents.Count };
+        }
+
+        /// <summary>
+        /// The far figures of one town the last frame it was drawn: [placed (members drawn from as outdoors), what
+        /// Whereabouts counts outdoors at that same day and hour, left out as dead, waiting for their day to be
+        /// built, frames since, shown after the fades, the day, the hour]. Empty when it has not been drawn.
+        /// </summary>
+        public static float[] TownFarCount(int landmark)
+        {
+            foreach (var town in FarFolk.Towns)
+                if (town.Landmark == landmark && town.StatFrame >= 0)
+                    return new float[]
+                    {
+                        town.Placed, Whereabouts.Outdoors(town.Plan, town.StatDay, town.StatHour), town.Gone, town.Unbuilt,
+                        Time.frameCount - town.StatFrame, town.Shown, town.StatDay, town.StatHour
+                    };
+            return new float[0];
+        }
+
+        /// <summary>A town's harsh-biome work (A-106, A-110): [1 if its biome has a work set, how many of its posts
+        /// are that set's].</summary>
+        public static float[] TownWork(int landmark) =>
+            Whereabouts.Towns.TryGetValue(landmark, out var town) ? new float[] { town.WorkSet != null ? 1f : 0f, town.WorkSetPosts } : new float[0];
+
+        /// <summary>A town's centre: [x, z, radius].</summary>
+        public static float[] TownCentre(int landmark) =>
+            Whereabouts.Towns.TryGetValue(landmark, out var town) ? new float[] { town.Centre.x, town.Centre.y, town.Radius } : new float[0];
     }
 }
 #endif

@@ -140,7 +140,11 @@ namespace Punchy.Terrain
             {
                 if (!farHandle.IsCompleted)
                     return;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var tiles = farBuilding.Count;
+                StartLedger.Flight("far ground start", (UnityEngine.Time.realtimeSinceStartupAsDouble - farStartedAt) * 1000.0);
                 FinishFarBuild(config);
+                StartLedger.Add("far ground apply", clock.Elapsed.TotalMilliseconds, tiles);
             }
 
             var size = config.ChunkSize;
@@ -210,8 +214,13 @@ namespace Punchy.Terrain
             if (farWanted.Count == 0)
                 return;
             farWanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+            var startClock = System.Diagnostics.Stopwatch.StartNew();
             StartFarBuild(config, source, Loading ? FarBatchLoading : FarBatch);
+            farStartedAt = UnityEngine.Time.realtimeSinceStartupAsDouble;
+            StartLedger.Add("far ground start", startClock.Elapsed.TotalMilliseconds, farBuilding.Count);
         }
+
+        double farStartedAt;   // W-168: when the far batch in flight started (seconds since start)
 
         /// <summary>Keeps a tile this frame, and queues it when it isn't built at this grid yet.</summary>
         void WantFar(int3 tile, int quads, float distance)
@@ -290,7 +299,8 @@ namespace Punchy.Terrain
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
                 HeightRanges = farRanges,
-                WaterRanges = farWaterRanges
+                WaterRanges = farWaterRanges,
+                Clay = ScarpClay.On
             };
             farHandle = IJobParallelForExtensions.Schedule(job, count, 1);
             JobHandle.ScheduleBatchedJobs();

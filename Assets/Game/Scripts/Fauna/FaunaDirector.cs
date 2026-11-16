@@ -85,6 +85,8 @@ namespace Punchy.Fauna
         /// <summary>Where trees are, for climbing, perching and webs (the same tables the plants are drawn from).</summary>
         BlobAssetReference<Punchy.Flora.FloraBlob> floraBlob;
         BlobAssetReference<WharfSpotSet> wharfBlob;
+        /// <summary>A-115: the towns' lamplighter rounds (every machine: the lamps' lit state is worked out from them).</summary>
+        BlobAssetReference<LampRouteBlob> lampBlob;
         /// <summary>A-73: the gull spots on the wharves' rail posts, by critter cell (WharfSpots.GullSpots).</summary>
         readonly Dictionary<int2, List<AmbientLife.CritterSpot>> gullCells = new Dictionary<int2, List<AmbientLife.CritterSpot>>();
         readonly List<Punchy.Flora.FloraSpecies> floraSpecies = new List<Punchy.Flora.FloraSpecies>();
@@ -104,8 +106,9 @@ namespace Punchy.Fauna
         /// <summary>How many there are of each kind (wild, settled, cave), as last counted (Despawn) plus those since.</summary>
         int wildCount, settledCount, caveCount, critterCount;
 
-        /// <summary>Which count a waiting animal goes towards (Despawn's tally).</summary>
-        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake }
+        /// <summary>Which count a waiting animal goes towards (Despawn's tally). Housed: a town's household members
+        /// (A-110 row 3), with a cap of their own.</summary>
+        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake, Housed }
 
         /// <summary>An animal waiting to be made: where, and what to set up on it once it exists.</summary>
         struct PendingSpawn
@@ -122,7 +125,7 @@ namespace Punchy.Fauna
         public int SpawnsPerFrame = 8;
         readonly Queue<PendingSpawn> pendingSpawns = new Queue<PendingSpawn>();
         /// <summary>How many are waiting, of each tier (counted with those already made, so the caps hold).</summary>
-        readonly int[] pendingTiers = new int[5];
+        readonly int[] pendingTiers = new int[6];
         /// <summary>Critter spots with an animal on its way.</summary>
         readonly HashSet<uint> pendingCritterSpots = new HashSet<uint>();
         EntityArchetype plainArchetype;
@@ -185,6 +188,10 @@ namespace Punchy.Fauna
             if (wharfBlob.IsCreated)
                 wharfBlob.Dispose();
             wharfBlob = default;
+            LampRoutes.Clear();   // (A-115: before the blob it points at is freed)
+            if (lampBlob.IsCreated)
+                lampBlob.Dispose();
+            lampBlob = default;
             gullCells.Clear();
             if (carryBlob.IsCreated)
                 carryBlob.Dispose();
@@ -206,6 +213,8 @@ namespace Punchy.Fauna
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
             CreatureSnapshotSystem.Forget();
+            TeardownHerds();
+            DisposeBuilds();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
@@ -278,11 +287,15 @@ namespace Punchy.Fauna
             KeepAvatar();
             GiveReplicasBodies();
 
-            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f };
+            var clock = new FaunaClock { Night = Cycle != null ? Cycle.Night : 0f, Hour = Cycle != null ? Cycle.TimeOfDay : 12f, Day = Cycle != null ? Cycle.Day : 0 };
             queryWorld.EntityManager.SetComponentData(settingsEntity, clock);
+            NoticeSheets.Tick(source, clock.Day, clock.Hour, Camera.main);   // (A-116 row 2: cosmetic, on a client too)
             Comfort.Hour.Data = new float2(clock.Hour, Cycle != null ? 1f : 0f);
+            var view = Camera.main;
+            LampRoutes.Tick(clock.Hour, clock.Night, view != null ? (float3)view.transform.position : float3.zero);   // (A-115)
             WatchHouses(source);   // (A-105 -households: on a client too)
-            WatchKinLost(source);  // (A-106 row 3: a joined client only)
+            WatchFarFolk(source);  // (A-109 row 2: the towns' far figures, on every machine)
+            ServeTownExceptions(); // (A-110 row 6: the host sends the towns' dead, a joined client applies them)
             if (simWorld == null)
                 return;
             // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in
@@ -329,9 +342,13 @@ namespace Punchy.Fauna
             {
                 nextDespawn = Time.time + 0.25f;
                 using (DespawnMarker.Auto())
+                {
                     Despawn();
+                    UpdateHerds(source);
+                }
             }
             DrainSpawns();
+            UpdateRiders(source);
             if (players.Count == 0)
                 return;
             if (Time.time >= nextResidentCheck)
@@ -340,6 +357,9 @@ namespace Punchy.Fauna
                 using (ResidentsMarker.Auto())
                 {
                     SpawnResidents(source);
+                    SendMembersIn();       // (A-110 row 4: a member whose day takes it indoors goes in at its door)
+                    MembersLegs();         // (A-110 row 5: far members only follow their day, on low-rate legs)
+                    SpawnMembers(source);  // (A-110 row 3: each town household member as itself)
                     SpawnCaveDwellers(source);
                     SpawnChamberBands(source);
                     SpawnWildFolk(source);
@@ -421,7 +441,8 @@ namespace Punchy.Fauna
                 counts = new int[size];
             System.Array.Clear(counts, 0, counts.Length);
             var far = new NativeList<Entity>(Allocator.Temp);
-            wildCount = settledCount = caveCount = critterCount = lakeCount = 0;
+            wildCount = settledCount = caveCount = critterCount = lakeCount = housedCount = 0;
+            memberLive.Clear();
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
@@ -450,6 +471,12 @@ namespace Punchy.Fauna
                 // (Of its kind: lake fish their own (A-88 row 2), settled ones are leashed to a home, cave dwellers live in the dark.)
                 if (states[i].SwimAbove > 0f)
                     lakeCount++;
+                else if (states[i].Leash > 0f && TownMember(states[i].Individual))
+                {
+                    // (A-110 row 3: a town's household member, counted on its own and known to be in the world.)
+                    housedCount++;
+                    memberLive.Add(states[i].Individual);
+                }
                 else if (states[i].Leash > 0f)
                     settledCount++;
                 else if (bodies[i].Blob.Value.CaveDweller)
@@ -469,6 +496,7 @@ namespace Punchy.Fauna
             caveCount += pendingTiers[(int)SpawnTier.Cave];
             critterCount += pendingTiers[(int)SpawnTier.Critter];
             lakeCount += pendingTiers[(int)SpawnTier.Lake];
+            housedCount += pendingTiers[(int)SpawnTier.Housed];
             if (far.Length > 0)
                 em.DestroyEntity(far.AsArray());
             far.Dispose();
@@ -546,7 +574,8 @@ namespace Punchy.Fauna
                 var index = SpeciesIndex(f.Species);
                 // (Moths live round a cave's glowing plants: they come only with the cave.)
                 // (Nor a wolf, a bear or the like in a town: the guards would only be driving it off again.)
-                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
+                // (Herding species come with their baked herds, FaunaDirector.Herds, not one by one.)
+                if (index < 0 || Herding(index, source) || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
                     f.Species.Body.DrivenOff && InTown(source, at))
                     continue;
                 var shortfall = f.Density * densityScale * areaHectares - counts[offset + index];
@@ -614,6 +643,7 @@ namespace Punchy.Fauna
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
             Init(e, speciesIndex, position, yaw);
+            ApplyBuild(em, e, true);
             return e;
         }
 
@@ -631,6 +661,7 @@ namespace Punchy.Fauna
                 case SpawnTier.Cave: caveCount++; break;
                 case SpawnTier.Critter: critterCount++; break;
                 case SpawnTier.Lake: lakeCount++; break;
+                case SpawnTier.Housed: housedCount++; break;
                 default: wildCount++; break;
             }
         }
@@ -663,6 +694,7 @@ namespace Punchy.Fauna
                 pendingTiers[(int)p.Tier]--;
                 Init(made[i], p.Species, p.Position, p.Yaw);
                 p.Then?.Invoke(made[i]);
+                ApplyBuild(em, made[i], true); // (A-124: after Then, which may settle it into a house's Individual.)
             }
             made.Dispose();
         }
