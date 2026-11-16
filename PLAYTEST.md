@@ -156,3 +156,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #456 merged, W-166 row 4 part (#336): sunken temple walls and flagstones use the shared cut stone.
 - 11-16: #458 A-124 r2 (#358 closed): each person walks in their own style (even, heavy, brisk, ambling, a few limp).
 - 11-16: #459 M-06 r4 (#413 closed): Model Lab sets a material kind per creature segment (Body, Cloth, Leather, Metal, Wood, Bone); game looks unchanged until an asset uses it.
+- 11-16: #434 P-39 (#397 #398 closed): menus on d-pad, Start/Select split with field menu tabs, nearest Use target in front wins.
