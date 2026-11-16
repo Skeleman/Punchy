@@ -35,6 +35,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-124 r2 | #358 | folk | active | folk/gait (new) | Per-person gait styles; no new wire field |
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
+| b/fix-lake-ring-hash | #298 | fauna | done, ready for PR | b/fix-lake-ring-hash@8f754ec1 | lake ring seeds scrambled (BiomeSampling.Scramble); neighbour rises independent; fingerprint passes |
 | R-28 r2, R-15 land | - | render-2 | active | render/cobble-depth, render/audit-fixes | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |

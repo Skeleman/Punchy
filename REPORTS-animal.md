@@ -5488,3 +5488,10 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Probe at 779,450, clear noon, 3 dolphins: before, 76 ripples, max strength 2.32. After, 38 ripples, max 1.20.
 - Checks: Fauna_Fingerprint and CaveWater_SurfaceMatchesAndPoolStirs pass. Sparkle check over 360 frames: creature 0, other bad 0.
 - Shots: PunchyMilestones/A-125/wake-before.png and wake-after.png use the same camera, but in the after shot the dolphin is at the frame's edge. wake-after-framed.png is aimed at the ripples. Some rings still show by the dolphins, but they're spaced and lighter.
+
+## 11-15 Lake ring hash fix (A-108 follow-up) - ready for PR
+- Branch b/fix-lake-ring-hash@8f754ec1 (from main 27b11437). In CreatureRenderSystem.LakeRings, the lane shift and the per-slot Random seed both go through BiomeSampling.Scramble, the shared murmur3 finaliser, so neighbouring patches no longer rise in step. Cosmetic, local, nothing sent.
+- Offline check over a 24x24 patch grid and 60 s of dawn: next-door lane shifts differed by a mean of 2.35 s before and 1.68 s after (1.67 s is the figure for independent draws). Rise rate is unchanged at 0.70.
+- Play check at dawn on the lake near -1720,-880, sampled 12 times over 60 s. The set of active patches reshuffles every sample with no row or column stripes. 28-47 rings drawn.
+- Fauna_Fingerprint passes.
+- Possible follow-up, not changed: CreatureRenderSystem.SkyBirds draws its lane shift and slot seed with plain math.hash in the same way.
