@@ -303,6 +303,19 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>P-47: no two dungeon chests (the temple's, every cave's, the ruin rooms') share a container id, so a
+        /// chest RPC names one chest on every machine.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator DungeonChests_IdsUnique()
+        {
+            var problems = Game.Hook<string>("ChestIdClashes");
+            var line = LogWatch.Last("[chests]") ?? "no chests line";
+            LogWatch.Measure($"{line}; ids: {(problems == "" ? "no clashes" : problems)}");
+            Assert.AreEqual("", problems);
+            StringAssert.DoesNotContain(" 0 chests", line);
+            yield return null;
+        }
+
         /// <summary>The "(x, y, z)" after " at " in a DebugControls line.</summary>
         static Vector3 ParseAt(string line)
         {
