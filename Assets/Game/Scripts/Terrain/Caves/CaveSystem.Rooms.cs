@@ -35,6 +35,7 @@ namespace Punchy.Terrain
             if (!source.Caves.IsCreated)
                 return;
             DrawPortals(source, camPos);
+            DrawWallDetails(source, camPos);
             ref var set = ref source.Caves.Value;
             if (set.Rooms.Length == 0)
                 return;
@@ -138,6 +139,7 @@ namespace Punchy.Terrain
             portalMaterials = null;
             portals.Clear();
             TunnelPortalKit.ClearCache();
+            ReleaseWallDetails();
         }
 
         // ------------------------------------------------------------------------------------------- tunnel portals

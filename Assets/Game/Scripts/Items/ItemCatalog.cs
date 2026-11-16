@@ -47,8 +47,26 @@ namespace Punchy.Items
         /// <summary>Every id's item (index 0: an empty def for "nothing", and for a retired id).</summary>
         public static ItemDef[] Defs { get { Load(); return defs; } }
         public static int Count => Defs.Length;
-        /// <summary>FNV-1a of the keys in order: what the join check will compare (row 3).</summary>
+        /// <summary>FNV-1a of the keys in order (part of <see cref="JoinPrint"/>).</summary>
         public static uint Hash { get { Load(); return hash; } }
+
+        /// <summary>
+        /// What the join check compares (P-35 r3 row 2, WorldSync's CatalogCheckRpc): every field of every item from id 1
+        /// on, then the keys' hash, so a renamed key or a changed field both count. 0 when there is no catalog.
+        /// </summary>
+        public static ulong JoinPrint
+        {
+            get
+            {
+                Load();
+                if (ids == null)
+                    return 0;
+                if (joinPrint == 0)
+                    joinPrint = (Fingerprint(defs, 1) ^ hash) * 1099511628211ul | 1;
+                return joinPrint;
+            }
+        }
+        static ulong joinPrint;
         public static string KeyOf(ushort id) { Load(); return id < keys.Length ? keys[id] : null; }
 
         /// <summary>The id of a key (0: none such).</summary>
@@ -98,6 +116,7 @@ namespace Punchy.Items
         public static void Reload()
         {
             defs = null;
+            joinPrint = 0;
             if (blob.IsCreated)
                 blob.Dispose();
             blob = default;

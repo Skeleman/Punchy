@@ -365,5 +365,48 @@ namespace Punchy.Fauna
                       $"far figure {(w.Outdoors ? $"at ({w.Position.x:F1}, {w.Position.y:F1}, {w.Position.z:F1}), apart {math.distance(s.Position, w.Position):F2} m" : "indoors")}, " +
                       $"clock {s.Clock:F1} s, hour {hour:F2}");
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Tests (host): lets go every member creature of the town nearest a spot and forgets its row 4 notes (gone in
+        /// at a door, asked for), so SpawnMembers makes them again from where their day has them now. A creature made
+        /// before a clock jump keeps the leg it was made on (a member near a player is never put back on its legs),
+        /// so a test that sets the hour calls this to see the town as that hour has it. Returns how many it let go.
+        /// </summary>
+        public int RemakeMembersNear(float3 at)
+        {
+            if (simWorld == null || !simWorld.IsCreated || Whereabouts.Towns.Count == 0)
+                return 0;
+            TownPlan plan = null;
+            foreach (var p in Whereabouts.Towns.Values)
+                if (plan == null || math.distancesq(p.Centre, at.xz) < math.distancesq(plan.Centre, at.xz))
+                    plan = p;
+            var seeds = new HashSet<uint>();
+            foreach (var r in plan.Residents)
+            {
+                seeds.Add(r.Seed);
+                r.GoneInTo = -1;
+                r.Asked = float.MinValue;
+                r.InSince = r.WaitSince = -1f;
+            }
+            var em = simWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Unity.Collections.Allocator.Temp);
+            var gone = 0;
+            foreach (var e in entities)
+            {
+                var s = em.GetComponentData<CreatureState>(e);
+                if (s.Mode == CreatureMode.Held || !seeds.Contains(s.Individual) || !Households.Of(s.Individual, out var house, out var m))
+                    continue;
+                house.Taken &= ~(1u << m) | house.Pinned | house.Lost;
+                memberLive.Remove(s.Individual);
+                memberSentIn.Remove(s.Individual);
+                housedCount = math.max(0, housedCount - 1);
+                em.DestroyEntity(e);
+                gone++;
+            }
+            return gone;
+        }
+#endif
     }
 }

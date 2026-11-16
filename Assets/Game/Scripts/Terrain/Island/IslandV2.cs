@@ -621,6 +621,9 @@ namespace Punchy.Terrain
             source.V3Ground = gen.V3Ground;
             source.BiomeCells = default;
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
+            // M-07 r2b: the painted edits before any place, so places, rivers and roads are laid out on the edited ground.
+            source.Edits = PaintedEdits.Build(version, Allocator.Persistent);
+            Debug.Log(PaintedEdits.LastLog);
             source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.CliffKit = default; source.Anchors = default; source.PondMask = default; source.CaveSockets = default; source.Herds = default;
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // #72 (W-87): "-campsitetest <look>" adds one test campsite (debug only; nothing without the flag).
@@ -644,6 +647,8 @@ namespace Punchy.Terrain
             long socketsAt = watch.ElapsedMilliseconds;
             source.CaveSockets = CaveSocketSetBlob.Build(source, Allocator.Persistent);
             long socketsMs = watch.ElapsedMilliseconds - socketsAt;
+            // M-07 r2b: warn about painted tiles on places the generator reshapes (reads only; never changes the bake).
+            PaintedEditsCheck.Run(source);
             // A-108: the herds last, on the finished ground; nothing above reads them.
             source.Herds = Punchy.Fauna.HerdBaking.Build(source, biomes, Allocator.Persistent);
             Debug.Log(Punchy.Fauna.HerdBaking.LastLog);
@@ -705,7 +710,7 @@ namespace Punchy.Terrain
                     Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
                     Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
                     Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago); Free(ref baked.Scarps);
-                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit); Free(ref baked.CaveSockets); Free(ref baked.Herds);
+                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit); Free(ref baked.CaveSockets); Free(ref baked.Herds); Free(ref baked.Edits);
                 }
                 bakes.Clear();
             }
@@ -722,6 +727,7 @@ namespace Punchy.Terrain
                 source.BiomeKind = baked.BiomeKind;
                 source.BiomeMap = baked.BiomeMap;
                 source.Island = baked.Island;
+                source.Edits = baked.Edits;
                 source.V3Ground = baked.V3Ground;
                 source.BiomeCells = baked.BiomeCells;
                 source.RiverSettings = baked.RiverSettings;

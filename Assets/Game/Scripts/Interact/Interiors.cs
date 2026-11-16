@@ -27,7 +27,8 @@ namespace Punchy.Interact
     /// door takes them back out in front of the house they came in by. Each room has a lamp: Use switches it, and the
     /// host owns which lamps are on (UseLampRpc / LampStateRpc, as Doors does). Entering and leaving are each player's
     /// own (their own body moves). Test flags: "-enterdoor N" (stand at door N, open it, go in), "-lamp" (switch the
-    /// lamp 8 s after going in), "-leaveroom" (come back out 16 s after going in).
+    /// lamp 8 s after going in), "-leaveroom" (come back out 16 s after going in;
+    /// "-leaveroom N": N s after).
     /// </summary>
     [DefaultExecutionOrder(1000)]   // (after WeatherSystem sets the sky's ambient each frame: see LateUpdate)
     public partial class Interiors : MonoBehaviour
@@ -65,6 +66,7 @@ namespace Punchy.Interact
         GUIStyle promptStyle;
         int enterDoorArg = -1;
         bool lampArg, leaveArg;
+        float leaveAfter = 16f;
         float testAt, enteredAt;
         static Material material;
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -83,7 +85,11 @@ namespace Punchy.Interact
                 if (!int.TryParse(args[at + 1], out instance.enterDoorArg) && args[at + 1] == "shelf")
                     instance.enterDoorArg = ShelfDoor;
             instance.lampArg = System.Array.IndexOf(args, "-lamp") >= 0;
-            instance.leaveArg = System.Array.IndexOf(args, "-leaveroom") >= 0;
+            var leave = System.Array.IndexOf(args, "-leaveroom");
+            instance.leaveArg = leave >= 0;
+            if (leave >= 0 && leave + 1 < args.Length && float.TryParse(args[leave + 1], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var after))
+                instance.leaveAfter = after;
         }
 
         /// <summary>Whether door <paramref name="door"/>'s house has a room to go into.</summary>
@@ -97,6 +103,9 @@ namespace Punchy.Interact
         {
             get
             {
+                var walkIn = instance != null ? instance.WalkInArm() : 0f;   // (P-37 r3: in a house walked into)
+                if (walkIn > 0f)
+                    return walkIn;
                 if (instance == null || instance.inRoom < 0 || instance.inRoom >= instance.rooms.Count)
                     return 0f;
                 var room = instance.rooms[instance.inRoom];
@@ -245,9 +254,14 @@ namespace Punchy.Interact
             // Each door anchor's plot (the door stands 0.75 x the plot's half depth + 1.4 m out from its centre).
             ref var anchors = ref terrain.Anchors.Value.Anchors;
             var doors = new List<float2>();
+            var doorY = new List<float>();
             for (int i = 0; i < anchors.Length; i++)
                 if (anchors[i].Kind == AnchorKind.Door)
+                {
                     doors.Add(anchors[i].Position.xz);
+                    doorY.Add(anchors[i].Position.y);
+                }
+            ClearWalkIns();
             doorRoom = new int[doors.Count];
             var roomOf = new Dictionary<FloraSpecies, int>();
             InteriorCells.Clear();
@@ -290,11 +304,21 @@ namespace Punchy.Interact
                         roomOf[species] = r;
                     }
                     doorRoom[d] = r;
+                    // P-37 r3 (#369): a house walked into is its own inside. Its type's room is still made above (so room
+                    // indices, seeds and stores match the teleport rooms'), but its door leads nowhere: Use opens it.
+                    if (r >= 0 && species.Form == FloraForm.KitBuilding && StructureKit.WalkIn(species.KitShape) &&
+                        FloraGenerator.HouseInterior(species, out _, out var walkInside))
+                    {
+                        AddWalkIn(plot.Centre, plot.Facing, math.min(new float2(walkInside.x, walkInside.z) * 0.5f, plot.Half), doorY[d], walkInside.y, d, r);
+                        doorRoom[d] = -1;
+                    }
                 }
             }
             var enterable = 0;
             foreach (var r in doorRoom)
                 if (r >= 0) enterable++;
+            if (walkIns.Count > 0)
+                Debug.Log($"Interiors: {walkIns.Count} houses walked into (seamless), in {walkInCells.Count} cells; doors {string.Join(", ", walkIns.ConvertAll(w => w.Door))}");
             Debug.Log($"Interiors: {rooms.Count} rooms (one per house type with an inside), {InteriorCells.Count} boxes; {doors.Count} doors, {matched} matched to a house, {enterable} lead inside");
             for (int r = 0; r < rooms.Count; r++)
                 Debug.Log($"Interiors: room {r} {rooms[r].Type.name}: {rooms[r].Max.x - rooms[r].Min.x:F1} x {rooms[r].Max.y - rooms[r].Min.y:F1} x {rooms[r].Max.z - rooms[r].Min.z:F1} m, seed {RoomSeed(terrain.World.Seed, r):X8}, {rooms[r].Furniture}");
@@ -616,7 +640,7 @@ namespace Punchy.Interact
                 lampArg = false;
                 SwitchLamp(inRoom);
             }
-            if (leaveArg && Time.realtimeSinceStartup > enteredAt + 16f)
+            if (leaveArg && Time.realtimeSinceStartup > enteredAt + leaveAfter)
             {
                 leaveArg = false;
                 Leave();
@@ -634,6 +658,10 @@ namespace Punchy.Interact
         /// </summary>
         void LateUpdate()
         {
+            UpdateWalkIn();
+            WalkInTest();
+            if (WalkInAmbient())
+                return;
             indoors = Mathf.MoveTowards(indoors, inRoom >= 0 ? 1f : 0f, Time.deltaTime / 0.6f);
             if (indoors <= 0f)
             {

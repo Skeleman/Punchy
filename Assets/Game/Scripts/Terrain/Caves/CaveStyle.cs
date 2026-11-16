@@ -176,6 +176,11 @@ namespace Punchy.Terrain
         [Tooltip("How often each kind of destination chamber is picked here: crystal grotto, underground lake, bat roost, buried ruin room.")]
         public Vector4 RoomWeights = Vector4.one;
 
+        [Header("Wall details (W-172 row 7)")]
+        [Tooltip("What the rock is, for the wall details that only some rock takes: flowstone on limestone, fossils in " +
+                 "sedimentary rock (the biome above decides the rest: frost, salt, moss, fungi).")]
+        public CaveRockKind RockKind;
+
         /// <summary>The look as four vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
         {
@@ -196,6 +201,9 @@ namespace Punchy.Terrain
             table[i + 8] = new Vector4(moss.r, moss.g, moss.b, CrackBreakup);
         }
     }
+
+    /// <summary>W-172 row 7: what a cave style's rock is, for CaveWallDetails.</summary>
+    public enum CaveRockKind : byte { Plain, Limestone, Sedimentary, Ice, Volcanic, Crystal }
 
     /// <summary>Where in a cave a plant grows: by the daylight (mouths, shafts), away from it, or anywhere.</summary>
     public enum CaveLight : byte
