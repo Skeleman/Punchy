@@ -1097,3 +1097,7 @@ Main, Medium and High, no code change. Gates which audit items get cards (push b
 - Water: GPU ms of the WaterField compute dispatch with 1 swimmer vs a crowded shore (aim for 30+ sources); CPU ms of SourceJob.
 - Night town (`-benchspot 2988.8,-920`): GPU ms of the FarLights draw.
 - Log line `all impostors ... MB` after a full lap: impostor memory at Detail 32 and 64.
+
+## Job 114 (2026-11-16, QUEUED, render lane, R-31 row 2 #325, branch render/grass-fields@14f86b6d): grass e and f cost
+Meadow at noon, Medium and High. Compare three arms: today, e, f (use the existing switch). Record GPU ms (opaque pass plus shadow
+casters) and CPU ms for each. About 3x the blades/m² (55 to 168), so expect a real cost. Zach is choosing between e and f; both are needed.
