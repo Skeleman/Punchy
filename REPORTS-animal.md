@@ -5384,3 +5384,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Seen, not this row: the existing CreatureWakeSystem ripple trail reads as heavy white rings behind fast dolphins in clear noon light; worth a look if Zach notices.
 - BENCH request (rule 21): new per-frame cost is one ground sample per swimmer inside trace range (trout a few metres, dolphins about 50 m), plus up to 4 splashes of traces. Suggest a job at a dolphin pod near the sea shore, main vs branch.
 - Shares: one splash kit (TraceSystem.SplashAt) for serpent, worm and swimmer. Parallel not folded in: WaterPatchSystem's swimmer ring (row 1) detects the same surface crossing on its own.
+
+## 11-15 A-113 re-pin: flora/tree-variety ... ready for PR (verified)
+- Merged origin/main 64eb4799 into flora/tree-variety; the one conflict was WorldTests' pin line (main's 9EFF3BCF from #421). Kept main's history and re-pinned Fauna_Fingerprint to 0654C913 (A-113's five temperate species join the flora blob; no landmark moved).
+- WorldTests 14/14 (Setup_SpawnRainAndShot timed out once on the first run right after an editor restart, then passed on the rerun).
+- Branch head 9f4168bc, pushed. merge-tree onto main d2dfcd1b (#432) is clean, and #432 touches no flora or test files, so the pin holds.

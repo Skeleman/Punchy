@@ -16,7 +16,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-166 r3 | #336 | materials | resumable: thatch/cloth/metal done (verified) | world/material-library ea9d2dab, merged #426 (tree Punchy-materials) | Next: mark bands + Materials/Brick, Plaster, Ice.hlsl, gallery per family; then W-175 r1 |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2 | #298 | fauna | merged #428 | fauna/far-life | Row 4 details next |
-| A-113 | no issue | fauna | re-pin | flora/tree-variety 1edb7cd8 | WorldTests pin conflicts with main (9EFF3BCF): merge main, re-pin, hand back |
+| A-113 | no issue | fauna | ready for PR | flora/tree-variety 9f4168bc | main 64eb4799 merged, pin 0654C913, WorldTests 14/14; merges clean onto d2dfcd1b (#432) |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
