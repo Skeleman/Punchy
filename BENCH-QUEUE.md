@@ -906,7 +906,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Then 60 s at `-benchspot 140,22,-548,30` (the hermit garden, looking at the hill) and at the default spawn: CPU
   and GPU ms. Pass: bake within +0.2 s, chunk stage within +3 %, frame within rule 23.
 
-## Job 91 (2026-11-14, FOLDED into job 88 as arm C (queue trim); render lane, R-32 row 2, #328): grass blades in every shadow tier
+## Job 91 (2026-11-14, RUNNING 11-15 on its own (q131.job): job 88 had run before I saw the fold; render lane, R-32 row 2, #328): grass blades in every shadow tier
 - main 244805ae (B, #355) vs main 3b192717 (A; on the shelf soon). Profile builds, 1920x1080, Medium and High,
   uncapped, 16:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: the lakeshore meadow `-benchspot 470,1840` facing the trees (dense grass with tree shadows 20-110 m);

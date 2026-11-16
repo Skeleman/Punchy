@@ -1,0 +1,12 @@
+# Job 91 (folded into 88 as arm C; R-32 row 2, #328): grass blades in every shadow tier. main 244805ae (B, #355) vs main
+# 3b192717 (A). Shelf builds. Medium and High, 16:00, Clear, 3 rounds. Views: the lakeshore meadow (-benchspot 470,1840;
+# the card says "facing the trees" without a yaw: yaw 0 here, check the shot) and -place OakGrove.
+Q=q131; TITLE="job 91 grass blades in every shadow tier"
+BUILDS="244805a 3b19271"
+VIEWS="meadow grove"
+view() { case $1 in
+  meadow) echo "-goto 470,1840 -benchstops spot -benchspot 470,1840,0 -benchhour 16 -benchweather Clear";;
+  grove)  echo "-place OakGrove -benchstops here -benchhour 16 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-244805a";; A) echo "Profile-3b19271";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3
