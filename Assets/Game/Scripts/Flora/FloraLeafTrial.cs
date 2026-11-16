@@ -16,6 +16,10 @@ namespace Punchy.Flora
     {
         static int mode = -1;
 
+        // Domain reload is off on entering play mode: read the flag again each session.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetMode() => mode = -1;
+
         /// <summary>0 off, 1 cards, 2 shells, 3 rim (read once; safe on the grow workers).</summary>
         public static int Mode
         {
