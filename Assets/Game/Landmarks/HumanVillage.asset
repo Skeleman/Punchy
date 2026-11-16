@@ -23,6 +23,10 @@ MonoBehaviour:
   Edge: 0.2
   Flatten: 0.9
   Roughness: 0
+  OnePerIsland: 0
+  TowerHeight: 0
+  Temple: 0
+  Ribcage: 0
   Pools: []
   OverrideWater: 0
   WaterColor: {r: 0.2, g: 0.6, b: 0.6, a: 1}
@@ -42,6 +46,7 @@ MonoBehaviour:
     Count: 0
     Angle: 0
     Clearance: 4
+    Trodden: 0
   - Species: {fileID: 11400000, guid: f331a1997509e4a4595d284791070693, type: 2}
     Density: 2
     Ring: {x: 0.85, y: 1}
@@ -51,6 +56,7 @@ MonoBehaviour:
     Count: 0
     Angle: 0
     Clearance: 4
+    Trodden: 0
   - Species: {fileID: 11400000, guid: 28a71e688d796f14b9919018c61ac083, type: 2}
     Density: 0.8
     Ring: {x: 0.2, y: 0.9}
@@ -60,6 +66,7 @@ MonoBehaviour:
     Count: 0
     Angle: 0
     Clearance: 4
+    Trodden: 0
   - Species: {fileID: 11400000, guid: 81a46fee0c08d634a88c0ab7564c6005, type: 2}
     Density: 5
     Ring: {x: 0.62, y: 0.62}
@@ -69,6 +76,7 @@ MonoBehaviour:
     Count: 1
     Angle: 0
     Clearance: 9
+    Trodden: 0
   - Species: {fileID: 11400000, guid: e456a1b994cf93d4f913e83b12a3612a, type: 2}
     Density: 5
     Ring: {x: 0.6, y: 0.6}
@@ -78,6 +86,7 @@ MonoBehaviour:
     Count: 1
     Angle: 140
     Clearance: 7
+    Trodden: 0
   - Species: {fileID: 11400000, guid: 8a81c2bce59a2c54594a0ed5b9f56c7d, type: 2}
     Density: 5
     Ring: {x: 0.56, y: 0.56}
@@ -87,6 +96,7 @@ MonoBehaviour:
     Count: 1
     Angle: 235
     Clearance: 4.5
+    Trodden: 0
   - Species: {fileID: 11400000, guid: a752e0633a80fdb429b3d19b14c0488f, type: 2}
     Density: 5
     Ring: {x: 0.24, y: 0.24}
@@ -96,6 +106,7 @@ MonoBehaviour:
     Count: 1
     Angle: 300
     Clearance: 2.8
+    Trodden: 0
   - Species: {fileID: 11400000, guid: e4d4c4689e1f8e943aae290fcd828078, type: 2}
     Density: 1
     Ring: {x: 0.06341463, y: 0.06341463}
@@ -105,6 +116,7 @@ MonoBehaviour:
     Count: 4
     Angle: 45
     Clearance: 1.2
+    Trodden: 0
   - Species: {fileID: 11400000, guid: e4d4c4689e1f8e943aae290fcd828078, type: 2}
     Density: 1
     Ring: {x: 0.5102439, y: 0.5102439}
@@ -114,6 +126,7 @@ MonoBehaviour:
     Count: 1
     Angle: -3.2
     Clearance: 1.2
+    Trodden: 0
   - Species: {fileID: 11400000, guid: e4d4c4689e1f8e943aae290fcd828078, type: 2}
     Density: 1
     Ring: {x: 0.5102439, y: 0.5102439}
@@ -123,6 +136,18 @@ MonoBehaviour:
     Count: 1
     Angle: 3.2
     Clearance: 1.2
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: 28bdf640bd643d048a69576968e5fcb6, type: 2}
+    Density: 0
+    Ring: {x: 0.6, y: 0.6}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 70
+    Clearance: 6
+    Trodden: 3
+  Fixtures: []
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
@@ -137,6 +162,7 @@ MonoBehaviour:
     Period: 0
     Duty: 0.25
     Flame: 0
+    NightOnly: 0
   - Kind: 0
     Offset: {x: 0, y: 0}
     Height: 2
@@ -150,6 +176,7 @@ MonoBehaviour:
     Period: 0
     Duty: 0.25
     Flame: 0
+    NightOnly: 0
   - Kind: 0
     Offset: {x: -0.5132498, y: 0.43066773}
     Height: 10
@@ -163,6 +190,7 @@ MonoBehaviour:
     Period: 0
     Duty: 0.25
     Flame: 0
+    NightOnly: 0
   - Kind: 0
     Offset: {x: -0.45962667, y: 0.3856726}
     Height: 1.5
@@ -176,6 +204,7 @@ MonoBehaviour:
     Period: 0
     Duty: 0.25
     Flame: 0
+    NightOnly: 0
   - Kind: 0
     Offset: {x: 0.6, y: 0}
     Height: 8
@@ -189,6 +218,7 @@ MonoBehaviour:
     Period: 0
     Duty: 0.25
     Flame: 0
+    NightOnly: 0
   - Kind: 2
     Offset: {x: 0, y: 0}
     Height: 6
@@ -202,6 +232,7 @@ MonoBehaviour:
     Period: 0
     Duty: 0.25
     Flame: 0
+    NightOnly: 0
   Cave: 0
   CaveLength: 40
   CaveDepth: 8
@@ -298,3 +329,6 @@ MonoBehaviour:
     FaceRing: 0
     FaceAngle: 0
     Size: {x: 0, y: 0}
+  Anchors: 0
+  BiomeLooks: []
+  Work: 0
