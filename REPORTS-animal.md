@@ -5532,3 +5532,20 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Not run: in-game play check and host + joiner. It is cosmetic and local (seed + shipped assets, nothing sent), and the render path matches the Lab check above.
 - Gap (already told to Zach): no fur, feather, scale, horn or shell kinds; fur, feathers and scales stay the coat or Surface look, horn and shell use Bone. No library kinds added.
 - Still waiting: item 7 (creature Interact prompt into UseTarget) waits on #434.
+
+## 2026-11-16 A-124 row 2 (#358): per-person gait [folk]
+- DONE (verified solo, host and joined client): folk/gait 7aa37dc3. GaitStyle.cs (new), CreatureAnimator, CreatureMotion, CreatureBrainSystem, CreatureData, NetAvatars; test aids ShotTool clip capture, Shots.Clip*, TestHooks.Gait, GaitClipTests.
+  - Each upright person draws a style from their Individual: even (about half), heavy, brisk, ambling, or a slight limp (adults only, about 1 in 17). The Stride trait adds up to 7% stride. A limp shortens the sore leg's stride (0.72 at a walk, 0.9 at a run) and lifts the body a little over the good leg. Running keeps the style.
+  - No new wire field: the player's style comes from the Individual that NetPlayerLook already sends.
+- Feet stay planted: worst slip 0.24 cm per metre walked, compared with even. Example walk speeds, Human (m/s): even 1.48, heavy 1.52, brisk 1.47, ambling 1.38, limp 1.35. Ogre: 1.11 / 1.09 / 1.21 / 0.95 / 1.02.
+- Host/client (fresh player build Builds/Windows, two processes, -newlook each):
+  - Run 1: host Human, client Elf. Both logged Human gait Even and Elf gait Even.
+  - Run 2: host Ogre, client Dwarf. Host logged own Ogre Even and remote Dwarf Heavy; the client logged own Dwarf Heavy and remote Ogre Even.
+  - Both runs match. No exceptions, NaN 0.
+- Clips: D:/Unity/PunchyMilestones/A-124/gait-<Race>-walk.mp4 (5 s) and gait-<Race>-run.mp4 (3 s) for 14 races, 28 clips, town street at 2972,-885. Contact sheet: gait-contact.jpg (Human walk, Dwarf run, Ogre walk).
+  - Note: BatFolk and CavePygmy puppets don't move on their own in the parade, so the test hook moves them. Their clips show feet driven by the hook, not by the brain.
+- Pins unchanged: flora 0654C913, landmarks 117 689D5348, persona digest 37026953. Suite 52/54; the 2 failures are the known cave-crow and cave-water flake pair.
+- Clip capture fix (ShotTool): in batch mode the camera target has to be set from a coroutine before the frame runs, the same way Settled does it. Leaving it on the camera for the whole clip, or setting it only around Render, drops creatures and small flora from the frame. So each clip frame takes 2 world frames, at captureFramerate 60.
+- Shares: extends the creature animator's step and gait path (CreatureAnimator/CreatureMotion) and row 1's per-Individual traits. No second gait system. The clip capture now lives in ShotTool as Clip/ClipBegin/ClipEnd. There is a parallel I didn't fold in: DebugControls.ColossusClimb's -ccclip takes clip frames as separate shots. It could move to ShotTool.Clip later.
+- BENCH request (crowd cost, rule 21): GaitStyle.Of runs per upright creature per animator update (a hash plus a few multiplies). Please time the biggest town on Medium, main vs folk/gait 7aa37dc3: CreatureAnimator/creature render ms with the town crowd in view. Pass: +0.1 ms or less.
+- NEXT: A-124 row 2 is ready for PR (folk/gait off main aa064602). Then the coordinator's next card.

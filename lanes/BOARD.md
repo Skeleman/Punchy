@@ -34,7 +34,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-42 | #25 | player-2 | rows 1-2 done, verified solo + host (client runs owed, RAM) | player/talk-replies@c34b3f4b (on player/menus) | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
 | P-43 | #396 | player-2 | merged #441 (joined-client pair run still owed) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
-| A-124 r2 | #358 | folk | active | folk/gait (new) | Per-person gait styles; no new wire field |
+| A-124 r2 | #358 | folk | done, ready for PR | folk/gait@7aa37dc3 | Per-person gait styles (verified solo + host/client, 28 clips, pins held); BENCH crowd-cost request in REPORTS-animal |
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
 | b/fix-lake-ring-hash | #298 | fauna | merged #447, #449 | | lake ring and sky-bird seeds scrambled |
