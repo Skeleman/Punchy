@@ -996,3 +996,9 @@ Take the queue in this order. Anything not changed here runs as written in its j
 ## Job 102 (2026-11-15, QUEUED after 101; render lane, R-30 r1 trial, branch render/foliage-realism 9cec43a5): leaf looks
 -leaftrial off / a / b / c at the R-22 forest view and the oak glade, noon. Report GPU frame time, shadow pass time and flora triangles per mode. Questions: is (b) shells affordable at High, and what does (c) rim cost over off?
 Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the forest view, backlit (sun low behind the trees), GPU frame time.
+
+## Job 103 (2026-11-16, QUEUED after 99, before 100; supervisor, Zach asked): what the fauna flexibility work costs in memory and frame time
+- Zach wants to know if the Lab species, herd sources and new-species work (M-06 r3b #442, #453) cost meaningful memory or performance. Job 99 already prices far herds and one population (#428-#431); this job adds the rest.
+- Arm: main bb32a928 (B) against the first parent of the #442 merge (A). Profile builds, 1920x1080, High, uncapped, ABBA, 3 rounds. Warm the island cache once per build and note the bake ms (B adds Lab species to the herd bake).
+- Record: process private bytes and managed heap after 60 s at the 99a grassland view; island cache bake ms; [herds] log line; CPU main-thread and GPU ms at the 99a view and at the Tundra Frostdeer herd.
+- Pass (rule 23): High at most +0.5 ms; report any memory change over 50 MB or bake change over 10%.
