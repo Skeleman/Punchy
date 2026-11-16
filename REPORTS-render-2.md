@@ -33,3 +33,19 @@ Fixed-metre fades in scope, and their DetailPolicy.ScreenSize mapping. The tunin
 - SetView risk fixed inside DetailPolicy (render-owned, no player file). A RuntimeInitializeOnLoadMethod hooks RenderPipelineManager.beginContextRendering and sets `_PunchyDetail` and `_PunchyViewPpm` before every frame draws, and once at init. A Detail change in GraphicsSettings reaches shaders next frame with no SetView caller. If unset, the shader falls back to the tuning view.
 - R-23 r5 (next row, for the board): TerrainSurface sheen/cobble/steep/mouth/grain/rain, Water rippleNear, HeatHaze shimmer/mirage. LandmarkEffects 600-750 is not mine: render's plume-reach WIP moves it.
 - Editor to-do unchanged; also compile FloraImpostor (both passes) and check flutter/breath at fov 90.
+
+## R-23 r5 editor-free part 11-16 (render/one-surface-5@a7e2c2b3 off one-surface-4, WIP, unverified)
+Same method as r4: the metre numbers stay, but each fade reads PunchyReferenceDistance (exact at the tuning view, same on-screen size elsewhere). Both shaders are CRLF, kept.
+| Fade | Metres | Ref px/m (full -> gone) | At fov 90 |
+|---|---|---|---|
+| TerrainSurface wet sheen | 120 -> 450 | 7.8 -> 2.1 | 69 -> 260 m |
+| Cobbles | 30 -> 80 | 31.2 -> 11.7 | 17.3 -> 46 m |
+| Rock-face grain (steep) | 40 -> 90 | 23.4 -> 10.4 | 23.1 -> 52 m |
+| Cave-mouth grain | 30 -> 60 | 31.2 -> 15.6 | 17.3 -> 34.6 m |
+| Sand/dirt grain | 6 -> 22 | 155.9 -> 42.5 | 3.5 -> 12.7 m |
+| Puddle rain rings | 20 -> 60 | 46.8 -> 15.6 | 11.5 -> 34.6 m |
+| Water reflection ripples (rippleNear) | 25 -> 110 | 37.4 -> 8.5 | 14.4 -> 63.5 m |
+- Left as is: the grass tint (`_PunchyGrassTint.y`, the grass radius from GroundDetailSystem) and the octave, puddle and stone fades, which are already on ppm.
+- **HeatHaze: pushback, left in metres.** The shimmer (15-220 m) and mirage (250-700 m) are physical: how much hot air the ray crosses, and the grazing angle at range. They are not detail LOD. A zoomed view of a mirage 500 m away should still show it, and its wobble is already sized in screen pixels. Also, that blit's projection isn't the camera's, so it could only use _PunchyViewPpm. I'll move it if you still want it moved.
+- No orthographic camera draws terrain or water (grep), so per-camera P._m11 is safe in both ForwardLit passes.
+- Editor to-do: compile TerrainSurface and Water (0 failed); fov 60 shots must match one-surface-4; fov 90 cobble, rock-face and ripple fades at the same on-screen size. Cost note for BENCH: at narrow fov, rock-face grain is drawn further out (and at wide fov less far).
