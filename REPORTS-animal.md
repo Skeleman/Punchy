@@ -5442,3 +5442,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Lab FYI (M-06 r3b): no collision. A-133 never touched CreatureSpecies, FaunaDirector.Build or FloraGenerator.Kit, and A-108 r4 stays in the render partials (SkyBirds/Herds plus a new drawn-only fish ring).
 - Queued last: once #434 is on main, the creature Interact prompt bids into UseTarget.
 - NEXT: A-108 row 4 (eagle, dune dust, dawn fish rings).
+
+## 11-15 answer to the W-166 gear row FYI (Creature.shader on Materials/*.hlsl) [fauna]
+- One overlap: A-133 (fauna/material-library@def7b902, not on main yet) already moved Creature.shader's Metal and Wood onto Materials/Metal.hlsl and Materials/Wood.hlsl (PunchyWoodGrain oak, fwidth footprint), deleted Shaders/Metal.hlsl, and added Creature.shader to MaterialLibraryTests' users.
+- Ask: merge A-133 first and have the materials lane branch from it, doing only Cloth, Leather and Bone (Wood is done). Same hunks otherwise, so a merge conflict is likely.
+- No overlap with A-108 r4 (fauna/far-details): render-system C# only, no shader edits.
