@@ -146,16 +146,6 @@ namespace Punchy.Terrain
                             var front = species != null ? Punchy.Flora.FloraGenerator.DoorFront(species) : -1f;
                             var at = front > 0f ? plot.Centre + plot.Facing * (front * set.Layouts[town.Layout].BuildingScale + 0.6f) : door;
                             Add(AnchorKind.Door, at, plot.Facing, 0.6f, 1, t);
-                            // A-132: an inn's Counter on its porch (StructureKit.Inn: 2.4 m deep, barrels at the left of
-                            // the door), its edge 1.9 m out and a fifth of the half-width left, facing back in.
-                            if (plot.Role == PlotRole.Inn && species != null && species.Form == Punchy.Flora.FloraForm.Inn && front > 0f)
-                            {
-                                var scale = set.Layouts[town.Layout].BuildingScale;
-                                var left = new float2(-plot.Facing.y, plot.Facing.x);
-                                var half = (front - 0.02f) / 0.8f;
-                                Add(AnchorKind.Counter, plot.Centre + plot.Facing * ((front + 1.9f) * scale) + left * (half * 0.2f * scale),
-                                    -plot.Facing, 0.6f, 1, t);
-                            }
                             break;
                         }
                     }
@@ -587,7 +577,8 @@ namespace Punchy.Terrain
         /// Where a smith and a woodcutter work (G-17): a Work anchor for each counted Smithy and Woodpile prop that faces
         /// its landmark's middle, standing in front of the anvil or beside the chopping block and facing it. The spots
         /// use the props' mean size (FloraGenerator.Smithy and Woodpile), so they're within half a metre or so of each
-        /// variant's own. Hermits' woodpiles have their own Work anchor already.
+        /// variant's own. Hermits' woodpiles have their own Work anchor already. A-132: likewise a Counter on each such
+        /// Inn's porch, where its innkeeper serves.
         /// </summary>
         static void AddWorkSpots(in TerrainSource source, ref LandmarkSetBlob set, int index, LandmarkType type, List<Anchor> anchors)
         {
@@ -597,13 +588,25 @@ namespace Punchy.Terrain
             {
                 var species = prop.Species;
                 if (species == null || !prop.FaceCentre || prop.Count <= 0 ||
-                    species.Form != Punchy.Flora.FloraForm.Smithy && species.Form != Punchy.Flora.FloraForm.Woodpile)
+                    species.Form != Punchy.Flora.FloraForm.Smithy && species.Form != Punchy.Flora.FloraForm.Woodpile &&
+                    species.Form != Punchy.Flora.FloraForm.Inn)
                     continue;
                 var scale = (prop.Scale.x + math.max(prop.Scale.x, prop.Scale.y)) * 0.5f * (species.SizeRange.x + math.max(species.SizeRange.x, species.SizeRange.y)) * 0.5f;
                 var height = (species.Height.x + species.Height.y) * 0.5f;
                 float2 work;   // model space (x right, y front), unscaled
                 float stand;
-                if (species.Form == Punchy.Flora.FloraForm.Smithy)
+                var kind = AnchorKind.Work;
+                if (species.Form == Punchy.Flora.FloraForm.Inn)
+                {
+                    // On the porch (FloraGenerator.Inn / StructureKit.Inn: front wall at 0.8 of the half-width, porch
+                    // 2.4 deep, barrels on its left): the counter's edge 1.9 out and a fifth of the half-width left, so
+                    // the innkeeper stands behind it by the barrels, facing the street.
+                    var half = height * species.Spread * 0.5f;
+                    work = new float2(-half * 0.2f, half * 0.8f + 1.9f);
+                    stand = 0f;
+                    kind = AnchorKind.Counter;
+                }
+                else if (species.Form == Punchy.Flora.FloraForm.Smithy)
                 {
                     var half = height * species.Spread * 0.5f;
                     work = new float2(half * 0.3f, half * 0.8f * 0.25f);
@@ -626,9 +629,9 @@ namespace Punchy.Terrain
                     {
                         Position = new float3(at.x, source.SampleHeight(at), at.y),
                         Facing = -front,
-                        Size = 0.8f,
+                        Size = kind == AnchorKind.Counter ? 0.6f : 0.8f,
                         Owner = Anchor.OwnerLandmark(index),
-                        Kind = AnchorKind.Work,
+                        Kind = kind,
                         Capacity = 1,
                         Biome = (byte)Dominant(source.SampleGround(at).Biomes)
                     });

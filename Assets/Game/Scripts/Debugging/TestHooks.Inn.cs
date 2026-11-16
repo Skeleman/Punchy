@@ -15,12 +15,12 @@ namespace Punchy.Debugging
         /// <summary>
         /// The nearest Counter anchor to the player and the nearest live innkeeper to it: [1 if a counter, 1 if an
         /// innkeeper, the counter's x, y, z, its facing x, z, the innkeeper's x, y, z, its distance from the counter,
-        /// its mode, 1 if FolkConversation took it as a talker, 1 if its "work" answer is the innkeeper line]. The talk
-        /// itself goes to InnTrail.
+        /// its mode, 1 if FolkConversation took it as a talker, 1 if its "work" answer is the innkeeper line, its stage
+        /// (FolkJobs.Serving once at its post), its distance from its work spot]. The talk itself goes to InnTrail.
         /// </summary>
         public static float[] InnkeeperAtCounter()
         {
-            var r = new float[14];
+            var r = new float[16];
             InnTrail = "";
             if (!Source(out var source) || !source.Anchors.IsCreated)
                 return r;
@@ -59,15 +59,20 @@ namespace Punchy.Debugging
             r[7] = st.Position.x; r[8] = st.Position.y; r[9] = st.Position.z;
             r[10] = bestD;
             r[11] = (float)st.Mode;
+            r[14] = st.Stage;
+            r[15] = math.distance(st.Position.xz, st.WorkSpot);
             if (FolkConversation.TryTalker(world, best, null, out var who))
             {
                 r[12] = 1f;
                 // (A third of answers may be a line any folk could say: ask a few times for the innkeeper's own.)
                 InnTrail = $"{who.Species} #{who.Individual:X8} job {who.Job ?? who.Trade ?? "-"} town {who.HomeTown ?? "-"} mode {st.Mode} " +
                            $"{bestD:F1} m from the counter";
+                // (The test's player may wear an animal body, which only gets to "meet": ask as a handed speaker would.)
+                var asker = who;
+                asker.Beast = false;
                 for (int k = 0; k < 6 && r[13] == 0f; k++)
                 {
-                    var work = FolkConversation.Ask(best, "work");
+                    var work = FolkConversation.Ask(asker, "work");
                     r[13] = work.Text != null && work.Text.StartsWith("Beds upstairs") ? 1f : 0f;
                     InnTrail += "\n  " + work;
                 }

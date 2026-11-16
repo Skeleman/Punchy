@@ -374,11 +374,18 @@ namespace Punchy.Tests
             yield return TestSceneSetup.Place("HumanVillage", 10f);
             yield return TestSceneSetup.TimeOfDay(11f);
             yield return TestSceneSetup.Seconds(10f);
+            // (It may still be walking over from home: give it up to 40 s to reach its post, stage 10 = FolkJobs.Serving.)
             var r = Game.Hook<float[]>("InnkeeperAtCounter");
-            LogWatch.Measure($"innkeeper: counter {r[0]} keeper {r[1]} {r[10]:F1} m from it, mode {r[11]}
-{Game.HookField<string>("InnTrail")}");
+            for (int i = 0; i < 40 && !(r[1] == 1f && r[14] == 10f); i++)
+            {
+                yield return TestSceneSetup.Seconds(1f);
+                r = Game.Hook<float[]>("InnkeeperAtCounter");
+            }
+            LogWatch.Measure($"innkeeper: counter {r[0]} keeper {r[1]} {r[10]:F1} m from it, mode {r[11]} stage {r[14]} " +
+                             $"{r[15]:F1} m from its spot\n{Game.HookField<string>("InnTrail")}");
             Assert.AreEqual(1f, r[0], "no inn Counter anchor near the village");
             Assert.AreEqual(1f, r[1], "no live innkeeper");
+            Assert.AreEqual(10f, r[14], "the innkeeper never reached its post");
             Assert.Less(r[10], 4f, "the innkeeper isn't at its counter by day");
             Assert.AreEqual(1f, r[12], "the innkeeper isn't a talker");
             Assert.AreEqual(1f, r[13], "the innkeeper's work answer isn't its own line");
@@ -392,11 +399,15 @@ namespace Punchy.Tests
             yield return TestSceneSetup.TimeOfDay(11f);
             yield return TestSceneSetup.Seconds(10f);
             var r = Game.Hook<float[]>("InnkeeperAtCounter");
+            for (int i = 0; i < 40 && !(r[1] == 1f && r[14] == 10f); i++)
+            {
+                yield return TestSceneSetup.Seconds(1f);
+                r = Game.Hook<float[]>("InnkeeperAtCounter");
+            }
             Assert.AreEqual(1f, r[1], "no live innkeeper");
             var keeper = new Vector3(r[7], r[8] + 1f, r[9]);
             var street = new Vector3(-r[5], 0f, -r[6]);
-            var side = new Vector3(street.z, 0f, -street.x);
-            var from = keeper + street * 5.5f + side * 2f + Vector3.up * 0.8f;
+            var from = keeper + street * 7f + Vector3.up * 2.5f;
             Game.RunOptions(string.Format(System.Globalization.CultureInfo.InvariantCulture, "-shotcam {0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}", from.x, from.y, from.z, keeper.x, keeper.y, keeper.z));
             try { yield return Shots.Settled("a132-innkeeper", 1280, 720); }
             finally { Game.RunOptions("-shotcam off"); }

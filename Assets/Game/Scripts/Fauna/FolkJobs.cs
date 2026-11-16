@@ -116,10 +116,11 @@ namespace Punchy.Fauna
         public static readonly (AnchorKind Kind, FolkJob Job, CreatureTask Task, int MinFree, float Beyond)[] VillagePosts =
         {
             (AnchorKind.Hearth, FolkJob.Baker, CreatureTask.Tend, 2, 0f),
+            // (A-132: the inn is where a town gathers, so even a small town staffs it, right after its baker.)
+            (AnchorKind.Counter, FolkJob.Innkeeper, CreatureTask.Tend, 2, 0f),
             (AnchorKind.Yard, FolkJob.Herder, CreatureTask.Tend, 2, 0f),
             (AnchorKind.Altar, FolkJob.Healer, CreatureTask.Tend, 3, 0f),
             (AnchorKind.Bench, FolkJob.Healer, CreatureTask.Tend, 3, 0f),
-            (AnchorKind.Counter, FolkJob.Innkeeper, CreatureTask.Tend, 3, 0f),
             (AnchorKind.Pool, FolkJob.Fisher, CreatureTask.Fish, 3, 60f),
             (AnchorKind.Yard, FolkJob.Farmer, CreatureTask.Chop, 4, 0f),
             (AnchorKind.Stall, FolkJob.Trader, CreatureTask.Gesture, 4, 0f),
@@ -133,7 +134,7 @@ namespace Punchy.Fauna
         /// <summary>
         /// A-106: the Stage a posted worker shows at its post. Job is local, so a harsh-biome job travels in the Stage it
         /// works at (the existing ghost field; W-57's hermit chores already do this): the hermit's tool codes, 3 broom,
-        /// 4 shovel, 5 hammer, then 6 rope and 7 sand shovel. Every other job works at 1.
+        /// 4 shovel, 5 hammer, then 6 rope and 7 sand shovel (A-132: and an innkeeper at 10). Every other job works at 1.
         /// </summary>
         public static byte WorkStage(FolkJob job)
         {
@@ -144,6 +145,7 @@ namespace Punchy.Fauna
                 case FolkJob.Mender: return 5;
                 case FolkJob.Roofer: return 6;
                 case FolkJob.SandClearer: return 7;
+                case FolkJob.Innkeeper: return Serving;
                 default: return 1;
             }
         }
@@ -157,12 +159,16 @@ namespace Punchy.Fauna
             if (task != CreatureTask.Tend)
                 return FolkJob.None;
             return stage == 3 ? FolkJob.AshSweeper : stage == 4 ? FolkJob.SnowShoveller : stage == 6 ? FolkJob.Roofer :
-                   stage == 7 ? FolkJob.SandClearer : stage == RoundWalk || stage == RoundReach ? FolkJob.Lamplighter : FolkJob.None;
+                   stage == 7 ? FolkJob.SandClearer : stage == RoundWalk || stage == RoundReach ? FolkJob.Lamplighter :
+                   stage == Serving ? FolkJob.Innkeeper : FolkJob.None;
         }
 
         /// <summary>A-115: a lamplighter's stages on its round (Work): walking to the next lamp, reaching up to it with
         /// its pole. Past the harsh-biome stages (3 to 7), so a client knows the job from them.</summary>
         public const byte RoundWalk = 8, RoundReach = 9;
+
+        /// <summary>A-132: an innkeeper at its counter (Tend), so a client knows the job (and its pose and lines) too.</summary>
+        public const byte Serving = 10;
 
         /// <summary>The job a bat folk would hold by each prop of its chamber (hut, rack, basket), and by its pool.</summary>
         public static FolkJob BatJob(BatFolkPropKind kind) =>
