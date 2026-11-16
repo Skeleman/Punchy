@@ -818,3 +818,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Fir/WhitePine follow-up noted at 1.4 (not 1.6), for after W-166 / material-library-2 lands.
 - Ambiguity: I read "leaf option b" as this tone-down (data only). If it means r1's option (b) shells as the default crown, that is a separate code row (shells at LOD 0-1, a screen-size clip fade, the far shadow caster taking the clip; cost question in BENCH 102). It is not on this branch. Tell me and I'll card it as R-30 row 3.
 - Shares: the same per-species LeafThinness on the shared flora species data (rule 33).
+
+## R-23 row 2 land (#298): render/one-surface merged up to main, ready for PR (render-2, render/one-surface 5c25c3fd)
+- Merged origin/main into 1a3b0f12 with no conflicts. Flora.shader auto-merged: main's W-166 changes there are albedo-only and one-surface moves the lighting. TerrainSurface already carries R-21's PunchyFallWet. merge-tree is clean against main, cobble-depth ce3ff5a7 and audit-fixes efec19b7.
+- Checks: C# compiles clean. ShaderHasError is false for Flora, FloraImpostor, TerrainSurface and Water. Play-mode sparkle probe `r23land`: 360 frames, 0 with markers, creature 0, other bad 0, hot 0.
+- Suite: 52 passed, 2 failed, 19 skipped. Both failures (Player_CrowFliesOutOfCaveThroughHitches, CaveWater_SurfaceMatchesAndPoolStirs) also fail on main 5b953a34.
+- BENCH: job 82 PASSED on 88719cc9 (profile builds, so the player build is covered for the lighting change). 5c25c3fd only adds the main merge, so no rerun is needed. I made no new shots: row 2 is a pure move, and the earlier pixel-diff A/B showed no change.
