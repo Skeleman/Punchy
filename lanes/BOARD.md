@@ -40,6 +40,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-28 r2, R-15, R-23 r2 land | #312 #269 #298 | render-2 | ready for PR | render/cobble-depth@ce3ff5a7 ready for PR (BC1091 fixed, job 86 unblocked); render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); render/one-surface@5c25c3fd ready for PR (R-23 r2, job 82 pass) | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
+| P-45 | #24 | player (fishing agent) | now: row 0 joiner runs, then set pieces | player/dungeon-pieces | Rows 0-2 per batches/P-45.md; stop after row 3 note |
 | P-44 | #255, #276 | player | parked (Zach 11-16: can wait); rescoped to walk-on-moving-bodies for colossi and the galleon | - | Row 1 design note covers both; stop for review |
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
 | M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); Zach 11-15: towns and roads may be rebuilt/refit around edits; r2b bake hook waits only on W-174 | merged #425 | r2b blocked on W-174; world takes r2b after W-174 r2 (lab agent gone) |
