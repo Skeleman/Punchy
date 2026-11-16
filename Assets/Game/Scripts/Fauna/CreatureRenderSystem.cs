@@ -102,9 +102,12 @@ namespace Punchy.Fauna
         /// beside it, one for the rest.</summary>
         static int PostParts(int item) => item switch
         {
-            Punchy.Items.ItemTable.KneadingTable or Punchy.Items.ItemTable.Log => 2,
+            Punchy.Items.ItemTable.KneadingTable or Punchy.Items.ItemTable.Log or Punchy.Items.ItemTable.GuyRope or
+                Punchy.Items.ItemTable.Trestle or Punchy.Items.ItemTable.SpiritFlame or Punchy.Items.ItemTable.Heap or
+                Punchy.Items.ItemTable.IceBlock => 2,
             Punchy.Items.ItemTable.Bread or Punchy.Items.ItemTable.Rope or Punchy.Items.ItemTable.Bucket or Punchy.Items.ItemTable.HotIron or
-                Punchy.Items.ItemTable.ChoppingBlock => 1,
+                Punchy.Items.ItemTable.ChoppingBlock or Punchy.Items.ItemTable.RopeCoil or Punchy.Items.ItemTable.DentedHelm or
+                Punchy.Items.ItemTable.SnowBlock => 1,
             _ => 0
         };
         /// <summary>

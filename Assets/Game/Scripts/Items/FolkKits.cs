@@ -23,7 +23,9 @@ namespace Punchy.Items
         {
             var k = default(FolkKit);
             var atWork = s.Mode == CreatureMode.Work && s.Stage != 0;
-            var job = FolkJobs.Of(in s);
+            // (By the job it's shown doing: a hermit's chore is its landmark's work, A-106.)
+            var job = FolkJobs.Shown(in s);
+            var clearer = job == FolkJob.AshSweeper || job == FolkJob.SnowShoveller || job == FolkJob.SandClearer;
             var bare = b.CaveDweller;
 
             // A guard: its folk's weapon (drawn, or sheathed), helmet, armour and sash.
@@ -138,7 +140,9 @@ namespace Punchy.Items
                     break;
                 case CreatureTask.Hammer:
                     tool = ItemTable.SmithHammer;
-                    other = ItemTable.Tongs;
+                    // (A mender beats a dented helm on its trestle: no hot iron, no tongs. A-106.)
+                    if (job != FolkJob.Mender)
+                        other = ItemTable.Tongs;
                     k.Body = FolkKit.Of(ItemTable.LeatherApron);
                     break;
                 case CreatureTask.Chop:
@@ -166,11 +170,17 @@ namespace Punchy.Items
                     }
                     else
                     {
-                        // (A well keeper's bucket is on the well's rope, a post prop; anyone else tending carries one.)
-                        if (job != FolkJob.WellKeeper)
+                        // (A-106: a posted sweeper's broom, a shoveller's spade; a roofer's hands are on its rope. A well
+                        // keeper's bucket is on the well's rope, a post prop; a fire tender conjures its flame; anyone else
+                        // tending carries one.)
+                        if (job == FolkJob.AshSweeper)
+                            tool = ItemTable.Broom;
+                        else if (job == FolkJob.SnowShoveller || job == FolkJob.SandClearer)
+                            tool = ItemTable.Shovel;
+                        if (job != FolkJob.WellKeeper && job != FolkJob.FireTender && job != FolkJob.Roofer && !clearer)
                             other = ItemTable.Bucket;
                         if (!bare)
-                            k.Head = FolkKit.Of(ItemTable.StrawHat);
+                            k.Head = FolkKit.Of(job == FolkJob.SnowShoveller ? ItemTable.Woolcap : ItemTable.StrawHat);
                     }
                     break;
                 case CreatureTask.Fish:
@@ -178,20 +188,29 @@ namespace Punchy.Items
                         k.Head = FolkKit.Of(ItemTable.FisherHat);
                     break;
                 case CreatureTask.Hermit:
-                    // (Its tool by the landmark's work, in Stage at work: 1 axe, 3 broom, 4 shovel, else a hammer; none
-                    // while sitting by its door, stage 2.)
-                    tool = s.Stage == 1 ? ItemTable.Axe : s.Stage == 3 ? ItemTable.Broom : s.Stage == 4 ? ItemTable.Shovel : ItemTable.SmithHammer;
+                    // (Its tool by the landmark's work, in Stage at work: 1 axe, 3 broom, 4 or 7 shovel, 6 none (a roofer's
+                    // hands are on its rope), else a hammer; none while sitting by its door, stage 2.)
+                    tool = s.Stage == 1 ? ItemTable.Axe : s.Stage == 3 ? ItemTable.Broom : s.Stage == 4 || s.Stage == 7 ? ItemTable.Shovel
+                         : s.Stage == 6 ? -1 : ItemTable.SmithHammer;
                     if (!bare)
-                        k.Head = FolkKit.Of(ItemTable.StrawHat);
+                        k.Head = FolkKit.Of(job == FolkJob.SnowShoveller ? ItemTable.Woolcap : ItemTable.StrawHat);
                     break;
             }
             // What stands at its post while it works there (row 5; drawn by the Gear pass): a baker's kneading table
             // and a finished loaf, the well's rope and the bucket on it, a smith's hot iron, a woodcutter's chopping
-            // block and the log on it.
+            // block and the log on it; A-106 and A-103's: a mender's trestle and the dented helm on it, an ice cutter's
+            // snow block and the ice on it, a roofer's guy rope and coil, a fire tender's spirit flame, what a sweeper or
+            // shoveller has cleared. (A hermit's chore gets its job's.)
+            var chore = s.Task == CreatureTask.Tend || s.Task == CreatureTask.Hermit;
             if (atWork)
             {
-                (int, int) post = s.Task == CreatureTask.Hammer ? (ItemTable.HotIron, -1)
+                (int, int) post = job == FolkJob.Mender && (s.Task == CreatureTask.Hammer || chore) ? (ItemTable.Trestle, ItemTable.DentedHelm)
+                                : s.Task == CreatureTask.Hammer ? (ItemTable.HotIron, -1)
+                                : s.Task == CreatureTask.Chop && job == FolkJob.IceCutter ? (ItemTable.SnowBlock, ItemTable.IceBlock)
                                 : s.Task == CreatureTask.Chop && job != FolkJob.Farmer ? (ItemTable.ChoppingBlock, ItemTable.Log)
+                                : chore && job == FolkJob.Roofer ? (ItemTable.GuyRope, ItemTable.RopeCoil)
+                                : chore && clearer ? (ItemTable.Heap, -1)
+                                : s.Task == CreatureTask.Tend && job == FolkJob.FireTender ? (ItemTable.SpiritFlame, -1)
                                 : s.Task == CreatureTask.Tend && job == FolkJob.Baker ? (ItemTable.KneadingTable, ItemTable.Bread)
                                 : s.Task == CreatureTask.Tend && job == FolkJob.WellKeeper ? (ItemTable.Rope, ItemTable.Bucket)
                                 : (-1, -1);

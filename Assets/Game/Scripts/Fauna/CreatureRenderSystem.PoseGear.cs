@@ -650,11 +650,35 @@ namespace Punchy.Fauna
                         dir = Unity.Mathematics.math.normalize(-across + up * 0.35f + forward * 0.1f);
                     // (One of the folk at work, Zach 11-12 row 3: its tool out of the fist crossing the hand's own line, so
                     // it swings with the arm as the job's pose goes (TaskPose), as Gear held them.)
+                    // (A broom stretched to reach the ground where it sweeps, past its own length.)
+                    var reach = 0f;
                     if (folk)
                     {
                         var along = Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, 1f));
                         grip = h.Position + along * h.Length * 0.6f;
                         dir = Unity.Mathematics.math.normalize(Unity.Mathematics.math.cross(along, across) + along * 0.2f);
+                        // (A-106, P-38: a posted sweeper's broom slants from its hands down to the ground ahead, its head
+                        // swishing side to side with the stroke; a shoveller's spade dips to the ground, lifts with the
+                        // load and tips toward the pile at its right on the toss. By the job it's shown doing, so a
+                        // client sees it too.)
+                        if (!leftHand && !sheathing && state.Mode == CreatureMode.Work && state.Stage != 0)
+                        {
+                            var job = FolkJobs.Shown(in state);
+                            if (look == CreatureWeapon.Broom && job == FolkJob.AshSweeper)
+                            {
+                                var stroke = Unity.Mathematics.math.sin(CreatureAnimator.SweepPhase(in state) * 2f * Unity.Mathematics.math.PI);
+                                var sweepAt = state.Position + forward * 0.8f * scale + right * 0.3f * stroke * scale;
+                                dir = Unity.Mathematics.math.normalizesafe(sweepAt - grip, dir);
+                                reach = Unity.Mathematics.math.max(0f, Unity.Mathematics.math.distance(grip, sweepAt) - 0.85f * scale);
+                            }
+                            else if (look == CreatureWeapon.Shovel && (job == FolkJob.SnowShoveller || job == FolkJob.SandClearer))
+                            {
+                                var phase = CreatureAnimator.ShovelPhase(in state);
+                                var lift = Unity.Mathematics.math.smoothstep(0.4f, 0.62f, phase) * (1f - Unity.Mathematics.math.smoothstep(0.8f, 0.96f, phase));
+                                var toss = Unity.Mathematics.math.smoothstep(0.66f, 0.74f, phase) * (1f - Unity.Mathematics.math.smoothstep(0.74f, 0.88f, phase));
+                                dir = Unity.Mathematics.math.normalize(forward * 0.8f + up * (-0.8f + 0.95f * lift) + right * 0.9f * toss);
+                            }
+                        }
                     }
                     // Sheathed (Zach 11-12 row 3, the sheath block: Punchy.Items.FolkKits.Sheathed): the same shape worn, as
                     // a guard wears its weapon (PoseGuard.Guard): across the back from low on the left to high on the right if
@@ -808,8 +832,8 @@ namespace Punchy.Fauna
                             break;
                         case CreatureWeapon.Broom:
                             // (A long haft, and its bristles on from the top, flaring.)
-                            Output[at + k++] = Piece(grip - dir * 0.45f * scale, dir, face, 1.0f * scale, 0.016f * scale, 0.018f * scale, 1f, wood, faded, SegmentMaterial.Wood);
-                            Output[at + k++] = Piece(grip + dir * 0.55f * scale, dir, face, 0.3f * scale, 0.05f * scale, 0.14f * scale, 0.7f, straw, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip - dir * 0.45f * scale, dir, face, 1.0f * scale + reach, 0.016f * scale, 0.018f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(grip + dir * (0.55f * scale + reach), dir, face, 0.3f * scale, 0.05f * scale, 0.14f * scale, 0.7f, straw, faded, SegmentMaterial.Wood);
                             break;
                         case CreatureWeapon.SmithHammer:
                             // (A short haft, a small square head across its top.)
@@ -1006,6 +1030,8 @@ namespace Punchy.Fauna
                 var topLevel = Unity.Mathematics.math.max(tableTop.y, ground.y + 0.4f * scale);
                 var centre = new Unity.Mathematics.float3(tableTop.x, topLevel, tableTop.z);
                 var block = ground + forward * 0.75f * scale;
+                var trestle = ground + forward * 0.65f * scale + up * 0.55f * scale;
+                var rope = new Unity.Mathematics.float4(0.6f, 0.52f, 0.36f, 0f);
                 for (int n = 0; n < 2; n++)
                 {
                     var item = FolkKit.Item(n == 0 ? state.Kit.Post0 : state.Kit.Post1);
@@ -1052,6 +1078,72 @@ namespace Punchy.Fauna
                             Output[at + k++] = Piece(block + up * 0.35f * scale, up, forward, 0.3f * scale, 0.1f * scale, 0.1f * scale, 1f, new Unity.Mathematics.float4(0.7f, 0.56f, 0.36f, 0f), faded, SegmentMaterial.Wood);
                             Output[at + k++] = Piece(block + right * 0.35f * scale + up * 0.05f * scale, Unity.Mathematics.math.normalize(forward + right * 0.5f), up, 0.3f * scale, 0.06f * scale, 0.06f * scale, 0.6f, bark, faded, SegmentMaterial.Wood);
                             break;
+                        // (A-106 and A-103 job gear, P-38: the rest of the posts' things, as items.)
+                        case Punchy.Items.ItemTable.GuyRope:
+                        {
+                            // Tying the roof down before the storm: a rope from the higher hand up over the eave in front,
+                            // and its other end pegged to a stake in the ground beside.
+                            var top = tip.y > offTip.y ? tip : offTip;
+                            var eave = state.Position + forward * 1.7f * scale + up * 2.6f * scale;
+                            var climb = eave - top;
+                            Output[at + k++] = Piece(top, Unity.Mathematics.math.normalizesafe(climb, up), right, Unity.Mathematics.math.length(climb), 0.012f * scale, 0.012f * scale, 1f, rope, faded, SegmentMaterial.Cloth);
+                            var stake = state.Position + right * 0.9f * scale + forward * 0.5f * scale;
+                            var guy = eave - stake;
+                            Output[at + k++] = Piece(stake, Unity.Mathematics.math.normalizesafe(guy, up), right, Unity.Mathematics.math.length(guy), 0.012f * scale, 0.012f * scale, 1f, rope, faded, SegmentMaterial.Cloth);
+                            break;
+                        }
+                        case Punchy.Items.ItemTable.RopeCoil:
+                            // The rest of the roofer's rope, coiled at its feet.
+                            Output[at + k++] = Piece(ground + right * 0.4f * scale + forward * 0.15f * scale, up, forward, 0.07f * scale, 0.17f * scale, 0.15f * scale, 0.4f, rope, faded, SegmentMaterial.Cloth);
+                            break;
+                        case Punchy.Items.ItemTable.Trestle:
+                            // A mender's trestle in front: a leg and a top.
+                            Output[at + k++] = Piece(trestle - up * 0.55f * scale, up, forward, 0.55f * scale, 0.07f * scale, 0.07f * scale, 1f, wood, faded, SegmentMaterial.Wood);
+                            Output[at + k++] = Piece(trestle, up, forward, 0.04f * scale, 0.3f * scale, 0.3f * scale, 0.1f, new Unity.Mathematics.float4(0.5f, 0.38f, 0.24f, 0f), faded, SegmentMaterial.Wood);
+                            break;
+                        case Punchy.Items.ItemTable.DentedHelm:
+                            // On the trestle, being beaten back into shape.
+                            Output[at + k++] = Piece(trestle + up * 0.02f * scale, up, forward, 0.13f * scale, 0.12f * scale, 0.07f * scale, 1f,
+                                                     new Unity.Mathematics.float4(0.3f, 0.31f, 0.33f, 0f), faded, SegmentMaterial.Metal);
+                            break;
+                        case Punchy.Items.ItemTable.SpiritFlame:
+                        {
+                            // (A-103: a turtle folk elder tending the village's spirit fire.) No hearth prop: the flame is
+                            // conjured, a small pale-green tongue of light between its raised hands, flickering, and a faint
+                            // glowing ember on the snow under it.
+                            var flicker = 0.85f + 0.15f * Unity.Mathematics.math.sin(state.Clock * 7.3f + (state.Individual % 50) * 0.4f);
+                            Output[at + k++] = Piece(between + forward * 0.12f * scale - up * 0.1f * scale, up, forward, 0.2f * flicker * scale, 0.05f * scale, 0.004f * scale, 1f,
+                                                     new Unity.Mathematics.float4(0.55f, 0.95f, 0.86f, 0.9f), faded, SegmentMaterial.Body);
+                            Output[at + k++] = Piece(state.Position + forward * 0.7f * scale, up, forward, 0.04f * scale, 0.12f * scale, 0.09f * scale, 0.5f,
+                                                     new Unity.Mathematics.float4(0.45f, 0.85f, 0.78f, 0.5f), faded, SegmentMaterial.Body);
+                            break;
+                        }
+                        case Punchy.Items.ItemTable.Heap:
+                        {
+                            // What a sweeper or shoveller has cleared, heaped on its right, growing the longer it works: a
+                            // pile of snow or sand, or a dark heap of swept ash. (StageTime is counted on clients too.)
+                            var grow = Unity.Mathematics.math.saturate(state.StageTime / 120f);
+                            var job = FolkJobs.Shown(in state);
+                            var heap = job == FolkJob.SnowShoveller ? new Unity.Mathematics.float4(0.93f, 0.95f, 0.98f, 0f)
+                                     : job == FolkJob.SandClearer ? new Unity.Mathematics.float4(0.6f, 0.42f, 0.2f, 0f) : new Unity.Mathematics.float4(0.09f, 0.085f, 0.08f, 0f);
+                            var r = (0.22f + 0.33f * grow) * scale;
+                            var pile = ground + right * (0.75f + r) + forward * 0.2f * scale - up * r * 0.45f;
+                            Output[at + k++] = Piece(pile, up, forward, r * 1.1f, r, r * 0.25f, 1f, heap, faded, SegmentMaterial.Cloth);
+                            Output[at + k++] = Piece(pile + forward * r * 0.9f - right * r * 0.3f, up, forward, r * 0.6f, r * 0.55f, r * 0.15f, 1f, heap, faded, SegmentMaterial.Cloth);
+                            break;
+                        }
+                        case Punchy.Items.ItemTable.SnowBlock:
+                            // A turtle folk ice cutter's packed snow block, where a woodcutter's chopping block would be.
+                            Output[at + k++] = Piece(block, up, forward, 0.35f * scale, 0.2f * scale, 0.2f * scale, 0.8f, new Unity.Mathematics.float4(0.86f, 0.9f, 0.94f, 0f), faded, SegmentMaterial.Cloth);
+                            break;
+                        case Punchy.Items.ItemTable.IceBlock:
+                        {
+                            // A clear ice block stood on it, and a cut slab beside.
+                            var ice = new Unity.Mathematics.float4(0.62f, 0.8f, 0.9f, 0f);
+                            Output[at + k++] = Piece(block + up * 0.35f * scale, up, forward, 0.3f * scale, 0.1f * scale, 0.1f * scale, 0.7f, ice, faded, SegmentMaterial.Cloth);
+                            Output[at + k++] = Piece(block + right * 0.35f * scale + up * 0.05f * scale, Unity.Mathematics.math.normalize(forward + right * 0.5f), up, 0.3f * scale, 0.06f * scale, 0.06f * scale, 0.6f, ice, faded, SegmentMaterial.Cloth);
+                            break;
+                        }
                     }
                 }
             }
