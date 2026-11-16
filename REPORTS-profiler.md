@@ -2,6 +2,27 @@
 
 Newest first.
 
+## Job 92: A-115 lamplighter glow (fauna/lamplighter a96f48d8 = B1 vs base 4006cab = A) and A-116 notice boards (fauna/notice-board-life 9a1694eb = B2 vs base 3b192717 = A), 2026-11-15 (q133.job, q134.job): frames PASS both; **B1's far-map rescan costs about 4 ms of worker time a frame at dusk**; B2's NoticeSheets.Tick has no Profiler marker
+**Setup:** both branches had merged by run time, so each is measured against its own base. B2 from the shelf, B1 and its base built here (runner checked). 1920x1080, uncapped, Clear, arms alternated, 3 rounds, Medium and High, 60 s per game. Then one Profiler-captured game per arm at Medium (2000 frames, BProfileTools.Analyze).
+- B2 view: town 73's board (`-benchspot 2972,-885,0`), 12:00.
+- B1 view: the same town from 100 m south (`-benchspot 2972,-785,180`), `-benchhour 19.2`, while the lamps light.
+
+| job | view | preset | A | B | **delta** | median frame (A / B) | CPU (A / B) |
+|---|---|---|---|---|---|---|---|
+| B2 boards | town board | Medium | 14.5 | 14.43 | **-0.07** | 17.47 / 17.47 | 18.2 / 18.13 |
+| B2 boards | town board | High | 18.93 | 18.93 | **0.00** | 22.23 / 22.17 | 22.53 / 22.5 |
+| B1 lamplighter | town at dusk | Medium | 12.0 | 12.03 | **+0.03** | 13.67 / 13.83 | 14.13 / 14.27 |
+| B1 lamplighter | town at dusk | High | 16.13 | 16.1 | **-0.03** | 16.9 / 16.97 | 17.7 / 17.73 |
+
+- **Rule 23, frame within noise: PASS** for both. Slow-frame counts are level. Worst frames are 130-510 ms in both arms of B1 (an A-side hitch at this view, not new).
+- **B2, NoticeSheets.Tick: not measured.** No sample with "Notice" in its name appears in either capture (`-keep Notice` prints any match). Whatever it costs is inside an unmarked parent. Ask: a ProfilerMarker on NoticeSheets.Tick, and on the Board brain stage, then I'll rerun the after-step alone.
+- **B2, brain at the board (worker ms/frame, B vs A):** Brain.Tick 1.80 vs 1.78, BrainJob 1.88 vs 1.87, main-thread Brain.Tick 0.131 vs 0.127. Level, within 0.1. There is no separate Brain.Board marker either.
+- **B1, SurfaceGlow:** `SurfaceGlow:FarScanJob` appears only in B. It averages **4.18 ms per frame of worker time** (summed over worker threads), median 0. The longest single call is 25.4 ms. A shows no far scan in its 2000 frames. On the main thread, SurfaceGlow stays under the analyser's print floor in both arms, and the profiled game's median frame is 14.40 (B) vs 14.20 (A).
+  - It passes the frame bar, but if "each new system at most 0.1 ms" counts worker time, the rescan is far over it.
+  - The capture can't give a clean rescan count: about 0.3 job slices a frame land across threads. "At most once a second" with this much worker time suggests each rescan is heavy. Throttling it harder, or rescanning only the town whose LitCount changed, would cut it.
+
+Cost: laptop total $935 (laptop session e163d8ab; 2 builds, 28 games).
+
 ## Job 90: W-164 row 2 garden beds in the ground pass (world/level-gardens c378a480 = B vs main 3b192717 = A), 2026-11-15 (q132.job): PASS (one Medium round spoiled by my own stray editor; clean rerun to follow)
 **Setup:** shelf builds (runner checked), 1920x1080, uncapped, 12:00, Clear, arms alternated, 3 rounds, Medium and High. Views: the hermit garden (`-benchspot 140,22,-548,30`) and the default spawn, 60 s each. Then one `-freshisland` start per arm at High for the bake.
 

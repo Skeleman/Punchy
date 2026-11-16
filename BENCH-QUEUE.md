@@ -916,7 +916,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Record: whole-frame GPU ms; grass ForwardLit pass ms; the two FloraShadowCache passes' ms.
 - Pass (rule 23): Medium at most +0.3 ms GPU at its worst view, CPU within noise; High reported.
 
-## Job 92 (2026-11-14, RUNNING 11-15 (q133.job B2 boards, then q134.job B1 lamplighter; both merged, A = each branch's base); folk lane, A-115 row 1 #315 and A-116 rows 1-2 #316): lamplighter glow and notice boards
+## Job 92 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md (q133.job B2 boards, then q134.job B1 lamplighter; both merged, A = each branch's base); folk lane, A-115 row 1 #315 and A-116 rows 1-2 #316): lamplighter glow and notice boards
 - Arms: fauna/lamplighter a96f48d8 (B1) and fauna/notice-board-life 9a1694eb (B2), each against its base main (A). Profile
   builds, 1920x1080, Medium and High, uncapped, Clear, ABBA, 3 rounds.
 - B1, SurfaceGlow: the far-map rescan now also fires when TownLights' LitCount changes (at most once a second while a
