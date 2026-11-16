@@ -54,8 +54,8 @@ namespace Punchy.Fauna
                         None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>() }
                     };
                     simCreatureQuery = sem.CreateEntityQuery(wild);
-                    // (Dungeon creatures are their own tier (#24): kept at their posts for the dungeon's life, never
-                    // let go by distance nor counted towards the wild, settled or cave caps.)
+                    // (Dungeon creatures are their own tier (#24): made and let go by their dungeon's records
+                    // (FaunaDirector.Dungeons.cs), never counted towards the wild, settled or cave caps.)
                     wild.None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>(), ComponentType.ReadOnly<DungeonPost>() };
                     wildQuery = sem.CreateEntityQuery(wild);
                     netPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());

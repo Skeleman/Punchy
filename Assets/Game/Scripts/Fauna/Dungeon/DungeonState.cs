@@ -54,8 +54,7 @@ namespace Punchy.Fauna
 
         static readonly Dictionary<uint, Fixed> fixedOf = new();
         static readonly Dictionary<uint, uint> saltOf = new();
-        static readonly Dictionary<uint, int> left = new();
-        static int leftFrame = -1;
+        static FaunaDirector director;
         static readonly List<DungeonContent> picks = new();
         static readonly int[] counts = new int[5];
 
@@ -106,10 +105,10 @@ namespace Punchy.Fauna
                 Id = info.Id, Type = f.Type, Name = f.Name, Entrance = f.Entrance,
                 Creatures = f.Creatures, MarkedChest = f.MarkedChest, MarkedChestPos = f.MarkedChestPos,
             };
-            if (Left(out var at))
+            if (Left(info, out var n))
             {
-                status.CreaturesLeft = at.TryGetValue(info.Id, out var n) ? n : 0;
-                status.Cleared = status.CreaturesLeft == 0;
+                status.CreaturesLeft = n;
+                status.Cleared = n == 0;
             }
             return status;
         }
@@ -163,34 +162,16 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
-        /// Posted creatures still near their posts, per dungeon id (counted once a frame, in the world animals live in).
-        /// False where animals don't live (a joined client).
+        /// #24 phase 2 row 2: the dungeon's residents still at their posts, from the director's records (a resident not
+        /// in the world because no player is near is still there; a dead one, or one driven off, is not). False where
+        /// animals don't live (a joined client) or before the director has the dungeon.
         /// </summary>
-        static bool Left(out Dictionary<uint, int> at)
+        static bool Left(in DungeonInfo info, out int left)
         {
-            at = left;
-            var director = Object.FindFirstObjectByType<FaunaDirector>();
-            var w = director != null ? director.SimWorld : null;
-            if (w == null || !w.IsCreated)
-                return false;
-            if (leftFrame == Time.frameCount)
-                return true;
-            leftFrame = Time.frameCount;
-            left.Clear();
-            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<DungeonPost>(), ComponentType.ReadOnly<CreatureState>());
-            using var posts = q.ToComponentDataArray<DungeonPost>(Allocator.Temp);
-            using var where = q.ToComponentDataArray<CreatureState>(Allocator.Temp);
-            // (No posted creature anywhere: the director is rebuilding its animals, and the spawner makes them again
-            // next frame. Unknown, not cleared.)
-            if (posts.Length == 0)
-            {
-                leftFrame = -1;
-                return false;
-            }
-            for (int i = 0; i < posts.Length; i++)
-                if (math.distancesq(where[i].Position, posts[i].Anchor) <= DrivenOff * DrivenOff)
-                    left[posts[i].Dungeon] = (left.TryGetValue(posts[i].Dungeon, out var n) ? n : 0) + 1;
-            return true;
+            left = 0;
+            if (director == null)
+                director = Object.FindFirstObjectByType<FaunaDirector>();
+            return director != null && director.DungeonResidentsLeft(FaunaDirector.DungeonKey(info.Type, info.Id), DrivenOff, out _, out left);
         }
 
         /// <summary>
