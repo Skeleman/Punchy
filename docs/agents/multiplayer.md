@@ -87,3 +87,27 @@ Wire changes so far (a build from before one can't join a build from after it):
   connection (InvalidRpc). `--burst-disable-compilation` on the player confirms it; delete `Library/BurstCache` and rebuild.
 - `CreatureGhost.Holder` by Mode: positive = a player holds or pets it (NetworkId+1); negative in Ride = minus the
   mount's ghost id; negative in Held or Petted = minus the ghost id of the folk who has it (`Interactions.FolkHolder`).
+
+## Ownership and house storage (A-134)
+
+- Container ids: a temple chest is its socket index. House storage is `RoomBase + door * 4 + k`, where door is the Door
+  anchor's index and k is the room's k-th shelf or chest. It's filled from the room's seed, k and the door, so a
+  house's chest has the same contents on every machine with nothing sent. Rooms are one per house type, so
+  `Interiors.StorageHere` shows a player only the storage of the door they came in by. The host must never filter a
+  client's `TakeRpc` through it: RPC takes resolve by id.
+- Storage is registered lazily and never dropped. The host registers houses within 40 m of any player, a client
+  registers houses near itself, and anyone registers a door's storage on going in by it. A client also registers an
+  unknown storage id when `ContainerSlotRpc` names it (`ReceiveContainer`), so a chest the host emptied before that
+  client joined shows empty. The host does the same for an unknown storage id in a client's `TakeRpc`, logging
+  "registered late", so a client that got there without walking past the door (a teleport) still has its take served.
+- Owners are derived (`Ownership`): a household index or Nobody, never sent. They read Nobody until the households
+  are built, a few seconds into a game (`Ownership.Known`). Spares, drops, loot and temple chests
+  belong to nobody.
+- Thefts (`Thefts`, `FaunaDirector.Thefts.cs`): only the host or a solo game judges a take (`Ownership.Took`). It's seen
+  if one of the household is home (`HomeSign`) or a guard on its rounds is within 12 m of the door, facing it, unwalled;
+  then the nearest guard within 40 m walks to the door (Wander, on the host). `TheftRpc` goes to every client (the
+  host's own too) with the house index checked by its Key; a client drops one naming a house or item it lacks. A
+  joining client is sent its own thefts so far as Old (record only, no lines). Each machine keeps only its own
+  player's record, in its quest save (`thefts`, by house key and days ago, fading after `Thefts.FadeDays`); a joined
+  client tells the host its saved record as `TheftRecordRpc` (32 at most, unknown houses dropped). The owner's line is
+  shown only on the thief's machine, the guard's on every machine.

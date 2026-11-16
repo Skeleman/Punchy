@@ -302,6 +302,7 @@ namespace Punchy.Fauna
             WatchHouses(source);   // (A-105 -households: on a client too)
             WatchFarFolk(source);  // (A-109 row 2: the towns' far figures, on every machine)
             ServeTownExceptions(); // (A-110 row 6: the host sends the towns' dead, a joined client applies them)
+            ServeThefts();         // (A-134 row 3: the host or solo game judges takes, every client hears thefts)
             if (simWorld == null)
                 return;
             // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in

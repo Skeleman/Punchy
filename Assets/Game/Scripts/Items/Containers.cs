@@ -29,7 +29,7 @@ namespace Punchy.Items
     public partial class Items
     {
         public const int ContainerSlots = 8, MaxDrops = 256;
-        /// <summary>Container ids: a temple chest is its socket index; room storage RoomBase + room * 4 + k; a cave or
+        /// <summary>Container ids: a temple chest is its socket index; room storage RoomBase + door * 4 + k (A-134); a cave or
         /// ruin room chest <see cref="ChestId"/> (CaveChestBit upwards).</summary>
         public const int RoomBase = 100_000;
 
@@ -156,7 +156,7 @@ namespace Punchy.Items
             targetContainer = -1;
             foreach (var kv in containers)
             {
-                if (kv.Value.IsChest && !openedChests.Contains(kv.Key))
+                if (kv.Value.IsChest && !openedChests.Contains(kv.Key) || !Punchy.Interact.Interiors.StorageHere(kv.Key))
                     continue;
                 var d = math.distance(kv.Value.Pos.xz, player.xz);
                 if (d > Reach || math.abs(kv.Value.Pos.y - player.y) >= 1.8f)
@@ -202,6 +202,7 @@ namespace Punchy.Items
                 return;
             }
             var s = c.Slots[slot];
+            Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfContainer(id), -1, $"{ItemTable.Items[s.item].Name} x{s.count} from {c.Name} {id}");
             SetSlot(id, slot, 255, 0, Hosting ? "host" : "solo");
             Grant(s.item, s.count);
         }
@@ -257,9 +258,12 @@ namespace Punchy.Items
                 {
                     var m = em.GetComponentData<TakeRpc>(r);
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                    // (A-134: a house's storage this host hadn't registered yet, as when the client came without walking past its door.)
+                    if (!containers.ContainsKey(m.Container) && Punchy.Interact.Interiors.RegisterStorage(m.Container)) Debug.Log($"Items: container {m.Container} registered late, for a client's take");
                     if (containers.TryGetValue(m.Container, out var c) && m.Slot < ContainerSlots && c.Slots[m.Slot].item != 255 && em.Exists(from))
                     {
                         var s = c.Slots[m.Slot];
+                        Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfContainer(m.Container), PlayerId(em, from), $"{ItemTable.Items[s.item].Name} x{s.count} from {c.Name} {m.Container}");
                         SetSlot(m.Container, m.Slot, 255, 0, "host, for a client");
                         Carry(PlayerId(em, from), s.item, s.count);
                         Send(em, from, new GrantRpc { Item = s.item, Count = (byte)math.min(s.count, 255) });
@@ -281,7 +285,7 @@ namespace Punchy.Items
 
         void ReceiveContainer(ContainerSlotRpc m)
         {
-            if (!containers.TryGetValue(m.Container, out var c) || m.Slot >= ContainerSlots)
+            if (!containers.TryGetValue(m.Container, out var c) && !(Punchy.Interact.Interiors.RegisterStorage(m.Container) && containers.TryGetValue(m.Container, out c)) || m.Slot >= ContainerSlots)
                 return;
             if (c.Slots[m.Slot].item == m.Item && c.Slots[m.Slot].count == m.Count)
                 return;

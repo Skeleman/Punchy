@@ -172,6 +172,8 @@ namespace Punchy.Fauna
         /// <summary>A-121: empty stand-ins for FireSpots in a world without the list (a job can't carry unmade ones).</summary>
         NativeArray<FireSpot> noFires;
         NativeParallelMultiHashMap<int2, int> noFireCells;
+        /// <summary>A-134: an empty stand-in for HouseDoors before the households are built.</summary>
+        NativeHashSet<int> noHouseDoors;
         /// <summary>A-70: settlements and landmarks are baked once a player is within this (m) of their edge: past the
         /// brain LOD's range, so a creature that thinks every frame near a player always finds its walls baked.</summary>
         const float FootprintRange = 200f;
@@ -195,6 +197,7 @@ namespace Punchy.Fauna
             spreadTicks = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * 3, Allocator.Persistent);
             noFires = new NativeArray<FireSpot>(0, Allocator.Persistent);
             noFireCells = new NativeParallelMultiHashMap<int2, int>(1, Allocator.Persistent);
+            noHouseDoors = new NativeHashSet<int>(1, Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -219,6 +222,8 @@ namespace Punchy.Fauna
                 noFires.Dispose();
             if (noFireCells.IsCreated)
                 noFireCells.Dispose();
+            if (noHouseDoors.IsCreated)
+                noHouseDoors.Dispose();
         }
 
         /// <summary>A-70 row 2: adds the last brain job's spread over the workers to Spread, and clears it for this one.</summary>
@@ -417,6 +422,7 @@ namespace Punchy.Fauna
                 Footprints = footprints,
                 Fires = SystemAPI.TryGetSingleton<FireSpots>(out var fires) && fires.Spots.IsCreated && fires.Cells.IsCreated
                     ? fires : new FireSpots { Spots = noFires, Cells = noFireCells, On = false },
+                HouseDoors = SystemAPI.TryGetSingleton<HouseDoors>(out var houseDoors) && houseDoors.Anchors.IsCreated ? houseDoors.Anchors : noHouseDoors,
                 ColossusColumns = colossi.Columns,
                 ColossusCircles = colossi.Circles,
                 ColossusRanges = colossi.Ranges,
@@ -513,6 +519,9 @@ namespace Punchy.Fauna
             public BuildingFootprints Footprints;
             /// <summary>A-121: the fires walkers keep out of (FireSpotSystem's list, by 16 m cell).</summary>
             public FireSpots Fires;
+            /// <summary>A-134 row 1: the Door anchors that are households' own (FaunaDirector's HouseDoors): FindDoor
+            /// keeps a folk with no house out of them.</summary>
+            [ReadOnly] public NativeHashSet<int> HouseDoors;
             /// <summary>A-77: the colossi's columns, each colossus's circle (xy centre, z reach) and its run of columns
             /// (ColossusCollision.Snapshot, a frame old): Steer bends a ground walker's way round them.</summary>
             [ReadOnly] public NativeArray<ColossusCylinder> ColossusColumns;
