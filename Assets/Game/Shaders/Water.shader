@@ -171,6 +171,8 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
+            #include "Glow.hlsl"
+            #include "Surface.hlsl"
             #include "SharedClock.hlsl"
             #include "WaterSwell.hlsl"
             // R-9: on for the fine sheet near the player (WaterPatchSystem.cs, WaterField.hlsl).
@@ -796,10 +798,13 @@ Shader "Punchy/Water"
                 float thickness = max(sceneEye - surfaceEye, 0);
 
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                // R-5: past the real-time shadows the wide cached map (WideShadow.hlsl) shades the water too; min, not
-                // product, so the two never darken the same caster twice.
-                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
+                // The sun and its shadow tiers (real-time, wide past it, cloud) from Surface.hlsl, the wide map biased
+                // straight up. The lantern stays the water's own below (a glint, not a diffuse term).
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, (half3)n);
+                ps.wideNormalWS = half3(0, 1, 0);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
 
                 // Looking up from under the water: Snell's window (Zach, 11-08). Light from above reaches the eye only
                 // through a cone of about 48.6 degrees round the surface normal (asin(1 / 1.333)), so the whole sky shows
@@ -850,7 +855,7 @@ Shader "Punchy/Water"
                     }
                     return half4(under, 1);
                 }
-                half3 ambient = SampleSH(n);
+                half3 ambient = lit.ambient;
                 // Underground the sun and sky don't reach (cave rock deep down casts no sun shadow, so it's done here).
                 shadow *= 1 - _PunchyUnderground;
                 ambient *= lerp(1, 0.06, _PunchyUnderground);
@@ -1121,7 +1126,7 @@ Shader "Punchy/Water"
                     return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe > 3.5 ? half4(foamParts * 2, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);
                 // The atmosphere (fog and weather) only above ground; a cave pool is right in front of you.
                 if (_PunchyUnderground < 0.999)
-                    color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
+                    color = lerp(PunchySurfaceFinish(color, ps), color, _PunchyUnderground);
                 // What lies under the water is seen bent by the ripples (Zach, 11-08): the bed and stones shimmer and, on a
                 // river, slide with the current. Read from the screen behind, nudged by the ripple normal, more through
                 // thicker water and near the camera, none at the water's edge (where alpha goes to 0 anyway); the nudge is
