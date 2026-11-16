@@ -210,7 +210,7 @@ namespace Punchy.Fauna
         /// <summary>
         /// A-91 row 4, the P-23 hook for chests: an extra item for a chest socket from the chest rows of
         /// <see cref="LootTable"/> (P-23's gear goes there), seeded by the socket alone, so host and clients agree.
-        /// False while the table has no chest row that fits (today: none). Items (player lane) calls it when it fills a
+        /// False while the table has no chest row that fits (the temple's chests: none; caves and ruin rooms have their own rows). Items (player lane) calls it when it fills a
         /// chest; the spawner never opens chests.
         /// </summary>
         public static bool PickChestLoot(in DungeonSocket chest, out byte item, out byte count)

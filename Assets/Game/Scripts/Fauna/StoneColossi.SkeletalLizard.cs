@@ -27,6 +27,8 @@ namespace Punchy.Fauna
             var root = new GameObject("SkeletalLizard").transform;
             root.SetPositionAndRotation(new Vector3(at.x, at.y - 1f, at.z), Quaternion.Euler(0f, yaw, 0f));
             var m = new DunesColossus.MeshBuilder();
+            foreach (var bone in new[] { Bone, BoneDark, Fang })                       // W-166 r4 (#336): library bone
+                m.Family(bone, MaterialFamily.Bone);
             // The spine from the tail tip (s = 0) to the neck (s = 1): the tail trails on the ground, the back arches.
             Vector3 Spine(float s) => new Vector3(5f * Mathf.Sin(s * Mathf.PI * 1.6f + 0.6f),
                                                   s < 0.35f ? Mathf.Lerp(1.6f, 10f, s / 0.35f) : 10f + 3f * Mathf.Sin((s - 0.35f) / 0.65f * Mathf.PI),
