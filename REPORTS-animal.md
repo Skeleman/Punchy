@@ -5793,3 +5793,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Flags:** (1) Interiors.cs edit is in the player lane's file (test flag only). (2) Held calls fetch from 120 m, not TheftGuardReach 40 m: the only night guard on rounds was 63-137 m away, and the owner has just shouted for one; line wait scaled to 180 s. Judgment call, easy to revert to 40. (3) The host logs no guard line while its own player is inside a room (no ghost there); expected. (4) Editor 108988 kept open.
 - Shares (rule 33): r4's hold and NearestPlayer, the theft RPC, TheftLine queue, guard Wander walk. No timing (rule 21).
 - NEXT: waiting for review.
+
+## Innkeeper test order dependence, DONE (verified) 2026-11-16
+- **Branch:** folk/innkeeper-test-order aca006b4 (2 commits). No PR opened.
+- **Cause:** the town's members are made at whatever hour the town first comes into range and keep that leg while a player is near, so the innkeeper could have no Job at 11 and the test failed alone or in the suite depending on order.
+- **Fix (test-only):** editor-only FaunaDirector.RemakeMembersNear(at) lets go of the nearest town's live members (housing bits cleared, resident waits reset); TestHooks.RemakeTownMembers calls it. FolkConversationTests uses one shared AtTheInnBy11() start (place, 11:00, remake, 10 s) in LiveFolk_InnkeeperAtCounter, Innkeeper_Shot and Innkeeper_ChoreShots. No game code path changes outside UNITY_EDITOR.
+- **Verified:** LiveFolk_InnkeeperAtCounter alone twice, passed both (keeper 0.7 m / 0.5 m from counter, 34 members remade each run); full FolkConversationTests 14/14. Editor closed with EditorApplication.Exit.
+- **Note:** my first launch had a compile error and showed Unity's Safe Mode prompt on Zach's screen; closed it via WM_CLOSE (editor quit cleanly), fixed, relaunched.
+- NEXT: folk/members-follow-clock per the approved design (editor-free build, then slot request).
