@@ -58,6 +58,9 @@ namespace Punchy.Fauna
         public CoatKind Coat;
         [Tooltip("Fur length on the body and on parts that don't set their own (Fur coats only).")]
         public FurLength FurLength;
+        [Tooltip("M-06 row 4: what the body (trunk) is made of, from the W-166 library (MaterialLibrary.FamilyOf). " +
+                 "Body = its coat, as always; Bone reads as horn or shell, Leather as hide.")]
+        public SegmentMaterial BodyMaterial;
 
         [Header("Parts")]
         public List<LimbSlot> Parts = new List<LimbSlot>();
@@ -496,7 +499,8 @@ namespace Punchy.Fauna
         [Tooltip("Animals per hectare (10 000 m²).")]
         [Min(0f)] public float Density = 0.5f;
         /// <summary>Added at run time from a species' Homes (FaunaDirector.Build), not part of the biome asset: taken
-        /// out again before each build and at teardown, and skipped by the herd bake and the world signature.</summary>
+        /// out again before each build and at teardown. The world signature's biome list skips them; the herd bake
+        /// keeps them (HerdBaking.Sources lists them after the biome's own entries, #412).</summary>
         [NonSerialized] public bool FromHomes;
     }
 

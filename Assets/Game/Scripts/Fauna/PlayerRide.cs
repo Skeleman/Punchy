@@ -359,6 +359,9 @@ namespace Punchy.Fauna
             var rBody = em.GetComponentData<CreatureBody>(avatar);
             var r = em.GetComponentData<CreatureState>(avatar);
             Riding.Begin(ref rBody.Blob.Value, ref r, rBody.Coat, ref mBody.Blob.Value, m, mBody.Coat, ride.MountGhost, terrain);
+            // (A-119: the pair's size into both; m is the mount as it stands now, read or driven above.)
+            Riding.Pair(ref rBody.Blob.Value, ref r, ref mBody.Blob.Value, ref m);
+            em.SetComponentData(ride.Mount, m);
             em.SetComponentData(avatar, r);
             if (!ride.Steering)
                 Hold(em, player, r.Position, m.Yaw);
@@ -482,7 +485,11 @@ namespace Punchy.Fauna
                     continue;
                 Riding.Begin(ref rBody.Blob.Value, ref r, rBody.Coat, ref mBody.Blob.Value, m, mBody.Coat, mount, terrain);
                 if (math.all(math.isfinite(r.Position)))
+                {
+                    Riding.Pair(ref rBody.Blob.Value, ref r, ref mBody.Blob.Value, ref m);
+                    em.SetComponentData(mountBody, m);
                     em.SetComponentData(body, r);
+                }
             }
         }
 

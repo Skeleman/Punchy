@@ -467,20 +467,28 @@ namespace Punchy.Interact
                     inRoom = r;
             if (inRoom < 0)
                 return;
+            // (The way out and the lamp switch are scored by the one Use rule, UseTarget, like a door or a chest.)
             var room = rooms[inRoom];
+            var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
+            var camera = Camera.main;
+            var look = camera != null ? math.normalizesafe(((float3)camera.transform.forward).xz) : forward;
+            var best = float.MaxValue;
             var doorGap = new float3((room.Min.x + room.Max.x) * 0.5f, room.Min.y, room.Max.z);
             if (math.distance(player.Position.xz, doorGap.xz) < 1.6f && cameFrom >= 0)
+                (best, target) = (UseTarget.Score(player.Position, forward, look, doorGap), 1);
+            if (math.distance(player.Position.xz, room.SwitchAt.xz) < 1.8f)
             {
-                target = 1;
-                prompt = $"{UseKey.Name}  go outside";
-                UseKey.Offer();
+                var score = UseTarget.Score(player.Position, forward, look, room.SwitchAt);
+                if (score < best)
+                    (best, target) = (score, 2);
             }
-            else if (math.distance(player.Position.xz, room.SwitchAt.xz) < 1.8f)
+            if (!UseTarget.Bid(UseKind.Room, best))
             {
-                target = 2;
-                prompt = $"{UseKey.Name}  {(lampsOn.Contains(inRoom) ? "put out" : "light")} the lamp";
-                UseKey.Offer();
+                target = 0;
+                return;
             }
+            prompt = target == 1 ? $"{UseKey.Name}  go outside" : $"{UseKey.Name}  {(lampsOn.Contains(inRoom) ? "put out" : "light")} the lamp";
+            UseKey.Offer();
         }
 
         void SwitchLamp(int room)

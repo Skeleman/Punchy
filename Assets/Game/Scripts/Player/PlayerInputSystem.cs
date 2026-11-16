@@ -61,6 +61,9 @@ namespace Punchy.Player
         {
             InputGlyphs.Update();
             var raw = move != null ? (float2)move.ReadValue<Vector2>() : float2.zero;
+            // (P-39, #397: the in-world menu takes the arrow keys and the d-pad; the left stick and WASD still walk.)
+            if (Punchy.UI.Overlay.FieldMenu && !Punchy.UI.Overlay.Frozen)
+                raw = WalkWithoutArrows();
 
             // Rotate stick/WASD input so "forward" means "away from the camera".
             var direction = raw;
@@ -85,9 +88,10 @@ namespace Punchy.Player
                 direction = TestMove.Value;
             if (math.lengthsq(direction) > 1f)
                 direction = math.normalize(direction);
-            // Typing a join code or address in the multiplayer panel shouldn't walk the player around.
+            // Typing a join code or address in the multiplayer panel shouldn't walk the player around. (typing: a menu has
+            // the buttons, so jump, roll, sprint and walk wait; only the main menu or a talk stops the walk.)
             var typing = Punchy.UI.Overlay.AnyOpen;
-            if (typing && !autowalk)
+            if (Punchy.UI.Overlay.Frozen && !autowalk)
                 direction = float2.zero;
 
             // The toggles (on the ground; in flight the sprint button dives instead, and nothing carries over).
@@ -136,6 +140,27 @@ namespace Punchy.Player
             });
             TestJump = false;
             TestRoll = false;
+        }
+
+        /// <summary>The walk while the in-world menu is up: the left stick (any pad's) or WASD, whichever pushes more.</summary>
+        static float2 WalkWithoutArrows()
+        {
+            var walk = float2.zero;
+            foreach (var pad in UnityEngine.InputSystem.Gamepad.all)
+            {
+                var s = (float2)pad.leftStick.ReadValue();
+                if (math.lengthsq(s) > math.lengthsq(walk))
+                    walk = s;
+            }
+            var keys = UnityEngine.InputSystem.Keyboard.current;
+            if (keys != null)
+            {
+                var k = new float2((keys.dKey.isPressed ? 1f : 0f) - (keys.aKey.isPressed ? 1f : 0f),
+                                   (keys.wKey.isPressed ? 1f : 0f) - (keys.sKey.isPressed ? 1f : 0f));
+                if (math.lengthsq(k) > math.lengthsq(walk))
+                    walk = k;
+            }
+            return walk;
         }
     }
 }

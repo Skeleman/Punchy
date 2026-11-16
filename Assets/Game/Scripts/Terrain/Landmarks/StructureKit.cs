@@ -882,11 +882,13 @@ namespace Punchy.Terrain
                 {
                     var cx = (rng.Next(2) == 0 ? -1f : 1f) * (hw + Thick * 0.5f + 0.12f);
                     var cz = -hd - Thick * 0.5f - 0.12f;
-                    var rodTop = ridge + 2.2f + R() * 0.8f;
+                    // W-172 row 3: a short tip past the ridge, brackets only where the wall is behind them (the corner
+                    // stops at the eave). A tall rod with rungs up into the air read as a half-built ladder.
+                    var rodTop = ridge + 0.9f + R() * 0.5f;
                     Add(parts, KitPiece.Column, KitMaterial.Copper, new Vector3(cx, rodTop * 0.5f, cz), new Vector3(0.09f, rodTop, 0.09f), 0f, false);
                     for (int k = 0; k < 3; k++)   // a crown of points at the top
                         Add(parts, KitPiece.Trim, KitMaterial.Copper, new Vector3(cx, rodTop + 0.12f, cz), new Vector3(0.04f, 0.4f, 0.04f), k * 120f, false, 22f);
-                    for (var y = 0.9f; y < ridge; y += 1.3f)   // stand-off brackets back to the wall
+                    for (var y = 0.9f; y < h - 0.15f; y += 1.3f)   // stand-off brackets back to the wall
                         Add(parts, KitPiece.Trim, KitMaterial.Copper, new Vector3(cx - Mathf.Sign(cx) * 0.1f, y, cz + 0.06f), new Vector3(0.22f, 0.05f, 0.05f), 0f, false);
                     Add(parts, KitPiece.Platform, KitMaterial.Stone, new Vector3(cx, 0.04f, cz), new Vector3(0.9f, 0.08f, 0.9f), R() * 40f, false);
                     var stake = new Vector3(cx + Mathf.Sign(cx) * (1.2f + R()), 0f, cz - 0.8f - R());
@@ -1947,10 +1949,12 @@ namespace Punchy.Terrain
             // The deck's rail: all round but where the stair comes up (the last face, past its first third).
             var last = (steps - 1) / perSide;
             // A landing at the stair's head, level with the deck, so a climber can turn onto the deck (not only off a
-            // single tread's width) and doesn't walk off the end of the flight.
+            // single tread's width) and doesn't walk off the end of the flight. W-172 row 3 (#337): it stops at the
+            // deck's edge; running on into the corner square it stuck out past the shaft with no flight under it.
             var head = -c + ((steps - 1) % perSide + 1) * run;
-            Add(parts, KitPiece.Stair, KitMaterial.Stone, Turn(last * 90f, new Vector3((head + mid + w * 0.5f) * 0.5f, BeaconDeck - 0.21f, mid)),
-                new Vector3(mid + w * 0.5f - head, 0.42f, w), last * 90f, false);
+            var headEnd = Mathf.Max(c + 0.1f, head + run);
+            Add(parts, KitPiece.Stair, KitMaterial.Stone, Turn(last * 90f, new Vector3((head + headEnd) * 0.5f, BeaconDeck - 0.21f, mid)),
+                new Vector3(headEnd - head, 0.42f, w), last * 90f, false);
             for (int s = 0; s < 4; s++)
             {
                 var from = -c - 0.1f;

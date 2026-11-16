@@ -47,13 +47,16 @@ Shader "Punchy/Terrain Surface"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
             #include "RiverCurtains.hlsl"   // (R-21: rock beside a river fall is wet with spray)
+            #define PUNCHY_SURFACE_GLOW_WORLD
+            #define PUNCHY_SURFACE_REAL_LIGHTS
+            #include "Surface.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
-            #include "Stone.hlsl"
+            #include "Materials/Stone.hlsl"
             // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
             float2 _PunchyWindDirection;
             half _PunchyWind;
@@ -473,7 +476,7 @@ Shader "Punchy/Terrain Surface"
                 }
                 // R-19: the rock on steep faces. Strata: a thick and a thin set of beds by height, wandering slowly
                 // along the face so they aren't contour lines, each bed's top a ledge (the normal tips up where the beds
-                // step out). The surface on them is the shared stone (Stone.hlsl, R-34 row 2: it replaced the old 2 m grain and
+                // step out). The surface on them is the shared stone (Materials/Stone.hlsl, R-34 row 2: it replaced the old 2 m grain and
                 // 12 m mottle, so there is no double noise). Every part fades by its own
                 // on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans), never by metres.
                 half rockBand = 0, rockBlock = 0, rockLedge = 0;
@@ -530,12 +533,15 @@ Shader "Punchy/Terrain Surface"
                 inputData.normalWS = normalWS;
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 // Skirts take their shadowing from the surface edge they hang from.
-                inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS + float3(0, max(input.extra.w, 0), 0));
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, normalWS);
+                ps.shadowPositionWS = input.positionWS + float3(0, max(input.extra.w, 0), 0);
+                ps.positionCS = input.positionCS;
+                PunchyLit lit = PunchySurfaceLight(ps);
+                inputData.shadowCoord = TransformWorldToShadowCoord(ps.shadowPositionWS);
                 inputData.fogCoord = InitializeInputDataFog(float4(input.positionWS, 1.0), input.fogFactor);
-                inputData.bakedGI = SampleSH(inputData.normalWS);
+                inputData.bakedGI = lit.ambient;
                 // Glowing plants and molten pools nearby light the ground round them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS) + PunchyGlowWorld(input.positionWS, inputData.normalWS)
-                                   + PunchyRealLights(input.positionWS, inputData.normalWS, input.positionCS);
+                inputData.bakedGI += lit.glow + lit.lights;
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
@@ -594,7 +600,7 @@ Shader "Punchy/Terrain Surface"
                     albedo = lerp(albedo, rock, rockFace);
                 }
                 // R-34 row 2: steep faces (and the cliff kit pieces, drawn with this material) take their surface from the
-                // shared stone (Stone.hlsl) on the beds and ledges above. Its footprint from the same reference pixels as
+                // shared stone (Materials/Stone.hlsl) on the beds and ledges above. Its footprint from the same reference pixels as
                 // R-19's fades (screen size, not metres). Wet from rain (drying over time), shores and fall spray.
                 half stoneOn = 0, stoneCrevice = 0, stoneWet = 0;
                 half3 stoneN0 = normalWS;
@@ -673,7 +679,7 @@ Shader "Punchy/Terrain Surface"
                     // water's 2%: puddles must read as sky even when looked down on.)
                     half fresnel = 0.35 + 0.65 * pow(1 - saturate(dot(n, v)), 5);
                     half3 body = color.rgb * half3(0.42, 0.47, 0.5);
-                    Light sun = GetMainLight(inputData.shadowCoord);
+                    Light sun = lit.sun;
                     half glint = pow(saturate(dot(r, sun.direction)), 600) * sun.shadowAttenuation * 3;
                     half3 film = lerp(body, PunchySkyColor(r, false, true), fresnel) + sun.color * glint;
                     color.rgb = lerp(color.rgb, film, puddle);
@@ -681,21 +687,10 @@ Shader "Punchy/Terrain Surface"
 
                 // Cloud shadows and, past the real shadows, the wide cached ones of the huge things (R-5): dim the share
                 // of the light that comes straight from the sun. The wide shadow takes the darker of itself and the real
-                // shadow where they overlap, so it never doubles.
-                float3 shadowAt = input.positionWS + float3(0, max(input.extra.w, 0), 0);
-                half cloudShadow = PunchyCloudShadow(shadowAt);
-                half wideShadow = PunchyWideShadow(shadowAt, inputData.normalWS);
-                if (cloudShadow > 0 || wideShadow > 0)
-                {
-                    Light mainLight = GetMainLight(inputData.shadowCoord);
-                    half sunlit = Luminance(mainLight.color) * saturate(dot(inputData.normalWS, mainLight.direction));
-                    half direct = sunlit * mainLight.shadowAttenuation;
-                    half kept = sunlit * min(mainLight.shadowAttenuation, 1 - wideShadow) * (1 - cloudShadow);
-                    half ambient = Luminance(inputData.bakedGI);
-                    color.rgb *= 1 - (direct - kept) / max(direct + ambient, 1e-3);
-                }
+                // shadow where they overlap, so it never doubles (Surface.hlsl).
+                color.rgb = PunchySurfaceSunDim(color.rgb, ps, lit, inputData.bakedGI);
 
-                color.rgb = PunchyAtmosphere(color.rgb, input.positionWS);
+                color.rgb = PunchySurfaceFinish(color.rgb, ps);
                 return color;
             }
             ENDHLSL

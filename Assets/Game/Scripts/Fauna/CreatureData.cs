@@ -285,14 +285,15 @@ namespace Punchy.Fauna
         /// <summary>A sprinting leg's sweep, longer than its run's by this share (a gallop's more).</summary>
         public float SprintStride => Gallops ? 0.6f : 0.35f;
 
-        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride.</summary>
-        public float3 LegAngles(int segment, float p, float move, float run, float sprint)
+        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride and (A-124 row 2) the
+        /// person's own (GaitStyle.LegStride: both scale the swing about the rest pose).</summary>
+        public float3 LegAngles(int segment, float p, float move, float run, float sprint, float stride = 1f)
         {
             var a = Angles(segment, p, move, run);
-            if (sprint <= 0f)
+            if (sprint <= 0f && stride == 1f)
                 return a;
             var idle = Poses[segment * PoseCount + Idle];
-            return idle + (a - idle) * (1f + SprintStride * sprint);
+            return idle + (a - idle) * ((1f + SprintStride * math.max(sprint, 0f)) * stride);
         }
 
         public float3 Angles(int segment, float p, float move, float run)
@@ -942,6 +943,11 @@ namespace Punchy.Fauna
         /// <summary>Half the width of what this player's body carries in its arms (m; 0 for nothing): local, set each
         /// frame on every machine by HeldPoseSystem from the creature carried, so the arms open round it. Not sent.</summary>
         public float CarryWidth;
+        /// <summary>A-119 (#339): the ride it is part of, rider or mount (RidePair; Size 0 = none), as last seated: every
+        /// detail, think-rate, trace and let-go decision reads it, so the pair steps together. Local, never sent.</summary>
+        public RidePair Pair;
+        /// <summary>A-119: the pair written by this frame's seating (Riding.Pair), Pair from the next (RidePairSystem).</summary>
+        public RidePair PairNext;
     }
 
     /// <summary>
@@ -1127,6 +1133,27 @@ namespace Punchy.Fauna
                 : role is LimbRole.Head or LimbRole.Neck ? (byte)(code | SurfaceLook.FeatherBody << 4)
                 : role is LimbRole.Wing or LimbRole.Tail ? (byte)(code | SurfaceLook.FeatherFlight << 4)
                 : code;
+        }
+
+        /// <summary>
+        /// M-06 row 4: what each segment of a species is made of (a SegmentMaterial, W-166 library family), in the same
+        /// order as <see cref="Looks"/> (segment 0 is the body). All Body (0) for a species that sets none. Kept off the
+        /// creature blob like the looks, so it never moves the fauna fingerprint.
+        /// </summary>
+        public static byte[] Materials(CreatureSpecies variant)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
+            var count = 1;
+            foreach (var p in parts)
+                count += p.Slot.Limb.Segments.Count;
+            var materials = new byte[count];
+            materials[0] = (byte)species.BodyMaterial;
+            var cursor = 1;
+            foreach (var p in parts)
+                foreach (var seg in p.Slot.Limb.Segments)
+                    materials[cursor++] = (byte)seg.Material;
+            return materials;
         }
 
         /// <summary>

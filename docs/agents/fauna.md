@@ -8,6 +8,9 @@ or a double. Far forms cost no entities and nothing on the network.
 - Town far figures (A-109): `FaunaDirector.FarFolk.cs` places one figure per household member who is sure to spawn,
   from household records and the shared clock, with no random draw; `CreatureRenderSystem.FarFolk.cs` draws them as
   walkers (6 px and up) or motes and fades them out where the town has real folk. `-farfolk` logs counts and sizes.
+- Herds (A-108): `HerdBaking.Sources` is the one list of herding entries, read by the bake and by
+  `FaunaDirector.BuildHerdKinds`. It includes Model Lab species' Homes (#412), so saving `LabSpecies.asset` or a Lab
+  species re-bakes the herds (the island cache stamp covers that asset).
 
 Read before changing creatures, behaviour, poses, the player's body, settlements' residents or workers.
 
@@ -125,6 +128,11 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   stalls and hitching rails as buildings (FloraPlacement.IsBuilding). Town paths come from StreetRoute (Road == 0
   streets, then string-pulled where Clear). Riders().clearance should read 0 overlaps; Despawn at 170 m cuts a
   far ride short, and a lent horse's stable can be km away.
+- A-119: a seated rider and its mount share one size. Riding.Pair (called at every seating point: SeatJob,
+  RideSeatSystem, PlayerRide Carry/SeatOthers) writes RidePair.PairNext on both; RidePairSystem copies it to Pair at
+  frame start. CreatureMotion.SeenAt/SeenFrom/SeenSpeed/ApparentSize read it, so detail, pose rate, ThinkRange, trace,
+  LetGoRange and SendRadius step together from the mount's spot. Local only, never sent. `-ridesize` (RideSizeTest)
+  probes it; 'drawn differently' must read 0.
 - A-121: FireSpots is both the "keep out of the flames" list and the heat-source list (HeatAt) comfort reads. A
   species' FireTemper (Auto: folk Ignores, friendly Wary, cold-blooded Basks, else Shy; set Loves by hand) and the
   heat a creature can't bear give CreatureMind.FireKeep, a berth past the flame's edge (Fire.cs Berth/FireStep);

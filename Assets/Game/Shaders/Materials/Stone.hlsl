@@ -95,4 +95,113 @@ half PunchyStoneFresnel(half3 n, half3 v, half crevice, half wet)
     return (0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5)) * 0.5 * (1 - 0.8 * crevice) * wet;
 }
 
+// W-166 row 3: built stone (MaterialFamily.Stone), the one look for cut and rubble stone laid on top of the surface
+// above. Built pieces call PunchyStoneBlocks before PunchyStoneSurface, so the blocks carry the same wet relief,
+// crevices and shine as the rock they were cut from.
+// - cut: level courses of squared blocks, each course its own block length, with tight, slightly sunk joints and
+//   softened arrises (fountains, plinths, steps, hearths, seats);
+// - rubble: irregular stones packed wider than tall in pale lime, each one domed (ruined walls).
+// Joints, tints and doming fade by their own on-screen size (rule 20), so a far wall keeps its tone (rule 25).
+// Self-contained: no other include needed beyond the surface's own.
+
+float PunchyStoneHash(float2 c) { return frac(sin(dot(c, float2(127.1, 311.7))) * 43758.5453); }
+
+// The face's frame at p: along and up a wall, or across a top (x and z on anything facing mostly up or down).
+void PunchyStoneFrame(float3 p, half3 n, out float2 uv, out float3 t, out float3 bt)
+{
+    if (abs(n.y) > 0.7)
+    {
+        t = float3(1, 0, 0);
+        bt = float3(0, 0, 1);
+        uv = p.xz;
+        return;
+    }
+    float2 a = normalize(float2(-n.z, n.x) + 1e-4);
+    t = float3(a.x, 0, a.y);
+    bt = normalize(float3(0, 1, 0) - n * n.y + 1e-5);
+    uv = float2(dot(p.xz, a), p.y);
+}
+
+// Cut stone: distance (m) to the nearest joint (to a head joint, to a bed joint) at face point uv, which way each
+// lies (-1 or +1), and the block's own index. Each course draws its own block length and offset.
+float2 PunchyStoneCourse(float2 uv, float seed, out float2 side, out float2 cell)
+{
+    const float course = 0.34;
+    float row = floor(uv.y / course);
+    float len = lerp(0.5, 0.9, PunchyStoneHash(float2(row, seed)));
+    float u = uv.x / len + PunchyStoneHash(float2(row, seed + 3.1));
+    cell = float2(floor(u), row);
+    float2 f = float2(frac(u) * len, frac(uv.y / course) * course);
+    side = float2(f.x < len * 0.5 ? -1 : 1, f.y < course * 0.5 ? -1 : 1);
+    return float2(min(f.x, len - f.x), min(f.y, course - f.y));
+}
+
+// Rubble: the stone nearest face point uv (cells 0.34 x 0.22 m, so the stones lie flat), as the offset from the point
+// to its middle (m) and its index; returns roughly how far (m) the point is from the stone's edge.
+float PunchyStoneRubble(float2 uv, float seed, out float2 toMiddle, out float2 cell)
+{
+    const float2 size = float2(0.34, 0.22);
+    float2 q = uv / size;
+    float2 b = floor(q), f = q - b;
+    float d1 = 8, d2 = 8;
+    toMiddle = 0;
+    cell = b;
+    [unroll] for (int j = -1; j <= 1; j++)
+    [unroll] for (int i = -1; i <= 1; i++)
+    {
+        float2 o = float2(i, j), id = b + o;
+        float2 c = o + 0.15 + 0.7 * float2(PunchyStoneHash(id + seed), PunchyStoneHash(id + seed + 17.7));
+        float2 dv = (c - f) * size;
+        float d = dot(dv, dv);
+        if (d < d1) { d2 = d1; d1 = d; toMiddle = dv; cell = id; }
+        else if (d < d2) d2 = d;
+    }
+    return (sqrt(d2) - sqrt(d1)) * 0.5;
+}
+
+/// The built stone's albedo multiplier at world point p on a face with normal n (leaned in place for the joints and
+/// the doming); rubble picks the packed look over the cut courses; r is the piece's own random (0..1).
+half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, half r)
+{
+    half fade = PunchyStoneFade(rubble ? 0.22 : 0.34, footprint);
+    if (fade <= 0)
+        return 1;
+    float seed = r * 53;
+    float2 uv;
+    float3 t, bt;
+    PunchyStoneFrame(p + r * 41, n, uv, t, bt);
+    half mortar = rubble ? 0.011 : 0.006;   // half a joint's width (m)
+    half joint, h;
+    float edge;
+    half2 lean;
+    if (rubble)
+    {
+        float2 toMiddle, cell;
+        edge = PunchyStoneRubble(uv, seed, toMiddle, cell);
+        joint = 1 - smoothstep(mortar - footprint * 0.5, mortar + footprint * 0.5, edge);
+        h = PunchyStoneHash(cell + seed + 5.3);
+        // Domed: the face leans away from each stone's middle, most near its edge.
+        lean = -toMiddle / 0.17 * 0.5 * (1 - joint);
+    }
+    else
+    {
+        float2 side, cell;
+        float2 d = PunchyStoneCourse(uv, seed, side, cell);
+        edge = min(d.x, d.y);
+        joint = 1 - smoothstep(mortar - footprint * 0.5, mortar + footprint * 0.5, edge);
+        h = PunchyStoneHash(cell + seed + 5.3);
+        // The softened arrises lean their light into the joints; each block's face pitched a touch its own way.
+        lean = (1 - smoothstep(mortar, mortar + 0.025, d)) * step(mortar, d) * side * 0.45
+             + (float2(h, PunchyStoneHash(cell + seed + 9.1)) - 0.5) * 0.08;
+    }
+    joint *= fade;
+    lean *= fade;
+    n = normalize(n + t * lean.x + bt * lean.y);
+    // Each stone its own shade (rubble more, gathered from many beds), a little warmer or cooler.
+    half3 tint = rubble ? lerp(half3(0.72, 0.74, 0.79), half3(1.2, 1.16, 1.08), h) : lerp(half3(0.84, 0.85, 0.88), half3(1.12, 1.1, 1.05), h);
+    // Joints: cut stone's are thin shadow lines, rubble's are pale lime, darker where it sits back.
+    half3 grout = rubble ? half3(1.12, 1.12, 1.1) * lerp(0.8, 1, saturate((mortar - edge) / mortar)) : half3(0.48, 0.48, 0.5);
+    return lerp(lerp(1, tint, fade), grout, joint);
+}
+
 #endif

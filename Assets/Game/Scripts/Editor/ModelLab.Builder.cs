@@ -164,6 +164,14 @@ namespace Punchy.EditorTools
                     Edited();
                 }
             }
+            // (M-06 row 4: what the trunk is made of, from the W-166 library; Body = its coat.)
+            EditorGUI.BeginChangeCheck();
+            var bodyMaterial = (SegmentMaterial)EditorGUILayout.EnumPopup("Body material", species.Body.BodyMaterial);
+            if (EditorGUI.EndChangeCheck())
+            {
+                species.Body.BodyMaterial = bodyMaterial;
+                Edited();
+            }
 
             var names = slots.Select((p, i) => $"{i}: {(p.Limb != null ? p.Limb.name : "(none)")}").ToArray();
             buildSlot = math.clamp(EditorGUILayout.Popup("Limb slot", buildSlot, names), 0, slots.Count - 1);
@@ -203,10 +211,13 @@ namespace Punchy.EditorTools
             using (new EditorGUI.DisabledScope(!fixedColour))
                 colour = EditorGUILayout.ColorField("Colour", seg.FixedColor);
             var glow = EditorGUILayout.Slider("Glow", seg.Glow, 0f, 1f);
+            // (M-06 row 4: a library material kind, no palette of the Lab's own; Body = the coat or Surface.)
+            var material = (SegmentMaterial)EditorGUILayout.EnumPopup("Material", seg.Material);
             if (EditorGUI.EndChangeCheck())
             {
                 seg.Length = length; seg.RadiusStart = r0; seg.RadiusEnd = r1; seg.Flatten = flatten;
                 seg.Accent = accent; seg.UseFixedColor = fixedColour; seg.FixedColor = colour; seg.Glow = glow;
+                seg.Material = material;
                 Edited();
             }
 
@@ -248,7 +259,9 @@ namespace Punchy.EditorTools
             var limb = w.Slot(slot)?.Limb;
             if (limb == null || segment < 0 || segment >= limb.Segments.Count)
                 return;
-            typeof(LimbSegment).GetField(field).SetValue(limb.Segments[segment], value);
+            var f = typeof(LimbSegment).GetField(field);
+            // (M-06 row 4: Material is an enum; the hook takes its number.)
+            f.SetValue(limb.Segments[segment], f.FieldType.IsEnum ? System.Enum.ToObject(f.FieldType, (int)value) : value);
             w.Edited();
         }
 

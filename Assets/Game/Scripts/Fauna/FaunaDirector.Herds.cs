@@ -36,22 +36,24 @@ namespace Punchy.Fauna
         {
             HerdBlobs.Clear();
             herding = new bool[species.Count];
-            for (int b = 0; b < biomes.Length; b++)
+            // (The entries the bake read, Model Lab species' Homes included, #412.)
+            foreach (var f in HerdBaking.Sources(biomes))
             {
-                var fauna = biomes[b] != null ? biomes[b].Fauna : null;
-                if (fauna == null)
+                var index = SpeciesIndex(f.Species);
+                if (index < 0)
                     continue;
-                for (int s = 0; s < fauna.Count && s < 255; s++)
+                // A Home's slot must be the one MergeHomes gave it, or the far form would name another animal.
+                if (f.FromHome)
                 {
-                    var f = fauna[s];
-                    if (f == null || f.Species == null || f.FromHomes || f.Density <= 0f || !HerdBaking.Herds(f.Species))
+                    var fauna = biomes[f.Biome].Fauna;
+                    if (f.Slot >= fauna.Count || fauna[f.Slot] == null || !fauna[f.Slot].FromHomes || fauna[f.Slot].Species != f.Species)
+                    {
+                        UnityEngine.Debug.LogError($"FaunaDirector: {f.Species.name}'s herd slot {f.Slot} in {biomes[f.Biome].name} isn't its Homes entry; its herds are left out.");
                         continue;
-                    var index = SpeciesIndex(f.Species);
-                    if (index < 0)
-                        continue;
-                    HerdBlobs[b * 256 + s] = blobs[index];
-                    herding[index] = true;
+                    }
                 }
+                HerdBlobs[f.Biome * 256 + f.Slot] = blobs[index];
+                herding[index] = true;
             }
             HerdBlobsVersion++;
         }

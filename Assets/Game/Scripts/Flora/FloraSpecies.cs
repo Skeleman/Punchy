@@ -192,6 +192,8 @@ namespace Punchy.Flora
     {
         [Header("Growth")]
         public FloraForm Form = FloraForm.Shrub;
+        [Tooltip("M-06 r5: a blueprint (W-175 unit) drawn in place of the form's builder. Empty = the form's own builder.")]
+        public UnitDef Unit;
         public FloraLayer Layer = FloraLayer.Shrub;
         [Tooltip("Height range of fully grown plants, in metres.")]
         public Vector2 Height = new Vector2(1f, 1.6f);

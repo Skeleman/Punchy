@@ -41,6 +41,10 @@ Shader "Punchy/SunkenTemple"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            // Stone.hlsl reads the shared detail texture (a global, set by CaveSystem); its includer declares it.
+            TEXTURE2D(_PunchyCaveDetail);
+            SAMPLER(sampler_PunchyCaveDetail);
+            #include "Materials/Stone.hlsl"
 
             float TempleHash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
 
@@ -52,24 +56,10 @@ Shader "Punchy/SunkenTemple"
                             lerp(TempleHash(i + float2(0, 1)), TempleHash(i + float2(1, 1)), f.x), f.y);
             }
 
-            // Ashlar on one projection plane (uv in metres, uv.y up the courses): 0.55 m courses of 0.9-1.3 m blocks,
-            // staggered course to course. Returns the albedo factor; mortar lines shade the normal a little too.
-            half Ashlar(float2 uv, out float joint)
-            {
-                float course = floor(uv.y / 0.55);
-                float x = uv.x + course * 0.47;
-                float len = lerp(0.9, 1.3, TempleHash(float2(course, 7.3)));
-                float block = floor(x / len);
-                float2 f = float2(frac(x / len) * len, frac(uv.y / 0.55) * 0.55);
-                float edge = min(min(f.x, len - f.x), min(f.y, 0.55 - f.y));
-                joint = 1 - smoothstep(0.015, 0.04, edge);
-                float id = TempleHash(float2(block, course));
-                half tone = 0.86 + 0.24 * id;
-                // Worn, pitted faces: fine noise, darker towards chipped edges.
-                tone *= 0.9 + 0.1 * TempleNoise(uv * 9 + id * 13) + 0.05 * TempleNoise(uv * 31);
-                tone *= lerp(1, 0.9, 1 - smoothstep(0.04, 0.12, edge));
-                return tone * lerp(1, 0.45, joint);
-            }
+            // The ashlar walls and flagstone tops are the library's cut stone (W-166 row 4), drawn at the temple's own
+            // scale: its 0.55 m sandstone courses are the shared 0.34 m courses scaled up, so joints, tints and the
+            // screen-size fade (rules 20, 25) come from Materials/Stone.hlsl like every other built stone.
+            static const float TempleCourse = 0.34 / 0.55;
 
             // Floor tiles on one plane (uv in metres): 0.8 m squares, rows staggered by half a tile, butted tight: each
             // tile its own shade and wear, only a faint darker edge where two meet (no mortar).
@@ -119,13 +109,7 @@ Shader "Punchy/SunkenTemple"
                     t /= t.x + t.y + t.z;
                     return Tiles(p.zy) * t.x + Tiles(p.xy) * t.z + Tiles(p.xz) * t.y;
                 }
-                float j0, j1, j2;
-                half a = Ashlar(p.zy, j0), b = Ashlar(p.xy, j1);
-                // Floors and tops: square flagstones from the same pattern.
-                half c = Ashlar(p.xz, j2);
-                w = pow(w, 4);
-                w /= w.x + w.y + w.z;
-                return a * w.x + b * w.z + c * w.y;
+                return 1;   // ashlar: the library's cut stone, in Frag (it leans the normal too)
             }
 
             struct Attributes
@@ -168,6 +152,14 @@ Shader "Punchy/SunkenTemple"
 
                 SurfaceData surface = (SurfaceData)0;
                 surface.albedo = input.albedo * Pattern(input.positionWS, inputData.normalWS, input.surface.x, input.surface.yz);
+                if (_Blocks >= 0.5 && input.surface.x >= 0.75)
+                {
+                    // One pixel's width on the face (m), from the distance, in the scaled stone's metres.
+                    float footprint = distance(input.positionWS, GetCameraPositionWS()) * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11);
+                    half3 n = inputData.normalWS;
+                    surface.albedo *= PunchyStoneBlocks(input.positionWS * TempleCourse, n, footprint * TempleCourse, false, 0);
+                    inputData.normalWS = n;
+                }
                 surface.smoothness = 0.08;
                 surface.occlusion = 1;
                 surface.alpha = 1;

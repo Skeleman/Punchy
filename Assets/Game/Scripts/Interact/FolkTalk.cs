@@ -27,7 +27,8 @@ namespace Punchy.Interact
     /// <summary>
     /// Talking to folk (P-26). The Use key on a folk in front of the player (DoorPick's rules) opens a small window of
     /// FolkConversation.Topics; a topic picked (mouse, keys 1-9, arrows or d-pad with Enter or A) shows its answer with
-    /// the speaker's name and job. An answer offering a quest or a gift can be accepted or declined. Esc, B or walking away
+    /// the speaker's name and job. An answer with replies (A-131: FolkConversation.Choose) lists them in place of the
+    /// topics, picked the same way; one offering a quest or a gift gets Accept and Decline. Esc, B or walking away
     /// ends it. Played as an animal there's no window: the folk's reaction goes up as a line over its head, and it does
     /// what the reaction says. The words are each machine's own and nothing about them is sent; what the folk does (stop
     /// and face the player, gesture, respond to an animal) goes to the host, which runs its brain (FolkTalkRpc). Names
@@ -60,7 +61,8 @@ namespace Punchy.Interact
         string prompt;
         float beastReadyAt;
 
-        bool talking, armed, offering, metBefore, wasQuiet;
+        // (replying: the choices are shown's replies, each Id its index in shown.Options; offering: one of them accepts.)
+        bool talking, armed, replying, offering, metBefore, wasQuiet;
         Entity folk;
         FolkTalker who;
         string title, body;
@@ -164,12 +166,15 @@ namespace Punchy.Interact
             }
             CreatureSnapshotSystem.Release(world, states, bodies, entities);
             if (target == Entity.Null)
+            {
+                UseTarget.Bid(UseKind.Folk, float.MaxValue);
                 return;
+            }
             if (bestScore < float.MaxValue)
                 heldUntil = Time.realtimeSinceStartup + DoorPick.Hold;
             TargetDistance = distance;
-            // (The nearest of this, a door and an item takes the Use key.)
-            if (distance >= Doors.FacingDistance || distance >= Items.Items.TargetDistance)
+            // (One pick for every Use prompt: UseTarget. A held folk bids as if at the cone's edge.)
+            if (!UseTarget.Bid(UseKind.Folk, bestScore < float.MaxValue ? bestScore : distance * 2f))
             {
                 target = Entity.Null;
                 return;
@@ -202,7 +207,7 @@ namespace Punchy.Interact
                 return;
             }
             (folk, who) = (target, talker);
-            (talking, offering, armed, selected, endAt) = (true, false, false, 0, 0f);
+            (talking, replying, offering, armed, selected, endAt) = (true, false, false, false, 0, 0f);
             prompt = null;
             title = NameOf(who);
             metBefore = !met.Add(who.Individual);
@@ -268,49 +273,89 @@ namespace Punchy.Interact
                 return;
             var id = choices[index].Id;
             selected = 0;
-            if (offering)
+            if (replying)
             {
-                Decide(id == "accept");
+                Reply(int.Parse(id));
                 return;
             }
-            shown = FolkConversation.Ask(folk, id);
-            if (shown.Text == null)
+            var answer = FolkConversation.Ask(folk, id);
+            if (answer.Text == null)
             {
                 End("gone");
                 return;
             }
-            body = shown.Text;
+            Show(answer, answer.Text);
+        }
+
+        /// <summary>A-131: the player picks reply <paramref name="option"/> of the answer shown. The folk answers what its
+        /// then asks (no then: its last line stays, and the topics come back); accept or decline goes through Items.</summary>
+        void Reply(int option)
+        {
+            var talker = FolkConversation.TryTalker(World.DefaultGameObjectInjectionWorld, folk, null, out var t) ? t : who;
+            var said = shown.Options[option].Say;
+            var next = FolkConversation.Choose(talker, shown, option);
+            var note = next.Chosen.Do == OptionDo.Accept || next.Chosen.Do == OptionDo.Decline ? Decide(next.Chosen.Do == OptionDo.Accept, next.ChosenOffer) : null;
+            var you = $"<i>You: {said}</i>";
+            Debug.Log($"[talk] {title}: replied {next.Chosen}");
+            Show(next, next.Text != null ? Join(you, next.Text, note) : Join(shown.Text, you, note));
+        }
+
+        static string Join(params string[] parts) => string.Join("\n\n", System.Array.FindAll(parts, p => !string.IsNullOrEmpty(p)));
+
+        /// <summary>Shows an answer (its words already in text): the gesture goes to the host, then its replies, the
+        /// topics, or, for an answer that ends the talk, nothing while the folk finishes.</summary>
+        void Show(in Answer answer, string text)
+        {
+            shown = answer;
+            body = text;
             Debug.Log($"[talk] {title}: {shown}");
             if (shown.Action != IdleAction.None)
                 Send(Request.Gesture, who.Individual, (byte)shown.Action, default);
+            choices.Clear();
+            (replying, offering) = (false, false);
             if (shown.Ends)
             {
                 endAt = Time.realtimeSinceStartup + EndingSeconds;
-                choices.Clear();
                 return;
             }
-            var offers = shown.Offer.Kind == OfferKind.Quest && !Items.Items.HasFolkQuest(shown.Offer.Id)
-                         || shown.Offer.Kind == OfferKind.Item && !gifted.Contains(who.Individual);
-            if (!offers)
-                return;
-            offering = true;
-            choices.Clear();
-            choices.Add(("accept", "Accept"));
-            choices.Add(("decline", "Decline"));
+            // (A quest the player already has, or a gift already given: its accept and decline aren't offered again.)
+            var fresh = shown.Offer.Kind == OfferKind.Quest && !Items.Items.HasFolkQuest(shown.Offer.Id)
+                        || shown.Offer.Kind == OfferKind.Item && !gifted.Contains(who.Individual);
+            var held = false;
+            if (shown.Options != null)
+                for (int i = 0; i < shown.Options.Length; i++)
+                {
+                    var o = shown.Options[i];
+                    var decides = o.Do == OptionDo.Accept || o.Do == OptionDo.Decline;
+                    if (decides && !fresh)
+                    {
+                        held = true;
+                        continue;
+                    }
+                    choices.Add((i.ToString(), o.Say));
+                    offering |= o.Do == OptionDo.Accept;
+                }
+            // (Its replies hidden, the line would end on an unanswered offer: say why.)
+            if (held)
+                body = Join(body, shown.Offer.Kind == OfferKind.Quest ? "(You already have this quest.)" : "(You already took this gift.)");
+            replying = choices.Count > 0;
+            if (!replying)
+                FillTopics(metBefore);
         }
 
-        void Decide(bool accept)
+        /// <summary>Takes or turns down an offer; the line saying what the player got, or null.</summary>
+        string Decide(bool accept, in Offer offer)
         {
-            offering = false;
-            if (accept && shown.Offer.Kind == OfferKind.Quest && Items.Items.TakeFolkQuest(shown.Offer.Id, out var town))
-                body += $"\n\n(Added to your quests. Hand it in at the notice board in {town}.)";
-            else if (accept && shown.Offer.Kind == OfferKind.Item && Items.Items.GiveFromFolk(shown.Offer.Id, GiftCount, out var item))
+            string note = null;
+            if (accept && offer.Kind == OfferKind.Quest && Items.Items.TakeFolkQuest(offer.Id, out var town))
+                note = $"(Added to your quests. Hand it in at the notice board in {town}.)";
+            else if (accept && offer.Kind == OfferKind.Item && Items.Items.GiveFromFolk(offer.Id, GiftCount, out var item))
             {
                 gifted.Add(who.Individual);
-                body += $"\n\n(You receive {GiftCount} x {item}.)";
+                note = $"(You receive {GiftCount} x {item}.)";
             }
-            Debug.Log($"[talk] {(accept ? "accepted" : "declined")} {shown.Offer}");
-            FillTopics(metBefore);
+            Debug.Log($"[talk] {(accept ? "accepted" : "declined")} {offer}");
+            return note;
         }
 
         void UpdateTalk()

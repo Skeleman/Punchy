@@ -227,6 +227,8 @@ namespace Punchy.Terrain
 #if UNITY_EDITOR
         /// <summary>The scene that holds the island's subscene (its TerrainAuthoring and palette).</summary>
         public const string WorldScene = "Assets/Game/Scenes/World.unity";
+        /// <summary>The Model Lab's species list, whose Homes the herd bake reads.</summary>
+        const string LabSpeciesAsset = "Assets/Game/Resources/LabSpecies.asset";
 
         /// <summary>
         /// Editor: a hash of the game assembly, the Unity version, the package lock, and the dependency hash of every asset
@@ -246,6 +248,9 @@ namespace Punchy.Terrain
                 var roots = new List<string> { WorldScene };
                 foreach (var guid in UnityEditor.AssetDatabase.FindAssets("t:" + nameof(LandmarkType)))
                     roots.Add(UnityEditor.AssetDatabase.GUIDToAssetPath(guid));
+                // (The herd bake reads the Model Lab species' Homes, #412: a saved Lab species must re-bake the herds.)
+                if (File.Exists(Path.Combine(root, LabSpeciesAsset)))
+                    roots.Add(LabSpeciesAsset);
                 var paths = new SortedSet<string>(UnityEditor.AssetDatabase.GetDependencies(roots.ToArray(), true), StringComparer.Ordinal);
                 if (!paths.Contains(WorldScene)) { reason = "no stamp (no world scene)"; return null; }
                 if (types != null)

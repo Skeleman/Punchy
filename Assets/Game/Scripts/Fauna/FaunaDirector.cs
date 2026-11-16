@@ -71,6 +71,10 @@ namespace Punchy.Fauna
         World queryWorld, simWorld;
         /// <summary>The world that simulates animals (the server's, when hosting); null before the director is up.</summary>
         public World SimWorld => simWorld;
+
+        /// <summary>How far from every player (m, from CreatureMotion.SeenAt) an animal is let go: DespawnDistance, or
+        /// further for the huge, seen from further off; for a riding pair the larger of the two (A-119), so both go together.</summary>
+        public float LetGoRange(in CreatureState s, ref CreatureBlob b) => math.max(DespawnDistance, CreatureMotion.SeenFrom(s, ref b) + 20f);
         /// <summary>Counts the director's builds; a rebuild (terrain re-baked) destroys every animal, so dungeons refill theirs (#24).</summary>
         public int Builds { get; private set; }
         EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
@@ -458,8 +462,9 @@ namespace Punchy.Fauna
                 }
                 // Far from everyone, or caught by a bird of prey; never one someone is carrying (wherever they go).
                 // (Huge animals seen from far off are let go only beyond that.)
-                var letGo = math.max(DespawnDistance, bodies[i].Blob.Value.SeenFrom + 20f);
-                if ((players.Count == 0 || NearestPlayer(xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
+                // (A-119: a rider and its mount let go together, from the mount's position.)
+                var letGo = LetGoRange(states[i], ref bodies[i].Blob.Value);
+                if ((players.Count == 0 || NearestPlayer(CreatureMotion.SeenAt(states[i]).xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
                     {
