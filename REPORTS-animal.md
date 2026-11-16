@@ -5481,3 +5481,10 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Merge note: the fingerprint will move again on merge with anything else that moves it; re-pin on main.
 - Dropped: the SunkenTempleSystem Ruin ctor (editor can't see internals; a private Builder blocks it). Cheaper offer: a public static BuildRuinMeshes(rooms, boxes, drifts, sconces, ground, lod) placed after the Ruin fields, after W-172 r3 lands.
 - Shots: PunchyMilestones/M-06/m06-r3b-save-panel.png (panel with Frostdeer, Tundra 3), m06-r3b-frostdeer-tundra.png (Frostdeer by a Tundra lake, midday; the glow is not visible in daylight).
+
+## 11-15 Dolphin wake fix (A-125 follow-up) - ready for PR
+- Branch b/fix-dolphin-wake@f35ab53c (from main c98364b6). CreatureWakeSystem: a ripple every max(0.5 m, 0.15 s of travel), strength capped at 1.2, so a fast dolphin leaves a spaced wake, not a stack of white rings. Cosmetic, local, nothing sent.
+- Bundled tidy: CreatureAnimator's mantle consts and helpers (MantleShoulder, MantleHold, ArmReach) moved above PlaceFoot's summary. Order only, no code change.
+- Probe at 779,450, clear noon, 3 dolphins: before, 76 ripples, max strength 2.32. After, 38 ripples, max 1.20.
+- Checks: Fauna_Fingerprint and CaveWater_SurfaceMatchesAndPoolStirs pass. Sparkle check over 360 frames: creature 0, other bad 0.
+- Shots: PunchyMilestones/A-125/wake-before.png and wake-after.png use the same camera, but in the after shot the dolphin is at the frame's edge. wake-after-framed.png is aimed at the ripples. Some rings still show by the dolphins, but they're spaced and lighter.

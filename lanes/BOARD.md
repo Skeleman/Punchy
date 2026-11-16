@@ -34,6 +34,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
 | A-124 r2 | #358 | folk | active | folk/gait (new) | Per-person gait styles; no new wire field |
 | b/fix-audio-doors | #352 | fauna | done, ready for PR | b/fix-audio-doors@319b6b05 | GameAudio re-reads the live TerrainSource singleton each frame (stale copy read released anchors); WorldTests 14/14 |
+| b/fix-dolphin-wake | A-125 | fauna | done, ready for PR | b/fix-dolphin-wake@f35ab53c | wake ripples spaced by speed, strength cap 1.2; CreatureAnimator mantle helpers moved above PlaceFoot doc; fingerprint + CaveWater pass, sparkle 0 |
 | R-28 r2, R-15 land | - | render-2 | active | render/cobble-depth, render/audit-fixes | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
