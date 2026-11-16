@@ -8217,3 +8217,13 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Note:** local untracked Assets/GlobalEntitiesDependencies/ came from clearing a stale SubScene import. It is not committed.
 - **Shares:** CaveBaking.RiderHead and WallDip, for any later rider or mount clearance check (rule 33).
 - Next: lava half-row (VolcanoCone in Ashlands), then W-174 row 2, then row 7.
+
+## W-172 lava half-row (#365): VolcanoCone in Ashlands. Done (verified)
+- **Branch:** world/ashlands-lava@acf0fc69, built on world/playtest-1114@1ba1ec3e, so merge it after rows 2-6 (Ashlands.asset, WorldTests.cs).
+- **What changed:** Ashlands' Landmarks list now ends with VolcanoCone (Density 1.2, PerRealm 1). Radius 220 fit: it takes the Ashlands spot and one Ashlands BoneGraveyard (-733,-2944) drops. The other 115 landmarks don't move.
+- **For render-2 (R-25 lava far lights):** cone at x -891, z -2021. Base about 21 m, rim about 115 m, crater floor about 83 m. The ground probe marks a 3.1 m pool at the crater centre, most likely the cone's lava pool. I haven't checked whether TerrainSource treats it as water or as lava. Smoke rises from the vent and embers fall inside the crater.
+- **Re-pin:** landmarks 117 689D5348 -> 117 547D4E79; fauna 3DCB5E78 -> 01D42225. The profiler is told in REPORTS-profiler.
+- **Test:** WorldTests 14/14. Place_PropFindsAndFramesWharf failed once and then passed on the next run with no change. It compares against an earlier identical log line, so it can be flaky within one editor session.
+- **Shots:** PunchyMilestones/W-172/w172-lava-cone-{far,crater}.png.
+- **Shares:** none new (an existing landmark type in a biome list).
+- Next: W-174 row 2 (natural cutaways) on world/ground-edits.

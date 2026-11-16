@@ -3910,3 +3910,9 @@ Zach's question: do behaviours, animation and the other creature logic run as la
 
 - World (W-164 row 2, world/level-gardens c378a480): island and landmark pins unchanged (117, 689D5348); only the
   ground under the HermitHut garden at 140, -536 changes. BENCH job 90 queued for the ground-pass cost.
+
+- World (W-172 lava half-row, world/ashlands-lava acf0fc69, built on world/playtest-1114 1ba1ec3e): VolcanoCone joins
+  Ashlands' landmark list. It places at -891, -2021 (base 21 m, rim about 115 m, crater floor 83 m). One Ashlands
+  BoneGraveyard at -733, -2944 drops, so the landmark count stays 117 with probe hash 547D4E79 (was 689D5348). The fauna
+  fingerprint is 01D42225 (was 3DCB5E78). Benches that frame the south Ashlands should re-pin. No new cost line: it's
+  one landmark of an existing type.
