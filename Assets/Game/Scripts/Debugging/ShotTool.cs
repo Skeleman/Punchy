@@ -426,6 +426,101 @@ namespace Punchy.Debugging
             return Invariant($"camera turned 90 deg to heading {t.eulerAngles.y:F0}");
         }
 
+        RenderTexture clipTarget, clipWas;
+        Camera clipCamera;
+        int clipBusy;
+
+        /// <summary>
+        /// A-124: starts a clip of Camera.main at width x height, one <see cref="Clip"/> per frame until <see cref="ClipEnd"/>.
+        /// Each frame takes two world frames (drawn in one, read back in the next), so run the world at twice the clip's rate
+        /// (Time.captureFramerate 60 for a 30 fps clip). The camera is on the clip's texture only for the frame it draws:
+        /// left on it for the whole clip, the batch-mode frames came out with no creatures and no small flora.
+        /// </summary>
+        public static bool ClipBegin(int width = 854, int height = 480)
+        {
+            var camera = Camera.main;
+            if (Busy || camera == null)
+                return false;
+            if (runner == null)
+            {
+                var go = new GameObject("ShotTool") { hideFlags = HideFlags.HideAndDontSave };
+                DontDestroyOnLoad(go);
+                runner = go.AddComponent<ShotTool>();
+            }
+            runner.ClipStop();
+            runner.clipCamera = camera;
+            runner.clipWas = camera.targetTexture;
+            runner.clipTarget = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { name = "ShotTool clip" };
+            runner.clipTarget.Create();
+            return true;
+        }
+
+        /// <summary>
+        /// One frame of the clip <see cref="ClipBegin"/> started, ungated (no ready wait, no check): this frame's render into
+        /// a JPG at path, written from this component's LateUpdate like a batch-mode shot, so creatures and flora are in
+        /// it. For runs of frames at a fixed Time.captureFramerate, after a <see cref="Take"/> has let the world in.
+        /// </summary>
+        public static bool Clip(string path)
+        {
+            if (runner == null || runner.clipTarget == null || runner.clipCamera == null || runner.clipBusy > 0 || runner.lateRender != null)
+                return false;
+            runner.clipBusy++;
+            runner.StartCoroutine(runner.ClipRun(path));
+            return true;
+        }
+
+        /// <summary>True until the frame asked for by <see cref="Clip"/> is written.</summary>
+        public static bool ClipPending => runner != null && runner.clipBusy > 0;
+
+        /// <summary>Ends the clip: the camera back on its own target.</summary>
+        public static void ClipEnd()
+        {
+            if (runner != null)
+                runner.ClipStop();
+        }
+
+        void ClipStop()
+        {
+            if (clipTarget == null)
+                return;
+            if (clipCamera != null && clipCamera.targetTexture == clipTarget)
+                clipCamera.targetTexture = clipWas;
+            clipTarget.Release();
+            Object.Destroy(clipTarget);
+            clipTarget = null;
+            clipCamera = null;
+        }
+
+        // The shot's own render step, minus the gate (see Run): the camera's target set from here, before this frame's
+        // systems and LateUpdates (set only round the render itself, the creatures and the small flora were missing and
+        // the picture squashed), rendered from LateUpdate (lateRender), read back and put back the frame after.
+        IEnumerator ClipRun(string path)
+        {
+            try
+            {
+                var camera = clipCamera;
+                var rt = clipTarget;
+                var active = RenderTexture.active;
+                RenderTexture.active = rt;
+                GL.Clear(true, true, new Color(1f, 0f, 1f, 1f));
+                RenderTexture.active = active;
+                camera.targetTexture = rt;
+                lateRender = camera;
+                while (lateRender != null)
+                    yield return null;
+                if (rt == null || camera == null)
+                    yield break;
+                var image = Read(rt);
+                camera.targetTexture = clipWas;
+                System.IO.File.WriteAllBytes(path, image.EncodeToJPG(90));
+                Object.Destroy(image);
+            }
+            finally
+            {
+                clipBusy--;
+            }
+        }
+
         static Texture2D Read(RenderTexture rt)
         {
             var active = RenderTexture.active;

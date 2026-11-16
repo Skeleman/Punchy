@@ -74,9 +74,28 @@ namespace Punchy.Tests
         public IEnumerator Clips_PerRace()
         {
             yield return TestSceneSetup.Place("HumanVillage", 10f);
+            // (Place leaves the player at the town's edge: the parade goes through its middle, 12 m short of the player.)
+            var start = Game.Hook<Vector3>("PlayerPosition");
+            var centre = new float[0];
+            for (int i = 0; i < 240 && centre.Length == 0; i++)
+            {
+                var towns = Game.Hook<float[]>("TownPlans");
+                for (int t = 1; t < towns.Length && centre.Length == 0; t++)
+                {
+                    var c = Game.Hook<float[]>("TownCentre", (int)towns[t]);
+                    if (c.Length == 3 && Mathf.Abs(c[0] - start.x) < c[2] + 40f && Mathf.Abs(c[1] - start.z) < c[2] + 40f)
+                        centre = c;
+                }
+                if (centre.Length == 0)
+                    yield return TestSceneSetup.Seconds(0.5f);
+            }
+            Assert.IsNotEmpty(centre, "the human village has no plan");
+            yield return TestSceneSetup.GoTo(centre[0], centre[1] + 12f, 8f);
             yield return TestSceneSetup.TimeOfDay(10f);
             var at = Game.Hook<Vector3>("PlayerPosition");
+            at.z -= 15f;
             var inv = CultureInfo.InvariantCulture;
+            var first = true;
             foreach (var race in Races)
                 foreach (var run in new[] { false, true })
                 {
@@ -93,39 +112,42 @@ namespace Punchy.Tests
                     Game.RunOptions(string.Format(inv, "-shotcam {0},{1},{2},{3},{4},{5}", at.x, y + 3.4f, middle - 11f, at.x, y + 0.9f, middle));
                     var folder = Path.Combine(Application.dataPath, "Temp", "gait", $"{race}-{(run ? "run" : "walk")}");
                     Directory.CreateDirectory(folder);
-                    Time.captureFramerate = 30;
-                    for (int lead = 0; lead < 20; lead++)
+                    if (first)
+                    {
+                        // (The first clip waits for the street around the camera to be in, as every shot does.)
+                        yield return Shots.Settled("a124-gait-first", 854, 480);
+                        first = false;
+                        made = Game.Hook<float[]>("GaitParade", race, at.x, at.z + 3f, run, back);
+                    }
+                    // (60 world frames a second: a clip frame takes two, so the clip plays at 30 fps in real time.)
+                    Time.captureFramerate = 60;
+                    var walkedOn = 0;
+                    Shots.ClipBegin(854, 480);
+                    for (int lead = 0; lead < 40; lead++)
+                    {
+                        Time.captureFramerate = 60;   // (each frame: the debug flags reset it whenever options apply)
+                        walkedOn += Game.Hook<int>("GaitParadeStep", Time.deltaTime);
                         yield return null;   // (up to pace, and the camera pinned)
+                    }
+                    var front = Game.Hook<float[]>("GaitParadeAt");
+                    LogWatch.Measure(string.Format(inv, "gait clip {0}: front row at {1:0.0},{2:0.0},{3:0.0} in world {4}, camera looks at {5:0.0},{6:0.0}",
+                                                   race, front[0], front[1], front[2], front[3], at.x, middle));
                     var frames = run ? 90 : 150;
                     for (int f = 0; f < frames; f++)
                     {
-                        yield return new WaitForEndOfFrame();
-                        Frame(Path.Combine(folder, $"f{f:0000}.jpg"));
+                        Time.captureFramerate = 60;   // (each frame: the debug flags reset it whenever options apply)
+                        walkedOn += Game.Hook<int>("GaitParadeStep", 2f * Time.deltaTime);
+                        // (Through the shot tool's late render: a plain camera.Render here misses creatures and flora.)
+                        yield return Shots.ClipFrame(Path.Combine(folder, $"f{f:0000}.jpg"));
                     }
+                    yield return Shots.ClipEnd();
                     Time.captureFramerate = 0;
+                    var end = Game.Hook<float[]>("GaitParadeAt");
+                    LogWatch.Measure(string.Format(inv, "gait clip {0}: front row ends at {1:0.0},{2:0.0} after {3} frames (dt {4:0.000}; {5} steps walked by the hook)",
+                                                   race, end[0], end[2], frames, Time.deltaTime, walkedOn));
                 }
             Game.Hook<object>("GaitParadeClear");
             Game.RunOptions("-shotcam off");
-        }
-
-        static void Frame(string path)
-        {
-            var camera = Camera.main;
-            Assert.IsNotNull(camera, "no main camera to shoot with");
-            var target = RenderTexture.GetTemporary(854, 480, 24);
-            var was = camera.targetTexture;
-            camera.targetTexture = target;
-            camera.Render();
-            camera.targetTexture = was;
-            var active = RenderTexture.active;
-            RenderTexture.active = target;
-            var image = new Texture2D(854, 480, TextureFormat.RGB24, false);
-            image.ReadPixels(new Rect(0, 0, 854, 480), 0, 0);
-            image.Apply();
-            RenderTexture.active = active;
-            RenderTexture.ReleaseTemporary(target);
-            File.WriteAllBytes(path, image.EncodeToJPG(90));
-            Object.Destroy(image);
         }
     }
 }

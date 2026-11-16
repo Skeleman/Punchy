@@ -169,7 +169,11 @@ namespace Punchy.Debugging
                 s.Yaw = math.PI / 2f;
                 s.Mode = CreatureMode.Puppet;
                 s.Speed = run ? b.RunSpeed * s.Scale * pace * (1f + (gait.Pace - 1f) * 0.5f) : b.WalkSpeed * s.Scale * pace * gait.Pace;
+                // (Legs posed for that pace from the start: a puppet's brain caps its speed at its gait's plus a frame's
+                // acceleration, and only a steered puppet eases the gait up.)
+                s.GaitSpeed = s.Speed;
                 EM.SetComponentData(e, s);
+                paradeSpeed[e] = s.Speed;
                 parade.Add(e);
                 GaitTrail += $"{(GaitKind)k}{(gait.Limps ? (gait.LimpSide < 0f ? "(left)" : "(right)") : "")} {s.Speed:0.00} m/s; ";
                 row++;
@@ -180,9 +184,58 @@ namespace Punchy.Debugging
         /// <summary>The kinds and speeds the last GaitParade set going, front row first.</summary>
         public static string GaitTrail;
 
+        static readonly Dictionary<Unity.Entities.Entity, float2> paradeWas = new Dictionary<Unity.Entities.Entity, float2>();
+        static readonly Dictionary<Unity.Entities.Entity, float> paradeSpeed = new Dictionary<Unity.Entities.Entity, float>();
+
+        /// <summary>
+        /// Keeps the last GaitParade walking, called once a frame: a puppet the brain didn't move since the last call
+        /// (held still this frame) is walked on by dt along its heading at its speed, on the ground; one it moved is left.
+        /// Returns how many it walked on.
+        /// </summary>
+        public static int GaitParadeStep(float dt)
+        {
+            if (!Source(out var source))
+                return 0;
+            var walked = 0;
+            foreach (var e in parade)
+            {
+                if (!EM.Exists(e) || !EM.HasComponent<CreatureState>(e))
+                    continue;
+                var s = EM.GetComponentData<CreatureState>(e);
+                // (Kept at its pace: nothing else holds a puppet's speed up.)
+                if (paradeSpeed.TryGetValue(e, out var pace) && (s.Speed != pace || s.GaitSpeed != pace))
+                {
+                    s.Speed = s.GaitSpeed = pace;
+                    EM.SetComponentData(e, s);
+                }
+                var moved = paradeWas.TryGetValue(e, out var was) ? math.distance(was, s.Position.xz) : 1f;
+                if (moved < 0.25f * s.Speed * dt)
+                {
+                    s.Position.x += math.sin(s.Yaw) * s.Speed * dt;
+                    s.Position.z += math.cos(s.Yaw) * s.Speed * dt;
+                    s.Position.y = source.SampleHeight(s.Position.xz);
+                    EM.SetComponentData(e, s);
+                    walked++;
+                }
+                paradeWas[e] = s.Position.xz;
+            }
+            return walked;
+        }
+
+        /// <summary>Where the front row of the last GaitParade is now: [x, y, z, 1 if still in the world].</summary>
+        public static float[] GaitParadeAt()
+        {
+            if (parade.Count == 0 || !EM.Exists(parade[0]))
+                return new float[4];
+            var s = EM.GetComponentData<CreatureState>(parade[0]);
+            return new[] { s.Position.x, s.Position.y, s.Position.z, s.Gone ? 0f : 1f };
+        }
+
         /// <summary>Sends off the people GaitParade made.</summary>
         public static void GaitParadeClear()
         {
+            paradeWas.Clear();
+            paradeSpeed.Clear();
             foreach (var e in parade)
                 if (EM.Exists(e) && EM.HasComponent<CreatureState>(e))
                 {
