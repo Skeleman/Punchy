@@ -1205,6 +1205,30 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>
+        /// Whether any cave segment's box overlaps a ground rectangle (#400: the terrain streamer charges a chunk over
+        /// a cave more, since its vertices sample the mouth cut several times each).
+        /// </summary>
+        public static bool NearRect(ref CaveSetBlob set, float2 min, float2 max)
+        {
+            if (set.Cells.Length == 0)
+                return false;
+            var c0 = math.max((int2)math.floor((min - set.GridOrigin) / set.CellSize), 0);
+            var c1 = math.min((int2)math.floor((max - set.GridOrigin) / set.CellSize), set.GridSize - 1);
+            for (int y = c0.y; y <= c1.y; y++)
+            for (int x = c0.x; x <= c1.x; x++)
+            {
+                var range = set.Cells[y * set.GridSize.x + x];
+                for (int k = range.x; k < range.x + range.y; k++)
+                {
+                    ref var seg = ref set.Segments[set.Items[k]];
+                    if (math.all(max >= seg.Min.xz) && math.all(min <= seg.Max.xz))
+                        return true;
+                }
+            }
+            return false;
+        }
+
         internal static float SmoothMin(float a, float b, float k)
         {
             var h = math.saturate(0.5f + 0.5f * (b - a) / k);
