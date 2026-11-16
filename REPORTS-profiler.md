@@ -2,6 +2,21 @@
 
 Newest first.
 
+## Job 91: R-32 row 2 grass blades in every shadow tier (main 244805ae = B, #355, vs main 3b192717 = A), 2026-11-15 (q131.job): PASS
+**Setup:** run on its own (job 88 had already run when I saw it folded in as arm C). Shelf builds (runner checked), 1920x1080, uncapped, 16:00, Clear, arms alternated, 3 rounds, Medium and High. Views: the lakeshore meadow (`-benchspot 470,1840`, yaw 0: the card gives no yaw for "facing the trees"; shot in results/sheets/grass_shadows.jpg) and `-place OakGrove`.
+
+| view | preset | A | B | **delta** | main thread (A / B) |
+|---|---|---|---|---|---|
+| lakeshore meadow | Medium | 13.67 | 13.33 | -0.33 | 11.67 / 11.90 |
+| oak grove | Medium | 12.97 | 12.87 | -0.10 | 10.97 / 11.13 |
+| lakeshore meadow | High | 16.43 | 16.57 | +0.13 | |
+| oak grove | High | 18.13 | 18.3 | +0.17 | |
+
+- **Rule 23 (Medium at most +0.3 ms GPU at its worst view): PASS**; Medium reads a little lower, High +0.13-0.17. CPU within +0.2.
+- The grass ForwardLit and the two FloraShadowCache passes on their own aren't separable on the laptop (GPU pass timers read nothing); the whole-frame numbers say the extra WideShadow taps and the stencil pass are small at these views.
+
+Cost: laptop total $932 (laptop session e163d8ab; 0 builds (shelf), 24 games).
+
 ## Job 89 (W-168 row 2): needs a shelf build with its island file
 - The card asks for one Play in the editor on world/world-pack a74f9c2a (and on main) before building, so each build ships its island file. The laptop builds in batch mode and can't enter Play mode, and a74f9c2 isn't on the shelf.
 - **Ask:** shelve Profile-a74f9c2 (after the Play), and the main you want as A, from the main PC. Then I'll run job 89 as specced. Meanwhile I've gone on to job 90.
