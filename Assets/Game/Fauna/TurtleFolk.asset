@@ -252,6 +252,16 @@ MonoBehaviour:
     Scale: 1
     Thickness: 1
     StyleGroup: 6
+  - Limb: {fileID: 11400000, guid: 535139cef15f4a1ba46e5941a73219e6, type: 2}
+    Parent: -1
+    Socket: {x: 0.7, y: -0.4, z: 0}
+    Direction: {x: 90, y: 0, z: 0}
+    Mirror: 1
+    Phase: 0
+    MirrorPhase: 0.5
+    Scale: 1
+    Thickness: 1
+    StyleGroup: 0
   WalkSpeed: 1
   RunSpeed: 3
   Bob: {x: 0.015, y: 0.04}

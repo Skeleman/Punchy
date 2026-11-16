@@ -89,18 +89,34 @@ namespace Punchy.Fauna
         /// apron for smiths and stallholders, a straw hat for those working outdoors, a fisher's hat). Since A-33 the job
         /// (CreatureState.Job, else the one the task implies) picks the props too: a baker's dough, table and cap, a
         /// healer's bowl and satchel, a well keeper's rope and bucket, a gatekeeper's spear, a smith's tongs and hot iron,
-        /// a woodcutter's chopping block, a farmer's hoe, a trader's wares in hand. Slots: 0-1 the tool, 2 the apron,
-        /// 3-4 the hat, 5-7 extras.
+        /// a woodcutter's chopping block, a farmer's hoe, a trader's wares in hand. Slots: 0-1 the tool, 2-3 the apron
+        /// (bib and skirt, A-128), 4-5 the hat, 6-8 extras.
         /// </summary>
-        const int GearParts = 8;
+        const int GearParts = 9;
         static bool HasGear(CreatureTask task) => task == CreatureTask.Hammer || task == CreatureTask.Chop || task == CreatureTask.Tend ||
                                                   task == CreatureTask.Gesture || task == CreatureTask.Fish || task == CreatureTask.Hermit ||
                                                   task == CreatureTask.Watch;
         static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
+        /// <summary>A-128: room <see cref="PoseKit"/> needs after a body's own segments.</summary>
+        public const int KitParts = GuardParts + GearParts;
+        /// <summary>
+        /// A-128: a posed body's kit beyond its own segments, by the same code PoseJob draws it with, for the Model Lab:
+        /// a patrolling guard's kit and a worker's gear, written from <paramref name="at"/> (KitParts of room).
+        /// </summary>
+        public static void PoseKit(ref CreatureBlob b, in CreatureState state, NativeArray<SegmentInstance> output, int at)
+        {
+            var job = new PoseJob { Output = output };
+            if (state.Task == CreatureTask.Patrol)
+                job.Guard(state, ref b, 0, at, 0f, 0);
+            if (HasGear(state.Task))
+                job.Gear(state, ref b, 0, at + GuardParts, 0f);
+        }
         /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack; and (A-103 row 5) its
         /// eyewear, two lenses and a bridge or strap.</summary>
         const int WornParts = 6;
-        static int WornCount(byte worn) => worn != 0 ? WornParts : 0;
+        static int WornCount(in CreatureState s) => s.Worn != 0 || s.Outfit.Weapon != 0 || s.Outfit.Armoured ? WornParts + WeaponParts + ArmourParts : 0;
+        /// <summary>Capsules for a player's own hair (P-29), after the worn block: only bodies with OwnHair.</summary>
+        static int HairCount(in CreatureState s) => s.Outfit.OwnHair ? HairParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat and the most per roost. Colonies show while DetailPolicy.ColonyPixels
@@ -768,8 +784,10 @@ namespace Punchy.Fauna
                     Goggles(state, ref body.Blob.Value, offset, held, faded);
                 if (HasGear(state.Task))
                     Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
-                if (state.Worn != 0)
+                if (WornCount(state) != 0)
                     Worn(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task), faded);
+                if (HairCount(state) != 0)
+                    Hair(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state), faded);
             }
         }
     }

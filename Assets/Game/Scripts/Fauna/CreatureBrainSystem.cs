@@ -686,7 +686,7 @@ namespace Punchy.Fauna
                     return;
                 }
                 var g = Terrain.SampleGround(s.Position.xz);
-                var head = Breath.Head(s, ref b);
+                var head = Breath.Head(s, ref b, g.WaterSurface - g.Height);
                 var water = g.HasWater && g.WaterSurface > g.Height && head > g.Height - 0.5f;
                 // First where it may be (the think doesn't know its breath, so a walker is back on the bottom each
                 // tick), then whether that puts its head under. (Where it is when its head is just out: surfaced.)

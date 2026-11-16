@@ -66,14 +66,20 @@ namespace Punchy.Fauna
             return used;
         }
 
-        /// <summary>How high a creature's head is (world y): folk swimming hold theirs just out of the water; otherwise
-        /// about where its eyes are, as the folk's glances take it (CreatureBrainSystem HeadHeight).</summary>
-        public static float Head(in CreatureState s, ref CreatureBlob b)
+        /// <summary>How high a creature's head is (world y) in water depth metres deep (surface less ground): folk
+        /// swimming hold theirs just out of the water; otherwise about where its eyes are, as the folk's glances take it
+        /// (CreatureBrainSystem HeadHeight). A swimming folk wading the shallows (A-127, #368) still stands on the bed with
+        /// its head in the air, so its head blends from standing to afloat over the same depths its body does
+        /// (CreatureBrainSystem.SensesMovement, upright Swim); before, the afloat head counted a wader as under, ran its
+        /// breath down and floated it up off the bed.</summary>
+        public static float Head(in CreatureState s, ref CreatureBlob b, float depth)
         {
             var scale = math.max(s.Scale, 0.1f);
-            if (b.Upright && s.Mode == CreatureMode.Swim)
-                return s.Position.y + 0.35f * scale;
-            return s.Position.y + b.StandHeight * scale * (b.Upright ? 1.8f : 1.2f);
+            var stand = s.Position.y + b.StandHeight * scale * (b.Upright ? 1.8f : 1.2f);
+            if (!(b.Upright && s.Mode == CreatureMode.Swim))
+                return stand;
+            var afloat = math.smoothstep(b.StandHeight * scale * 0.6f, b.StandHeight * scale * 0.9f, depth);
+            return math.lerp(stand, s.Position.y + 0.35f * scale, afloat);
         }
     }
 }

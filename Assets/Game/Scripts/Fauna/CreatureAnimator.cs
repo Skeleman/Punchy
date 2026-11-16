@@ -298,9 +298,10 @@ namespace Punchy.Fauna
                 pitch += act * 1.45f;
                 height = math.lerp(height, 0.16f * scale, act);
             }
-            // A-103 row 2b: a sea folk out of the water stoops, more as it walks (it trudges, uncomfortable).
+            // A-103 row 2b, A-127 row 2: a sea folk out of the water stands upright, with only a slight forward
+            // set as it walks (it trudges, uncomfortable). In the water it leans into its swim as before.
             if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
-                pitch += 0.14f + 0.08f * move;
+                pitch += 0.03f * move;
 
             // A player's roll: a forward somersault (a full turn of the body), tucked up off the ground as it goes over.
             if (s.Roll > 0f)
@@ -593,6 +594,35 @@ namespace Punchy.Fauna
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
+                    }
+                    // A player's weapon (P-28): the right arm bent, ready, the weapon up before it; a swing raises it
+                    // over the shoulder and brings it down fast. A spear in both hands, levelled; a bow held out in the
+                    // left, the right drawing the string back to the cheek.
+                    if (part.Role == LimbRole.Arm && s.Outfit.Weapon != CreatureWeapon.None)
+                    {
+                        var wSwing = s.Outfit.Swing == 0 ? 0f : (s.Outfit.Swing - 1) / 254f;
+                        var wTwo = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow;
+                        if (part.Side > 0f || wTwo)
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        if (s.Outfit.Weapon == CreatureWeapon.Bow)
+                        {
+                            var wDraw = wSwing < 0.75f ? math.smoothstep(0f, 0.6f, wSwing) : 0f;
+                            if (part.Side < 0f)
+                                a.x += j == 0 ? -1.45f : 0f;
+                            else
+                                a += j == 0 ? new float3(-1.3f, 0f, -0.35f * wDraw) : j == 1 ? new float3(-0.5f - 1.6f * wDraw, 0f, 0f) : float3.zero;
+                        }
+                        else if (s.Outfit.Weapon == CreatureWeapon.Spear)
+                        {
+                            var wThrust = math.sin(wSwing * math.PI);
+                            a.x += j == 0 ? (part.Side > 0f ? -0.55f - 0.5f * wThrust : -0.9f - 0.3f * wThrust) : j == 1 ? (part.Side > 0f ? -1.1f + 0.7f * wThrust : -0.6f + 0.4f * wThrust) : 0f;
+                        }
+                        else if (part.Side > 0f)
+                        {
+                            var wLift = wSwing < 0.55f ? math.smoothstep(0f, 0.55f, wSwing) : 1f - math.smoothstep(0.55f, 0.72f, wSwing);
+                            var wStrike = math.smoothstep(0.6f, 0.72f, wSwing) * (1f - math.smoothstep(0.8f, 1f, wSwing));
+                            a.x += j == 0 ? -0.5f - 2.0f * wLift - 0.4f * wStrike : j == 1 ? -0.9f - 0.5f * wLift + 0.6f * wStrike : 0f;
+                        }
                     }
                     // Meeting a messenger bird: the left forearm raised out in front at chest height, bent, for it to land
                     // on; once it's there, the right hand across to take the roll from its leg.
@@ -978,6 +1008,7 @@ namespace Punchy.Fauna
                 endPos.Add(pos);
                 endRot.Add(rot);
             }
+            FollowLegs(ref b, ref segPos, ref segRot, ref segHidden);
 
             var golden = Golden(ref b, in s);
             for (int seg = 1; seg < b.Segments.Length && seg < MaxSegments; seg++)
@@ -1002,6 +1033,42 @@ namespace Punchy.Fauna
             }
             if (seams && NoSeams.Data == 0)
                 MarkJoints(ref b, output, offset);
+        }
+
+        /// <summary>
+        /// A-127: clothing over the legs (a turtle folk's robe panels, CreaturePart.FollowsLeg) moves with them: each
+        /// panel segment is put where the same segment of the body's leg on its side is (its last segment past the
+        /// leg's end), so a stride swings the panel with the thigh instead of the leg walking through it. Run after
+        /// every part is posed, so it takes the leg's final pose (foot placement, sitting, lying).
+        /// </summary>
+        static void FollowLegs(ref CreatureBlob b, ref FixedList4096Bytes<float3> segPos, ref FixedList4096Bytes<quaternion> segRot,
+                               ref FixedList512Bytes<bool> segHidden)
+        {
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var panel = ref b.Parts[i];
+                if (!panel.FollowsLeg)
+                    continue;
+                // The body's leg on the same side.
+                var leg = -1;
+                for (int k = 0; k < b.Parts.Length && leg < 0; k++)
+                    if (b.Parts[k].Role == LimbRole.Leg && b.Parts[k].Parent < 0 && b.Parts[k].Side == panel.Side)
+                        leg = k;
+                if (leg < 0)
+                    continue;
+                ref var l = ref b.Parts[leg];
+                for (int j = 0; j < panel.SegmentCount; j++)
+                {
+                    var seg = panel.FirstSegment + j;
+                    var from = l.FirstSegment + math.min(j, l.SegmentCount - 1);
+                    if (seg >= segPos.Length || from >= segPos.Length)
+                        break;
+                    segPos[seg] = segPos[from];
+                    segRot[seg] = segRot[from];
+                    if (seg < segHidden.Length && from < segHidden.Length && segHidden[from])
+                        segHidden[seg] = true;
+                }
+            }
         }
 
         /// <summary>

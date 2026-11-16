@@ -307,6 +307,9 @@ namespace Punchy.Items
             if (instance == null || id < 0)
                 return false;
             item = ItemTable.Items[id].Name;
+            // (Something to wear is given one at a time: one scarf, not three.)
+            if (ItemTable.Items[id].Slot != GearSlot.None)
+                count = 1;
             instance.Grant((byte)id, count);
             Debug.Log($"Items: {count} {item} from a folk; inventory: {instance.DescribeInventory()}");
             return true;

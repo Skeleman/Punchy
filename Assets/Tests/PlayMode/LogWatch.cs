@@ -34,6 +34,30 @@ namespace Punchy.Tests
             return null;
         }
 
+        /// <summary>How many lines have been kept so far: a mark to pass to After, so a wait only sees lines logged
+        /// since. (Lines are kept across runs in one editor session, so a new line can read the same as an old one.)
+        /// </summary>
+        public static int Mark()
+        {
+            lock (lines)
+                return lines.Count;
+        }
+
+        /// <summary>The first line logged at or after mark that contains every one of the texts, or null.</summary>
+        public static string After(int mark, params string[] contains)
+        {
+            lock (lines)
+                for (int i = System.Math.Max(mark, 0); i < lines.Count; i++)
+                {
+                    var all = true;
+                    foreach (var c in contains)
+                        all &= lines[i].Contains(c);
+                    if (all)
+                        return lines[i];
+                }
+            return null;
+        }
+
         /// <summary>A value line for the run's summary: the run script prints every "[measure]" line.</summary>
         public static void Measure(string text) => Debug.Log("[measure] " + text);
     }
