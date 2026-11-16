@@ -15,12 +15,14 @@ namespace Punchy.Items
     /// The host (or solo) lays a worker's spares out the first time it's seen at work, beside it at its feet' height
     /// (so on a smithy's floor, not the ground under it), and sends them as any item that appears (ItemSpawnRpc;
     /// late joiners with the rest). Which spares are whose is kept (sparesOf), for the worker to notice one gone.
-    /// Their uids are from SpareBase, apart from drops, so the drop limit never clears them.
+    /// Their uids are (the post's record, k) (WorldIds, P-35 r3 row 5): the post is the work anchor's spot, so a worker
+    /// stocked again, or another worker at the same post, finds its spares already laid. They are seeded uids, apart
+    /// from drops, so the drop limit never clears them.
     /// </summary>
     public partial class Items
     {
-        const int SpareBase = 3_000_000;
-        int nextSpare = SpareBase;
+        /// <summary>Spare uids laid this session (host or solo): a post is stocked once, by whichever worker is seen there first.</summary>
+        readonly HashSet<int> sparesLaid = new HashSet<int>();
         /// <summary>Each stocked worker's spares (by Individual): the item and its uid, -1 once taken (host or solo).</summary>
         readonly Dictionary<uint, List<(byte item, int uid)>> sparesOf = new Dictionary<uint, List<(byte, int)>>();
         float spareScanAt;
@@ -62,6 +64,8 @@ namespace Punchy.Items
                 var forward = new float3(math.sin(s.Yaw), 0f, math.cos(s.Yaw));
                 var right = new float3(forward.z, 0f, -forward.x);
                 var list = new List<(byte, int)>();
+                // (A worker with no work anchor, WorkSpot zero, takes where it stands as its post.)
+                var post = WorldIds.Record(RecordKind.WorkPost, math.any(s.WorkSpot != 0f) ? s.WorkSpot : math.round(s.Position.xz));
                 for (int k = 0; k < 2; k++)
                 {
                     var item = k == 0 ? a : b;
@@ -70,7 +74,9 @@ namespace Punchy.Items
                     // (Behind it, one to either side: in front is its work, a forge's fire or a baker's hearth, where
                     // a stand ended up in the flames.)
                     var at = s.Position + right * (k == 0 ? 0.7f : -0.7f) - forward * 0.8f;
-                    var uid = nextSpare++;
+                    var uid = WorldIds.Seeded(SeedFamily.Spare, post, k);
+                    if (!sparesLaid.Add(uid))
+                        continue;
                     Add(uid, (byte)item, 1, at);
                     list.Add(((byte)item, uid));
                 }
@@ -141,7 +147,7 @@ namespace Punchy.Items
         /// <summary>A spare taken (host or solo): marked gone from its worker's stock, for the worker to notice.</summary>
         void NoteSpareTaken(int uid)
         {
-            if (uid < SpareBase)
+            if (!WorldIds.IsSpare(uid))
                 return;
             foreach (var kv in sparesOf)
                 for (int i = 0; i < kv.Value.Count; i++)

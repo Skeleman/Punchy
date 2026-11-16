@@ -29,9 +29,8 @@ namespace Punchy.Items
     public partial class Items
     {
         public const int ContainerSlots = 8, MaxDrops = 256;
-        /// <summary>Container ids: a temple chest is its socket index; room storage RoomBase + door * 4 + k (A-134); a cave or
-        /// ruin room chest <see cref="ChestId"/> (CaveChestBit upwards).</summary>
-        public const int RoomBase = 100_000;
+        // Container ids: a temple chest is its socket index; room storage WorldIds.Storage(door record, k) (A-134, P-35 r3
+        // row 5); a cave or ruin room chest ChestId (CaveChestBit upwards).
 
         class Container
         {

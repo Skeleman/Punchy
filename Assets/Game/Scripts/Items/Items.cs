@@ -283,9 +283,9 @@ namespace Punchy.Items
     public partial class Items : MonoBehaviour
     {
         public const float Reach = 2f, DrawRange = 60f;
-        /// <summary>Uids: seeded door items are door*4+k; drops DropBase upwards; spares at the folk's posts SpareBase
-        /// upwards (Spares.cs). (Chests keep their contents as containers: <see cref="ChestId"/>.)</summary>
-        const int DropBase = 2_000_000;
+        // Uids (P-35 r3 row 5, WorldIds): seeded items are (placement record, k): a door's starter items, a post's spares
+        // (Spares.cs), wharf and hut rods (Fishing.cs); drops and dungeon spawns take the host's counter, nextDrop.
+        // (Chests keep their contents as containers: ChestId.)
 
         struct WorldItem { public byte Item, Count; public float3 Pos; }
 
@@ -302,7 +302,9 @@ namespace Punchy.Items
         BlobAssetReference<AnchorSetBlob> seededFor;
         readonly HashSet<Entity> sentTo = new HashSet<Entity>();
         World server, client;
-        int nextDrop = DropBase;
+        /// <summary>The host's counter for moved and dropped items, from 1 (below WorldIds.SeededBit). Saved with the world
+        /// in the save row (row 7); until then it restarts each session, as the drops do.</summary>
+        int nextDrop = 1;
         int target = -1, targetChest = -1;
         string prompt;
         /// <summary>The in-world menu is up (any tab; P-39, #397: the inventory is its Items tab).</summary>
@@ -478,7 +480,8 @@ namespace Punchy.Items
             return true;
         }
 
-        /// <summary>Two starter items by every house door, from the door's index: the same on every machine.</summary>
+        /// <summary>Two starter items by every house door, from the door's record (kind and baked position, WorldIds): the
+        /// same on every machine, and the same if the world reorders its doors.</summary>
         void Seed(in TerrainSource terrain)
         {
             seededFor = terrain.Anchors;
@@ -489,14 +492,20 @@ namespace Punchy.Items
             {
                 if (anchors[i].Kind != AnchorKind.Door)
                     continue;
+                var record = WorldIds.Record(RecordKind.Door, anchors[i].Position);
                 for (int k = 0; k < 2; k++)
                 {
-                    var h = math.hash(new uint3((uint)door, (uint)k, 0x17E35u));
+                    var h = WorldIds.Draw(record, k, 0x17E35u);
                     var angle = (h & 0xFFFF) / 65535f * math.PI * 2f;
                     var dist = 3f + (h >> 16 & 0xFF) / 255f * 5f;
                     var xz = anchors[i].Position.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
                     var kind = (byte)((h >> 24) % 7);   // (not keys: those come from chests)
-                    var uid = door * 4 + k;
+                    var uid = WorldIds.Seeded(SeedFamily.DoorStarter, record, k);
+                    if (world.ContainsKey(uid))
+                    {
+                        Debug.LogWarning($"Items: door {door}'s starter item {k} has the uid {uid:X8} of another door's (an id clash): skipped");
+                        continue;
+                    }
                     if (!gone.Contains(uid))
                         world[uid] = new WorldItem { Item = kind, Count = (byte)(kind == 2 ? 3 : 1), Pos = new float3(xz.x, terrain.SampleHeight(xz), xz.y) };
                 }
@@ -839,7 +848,7 @@ namespace Punchy.Items
             var w = new WorldItem { Item = item, Count = (byte)math.clamp(count, 1, 255), Pos = pos };
             world[uid] = w;
             added[uid] = w;
-            if (uid >= DropBase && uid < SpareBase)
+            if (!WorldIds.IsSeeded(uid))
                 NoteDrop(uid);
             Debug.Log($"Items: item {uid} ({ItemTable.Items[item].Name} x{w.Count}) on the ground at ({pos.x:F1}, {pos.y:F1}, {pos.z:F1})");
             if (Hosting)
@@ -1107,7 +1116,7 @@ namespace Punchy.Items
                 var bestD = float.MaxValue;
                 foreach (var kv in world)
                 {
-                    if (spareOnlyArg && kv.Key < SpareBase)
+                    if (spareOnlyArg && !WorldIds.IsSpare(kv.Key))
                         continue;
                     var d = math.distance(kv.Value.Pos, player.Position);
                     if (d < bestD) (bestD, best) = (d, kv.Key);
@@ -1363,7 +1372,7 @@ namespace Punchy.Items
                 // (The item's Colour and Accent are in the mesh's vertex colours, ItemMeshes.Of: no property block.)
                 if (libraryMaterial != null)
                     r.sharedMaterials = mesh.subMeshCount > 1 ? new[] { libraryMaterial, libraryMaterial } : new[] { libraryMaterial };
-                if (uid >= SpareBase)
+                if (WorldIds.IsSpare(uid))
                     StandSpare(uid, it, go, mesh);
                 shown[uid] = go;
             }
