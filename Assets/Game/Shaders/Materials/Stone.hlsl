@@ -170,7 +170,7 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
     float2 uv;
     float3 t, bt;
     PunchyStoneFrame(p + r * 41, n, uv, t, bt);
-    half mortar = rubble ? 0.011 : 0.004;   // half a joint's width (m)
+    half mortar = rubble ? 0.011 : 0.006;   // half a joint's width (m)
     half joint, h;
     float edge;
     half2 lean;
@@ -198,9 +198,9 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
     lean *= fade;
     n = normalize(n + t * lean.x + bt * lean.y);
     // Each stone its own shade (rubble more, gathered from many beds), a little warmer or cooler.
-    half3 tint = rubble ? lerp(half3(0.78, 0.8, 0.84), half3(1.16, 1.12, 1.05), h) : lerp(half3(0.9, 0.91, 0.93), half3(1.08, 1.06, 1.03), h);
+    half3 tint = rubble ? lerp(half3(0.72, 0.74, 0.79), half3(1.2, 1.16, 1.08), h) : lerp(half3(0.84, 0.85, 0.88), half3(1.12, 1.1, 1.05), h);
     // Joints: cut stone's are thin shadow lines, rubble's are pale lime, darker where it sits back.
-    half3 grout = rubble ? half3(1.12, 1.12, 1.1) * lerp(0.8, 1, saturate((mortar - edge) / mortar)) : half3(0.62, 0.62, 0.64);
+    half3 grout = rubble ? half3(1.12, 1.12, 1.1) * lerp(0.8, 1, saturate((mortar - edge) / mortar)) : half3(0.48, 0.48, 0.5);
     return lerp(lerp(1, tint, fade), grout, joint);
 }
 
