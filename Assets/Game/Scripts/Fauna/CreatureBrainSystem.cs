@@ -741,7 +741,9 @@ namespace Punchy.Fauna
                 s.Clock += dt;
                 if (s.Mode == CreatureMode.Puppet)
                 {
-                    Advance(ref s, ref b, dt);
+                    // (An animal a player rides and steers, Holder naming the player: placed by SteeredMountSystem, A-126 row 4.)
+                    if (s.Holder <= 0)
+                        Advance(ref s, ref b, dt);
                     return;
                 }
                 // A sand or snow worm lives its own life under the ground, heeding nothing.
