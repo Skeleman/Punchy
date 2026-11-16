@@ -151,3 +151,15 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
 - **Not yet:** parts still share the variant's random stream, so the part order is part of the look (per-part seed
   salts come with a re-pin). The primitive sink and its dungeon and colossus adapters, the shared crate, barrel and
   bucket, optional parts (chance, group), per-part `MinScreen` and `Use` anchors are later rows (section 4).
+
+## 7. What row 3 built (camps)
+
+- Tent and fire pit are units (`TentUnit`, `FirePitUnit`) with identical meshes. New parts: hide tent (poles and
+  panels share their feet, so one part, and it sets the unit's bounds), door mat (wraps the `DoorMat` the houses
+  and kit doors already call, so all three draw one mat), fire ring (ash bed, stones, collider; sets the bounds),
+  log tepee, embers (dropped at the far level of detail).
+- A part may set `g.Width`, `g.Height` and `g.TrunkRadius` after `BuildUnit`'s defaults: that is how a shell part
+  keeps the old bounds, so placement and Landmarks_V3 don't move.
+- **Docks and lanterns wait for row 3b.** Wharf crates, shore baskets and the six lanterns are `StructureKit`
+  boxes, not flora builders, so they need a kit adapter (a new partial beside `StructureKit`, which is over
+  the 2500-line limit). Unifying them changes how most of them look, so 3b is a look-change row with a pixel-diff.
