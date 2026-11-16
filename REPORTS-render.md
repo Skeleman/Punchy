@@ -904,3 +904,11 @@ with main d95e7ff1); compiles, no suite run yet.
 - Sparkle probe at High with it on: 360 frames, 0 with markers (rule 24).
 - BENCH ask: job 107 (on against off, Medium and High). It overlaps world/far-lite (job 56).
 - Lava far-light re-check (#302) is running now in the same editor.
+
+## 11-16 render: lava far-light re-check (#302, R-25 row 5)
+- render/far-island@3d03c3cb, which includes main's far lights (#423) and the cone (#463). High preset, time 19.5, Clear. Walked in from the north toward the cone at -891,-2021 in 18 steps from 2500 m down to 100 m, plus a warm-up shot. Output is in PunchyMilestones/R-25/lava-recheck/walk1, with a contact sheet.
+- Rim glow: a red rim shows from 1300 m and grows steadily as the camera nears, with no step where it pops on. It stays visible on the slope down to 100 m. Red lava patches on the ground show from 850 m in.
+- The blue-white far lights cover the plain at every distance from 2500 m. There is no visible switch-on band between steps.
+- Pop found: the summit smoke plume is missing at 850 m and present at 700 m, so it pops in between those steps. That is the smoke particle's draw distance, not a far light. A later card could fade or impostor it; I logged it but did not fix it.
+- The hour reads as full night with aurora rather than dusk. That is fine for a glow check, but the shot list would need an earlier hour for a dusk look.
+- Row 5's "no surface lava" caveat is now covered: the lava glow is verified.
