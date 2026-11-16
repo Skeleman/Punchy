@@ -50,8 +50,18 @@ Same method as r4: the metre numbers stay, but each fade reads PunchyReferenceDi
 - No orthographic camera draws terrain or water (grep), so per-camera P._m11 is safe in both ForwardLit passes.
 - Editor to-do: compile TerrainSurface and Water (0 failed); fov 60 shots must match one-surface-4; fov 90 cobble, rock-face and ripple fades at the same on-screen size. Cost note for BENCH: at narrow fov, rock-face grain is drawn further out (and at wide fov less far).
 
+## R-23 r4+r5 verified in editor 11-16 (render/one-surface-5@9701f8a3, includes one-surface-4)
+- Compile: 40 variants, 0 failed; all 30 game shaders compile with no errors (Creature, Flora, FloraImpostor, TerrainSurface, Water included).
+- NaN/inf/negative pixels: 0 in all 18 shots (float render target), on both branch and main.
+- Method: Detail set to 1 (the editor had 1.5 from the High preset), so viewPpm is 935.3 at fov 60 and 540 at fov 90. Clouds off and time frozen in every shot. Four views (village, cave mouth, lake in rain, colossus) at fov 60, plus fov 90 from the same target at 0.577 of the distance. Branch shaders against main's six shaders swapped in, in the same editor session.
+- Noise floor (village60 retaken at the end of the run): mean 1.9 on branch, 3.3 on main.
+- fov 60, main vs branch: village 2.2 (noise, so exact as designed). Cave 7.5, lake 4.2 and colossus 11.1 are above noise. Likely cause: drift from things that animate on Time (colossus pose, flora breath/sway, rain on water), which freeze at slightly different times on each run. **Not confirmed.** A frozen-time pair on one view would settle it, in a later editor turn.
+- fov 90, main vs branch: village 2.9, cave 0.7, lake 8.6, colossus 13.6. That is expected, because at fov 90 the fades end sooner in metres (same on-screen size: reference distance = d x 935.3 / ppm, and ppm at fov 90 is 540). Lake and colossus also carry the drift above.
+- Colossus clouds-off (the r3 darkening check): not settled. The r3 shots use a different view, so their brightness can't be compared with these, and the clouds-on set came from a different weather state. It needs a same-view clouds on/off pair on main.
+- Shots: PunchyMilestones/R-23/r45/branchD1 and mainD1 (Detail 1, clouds off). Detail 1.5 sets are in branch2 and main. Editor closed with EditorApplication.Exit; release tree clean.
+
 ## DRAFT BENCH request, R-23 r4+r5 (for the coordinator to file after verification; not in BENCH-QUEUE)
-### Job (render-2 lane, R-23 r4+r5 #298, branch render/one-surface-5 <sha after verification>, includes one-surface-4): detail fades on screen size
+### Job (render-2 lane, R-23 r4+r5 #298, branch render/one-surface-5 9701f8a3, includes one-surface-4): detail fades on screen size
 - r4: the Creature fur/pattern and Flora relief/leaf/sheen/glow/cell fades read PunchyReferenceDistance (each camera's projection x Detail). The Flora.hlsl breath, twitch and flutter read PunchyMainReferenceDistance (`_PunchyViewPpm`). DetailPolicy sets `_PunchyDetail` and `_PunchyViewPpm` from beginContextRendering each frame. r5: TerrainSurface sheen/cobble/rock-face/cave-mouth/grain/rain and Water rippleNear do the same. Per-pixel cost added: one multiply and one divide per fade. At fov 60 the fade distances match main; elsewhere they move. Rule 21: the lane did not time it.
 - Reach note: at a narrow fov (zoom) the gated branches reach further, at a wide fov less far. Cobbles (`cobbleFade > 0.001`) and the rock-face/cave-mouth grain (`steep > 0.01`, cave detail sampling) are the costly ones. At fov 90 the rock-face grain ends at 52 m instead of 90 m; at fov 40 it reaches about 141 m.
 - Arms: main (A) against render/one-surface-5 (B), editor on each tree, ShaderCache (Library/ShaderCache) cleared first, -fpscap 0.
