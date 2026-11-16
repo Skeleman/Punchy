@@ -25,6 +25,15 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | render/far-island | R-22 r1 | render | Draft PR #482; verified, waits on BENCH job 107. |
 | render/plume-reach | R-25 plume | render | Draft PR #487; verified, waits on BENCH job 108 (sparkle probe, gather cost). |
 | render/one-surface-5 | R-23 r4+r5 (#298) | render-2 | Draft PR #494; verified, waits on BENCH job 109 and the drift pair. |
+| fauna/dungeon-props-r4, fauna/dungeon-r5, fauna/walkin-walls | #24 p2 r4-r5, walk-in walls | fauna | In progress; compiling. |
+| player/catalog-check, player/item-stack, player/kit-wire, player/item-ids | P-35 r3 rows 2-5 | fishing | In progress in the player editor. |
+| player/seamless-2 | P-37 r3 (#369) | player-2 | In progress. |
+| render/far-forest | R-22 r3 (#298) | render | Rebase after #482; PR after BENCH job 112. |
+| render/grass-fields | R-31 (#325) | render | Prep at be206e54; waits on an editor slot. |
+| render/hour-sync-doc | #494 note | render-2 | Doc only; PR once the second line lands. |
+| render/cloud-picks, render/one-surface-4 | R-35, R-23 r4 | render-2 | cloud-picks waits on Zach's pick; one-surface-4 folded into one-surface-5 (#494). |
+| world/map-edits-bake | M-07 r2b | world | In progress. |
+| folk/innkeeper-test-order | innkeeper tests | folk | Uncompiled; editor run now. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
