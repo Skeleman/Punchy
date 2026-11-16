@@ -84,6 +84,8 @@ namespace Punchy.Fauna
             return root;
         }
 
+        public static string Describe() => "as GameObjects (before row 4)";
+
         static bool Alive(Mesh[] meshes)
         {
             foreach (var m in meshes)

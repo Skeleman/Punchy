@@ -74,6 +74,8 @@ the same build. The world fingerprint in `WorldSync` refuses mismatched joiners.
 Wire changes so far (a build from before one can't join a build from after it):
 - P-47 (2026-11): `OpenChestRpc` and `ChestOpenedRpc` changed from `{ int Socket }` (a temple socket) to
   `{ uint Dungeon; ushort Type, Socket }` (any dungeon's chest: the temple, caves and their ruin rooms).
+- #24 phase 2 row 3 (2026-11): `DungeonExceptionsRpc { uint Dungeon; ulong Dead }`, host to client at join and on a
+  change, the dungeon's whole dead mask. Known difference: a resident driven off its post counts as there on a joiner.
 
 ## Learned in October 2026 (from the lane handoffs)
 
