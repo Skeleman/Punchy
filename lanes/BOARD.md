@@ -36,6 +36,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
 | b/fix-lake-ring-hash | #298 | fauna | merged #447, #449 | | lake ring and sky-bird seeds scrambled |
+| fauna/lab-herds | #412 | fauna | done, ready for PR | fauna/lab-herds@d058e36a | Frostdeer 137 Tundra herds + far form; fingerprint E764AAEC unchanged; host+join not run (RAM); IslandCache stamp +LabSpecies (world file) |
 | R-28 r2, R-15 land | #312 | render-2 | active | render/cobble-depth@ce3ff5a7 ready for PR (BC1091 fixed, job 86 unblocked); render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); one-surface next | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |

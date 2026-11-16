@@ -5505,3 +5505,17 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - b/fix-skybird-hash@71b3c70b (from main c0d4a6f1): CreatureRenderSystem.SkyBirds passes its lane shift and slot seed through BiomeSampling.Scramble, the same change #447 made to LakeRings. Cosmetic, local, nothing sent.
 - Neighbour stat (24x24 patches, 3 lanes, a dawn slot): mean lane-shift gap between next-door patches 41.4 s before, 29.7 s after (30.0 s for independent draws); kind-roll gap 0.374 before, 0.330 after (0.333 independent).
 - Fauna_Fingerprint passes.
+
+## 11-16 Lab species join herds (#412) - ready for PR
+- fauna/lab-herds@d058e36a: 51329e20, then a clean merge of main ec1ea218 (#450/#451; main touched no herd or Homes code).
+- HerdBaking.Sources is now the one list of herd sources: each biome's own fauna entries, then LabSpeciesList Homes whose Biome matches, given slots after the biome's own (rule 33, one population). FaunaDirector.Herds.BuildHerdKinds uses the same list, and checks that each Lab slot is the matching FromHomes entry or logs an error and skips it. No simulation or spawn rule changed, and nothing new is sent: every machine bakes from the seed plus the shipped LabSpecies asset, and Lab species are already in the WorldSync signature (#442).
+- Herd log, before: 1127 herds from 41 entries. After: 1264 herds, 4739 animals, 6174 spots from 42 entries; Lab: Frostdeer 137. Probe: all 137 Frostdeer herds sit in Tundra slot 12 with far blobs, and no slot errors.
+- Solo at -1848,549: 3 herds woke live (sizes 2, 5, 4), all Frostdeer. Members spread up to about 140 m after waking, the same wander as A-108 known issue 1.
+- Fauna_Fingerprint passes on d058e36a at main's E764AAEC with no re-pin. It also passed before the merge at 0206544F. The bake adds herds but leaves the fingerprinted fauna unchanged.
+- Host + joiner: NOT RUN. Free RAM was 4.4 GB, under the 6 GB floor, and the earlier player build stalled on shader variants at 2.7 GB free, so I cancelled it. The code-level reasoning is above: herds are a pure function of seed + shipped asset, and live animals replicate as ghosts as before. Worth a quick host+join with -netwatch Frostdeer at -1848,549 once there's RAM, or in the next playtest build.
+- Shots (Temp/shots in the fauna tree): frost-near.png (a Frostdeer on a Tundra slope), frost-near2.png (close up), frost-far.png (far vantage over a herd, which isn't clearly visible at that range).
+- Flags for the supervisor:
+  - IslandCache.cs (world-lane file): EditorStamp now also hashes Resources/LabSpecies.asset, so editing a Lab species rebakes the island cache instead of shipping stale herds. 2 lines.
+  - Stale docs in files I may not touch: the CreatureSpecies FromHomes comment ("skipped by the herd bake") and the FaunaDirector.Build MergeHomes comment ("the herd bake and the world signature skip them"). Both are now wrong for the herd bake.
+  - Builds/Windows in the fauna tree still holds the 11-15 build; the cancelled build didn't overwrite it.
+- Still waiting: item 7 (creature Interact prompt into UseTarget) waits on #434.
