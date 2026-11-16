@@ -5781,3 +5781,15 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Shares (rule 33): BuildingFootprints' plot walk and placement, KitBox, FloraDoors. No timing (rule 21).
 - NEXT: stopped, as ordered. On the slot ping: r4, r5 and this row in one slot.
 - Coordinator (2026-11-16): rule 11 approved (FloraSystem ModelCount/ModelAt, FloraDoors OpenSnapshot, read-only accessors only). Merge seamless-2 first, then this branch with the DoorsOf line. Stopped until my editor slot (after player-2 and fishing).
+
+## A-134 r5 (#460): held guard dispatch, DONE (verified) 2026-11-16
+- **Branch:** folk/guards-at-door e11d72fa (off main 53cc5e36). No PR opened.
+- **Files:** new Fauna/FaunaDirector.GuardCall.cs (+.meta); FaunaDirector.Thefts.cs (hold after CallOwnerOut, SendHeldGuards each tick, guard-late line in TakeTheft, OnRounds shared with the judge loop); Interact/Interiors.cs (player lane's file: `-leaveroom N` test flag only, CRLF kept).
+- **What:** a seen theft with no player within Radius of the door holds its guard call (same hold as r4's owner call). Once a player comes near, the nearest guard on its rounds within 120 m walks to the door and says the guard line to the thief on every machine. Lapses after the late wait if nobody comes. No new RPC, table or save field: reuses TheftRpc with Seen=2 meaning "guard late".
+- **Verified solo:** took from the chest inside the room, stayed in ~50 s, stepped out. Log order: owner called out, guard waits; on leaving Edda steps out ("Thief! Somebody fetch the guard!"), guard Cass sent from 63 m (held 53 s), Cass at the door: "Halt! A theft was reported here."
+- **Verified host + joiner (7984):** host also inside a room, joiner the thief. Host: player 2's seen take, Edda called out, guard waits, then after the joiner came out Edda steps out, "still waits" (nearest guard 137 m), then guard Ulla sent from 120 m (held 110 s). Joiner: Edda's line, "guard Ulla is on its way", then Ulla at the door: "Halt!". The r4 owner call also waited in both runs.
+- **Tests:** EditMode 17/17; PlayMode 57/58, only LiveFolk_InnkeeperAtCounter (known order flake, not fixed here as ordered). No exceptions in any log.
+- **Shot (unviewed):** D:/Unity/PunchyMilestones/A-134/row5-guard-at-door.png (solo, 185 s; may be before the guard arrives).
+- **Flags:** (1) Interiors.cs edit is in the player lane's file (test flag only). (2) Held calls fetch from 120 m, not TheftGuardReach 40 m: the only night guard on rounds was 63-137 m away, and the owner has just shouted for one; line wait scaled to 180 s. Judgment call, easy to revert to 40. (3) The host logs no guard line while its own player is inside a room (no ghost there); expected. (4) Editor 108988 kept open.
+- Shares (rule 33): r4's hold and NearestPlayer, the theft RPC, TheftLine queue, guard Wander walk. No timing (rule 21).
+- NEXT: waiting for review.

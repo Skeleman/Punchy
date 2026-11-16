@@ -39,7 +39,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-43 | #396 | player-2 | DONE: fold + RiderBody refresh already on main (a980ae54, #441); re-verified on main fd90e634 11-16: solo + joined pair on -port 7983 PASS | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | B-port | - | player-2 | DONE, merged #467 | - | -port N flag (default 7979) and -join ip:port; two hosts plus joiners side by side verified |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
-| A-134 | #460 | folk | r0-r3 merged #488; r4 merged #495 (owner steps out); r5 active (spec 11-16: guard dispatch held until a player is near the door, same hold as r4) | folk/guards-at-door (new off main) | Innkeeper test order dependence: own card later |
+| A-134 | #460 | folk | r0-r3 merged #488; r4 merged #495 (owner steps out); r5 DONE (verified) 11-16: guard dispatch held until a player is near the door, same hold as r4; awaiting review | folk/guards-at-door e11d72fa | Innkeeper test order dependence: own card later |
 | A-124 r2 | #358 | folk | merged #458; #358 closed | folk/gait@7aa37dc3 | Per-person gait styles (verified solo + host/client, 28 clips, pins held); BENCH crowd-cost request in REPORTS-animal |
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
