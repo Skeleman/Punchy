@@ -15,7 +15,7 @@ namespace Punchy.Items
     public struct ContainerSlotRpc : IRpcCommand { public int Container; public byte Slot, Item, Count; }
 
     /// <summary>
-    /// Object inventories (#26, P-14): containers of <see cref="ContainerSlots"/> slots, the temple's chests (once opened)
+    /// Object inventories (#26, P-14): containers of <see cref="ContainerSlots"/> slots, the dungeons' chests (once opened)
     /// and the storage in house rooms (Interiors). Every machine fills a container from its seed when it's registered, so
     /// nothing is sent until something changes; then the host owns it: a client asks (PutRpc / TakeRpc), the host
     /// changes the slot and tells everyone (ContainerSlotRpc), and a player who joins later is sent every changed
@@ -29,7 +29,8 @@ namespace Punchy.Items
     public partial class Items
     {
         public const int ContainerSlots = 8, MaxDrops = 256;
-        /// <summary>Container ids: a temple chest is its socket index; room storage RoomBase + room * 4 + k.</summary>
+        /// <summary>Container ids: a temple chest is its socket index; room storage RoomBase + room * 4 + k; a cave or
+        /// ruin room chest <see cref="ChestId"/> (CaveChestBit upwards).</summary>
         public const int RoomBase = 100_000;
 
         class Container
@@ -96,16 +97,61 @@ namespace Punchy.Items
             return parts.Count > 0 ? string.Join(", ", parts) : "empty";
         }
 
-        /// <summary>The temple chests as containers (once the dungeon sockets are in), seeded from each socket's seed.</summary>
+        /// <summary>
+        /// Every dungeon's chests as containers (once the dungeon sockets are in), seeded from each socket's seed, plus
+        /// the loot table's chest pick (P-47; no rows yet, so the temple's chests hold what they did) and, for a cave's
+        /// marked chest, coins until it holds at least 2.
+        /// </summary>
         void RegisterChests()
         {
-            foreach (var (socket, pos) in ChestSockets())
-                if (!containers.ContainsKey(socket) && TryChest(socket, out var s))
-                    RegisterContainer(socket, pos, "chest", s.Seed, true);
+            foreach (var (id, pos) in ChestSockets())
+                if (!containers.ContainsKey(id) && chestRefs.TryGetValue(id, out var chest))
+                {
+                    RegisterContainer(id, pos, "chest", chest.S.Seed, true);
+                    if (containers.TryGetValue(id, out var c))
+                        AddChestLoot(c, chest);
+                }
+        }
+
+        static void AddChestLoot(Container c, in ChestRef chest)
+        {
+            if (Punchy.Fauna.DungeonSpawner.PickChestLoot(chest.S, out var item, out var count) && item < ItemTable.Items.Length)
+                PutInFreeSlot(c, item, count);
+            if (!chest.Marked || chest.Type == Punchy.Dungeon.DungeonTypes.SunkenTemple)
+                return;
+            var r = Punchy.Fauna.DungeonSpawner.Scramble(chest.S.Seed ^ 0x4D41524Bu);
+            // (A purse of coins if it has none, else a find, so the quests' chest never shows one lone stack.)
+            for (int held = Held(c); held < 2; held++)
+            {
+                r = Punchy.Fauna.DungeonSpawner.Scramble(r);
+                var hasCoin = System.Array.FindIndex(c.Slots, s => s.item == 6) >= 0;
+                if (!PutInFreeSlot(c, hasCoin ? (byte)(r % 6) : (byte)6, hasCoin ? 1 : (int)(2 + (r >> 8) % 7)))
+                    break;
+            }
+        }
+
+        static int Held(Container c)
+        {
+            var n = 0;
+            foreach (var s in c.Slots)
+                if (s.item != 255) n++;
+            return n;
+        }
+
+        static bool PutInFreeSlot(Container c, byte item, int count)
+        {
+            for (int i = 0; i < ContainerSlots; i++)
+                if (c.Slots[i].item == 255)
+                {
+                    c.Slots[i] = (item, math.max(count, 1));
+                    return true;
+                }
+            return false;
         }
 
         /// <summary>The nearest open-able container within reach (chests only once opened), for the Use key.</summary>
-        void FindContainer(float3 player, ref float distance)
+        /// <summary>The container the player faces best, if it beats <paramref name="best"/> (UseTarget's score).</summary>
+        void FindContainer(float3 player, float2 forward, float2 look, ref float best, ref float distance)
         {
             targetContainer = -1;
             foreach (var kv in containers)
@@ -113,15 +159,18 @@ namespace Punchy.Items
                 if (kv.Value.IsChest && !openedChests.Contains(kv.Key))
                     continue;
                 var d = math.distance(kv.Value.Pos.xz, player.xz);
-                if (d < distance && d <= Reach && math.abs(kv.Value.Pos.y - player.y) < 1.8f)
-                    (distance, targetContainer) = (d, kv.Key);
+                if (d > Reach || math.abs(kv.Value.Pos.y - player.y) >= 1.8f)
+                    continue;
+                var score = Punchy.Interact.UseTarget.Score(player, forward, look, kv.Value.Pos);
+                if (score < best)
+                    (best, distance, targetContainer) = (score, d, kv.Key);
             }
         }
 
         void OpenContainer(int id)
         {
             openContainer = id;
-            panel = true;
+            Punchy.UI.FieldMenu.Show(ItemsTab, true);
             nav.Reset();
             Debug.Log($"Items: looking in container {id} ({containers[id].Name}): {Describe(containers[id].Slots)}");
         }

@@ -65,8 +65,9 @@ namespace Punchy.Interact
             return keyboard != null && keyboard[Current].wasPressedThisFrame || pad != null && pad.buttonSouth.wasPressedThisFrame;
         }
 
-        /// <summary>The key alone (not the pad's button: in the inventory, the pad's A is the panel's own Submit).</summary>
-        public static bool KeyWasPressed() => !Punchy.UI.Overlay.AnyOpen && Keyboard.current != null && Keyboard.current[Current].wasPressedThisFrame;
+        /// <summary>The key alone (not the pad's button: in the inventory, the pad's A is the panel's own Submit). For the
+        /// in-world menu's own use, so only the main menu or a talk holds it.</summary>
+        public static bool KeyWasPressed() => !Punchy.UI.Overlay.Frozen && Keyboard.current != null && Keyboard.current[Current].wasPressedThisFrame;
 
         static int offeredFrame = -10;
         /// <summary>Something in front of the player can be used now (a door, an item, a chest, someone to talk to, a
@@ -177,7 +178,7 @@ namespace Punchy.Interact
     public partial class Doors : MonoBehaviour
     {
         public const float Reach = DoorPick.Reach;
-        /// <summary>How far the door the player faces is (float.MaxValue: none): the Use key goes to the nearer of it and an item (P-11).</summary>
+        /// <summary>How far the door the player faces is (float.MaxValue: none), for test logs; UseTarget picks what the Use key goes to.</summary>
         public static float FacingDistance = float.MaxValue;
 
         static Doors instance;
@@ -476,13 +477,14 @@ namespace Punchy.Interact
             {
                 var a = set.Anchors[doorAnchors[heldDoor]];
                 var d = math.distance(DoorPick.Opening(a.Position, a.Facing), player.Position.xz);
+                // (A held door bids as if at the cone's edge: anything faced squarely takes over.)
                 if (d < DoorPick.Reach + DoorPick.HoldMargin && math.abs(a.Position.y - player.Position.y) <= 2f)
-                    (facing, distance) = (heldDoor, d);
+                    (facing, distance, bestScore) = (heldDoor, d, d * 2f);
             }
             walkPicked = facing;
             FacingDistance = facing >= 0 ? distance : float.MaxValue;
-            // (An item or chest at least as near takes the Use key: Items.)
-            if (facing >= 0 && (FacingDistance >= Punchy.Items.Items.TargetDistance || FacingDistance >= FolkTalk.TargetDistance))
+            // (One pick for every Use prompt, doors first on near ties: UseTarget.)
+            if (!UseTarget.Bid(UseKind.Door, facing >= 0 ? bestScore : float.MaxValue))
                 facing = -1;
             if (facing < 0)
                 return;

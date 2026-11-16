@@ -37,6 +37,8 @@ Read before changing anything players see, input, network tables or world state.
   - Default is solo. `-host` hosts on LAN (UDP 7979) from the start, and so does Multiplayer Play Mode's Client
     play type for virtual players.
   - `-join <ip>` joins over LAN; `-hostonline` / `-joincode <CODE>` go through Unity Relay.
+  - `-port N` moves hosting, listening and joining off 7979 so local test pairs from different lanes don't
+    meet (both sides of a pair pass the same N; `-join ip:port` also works). The wire format is unchanged.
   - F2 opens the panel for all of these and the body picker.
   - Test flags: `-body <Name>`, `-autowalk`, `-newlook`, `-time <h>`, `-place <name>`. A timestamped "Net status"
     line is logged every 10 s.
@@ -68,6 +70,10 @@ state it is:
 
 When a feature changes a network table (ghost fields, `PlayableSpecies`, species or biome lists), all players need
 the same build. The world fingerprint in `WorldSync` refuses mismatched joiners.
+
+Wire changes so far (a build from before one can't join a build from after it):
+- P-47 (2026-11): `OpenChestRpc` and `ChestOpenedRpc` changed from `{ int Socket }` (a temple socket) to
+  `{ uint Dungeon; ushort Type, Socket }` (any dungeon's chest: the temple, caves and their ruin rooms).
 
 ## Learned in October 2026 (from the lane handoffs)
 

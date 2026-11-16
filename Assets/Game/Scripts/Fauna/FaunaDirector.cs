@@ -71,6 +71,10 @@ namespace Punchy.Fauna
         World queryWorld, simWorld;
         /// <summary>The world that simulates animals (the server's, when hosting); null before the director is up.</summary>
         public World SimWorld => simWorld;
+
+        /// <summary>How far from every player (m, from CreatureMotion.SeenAt) an animal is let go: DespawnDistance, or
+        /// further for the huge, seen from further off; for a riding pair the larger of the two (A-119), so both go together.</summary>
+        public float LetGoRange(in CreatureState s, ref CreatureBlob b) => math.max(DespawnDistance, CreatureMotion.SeenFrom(s, ref b) + 20f);
         /// <summary>Counts the director's builds; a rebuild (terrain re-baked) destroys every animal, so dungeons refill theirs (#24).</summary>
         public int Builds { get; private set; }
         EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
@@ -108,7 +112,7 @@ namespace Punchy.Fauna
 
         /// <summary>Which count a waiting animal goes towards (Despawn's tally). Housed: a town's household members
         /// (A-110 row 3), with a cap of their own.</summary>
-        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake, Housed }
+        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake, Housed, Dungeon }
 
         /// <summary>An animal waiting to be made: where, and what to set up on it once it exists.</summary>
         struct PendingSpawn
@@ -125,7 +129,7 @@ namespace Punchy.Fauna
         public int SpawnsPerFrame = 8;
         readonly Queue<PendingSpawn> pendingSpawns = new Queue<PendingSpawn>();
         /// <summary>How many are waiting, of each tier (counted with those already made, so the caps hold).</summary>
-        readonly int[] pendingTiers = new int[6];
+        readonly int[] pendingTiers = new int[7];
         /// <summary>Critter spots with an animal on its way.</summary>
         readonly HashSet<uint> pendingCritterSpots = new HashSet<uint>();
         EntityArchetype plainArchetype;
@@ -170,6 +174,7 @@ namespace Punchy.Fauna
             critterCells.Clear();
             pendingSpawns.Clear();
             System.Array.Clear(pendingTiers, 0, pendingTiers.Length);
+            ForgetDungeonLive();
             pendingCritterSpots.Clear();
             plainArchetype = default;
             if (simWorld != null && simWorld.IsCreated)
@@ -345,6 +350,7 @@ namespace Punchy.Fauna
                 using (DespawnMarker.Auto())
                 {
                     Despawn();
+                    DespawnDungeons(); // (#24 phase 2: dungeon residents, their own tier)
                     UpdateHerds(source);
                 }
             }
@@ -366,6 +372,7 @@ namespace Punchy.Fauna
                     SpawnWildFolk(source);
                     SpawnCrossingFishers(source);
                     SpawnSeaVisitors(source);
+                    SpawnDungeons();       // (#24 phase 2: each dungeon's residents near a player)
                 }
             }
             using (CrittersMarker.Auto())
@@ -458,8 +465,9 @@ namespace Punchy.Fauna
                 }
                 // Far from everyone, or caught by a bird of prey; never one someone is carrying (wherever they go).
                 // (Huge animals seen from far off are let go only beyond that.)
-                var letGo = math.max(DespawnDistance, bodies[i].Blob.Value.SeenFrom + 20f);
-                if ((players.Count == 0 || NearestPlayer(xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
+                // (A-119: a rider and its mount let go together, from the mount's position.)
+                var letGo = LetGoRange(states[i], ref bodies[i].Blob.Value);
+                if ((players.Count == 0 || NearestPlayer(CreatureMotion.SeenAt(states[i]).xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
                     {
@@ -663,6 +671,7 @@ namespace Punchy.Fauna
                 case SpawnTier.Critter: critterCount++; break;
                 case SpawnTier.Lake: lakeCount++; break;
                 case SpawnTier.Housed: housedCount++; break;
+                case SpawnTier.Dungeon: dungeonCount++; break;
                 default: wildCount++; break;
             }
         }

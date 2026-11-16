@@ -181,7 +181,8 @@ namespace Punchy.Fauna
 
         protected override void OnCreate()
         {
-            Enabled = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-guardtest") >= 0;
+            // (LaunchArgs: the command line, plus Temp/PlayArgs.txt in the editor.)
+            Enabled = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-guardtest") >= 0;
             dungeons = new EntityQueryBuilder(Allocator.Temp).WithAll<DungeonSocket>().Build(this);
             player = new EntityQueryBuilder(Allocator.Temp).WithAll<PlayerTag, LocalTransform>().Build(this);
             RequireForUpdate(dungeons);
