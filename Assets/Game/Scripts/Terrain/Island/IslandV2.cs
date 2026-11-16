@@ -647,6 +647,8 @@ namespace Punchy.Terrain
             long socketsAt = watch.ElapsedMilliseconds;
             source.CaveSockets = CaveSocketSetBlob.Build(source, Allocator.Persistent);
             long socketsMs = watch.ElapsedMilliseconds - socketsAt;
+            // M-07 r2b: warn about painted tiles on places the generator reshapes (reads only; never changes the bake).
+            PaintedEditsCheck.Run(source);
             // A-108: the herds last, on the finished ground; nothing above reads them.
             source.Herds = Punchy.Fauna.HerdBaking.Build(source, biomes, Allocator.Persistent);
             Debug.Log(Punchy.Fauna.HerdBaking.LastLog);

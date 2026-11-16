@@ -20,6 +20,8 @@ namespace Punchy.Terrain
         public const int TileVerts = 32;
         public const float Spacing = 2f;
 
+        /// <summary>The first 16 bytes of the file's SHA-256 trailer (its content hash), for WorldSync.Signature.</summary>
+        public uint4 Content;
         /// <summary>The first tile of the index box (tile units) and its size in tiles.</summary>
         public int2 TileMin, TileCount;
         /// <summary>Per index cell (row-major, z then x): the tile's slot in <see cref="Heights"/>, or -1.</summary>
@@ -161,6 +163,8 @@ namespace Punchy.Terrain
             var b = new BlobBuilder(Allocator.Temp);
             ref var root = ref b.ConstructRoot<PaintedEditsBlob>();
             root.TileMin = min; root.TileCount = size;
+            int sumAt = bytes.Length - SumBytes;
+            root.Content = new uint4(BitConverter.ToUInt32(bytes, sumAt), BitConverter.ToUInt32(bytes, sumAt + 4), BitConverter.ToUInt32(bytes, sumAt + 8), BitConverter.ToUInt32(bytes, sumAt + 12));
             var index = b.Allocate(ref root.Index, size.x * size.y);
             for (int i = 0; i < index.Length; i++) index[i] = -1;
             var heights = b.Allocate(ref root.Heights, count * n);
