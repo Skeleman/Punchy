@@ -259,7 +259,7 @@ Shader "Punchy/Creature"
             // grained along its length; bone is ivory and waxy. (Bodies keep their own soft light, in Frag.) W-166: each
             // surface comes from its family's include (MaterialLibrary.FamilyOf(SegmentMaterial)), so gear wood is the
             // wood of a town's beams, gear cloth its awnings; only the lighting is the creature's own.
-            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS, float4 positionCS)
+            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS, float4 positionCS, float footprint)
             {
                 half3 sun = light.color * shadow;
                 half ndl = dot(n, light.direction);
@@ -267,13 +267,11 @@ Shader "Punchy/Creature"
                 // (Real lights too, R-10: Glow.hlsl's shared falloff, so a lantern lights gear as it lights the ground.)
                 half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n) + PunchyRealLights(positionWS, n, positionCS);
                 float angle = atan2(surface.y, surface.x);
-                // The piece's own surface, unrolled: (around, along) in metres; and a pixel's size from the distance
-                // (safe in this branch, rule 24), for the includes' fades.
+                // The piece's own surface, unrolled: (around, along) in metres, for the cloth and bone includes.
                 float2 unrolled = float2(angle * length(surface.xy), surface.z);
-                float footprint = length(_WorldSpaceCameraPos - positionWS) * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11);
                 if (material == 3)
                 {
-                    // Metal: the shared look (Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
+                    // Metal: the shared look (Materials/Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
                     // highlight and glints, on a diffuse dimmed to under half, here on a hammered face (the normal
                     // nudged a little, cell by cell).
                     float3 dent = float3(Noise3(surface * 38), Noise3(surface * 38 + 7.1), Noise3(surface * 38 + 13.7)) - 0.5;
@@ -304,11 +302,12 @@ Shader "Punchy/Creature"
                 }
                 if (material == 4)
                 {
-                    // Wood: the shared grain (Wood.hlsl, oak), running along its length.
-                    half3 grained = PunchyWoodGrain(albedo, surface.z, surface.xy, footprint, 0, 0);
+                    // Wood: the shared look (Materials/Wood.hlsl, as every plank and post in the world), grained
+                    // along the piece's length (surface.z, metres) and across its face; oak, the gear's own colour.
+                    half3 wood = PunchyWoodGrain(albedo, surface.z, surface.xy, footprint, PUNCHY_WOOD_OAK, 0);
                     half diffuse = saturate(ndl * 0.75 + 0.25);
                     half gloss = pow(saturate(dot(reflect(-v, n), light.direction)), 16) * 0.08;
-                    return grained * (sun * diffuse + ambient) + sun * gloss;
+                    return wood * (sun * diffuse + ambient) + sun * gloss;
                 }
                 // Bone: the shared bone (Bone.hlsl: ivory, growth lines, pits), a waxy sheen.
                 half3 ivory = PunchyBone(albedo, unrolled, footprint);
@@ -328,6 +327,8 @@ Shader "Punchy/Creature"
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 half3 n = SafeNormal(input.normalWS, v);
                 probe |= SparkleBad((float3)n) ? 2u : 0u;
+                // How much world one pixel spans (m), taken here outside any branch, for the gear includes' fades.
+                float footprint = length(fwidth(input.positionWS));
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r) * (1 + 0.07 * _Shell);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
@@ -567,7 +568,7 @@ Shader "Punchy/Creature"
                 }
                 else
                     // (Gear is grounded by its downward faces only: it carries no ground height.)
-                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS, input.positionCS) *
+                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS, input.positionCS, footprint) *
                             lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
