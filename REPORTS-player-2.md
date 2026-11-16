@@ -70,3 +70,28 @@ Branch player/dungeon-quests @ fff8df1b, merges clean onto main ead097ba.
 - Housekeeping: the editor opened behind a "Recovering Scene Backups" dialog, left by the earlier taskkill. I answered No (nothing copied into Assets). The editor was closed with EditorApplication.Exit. TempleGlow.mat was untouched.
 
 Shares: Items partials (Quests.cs, QuestChecks.cs, QuestSave.cs: additive field; folk's thefts array is not on main yet), StreamingAssets/quests.json, new Assets/Tests/EditMode/QuestChestTests.cs. Read-only use of Punchy.Fauna.DungeonSpawner.Scramble. No fauna, network table or landmark files touched.
+
+## P-49 r3 (#24 #27): quest-only items. DONE (verified), PR #491
+Branch player/quest-items@d651e02f (off main 544d91cb, #486). Design A approved under rule 11.
+
+**What changed**
+- ItemTable gains `Quest` and `Base` fields. Three rows were appended after Glow goggles, so no existing id moves: Heirloom key (85, quest heirloom), Elder staff (86, quest elder-staff) and Lost key (87, quest lost-key). quests.json names these items.
+- QuestChecks.ItemFits/CountFor: a quest-tagged item only counts for its own quest. The host's hand-in tally and the client's HasFor both use them. CheckQuestItems logs an error if one quest names another quest's item.
+- ItemTable.IsRandomLoot/RandomLoot: the one random roll over the item range (Containers.cs:78) now skips tagged rows. It still uses one rng draw. I grepped Fauna, Folk and Player: every other use of Items.Length is a bounds check, a look check, a debug row, or DungeonSpawner's exact-name lookup.
+- Outside-file diffs are only the lines named: Containers.cs (1), ItemMeshes.cs (1; a tagged row draws with its Base's mesh) and FolkKits.cs (1; CheckLooks skips tagged rows). Main hadn't moved at commit time, so A-134 hasn't touched Containers.cs yet. Re-check if it lands first.
+- Old saves: I chose **re-place**. An active pre-change heirloom, elder-staff or lost-key quest is turned back into a take on load, which puts the new tagged item into the chest (dungeon quests) or hides it again (find quests). An old generic Key stays a plain Key and no longer completes the quest.
+
+**Checks**
+- EditMode QuestItemTests 3/3: the Heirloom key does not complete lost-key and the generic Key completes neither; the Elder staff only completes elder-staff; 20000 seeded chest fills never give a Quest row and do give every ordinary row. QuestChestTests 3/3 still pass.
+- Solo cave: the Heirloom key went into chest 2051145747, was taken and handed in, reward 12 Coin. Solo ruin: the Elder staff went into marked chest 1419440206, was handed in, reward Cloak. The digest is still CAB46352.
+- Host + joiner, and a late joiner (joined at 100 s) on 7983: the host placed player 2's Heirloom key and checked "carried 1 Heirloom key, 1 handed in". Both clients saw the hand-in pass.
+- Old save (heirloom state 1, from before the change): "took heirloom at board 5 (from the save)", then the Heirloom key was put back into chest 2051145747.
+- No exceptions in any log. No shot (the card asked for none).
+
+**Notes for review**
+- The Elder staff doesn't look like a staff when held. Gear.cs HeldFor only maps ItemTable.Staff to HeldItem.Staff. Gear.cs wasn't approved, so this is a one-line follow-up, or HeldFor could go through Base.
+- I didn't verify lost-key in a run; no -dungeonquest board offered it. It's covered by the EditMode test.
+- Slip: I used sed -i once to set CRLF on the new test file. The file is correct (CRLF; .meta LF).
+- The editor was closed via EditorApplication.Exit. TempleGlow.mat was untouched.
+
+Shares: extends the one item system (ItemTable rows + a Quest/Base tag, rule 33). Any later quest item is a tagged row, and random rolls go through RandomLoot. Parallel found but not folded in: Gear.HeldFor and other per-id look switches could key off Base.
