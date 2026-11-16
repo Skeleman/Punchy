@@ -934,7 +934,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Ask: pin an ordinary night in those scripts (keep the big moon as caster, comparable with old runs) and take one
   blue-night baseline as its own row. Merged 11-14 as #363 (main 1a18ba61): apply now.
 
-## Job 94 (2026-11-15, CHAINED 11-16 last (q135b.job: B = tip b1c2ab17, A = its merge-base 19bdb274; q135.job's c5d49a53 build failed: its base 244805ae predates the bench runner's TerrainSource.Settlements); world lane, W-170 row 1): lying-log bark along the grain
+## Job 94 (2026-11-15, REPORTED 11-16 PASS (q135b.job: B = tip b1c2ab17, A = its merge-base 19bdb274; q135.job's c5d49a53 build failed: its base 244805ae predates the bench runner's TerrainSource.Settlements); world lane, W-170 row 1): lying-log bark along the grain
 - Arm: world/log-bark c5d49a53 (B) against its base main (A). Profile builds, 1920x1080, Medium and High, uncapped,
   Clear, noon, ABBA, 3 rounds.
 - What changed: Flora.shader gets a second bark-furrow path (furrows round the piece's grain axis, picked by a vertex

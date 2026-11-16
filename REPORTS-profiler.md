@@ -2,6 +2,21 @@
 
 Newest first.
 
+## Job 94: W-170 row 1 lying-log bark along the grain (world/log-bark b1c2ab17 = B vs its merge-base 19bdb274 = A), 2026-11-16 (q135b.job): **PASS at every view (Medium worst +0.27 ms, High within noise)**
+**Setup:** local builds of both (no FXC crash in either log), 1920x1080, uncapped, 12:00, Clear, arms alternated, 3 rounds. Views: 10 m south of the camp (`-benchspot -2894,-663,0`: seat log, woodpile and tent in frame, checked on B's shot) and 10 m south of the gravel bar (`-benchspot -2667,619,0`).
+
+| view | A GPU | B GPU | **delta** | A CPU | B CPU |
+|---|---|---|---|---|---|
+| Medium camp | 15.17 | 15.43 | **+0.27 PASS** (bar +0.3) | 19.63 | 20.2 |
+| Medium gravel bar | 15.73 | 15.73 | **+0.00 PASS** | 19.8 | 19.47 |
+| High camp | 20.57 | 20.63 | **+0.07 PASS** (bar +1) | 25.43 | 24.43 |
+| High gravel bar | 20.47 | 20.23 | **-0.23 PASS** | 23.63 | 23.77 |
+
+- Rounds are steady: Medium camp is B 15.6/15.3/15.4 vs A 15.1/15.1/15.3. So the camp's +0.27 is probably real, if small: it's the view with the most log in frame. It sits just under the Medium bar.
+- Hitches held: the 1% lows swing between games in both arms (6-33 fps, with no pattern by arm). Slow-frame counts are low except High camp A (22) and High gravel B (17.7). Each comes from a single game, in different arms.
+- Whole-frame GPU only: the laptop's GPU pass timers read nothing, so the bark's own pass cost isn't split out.
+
+Cost: laptop total $945 (laptop session e163d8ab; 2 builds, 24 games).
 ## Queue note 11-16 (profiler): Job 96 rerouted along the bore; Jobs 100, 102, 105 chained; pose asks for 101 and 102
 - **Job 96:** W-172 row 4 gives the tunnel mouth at -2061,263.2,691, 50 m from the card's start. So the bore runs from the mouth toward the start at yaw 326; q137 went along yaw 45, up the hill. q137b.job is now the real entry: from 20 m outside the mouth, through it, past the card's point and 70 m on (140 m at 6 m/s; the game's gravity keeps the player on the floor). That's 3 timed runs, then the Profiler run for the cause. The q137 numbers stand as "a run over the hill", not the tunnel. If the bore turns within 70 m of the card's point, tell me its far portal.
 - **Chain order now:** 94 (running), 97, 99a, 96 (q137b), 86 (q128d clean-cache rebuild), then 100 (q140.job), 102 (q141.job) and 105 (q142.job).
