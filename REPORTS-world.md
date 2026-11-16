@@ -8256,3 +8256,10 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Test:** WorldTests 14/14 after the 27171bd2 merge. After c894c866, the only failures were the known crow/cave-water flake (Player_CrowFliesOutOfCaveThroughHitches, plus CaveWater as a knock-on).
 - **Lava half-row:** world/ashlands-lava will be rebased onto this branch and re-pinned after the merge.
 - Next: #259 rejoin crash (terrain/glow/cave jobs in flight on leave), then the Ashlands cone re-pin, then W-174 row 2.
+
+## W-166 row 4 part (#336): towns walked, temple on Stone.hlsl. Resumable (sweep queued)
+- **Branch:** world/material-library-2@9d04c2d3 (on top of merged #452). SunkenTemple.shader's ashlar courses now call Materials/Stone.hlsl at their own scale (`p * k`, `footprint * k`). MaterialLibraryTests lists it as a stone user, 4/4 pass. rendering.md gains "Adding a kind" and "Adding a family".
+- **Walked at 3, 15 and 60 m, noon:** HumanVillage, ElfGrove, DwarfHold, OgreCamp, GoblinCamp, Ruins, SunkenTemple, plus cave 29's tunnel. NaN 0 in every shot. Temple before/after: about 52k of 518k px changed at each distance (most of it is blowing dust). Sheets: PunchyMilestones/W-166/W166_town_*.jpg, W166_tunnel-after.jpg.
+- **Still off the library (follow-ups):** the salt tower and colossi are flat vertex colour (Colossus.shader, fauna); the temple's tiles and light shafts are not families; TerrainSurface still uses the forwarder (render); DwarfHold framing is poor; there is no dungeon landmark to walk yet.
+- **Noted:** R-30 LeafThinness about 1.6 for Fir and WhitePine (not added by me).
+- Next: W-175 row 2 (stalls and smithy as units). The row 4 sweep (items, colossi) stays queued after it.
