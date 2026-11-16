@@ -6,15 +6,12 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 far-towns #373, lamplighter #374, notice-board-life #362, fire-heat #375, door-sound #376, scarps #377, level-gardens #378,
 cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382, cliff-kit #386,
 individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #390, spawn-wait-fix #391, cloth-legs #394,
-world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; branch continues), cloud-blocks #410, waterfall-sheets #411, folk/dialogue-archive #416, fauna/model-lab-2 #417, #418 (M-06 rows 1-3; branch continues), player/fishing #419 (P-33 rows 1-3), folk/dialogue-options #420 (A-131), fauna/dune-groves #421 (A-130), player/dismount #422 (P-40), render/far-lights #423 (R-25 r3, R-38), b/fix-swapchain-stall #424, lab/map-editor #425 (M-07 r1-2a; branch continues), world/material-library #426 (W-166 r2-3a; branch continues), render/stone-trial #427 (R-34 r2, squashed).
+world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; branch continues), cloud-blocks #410, waterfall-sheets #411, folk/dialogue-archive #416, fauna/model-lab-2 #417, #418 (M-06 rows 1-3; branch continues), player/fishing #419 (P-33 rows 1-3), folk/dialogue-options #420 (A-131), fauna/dune-groves #421 (A-130), player/dismount #422 (P-40), render/far-lights #423 (R-25 r3, R-38), b/fix-swapchain-stall #424, lab/map-editor #425 (M-07 r1-2a; branch continues), world/material-library #426 (W-166 r2-3a; branch continues), render/stone-trial #427 (R-34 r2, squashed), fauna/far-life #428 (A-108 r2; holds fauna/lying-legs), fauna/playtest-1114 #429 (A-126 r2-4), fauna/one-population #430 (A-110), fauna/swimmer-droplets #431 (A-125 r2).
 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |
 |---|---|---|---|
-| flora/tree-variety | A-113 | fauna | Saguaro and temperate trees. Pin only. |
-| fauna/far-life | A-108 r2 | fauna | Conflicts in animator and island files. |
-| fauna/one-population | A-110 to r7b | fauna | RideLife.cs. |
-| fauna/lying-legs | - | fauna | CreatureAnimator.cs. |
+| flora/tree-variety | A-113 | fauna | Pin conflict in WorldTests after #421/#428-431: merge main, re-pin, hand back. |
 | folk/a111-row1-parked | A-111 r1 | folk | Parked; only if A-110 slips. |
 | water/truth | bench 75 | world | IslandV2, TerrainSource. |
 | world/log-bark | W-170 r1 | world | Clean; confirm verified. |
@@ -28,7 +25,7 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | b/cloud-shadow-map | profiler | profiler | Rework: store raw density, apply R-20 r4 soft edge after the read; BENCH cost check. |
 | player/netsim | P-31 | player | Merge main, re-check -netsim. |
 | player/take-items | P-38 (#372) | player | Rows 1-2b DONE but never PR'd (11-15 audit): merge main in, hand off ready for PR. Holds unify-items, items-pick, items-axe, hair, clothing. |
-| fauna/playtest-1114, world/playtest-1114 | A-126 rows 2-4, W-172 rows 2+ | fauna, world | In flight. |
+| world/playtest-1114 | W-172 rows 2+ | world | In flight. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.

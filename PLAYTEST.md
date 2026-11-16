@@ -125,3 +125,7 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: merged #425 (M-07 rows 1-2a, #260): Punchy > Map Editor in the Unity editor; raise, lower, smooth, flatten brushes with undo. Edits don't reach the game yet.
 - 11-15: merged #426 (W-166 rows 2-3a, #336): every building and prop uses one wood with grain (planks that were flat now show it); stalls, benches, signposts, hitch rails and palisades are a little lighter far off. Elf pieces are plaster.
 - 11-15: merged #427 (R-34 row 2, #332 closed): wet stone is the base rock. Cliffs, boulders, stone walls and cave walls look glossy and darker in rain, by shores and spray, and in damp caves.
+- #428 fauna/far-life (A-108 row 2, #298): far herds drawn by screen size; island cache Format 4 means one rebake on first launch.
+- #429 fauna/playtest-1114 (A-126 rows 2-4, #367 closed): ledge pull-up with planted hands, shimmy prompt, steer ridden animals.
+- #430 fauna/one-population (A-110, #298): one population, far figures are a town's real people.
+- #431 fauna/swimmer-droplets (A-125 row 2, #360 closed): dolphin and fish splashes throw droplets, at most 4 at once.

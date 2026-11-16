@@ -13,8 +13,8 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 
 ## World and far view
 - **Far views (#298).** The whole island in sight: ground to the horizon, far forest, far life. Shipped: far
-  terrain ring to about 3 km (W-131), tree and shrub impostors (R-7, R-11). Next: R-22 (whole-island ground,
-  far forest, weather haze, approved 11-13), R-23 (one lighting path), A-108, A-110.
+  terrain ring to about 3 km (W-131), tree and shrub impostors (R-7, R-11), far herds (A-108 row 2, PR #428), one population (A-110, PR #430). Next: R-22 (whole-island ground,
+  far forest, weather haze, approved 11-13), R-23 (one lighting path), A-108 row 4 details.
 - **Cliffs (#281 closed, #327; DESIGN-cliffs.md). Top concern (Zach 11-15).** Cliffs built as the ground itself. Shipped: steep ground reads as layered
   rock (R-19), mountain tunnels (W-138). Shipped: the scarp builder W-155 (big cliffs and river banks, PR #377), the cliff kit on sea cliffs and mesas (W-150, PR #386); walk and climb (row 3) and the shared rock wall with
   caves (W-162, #327) come after; caves climb by the same method (W-144's routes fold into W-162). Shelves with homes, ruins and flora are later.
@@ -61,7 +61,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Conversation (#25).** Shipped: personalities, a conversation API, reactions to an animal player (A-93),
   hermit chores and talk (A-106), the player talk system (P-28). Shipped: a hand-editable text archive reloaded
   live (A-129, PR #416). Shipped: dialogue options, folk side (A-131, PR #420). Next: the player talk UI shows the replies; an inn job for the innkeeper.
-- **One population (#298, A-110).** Next. Far figures are a town's real people; nobody swaps as you approach.
+- **One population (#298, A-110).** Shipped PR #430. Far figures are a town's real people; nobody swaps as you approach.
 - **Skills and attributes.** Shipped first stats (P-28). Grows as features need it.
 
 ## Creatures
@@ -70,7 +70,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Climbable colossi (#276, A-107).** Shipped: graded climbable sections, carried as the colossus walks.
 - **Sand and snow worms.** Shipped: breaching snow worm and sand worm colossi (A-84, Z-28).
 - **Climbing (A-101).** Shipped: one climbing model, ladders, marked walls, ledge hang. Shipped: brisk ladders
-  (A-126 row 1, PR #383). In flight: A-126 rows 2-4 (ledge hands, shimmy prompt, steering ridden animals); cave routes
+  (A-126 row 1, PR #383). Shipped: A-126 rows 2-4 (ledge hands, shimmy prompt, steering ridden animals; PR #429). Next: cave routes
   climb by the cliff method (W-162).
 - **Fishing (A-100, P-33).** Shipped: catch tables, fish notice the bobber, player fishing rows 1-3 (P-33, PR #419). Next: feel tuning after Zach plays it.
 - **Individual builds and gaits (A-124).** Shipped: row 1 builds (PR #387) and the style draw that really varies (PR #388). In flight: later rows.

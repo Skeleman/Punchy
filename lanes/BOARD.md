@@ -14,11 +14,11 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r3 | #336 | materials | resumable: thatch/cloth/metal done (verified) | world/material-library ea9d2dab, merged #426 (tree Punchy-materials) | Next: mark bands + Materials/Brick, Plaster, Ice.hlsl, gallery per family; then W-175 r1 |
-| A-126 r2-4 | #367 | fauna | ready for PR | fauna/playtest-1114 d3d37437 | Main merged in (CreatureAnimator conflict kept both); lip + RidePlayer PASS; fingerprint 859112C9 |
-| A-108 r2 | #298 | fauna | ready for PR | fauna/far-life 1a3a7131 | Main merged in; island cache Format 4 = one rebake; fingerprint 859112C9 |
-| A-113 | no issue | fauna | ready for PR | flora/tree-variety 1edb7cd8 | Main merged in, re-pinned 836A95D6, WorldTests 14/14; re-pin again if dune-groves (9EFF3BCF) lands first |
-| A-110 | #298 | fauna | ready for PR | fauna/one-population 709c59de | Rows through r7b; main merged in clean; PlayMode 64/47 pass/0 fail/17 skip |
-| A-125 r2 | #360 | fauna | ready for PR | fauna/swimmer-droplets dc69aba8 | Swimmers throw the serpent splash kit (SplashAt), cap 4; BENCH asked (per-swimmer ground sample) |
+| A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
+| A-108 r2 | #298 | fauna | merged #428 | fauna/far-life | Row 4 details next |
+| A-113 | no issue | fauna | re-pin | flora/tree-variety 1edb7cd8 | WorldTests pin conflicts with main (9EFF3BCF): merge main, re-pin, hand back |
+| A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
+| A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | A-133 | #336 | fauna | next | - | Creature.shader includes Materials/Metal.hlsl (then delete the Shaders/Metal.hlsl forwarder) and draws wood through Materials/Wood.hlsl; no look change, pixel-diff |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
