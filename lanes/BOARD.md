@@ -35,4 +35,4 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | done | player/fishing 461f138c | Ready for PR (suite not run: RAM); take-items waits on rule 11 ask |
-M-07 r1 | #260 | lab | active | lab/map-editor (design note, stop for Zach)
+| M-07 r1 | #260 | lab | active | lab/map-editor | Design note, then stop for Zach |
