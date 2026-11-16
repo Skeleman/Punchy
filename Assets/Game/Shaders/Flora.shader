@@ -40,6 +40,7 @@ Shader "Punchy/Flora"
             #include "Materials/Thatch.hlsl"
             #include "Materials/Cloth.hlsl"
             #include "Materials/Metal.hlsl"
+            #include "Materials/Plaster.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
 
@@ -188,11 +189,15 @@ Shader "Punchy/Flora"
                 int woodKind = wood ? (int)round((frac(input.extra.x) - 0.015) / 0.0025) : 0;
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
                 // (PunchyWeathering). Timber takes only a little of it: its stone-like courses read as plaster (W-99).
-                bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
+                bool strata = part == 0 && frac(input.extra.x) > 0.06 && frac(input.extra.x) < 0.09;
+                // W-166 row 3: built families with their own include ride on the bark mark (FloraMeshBuilder.FamilyMark).
+                bool plaster = part == 0 && frac(input.extra.x) > 0.095 && frac(input.extra.x) < 0.105;
                 // (Refactor 3.5, measuring a bake: "-nofloradetail" sets _PunchyFloraDetailOff and skips the procedural
                 // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
                 bool detail = _PunchyFloraDetailOff < 0.5;
-                if (detail && (part == 0 && built || strata))
+                if (detail && plaster)
+                    albedo *= PunchyPlaster(input.positionWS, n, footprint, r);
+                else if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
                 // W-166: wood draws through Materials/Wood.hlsl, its kind riding on the wood mark (FloraMeshBuilder.WoodKind).

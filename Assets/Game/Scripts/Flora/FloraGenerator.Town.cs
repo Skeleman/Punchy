@@ -242,6 +242,7 @@ namespace Punchy.Flora
             // glowing embers among dark coals, and its chimney up through the roof.
             var hearth = new Vector3(0f, 0.55f, -depth * 0.45f);
             float hearthX = half * 1.1f, hearthZ = depth * 0.8f, bed = 0.85f, rim = 0.15f;
+            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the hearth is stone, not the walls' plaster
             b.Box(new Vector3(hearth.x, bed * 0.5f, hearth.z), new Vector3(hearthX, bed, hearthZ), Quaternion.identity, Stone(g), FloraPart.Bark);
             foreach (var side in new[] { -1f, 1f })
             {
@@ -250,6 +251,7 @@ namespace Punchy.Flora
                 b.Box(new Vector3(hearth.x + side * (hearthX - rim) * 0.5f, (bed + 1.1f) * 0.5f, hearth.z), new Vector3(rim, 1.1f - bed, hearthZ - rim * 2f),
                       Quaternion.identity, Stone(g), FloraPart.Bark);
             }
+            b.Family = b.BaseFamily;
             var pit = new Vector2(hearthX * 0.5f - rim - 0.08f, hearthZ * 0.5f - rim - 0.08f);
             var embers = g.Lod == 0 ? 7 : 3;
             for (int k = 0; k < embers; k++)

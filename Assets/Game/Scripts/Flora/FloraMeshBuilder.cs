@@ -151,10 +151,19 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
+
+        /// <summary>W-166 row 3: the fraction a built family's plain bark carries on the part, so Flora.shader draws it
+        /// through that family's include (Shaders/Materials). Slots sit between the wood band (0.01-0.035) and the
+        /// glowing seams (over 0.15), clear of rock strata (0.08); 0 for families drawn the default way.</summary>
+        public static float FamilyMark(Punchy.Terrain.MaterialFamily family) => family switch
+        {
+            Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
+            _ => 0f
+        };
 
         public void Triangle(int a, int b, int c)
         {
