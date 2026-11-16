@@ -1967,3 +1967,10 @@ Branch player/item-ids@6975ead4, off kit-wire. Written without an editor. It com
   - solo: starter items, spares, rods and room stores appear, and a taken one stays taken after reload in the session
   - host plus joiner: the same store contents and ids, with take/put syncing
   - grep the log for "id clash"
+
+## P-35 r3 row 2 (#26): catalog join check - DONE (verified) 11-16
+- Branch player/catalog-check@7c74901e (full 7c74901eb516aa20c7ad9e5bffbc6edac0ffa4f4). Compiles, EditMode 23/23, solo play clean (earlier today). Dev build from this sha (Builds/Dev-player, Build Finished: Success).
+- Pair, matching catalog (host + joiner, port 7991, 60 s): host "sent item catalog c2f0fa697e7d8cc3", joiner "the host has the same item catalog", 0 exceptions both sides.
+- Pair, joiner with -catalogsalt 5: joiner "item catalog differs (host ...cc3, ours ...cc6)", then NetMenu notice "Can't join: the host's game has different items (another version). Both need the same build." and disconnect; host logs ClosedByRemote. 0 exceptions.
+- No shot (card asks for log checks). Risks: none seen; notice is logged twice on the joiner (refusal + menu), cosmetic.
+- Shares: WorldSync join checks (same path as the world signature check); no parallel left unfolded.
