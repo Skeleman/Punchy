@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r7+ | #365 | world | active | world/ground-edits | #259 done (PR #461). Lava half-row merged (PR #463; 117 547D4E79, fauna 4BEFEA91). Now: W-174 r2 (natural cutaways). Then: row 7 |
+| W-172 r7+ | #365 | world | active | world/ground-edits | W-174 r2 ready for PR (c3107159; 114 9786243F, temple C41A5BA2, fauna 4BEFEA91). Editor closed for render R-22. W-176 plan in REPORTS. Then: W-176 code, row 7 |
 | W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-176 | #475 | world | next (after W-174 r2) | - | Cave side branches cut pits through each other (P-48 find): CutsMain checks branches vs main only; test branches vs each other and dead ends that drop 13-20 m into a chamber. Re-pin cave hashes, tell the profiler |

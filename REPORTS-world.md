@@ -8344,3 +8344,25 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 
 - world/material-library-3 @ 6af0edfc merges origin/main 7d0e415c (P-47 #473) into the r4 sweep, as the coordinator asked. Items.cs merged by itself: P-47's chest changes and r4c's ItemDef Family/Kind rows touch different parts of the file. It compiles with 0 errors.
 - Re-run on the merged tree: MaterialLibraryTests + UnitLibraryTests 7/7 (EditMode), including main's updated MaterialLibraryTests. Ready for PR.
+
+## W-174 row 2 (#406, #403): one natural ground-edit profile (2026-11-16)
+
+- Branch world/ground-edits @ c3107159 (703f9c7c the profile, c5eadf4f merges main 7d0e415c, c3107159 the re-pins). Pushed. **Ready for PR.**
+- GroundEdits.cs (new): one edit record with curved falloff, a noise-broken edge, a rock band and talus on steep cuts, and no straight lines. Pass gullies, landmark beds, settlement plot pads and paddy rims all use it (TerrainSource, LandmarkData, LandmarkBeds, SettlementData).
+- #403 at 1116,42.7,1634: the grid mesas and straight pass banks are gone. Before/after shots of #403 (side and top) and three landmark beds (dwarf camp, ogre camp, hermit hut) are in PunchyMilestones/W-174/w174r2-{before,after}-*.png.
+- Re-pinned (layout changes OK'd): **landmarks 117 547D4E79 -> 114 9786243F.** Dropped: five campsites, a fairy ring, a grotto and the small FungalGrotto at -1796,-201 (the cave mouth Zach found too small for a horse). New: a campsite, two burnt campfires, a cave network and a lone inn. Moved: the bear cave, a waterfall, and the sea folk landing and village. **Sunken temple: same 73 sockets, hash 2D2BFAEB -> C41A5BA2.** The fauna fingerprint 4BEFEA91 is unchanged. Cave sockets FCAA026F and 94 chests are unchanged.
+- WorldTests 16/16 on the merged tree. No timing done. **Profiler: re-pin the bench to 114 9786243F; the roadside campsites moved.**
+- The editor is closed (EditorApplication.Exit) and stays closed until render's R-22 High runs are done.
+
+## W-176 (#475) plan, editor-free: cave side branches cutting pits through each other (2026-11-16)
+
+Read CaveBaking.cs (1805 lines, so the fix fits there or goes in a partial). The cause, at CutsMain (around line 278):
+- CutsMain tests a new branch's segments against `mainLinks` only (the main passage plus the main branches). A side branch that crosses an earlier side branch at another height is never checked, so the two capsules cut a pit or shelf into each other. Networks hit this most (three mains and many branches off branches).
+- Dead ends: the end node of a side branch is a chamber of radius chamber*0.45-0.7, while the branch's passage nodes are r*0.7-1.05. FloorDrop scales with radius, so with the same centre height the chamber's floor sits far below the passage floor before it. Side branches are not graded (only mains call Grade), so nothing eases that, which gives the 13-20 m drop into the end chamber.
+
+Plan:
+1. Turn CutsMain into a `Cuts(since, fromNode)` check against every segment laid before `since` in this cave (main and side alike), keeping the same floor/clearance rule (level within 1 m = a crossroads, which is fine; 1.5 m of rock between = fine). Skip the segments within two links of `fromNode`, so a branch is not tested against its own parent where it leaves it. Same retry: a new heading up to 4 times, then the branch is left out.
+2. Dead ends: set the end chamber's centre so its floor lands on the branch's planned floor (y = planned floor + FloorDrop(radius)), capped by the ceiling as now. If the rock is too thin there, shrink the chamber radius toward the passage radius rather than sink it. Then a light Grade pass on side branches at MaxGrade (0.6), not MainGrade, so steep side passages keep their character without ledges.
+3. A test in the cave suite: across the 24 test seeds, no two segments of one cave with floors more than 1 m apart and less than 1.5 m of rock between them, and no step over 3 m from a passage node to the next (shafts excluded).
+4. This moves cave layouts: re-pin the cave socket hash FCAA026F, the chest count and the landmark/fingerprint pins if they move, and tell the profiler.
+- Editor-free part done (this plan). The code and test start once the coordinator says the editor may open again.
