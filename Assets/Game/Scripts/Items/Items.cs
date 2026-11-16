@@ -80,6 +80,8 @@ namespace Punchy.Items
             new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
+        /// <summary>The fishing rod (P-41: in every player's start pack).</summary>
+        public static readonly byte Rod = (byte)System.Array.FindIndex(Items, d => d.Name == "Rod");
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>
@@ -169,6 +171,7 @@ namespace Punchy.Items
             Debug.Log("Items: table of " + ItemTable.Items.Length + ": " + string.Join(", ", names));
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
+            instance.StartPack();
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-pickup");
             if (at >= 0 && at + 1 < args.Length)
@@ -233,11 +236,13 @@ namespace Punchy.Items
                     added.Clear();
                     openedChests.Clear();
                     seededFor = default;
+                    rodsFor = default;
                 }
             }
             if (!TryTerrain(out var terrain))
                 return;
             RegisterChests();
+            LayRods(terrain);
             if (Hosting)
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())

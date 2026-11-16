@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Punchy.Fauna;
+using Punchy.Flora;
 using Punchy.Player;
 using Punchy.Terrain;
 using Unity.Collections;
@@ -820,6 +821,140 @@ namespace Punchy.Items
                     lineTris[n++] = a0; lineTris[n++] = b1; lineTris[n++] = a1;
                 }
             return lineTris;
+        }
+
+        // ------------------------------------------------------------------ rods to be had (P-41)
+
+        /// <summary>Seeded rods: one on the deck of most fishing villages' wharves (RodBase + the landmark's index) and one
+        /// by a hut door in some (RodBase + HutRods + the index). Laid by the host (or solo) as added items, so a joined
+        /// client is sent them like any drop, and laid once per world, so a taken one stays taken.</summary>
+        const int RodBase = 1_500_000, HutRods = 100_000;
+        BlobAssetReference<AnchorSetBlob> rodsFor;
+        int rodsLaid;
+
+        /// <summary>The start pack (P-41): every player begins with a rod in the inventory, an item like any other.</summary>
+        void StartPack() => slots[0] = (ItemTable.Rod, 1);
+
+        /// <summary>
+        /// Once per world, on the host or solo: a rod on the deck of two fishing villages' wharves in three (the Nets spot,
+        /// at the deck's height; WharfSpots, the spots the fishing folk use) and by a hut door in one in three, from the
+        /// landmark's Key, so the same villages get them every time. Waits for the wharf spots (FaunaDirector's build).
+        /// </summary>
+        void LayRods(in TerrainSource terrain)
+        {
+            if (Joined || rodsFor.Equals(terrain.Anchors) || !terrain.Landmarks.IsCreated)
+                return;
+            BlobAssetReference<FloraBlob> floraBlob = default;
+            BlobAssetReference<WharfSpotSet> wharfBlob = default;
+            foreach (var w in World.All)
+            {
+                if (!w.IsCreated)
+                    continue;
+                var q = Q(w.EntityManager, ComponentType.ReadOnly<FloraLookup>(), ComponentType.ReadOnly<WharfSpotLookup>());
+                if (q.TryGetSingleton<FloraLookup>(out var fl) && fl.Blob.IsCreated && q.TryGetSingleton<WharfSpotLookup>(out var wl) && wl.Blob.IsCreated)
+                {
+                    (floraBlob, wharfBlob) = (fl.Blob, wl.Blob);
+                    break;
+                }
+            }
+            if (!floraBlob.IsCreated)
+                return;
+            rodsFor = terrain.Anchors;
+            rodsLaid = 0;
+            ref var f = ref floraBlob.Value;
+            ref var spots = ref wharfBlob.Value;
+            ref var set = ref terrain.Landmarks.Value;
+            var villages = new Dictionary<int, uint>();
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                var inst = set.Instances[i];
+                if (inst.Type >= f.LandmarkTypeCount)
+                    continue;
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                if (!FindWharfDeck(ref f, ref spots, in terrain, in inst, radius, out var deck))
+                    continue;
+                var h = Scramble(inst.Key ^ 0x0D0C4u);
+                villages[i] = h;
+                if (h % 3 != 0)   // (two villages in three)
+                    LayRod(RodBase + i, deck);
+            }
+            // By a hut door: one village in three, the door picked from its doors by the same seed.
+            ref var anchors = ref terrain.Anchors.Value.Anchors;
+            var pick = new Dictionary<int, (int door, uint best)>();
+            for (int a = 0; a < anchors.Length; a++)
+            {
+                if (anchors[a].Kind != AnchorKind.Door || !LandmarkSampling.Find(ref set, anchors[a].Position.xz, out var hit) ||
+                    !villages.TryGetValue(hit.Instance, out var vh) || vh / 3 % 3 != 0)
+                    continue;
+                // (Not a stilt hut's door, up off the ground: the rod would lie under the floor.)
+                if (anchors[a].Position.y > terrain.SampleHeight(anchors[a].Position.xz) + 0.8f)
+                    continue;
+                var dh = Scramble(vh ^ (uint)a * 0x9E3779B9u);
+                if (!pick.TryGetValue(hit.Instance, out var was) || dh < was.best)
+                    pick[hit.Instance] = (a, dh);
+            }
+            foreach (var kv in pick)
+            {
+                var door = anchors[kv.Value.door];
+                var dh = kv.Value.best;
+                var angle = (dh & 0xFFFF) / 65535f * math.PI * 2f;
+                var xz = door.Position.xz + new float2(math.cos(angle), math.sin(angle)) * (2f + (dh >> 16 & 0xFF) / 255f * 2f);
+                LayRod(RodBase + HutRods + kv.Key, new float3(xz.x, terrain.SampleHeight(xz), xz.y));
+            }
+            Debug.Log($"Items: {rodsLaid} rods laid ({villages.Count} fishing villages with a wharf, {pick.Count} by hut doors)");
+        }
+
+        void LayRod(int uid, float3 pos)
+        {
+            if (world.ContainsKey(uid))
+                return;
+            Add(uid, ItemTable.Rod, 1, pos);
+            rodsLaid++;
+        }
+
+        /// <summary>A landmark's wharf (the village prop facing the water, as CreatureBrainSystem.Pier finds it) and where
+        /// on its deck a rod lies: its Nets spot, else its first spot, at the deck's height.</summary>
+        static bool FindWharfDeck(ref FloraBlob f, ref WharfSpotSet w, in TerrainSource terrain, in LandmarkInstance inst, float radius, out float3 deck)
+        {
+            deck = default;
+            for (int l = 0; l < 3; l++)
+            {
+                var placed = f.PropRanges[inst.Type * 3 + l];
+                for (int e = placed.x; e < placed.x + placed.y; e++)
+                {
+                    var prop = f.Props[e];
+                    if (prop.Count == 0 || f.Rules[prop.Species].PerVillage == 0 || f.Rules[prop.Species].FaceLandmark != 2)
+                        continue;
+                    var spot = LandmarkSampling.ToWorld(inst, LandmarkLayout.Spot(prop.Ring.x, prop.Angle), radius);
+                    var wharf = FloraPlacement.Place(ref f, terrain, (int2)math.floor(spot / f.CellSizes[l]), l);
+                    if (wharf.Model < 0 || wharf.Model >= w.ModelSpots.Length || w.ModelSpots[wharf.Model].y == 0)
+                        continue;
+                    var range = w.ModelSpots[wharf.Model];
+                    var k = range.x;
+                    for (int j = range.x; j < range.x + range.y; j++)
+                        if (w.Spots[j].Kind == WharfSpotKind.Nets)
+                        {
+                            k = j;
+                            break;
+                        }
+                    var at = w.Spots[k].At;
+                    var xz = WharfSpotSet.ToWorld(at, wharf.Position, wharf.Yaw, wharf.Scale);
+                    deck = new float3(xz.x, wharf.Position.y + WharfSpotSet.DeckHeight(at) * wharf.Scale, xz.y);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>math.hash on a uint doesn't mix its bits (nearby keys, nearby draws): a finaliser that does.</summary>
+        static uint Scramble(uint x)
+        {
+            x ^= x >> 16;
+            x *= 0x7FEB352Du;
+            x ^= x >> 15;
+            x *= 0x846CA68Bu;
+            x ^= x >> 16;
+            return x;
         }
     }
 }
