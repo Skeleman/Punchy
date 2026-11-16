@@ -1990,3 +1990,10 @@ Branch player/item-ids@6975ead4, off kit-wire. Written without an editor. It com
 - No timing done (snapshot bytes stay a BENCH-QUEUE note). No shot (log checks).
 - Risk: builds before this one still show the misleading "couldn't reach" text against a newer host.
 - Shares: NetMenu join notices, same pattern as catalog-check's WorldSync refusal notice (row 2); the two can merge together.
+
+## P-35 r3 row 5 (#26): ids from records - DONE (verified) 11-16
+- Branch player/item-ids@af5290e2 (full af5290e2fb29be4785e4f67fe1ad0ce08a41e30c): row 5 commit plus a merge of kit-wire@ca6283df (tree identical to the tested build). Contains rows 3-5; row 2 (catalog-check) is separate and can land with it.
+- Compile: 0 errors, no new warnings. EditMode 29/29 (incl. 3 WorldIdTests).
+- Solo (dev build, -goto 2950,-880 -enterdoor 13): 192 seeded door items, 5 rods, room stores with new ids (door 13 chest 623535570: Stick x2, Stone x2). -takeitem empties the slot and the Stone lands in the inventory. 0 "id clash", 0 exceptions.
+- Pair (port 7991): host and joiner register the same 5 stores with the same ids and contents; joiner take -> host "slot 1: empty (host, for a client)" -> joiner "empty (from the host)". 0 "id clash", 0 exceptions both sides.
+- Risk: room store contents and door starter items reshuffle once (layout-free). Shares: one id scheme (WorldIds) for seeded items, spares, rods and stores.
