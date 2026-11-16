@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-175 | #415 | world | ready (world part) | world/json-units f4ea850a | Supervisor: review + merge. Cookhouse JSON blueprint stands in the human village; new guard test; fauna fingerprint 2486F68F. Next for world: W-174 r6 collars, then fungi-cap brightness |
+| W-175 | #415 | world | merged #516 (world part) | - | Cookhouse blueprint in human villages; next for world: W-174 r6 collars, then fungi-cap brightness |
 | W-174 r6 | #405 | world | in progress (note approved) | - | Entrance collars (Zach 11-16): per entrance a collar mesh, outer ring = heightmap cut vertices at the chunk's LOD (1:1, one per LOD), inner ring = the piece's frame verts, ground faces between, terrain material + collision. Replaces Seam snap at mouths/temples; scarps may keep snap. Row 1: design note + one temple and one cave mouth, gap/lip 0 in Seams_NoOpenRims at every LOD |
 | A-135 | #405 | fauna (paused) | queued | - | Creatures respect the W-174 hole mask: CreatureMotion.cs (~306/362) and TraceSystem.cs (~300) use GroundHoles not MouthCut only; DungeonSpawner and FaunaDirector spawns reject GroundHoles.Removed ground (goblin in temple cut) |
 | W-174 | #406 | world | merged rows 1-5 (#440 #481 #503 #512 #515) | - | Tail: A-135 (fauna) |

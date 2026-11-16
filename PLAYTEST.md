@@ -205,3 +205,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-16: #513 R-40 (#511) soft wide shadows, one shadow per point at the URP hand-off (render).
 - 2026-11-16: #514 P-51 r2 (#337) walk-in elf towers with a climbable stair under -seamless (player-2). Playtest: enter an elf tower, climb to the top floor.
 - 2026-11-16: #515 W-174 r4b-5 (#405) one seam builder: no gaps round cave mouths, temple entrances and scarps (world). Playtest: walk the sunken temple's entrance and a cave mouth edge.
+- 2026-11-16: #516 W-175 (#415) a Cookhouse built from a JSON blueprint stands in human villages (world). Playtest: find it near 2957,-834.
