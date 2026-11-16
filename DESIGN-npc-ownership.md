@@ -34,3 +34,11 @@ pickups and inventory (#26) and folk talk (A-93, P-26) are on main.
 - Animal lane: households, going home to your own house, family lines, guards' reaction.
 - Player lane: item owner tags, pickup and theft check, the per-player record, UI hints (red hand on owned items).
 - World lane: only if houses need a stable id or bed and room anchors per occupant.
+
+## As built (A-134 row 3, 11-16)
+- A take from house storage is seen if one of the household is home or a guard on its rounds is within 12 m of the
+  door, facing it, with no wall between. A seen theft sends the nearest guard (40 m) to the door, where it says a line;
+  the first of the household the thief meets says one too.
+- The household holds it against that player for **`Thefts.FadeDays` = 3 days**: no favours ("wronged" lines) until
+  it fades. The record is per player, saved in that machine's quest save; the host decides and tells everyone.
+- Not yet: paying or returning the item, trust or mood, marking stolen items in the bag (P-35).
