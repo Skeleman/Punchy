@@ -274,7 +274,7 @@ namespace Punchy.Net
             {
                 if (address.Trim() == lanAddress)
                     Notify("That's this PC's own address. Type the address shown on the host's Multiplayer tab.", 6f);
-                else if (!NetworkEndpoint.TryParse(address.Trim(), GameBootstrap.Port, out var endpoint))
+                else if (!GameBootstrap.TryParseAddress(address, out var endpoint))
                     Notify($"\"{address.Trim()}\" isn't an IP address (it looks like 192.168.1.20).", 6f);
                 else
                 {
