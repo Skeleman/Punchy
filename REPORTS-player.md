@@ -1494,3 +1494,25 @@ Results:
   - P-33 row 4 waits for Zach's feel comments;
   - P-35 row 1 design is up (section above), waiting on Zach's answers;
   - P-34 waits for A-102 row 3.
+
+## P-41 (#266) fishing to main: done (verified) - supervisor agent in Punchy-player
+
+- **Branch:** player/fishing@461f138c (origin/main merged in at 87dfb8d5, compiles clean). Ready for PR.
+- **Rods:** every player starts with a Rod in slot 0. The host or solo player lays seeded rods at fishing village wharf
+  decks (2 in 3 villages) and by one hut door in some villages: 4 rods on main's island (3 docks, 1 hut), uids
+  1500000+/1600000+. Only world data is read; no world-owned files edited.
+- **Verified in a build:**
+  - solo (Elf body, beach): cast, bite, hooked an old boot (thrown back), second cast hooked and caught a sea bream;
+  - host plus `-join 127.0.0.1` client: the client received all 4 rods from the host, both players cast and caught
+    (host sea bream, client mackerel; host tally 1); 0 exceptions, 0 deserialize errors in either log;
+  - a dock rod picked up solo (`-pickup 1`, item 1500107, 2 m away).
+- **Shots:** D:/Unity/PunchyMilestones/P-41/ - p41-cast-01 (line in), p41-fish-08 (catch), contact-sheet.jpg for the
+  run, p41-rod-dock-02 (the village 2 wharf; the rod sits small near frame centre).
+- **Not run:** the play-mode suite; free RAM stayed under 6 GB (3-5 GB) with the editor closed. Supervisor or the
+  next lane run should run it before merge.
+- **Known:** saved PlayerPrefs body (Osprey here) can't hold gear, so `-equip Rod` test runs need `-body Elf` or
+  another armed upright body. Client `-goto` is overridden by the join spawn.
+- **P-38 take-items:** merge of main aborted. main's new fauna gear conflicts with the kit system in fauna files.
+  Rule 11 ask: (a) I port main's fauna gear into the kits (deep fauna edits), (b) land take-items with folk kits
+  drawn for players only, or (c) the fauna lane ports it.
+- **Shares:** extends the one Items world-item path (Add/ItemSpawnRpc) and the Pier wharf lookup pattern; no new system.

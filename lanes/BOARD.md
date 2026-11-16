@@ -27,11 +27,11 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
 | R-34 r2 | #332 | render | ready for PR | render/stone-trial 550ba9e0 | Verified; BENCH main vs branch asked; squash merge |
 | R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance |
-| P-38 | #372 | player | ready | player/take-items 487dd137 | Merge main in, hand off, supervisor PRs |
-| P-33 | #266 | player | blocked | player/fishing ef77443b | Fishing playtest build; row 4 waits on Zach's feel notes |
+| P-38 | #372 | player | blocked | player/take-items 487dd137 | main merge aborted (fauna gear vs kits); rule 11 ask a/b/c in REPORTS-player |
+| P-33 | #266 | player | blocked | player/fishing 461f138c | Fishing ready for PR via P-41; row 4 waits on Zach's feel notes |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
 | P-39 | #397 #398 | player | next | - | Menus d-pad/stick, Start/Select, facing prompts |
 | P-40 | #396 | player-2 (supervisor agent) | active | player/dismount (tree Punchy-docs) | Dismount on size change, jump off |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
-| P-41 | #266 | player (supervisor agent) | active | player/take-items 487dd137, player/fishing ef77443b | Land take-items then fishing on main; rods in start pack and at docks |
+| P-41 | #266 | player (supervisor agent) | done | player/fishing 461f138c | Ready for PR (suite not run: RAM); take-items waits on rule 11 ask |
