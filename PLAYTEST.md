@@ -168,3 +168,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #469 M-06 r5 (#414 closed): Model Lab builds blueprint buildings from shared parts and saves them (example: cookhouse); editor only, no change in play.
 - 11-16: #470 #24 phase 2 r1: dungeon spawns design note (docs only); r2 near-player dungeon creatures next.
 - 11-16: #471 W-166 r3 tail (#336): terrain includes the library stone directly; no look change.
+- 11-16: #472 P-46 (#24): temple torches no longer in low halls, clutter kept off chest spots; temple socket hash re-pinned 2D2BFAEB.
