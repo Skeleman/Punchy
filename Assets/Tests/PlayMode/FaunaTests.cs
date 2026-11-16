@@ -28,6 +28,8 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        const string BuiltIns = "PIN ";
+        // Built-in count and name hash in index order, pinned 2026-11-15 before any Lab species existed. A new built-in
+        // species moves this on purpose (re-pin); a Lab species never should.
+        const string BuiltIns = "124 3B1B2423 ";
     }
 }
