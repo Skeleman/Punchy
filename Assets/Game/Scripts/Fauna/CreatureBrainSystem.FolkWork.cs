@@ -947,23 +947,64 @@ namespace Punchy.Fauna
                         s.Target = door;
                         targetSpeed = walk;
                         moving = true;
+                        // (A-110 row 4: going round what stopped it, the spot Steer set, before making for the door again.)
+                        if (M.FollowHolder == 0 && M.FollowDetourTime > 0f)
+                        {
+                            M.FollowDetourTime -= dt;
+                            s.Target = M.FollowDetour;
+                            if (math.distance(s.Position.xz, M.FollowDetour) < 0.6f)
+                                M.FollowDetourTime = 0f;
+                        }
                         // (A-105: the walk home to its own house can be a long one, in from the fields, a pier or the mine.)
-                        if (math.distance(s.Position.xz, door) < 0.4f)
+                        var toDoor = math.distance(s.Position.xz, door);
+                        if (toDoor < 0.4f)
+                        {
+                            s.Target = door;
                             NextStage(ref s);
+                        }
+                        // (A-110 row 4: held up a few metres short of it, against a wall corner or a porch post, standing
+                        // or going round in circles, long after it should have got there: it steps through from there,
+                        // fading as it goes, not stuck in sight of its own door. Target keeps where it stepped from.)
+                        else if (toDoor < 8f && s.ModeTime > 12f + 2f * toDoor / math.max(walk, 0.3f) &&
+                                 (s.Speed < 0.15f || s.ModeTime > 60f))
+                        {
+                            s.Target = s.Position.xz;
+                            NextStage(ref s);
+                        }
                         else if (s.ModeTime > (HasOwnDoor(s) ? 240f : 60f))
                             Pause(ref s, ref b, ref rng);
+                        // (A-110 row 7b: held far from its door. Steer gives upright folk no wall block, so its detour
+                        // never fires, and the wall slide can pin it in a building's inner corner, pulled to the door and
+                        // slid back, for a game hour. It backs off sideways a few metres, the side flipping every ten
+                        // seconds, then makes for the door again from there. // sim: metres of walking room)
+                        else if (toDoor > 8f && s.Speed < 0.2f && s.ModeTime > 5f && M.FollowHolder == 0 && M.FollowDetourTime <= 0f)
+                        {
+                            var toward = (door - s.Position.xz) / toDoor;
+                            var side = ((uint)(s.ModeTime / 10f) + s.Individual) % 2u == 0u ? 1f : -1f;
+                            var way = math.normalize(new float2(-toward.y, toward.x) * side - toward * 0.6f);
+                            M.FollowDetour = s.Position.xz + way * (2.5f * s.Scale + 2.5f);
+                            M.FollowDetourTime = 3f;
+                        }
                         break;
                     case 1:
+                    {
                         custom = true;
-                        s.Yaw = WrapAngle(s.AnchorYaw + math.PI);
+                        // (From where it stepped off, the doorstep or a few metres short: the longer way takes longer.)
+                        var from = s.Target;
+                        var span = math.max(through, math.distance(from, door) / 1.2f);
+                        var t = math.saturate(s.StageTime / span);
+                        var at = math.lerp(from, door - outward * 0.7f, t);
+                        var heading = door - outward * 0.7f - from;
+                        s.Yaw = math.lengthsq(heading) > 0.25f ? math.atan2(heading.x, heading.y) : WrapAngle(s.AnchorYaw + math.PI);
                         s.Speed = 0.6f;
-                        s.Position.xz = door - outward * (0.7f * math.saturate(s.StageTime / through));
+                        s.Position.xz = at;
                         s.Position.y = Terrain.SampleHeight(s.Position.xz);
-                        s.ActionTime = math.saturate(s.StageTime / through);
+                        s.ActionTime = t;
                         CreatureMotion.AdvancePhase(ref s, ref b, dt);
-                        if (s.StageTime >= through)
+                        if (s.StageTime >= span)
                             NextStage(ref s);
                         break;
+                    }
                     case 2:
                         custom = true;
                         s.Speed = 0f;
@@ -1128,6 +1169,54 @@ namespace Punchy.Fauna
 
             /// <summary>Where the player with this Holder id is, and which way they face (false if they've gone).</summary>
             bool FindHolder(int holder, out float3 position, out float yaw) => FindHolder(holder, out position, out yaw, out _);
+
+            /// <summary>
+            /// A-120: as below, and one of the folk too (a negative Holder, Interactions.FolkHolder), looked for in the
+            /// grid cells round `near` (the animal's own place: its folk is beside it). A folk carrier's species is -1, so
+            /// Hands falls back to the human's hold.
+            /// </summary>
+            bool FindHolder(int holder, float2 near, out float3 position, out float yaw, out int species)
+            {
+                if (!Interactions.ByFolk(holder))
+                    return FindHolder(holder, out position, out yaw, out species);
+                species = -1;
+                if (FindFolkHolder(holder, near, out var j))
+                {
+                    position = States[j].Position;
+                    yaw = States[j].Yaw;
+                    return true;
+                }
+                position = default;
+                yaw = 0f;
+                return false;
+            }
+
+            /// <summary>A-120: the snapshot index of the folk with this Holder key near a place (false if none).</summary>
+            bool FindFolkHolder(int holder, float2 near, out int index)
+            {
+                var c = Cell(near);
+                for (int z = -1; z <= 1; z++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    if (!Grid.TryGetFirstValue(c + new int2(x, z), out var j, out var it))
+                        continue;
+                    do
+                    {
+                        var e = Entities[j];
+                        if (Interactions.FolkHolder(e, Ghosts.HasComponent(e) ? Ghosts[e].ghostId : 0) == holder && !States[j].Gone)
+                        {
+                            index = j;
+                            return true;
+                        }
+                    }
+                    while (Grid.TryGetNextValue(out j, ref it));
+                }
+                index = -1;
+                return false;
+            }
+
+            /// <summary>A-120: this folk's own Holder key, for an animal it pets or carries.</summary>
+            int FolkKey(Entity self) => Interactions.FolkHolder(self, Ghosts.HasComponent(self) ? Ghosts[self].ghostId : 0);
 
             bool FindHolder(int holder, out float3 position, out float yaw, out int species)
             {

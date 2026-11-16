@@ -95,6 +95,7 @@ namespace Punchy.Fauna
                         Settle(ref st, PinHut(home.OwnerIndex, home.Position.xz));
                     }
                     em.SetComponentData(e, st);
+                    ApplyBuild(em, e, false); // (A-124: the hut's Individual now, so its build.)
                     hermits[i] = e;
                     settledCount++;
                 }
@@ -311,10 +312,15 @@ namespace Punchy.Fauna
                 var nextPost = 0;
                 jobCounts.Clear();
                 var stayFree = 0;
+                var membersTown = TownOfMembers(source, i);
                 foreach (var r in landmarks[inst.Type].Residents)
                 {
                     var index = SpeciesIndex(r.Species);
                     if (index < 0)
+                        continue;
+                    // (A-110 row 3: a town's housed folk are its household members, each spawned as itself by
+                    // SpawnMembers; its rows no longer draw any. Its pens and other animals keep their rows.)
+                    if (membersTown && HousedFolk(index, out _))
                         continue;
                     var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
                     // Residents with a leash live round their own home spot (a pen); workers at their post (and stay near
@@ -391,6 +397,7 @@ namespace Punchy.Fauna
                     }
                 }
                 SpawnStableHorses(source, i);   // (A-117: after the residents, so none of their draws move)
+                SpawnHouseholdPets(source, i);  // (A-120 row 1: the same, from each house's key)
                 if (jobCounts.Count > 0 || stayFree > 0)
                 {
                     var line = new System.Text.StringBuilder();

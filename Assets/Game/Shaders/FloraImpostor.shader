@@ -121,6 +121,7 @@ Shader "Punchy/FloraImpostor"
             #include "Flora.hlsl"
             #include "Grounding.hlsl"
             #include "Glow.hlsl"
+            #define PUNCHY_SURFACE_GLOW_WORLD
             #define PUNCHY_SURFACE_LANTERN
             #include "Surface.hlsl"
             #define FLORA_IMPOSTOR_DRAW
@@ -170,6 +171,7 @@ Shader "Punchy/FloraImpostor"
                 ps.wideNormalWS = half3(0, 1, 0);
                 ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
                 ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
+                ps.glowWorldReach = 1 - _FloraInCave;
                 PunchyLit lit = PunchySurfaceLight(ps);
                 Light light = lit.sun;
                 half shadow = lit.shadow;

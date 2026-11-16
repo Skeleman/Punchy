@@ -46,6 +46,8 @@ namespace Punchy.Net
         public byte Eyewear;
         /// <summary>A-104 row 3: the ghost id of what the owner rides (a creature or another player), 0 when not.</summary>
         public int Mount;
+        /// <summary>A-124: the owner's build (BodyBuilds.Player: which build, and a height step).</summary>
+        public byte Build;
     }
 
     /// <summary>What other players need to draw this one's body: replicated from the owner via the server.</summary>
@@ -71,6 +73,9 @@ namespace Punchy.Net
         /// that ghost (PlayerRideSystem) and leave it on its own pose when the id doesn't resolve.
         /// </summary>
         [GhostField] public int Mount;
+        /// <summary>A-124: its build and height (BodyBuilds.Player), picked on the owner's Character tab; others draw the
+        /// same body. (A new field: builds from before it can't join.)</summary>
+        [GhostField] public byte Build;
     }
 
     /// <summary>Client singleton: the local player's species in the playable table (set by NetAvatars).</summary>
@@ -79,6 +84,8 @@ namespace Punchy.Net
         public int Index;
         /// <summary>A-103 row 5: what the local player has over their eyes (an Eyewear value), sent on the command.</summary>
         public byte Eyewear;
+        /// <summary>A-124: the local player's build (BodyBuilds.Player), sent on the command.</summary>
+        public byte Build;
     }
 
     /// <summary>Points at the NetPlayer ghost prefab; baked into the world subscene.</summary>
@@ -219,6 +226,7 @@ namespace Punchy.Net
                     command.Species = species.Index;
                     command.Individual = avatar.ValueRO.Individual;
                     command.Coat = body.ValueRO.Coat;
+                    command.Build = species.Build;
                 }
             // What we're doing with an animal, if anything: a new request goes to the server as an RPC (once); the
             // pose rides on the command.
@@ -273,7 +281,7 @@ namespace Punchy.Net
                 var mount = MountFor(c.Mount, self, live, asked, rode);
                 transform.ValueRW.Position = c.Position;
                 transform.ValueRW.Rotation = quaternion.RotateY(c.Yaw);
-                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose, BreathUsed = c.BreathUsed, Eyewear = c.Eyewear, Mount = mount };
+                look.ValueRW = new NetPlayerLook { Species = c.Species, Individual = c.Individual, Coat = c.Coat, Grounded = c.Grounded, Climbing = c.Climbing, Rim = c.Rim, Pose = c.Pose, BreathUsed = c.BreathUsed, Eyewear = c.Eyewear, Mount = mount, Build = c.Build };
             }
         }
 

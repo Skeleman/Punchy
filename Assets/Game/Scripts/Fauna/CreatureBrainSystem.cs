@@ -71,7 +71,7 @@ namespace Punchy.Fauna
         public static readonly Unity.Burst.SharedStatic<SearchCounts> Searches = Unity.Burst.SharedStatic<SearchCounts>.GetOrCreate<SearchCountsKey2>();
         // (Key renamed when the struct grew in A-47: a SharedStatic keeps its first size until the editor restarts.)
         struct SearchCountsKey2 { }
-        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips; }
+        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips, Legs; }
         /// <summary>
         /// A-72: the walking colossi (<see cref="ColossusWalker"/>), one column each: (x, z, radius m, heading radians);
         /// radius 0 is an empty column. Creatures inside a circle get out of the way (A-72 row 2).
@@ -439,6 +439,7 @@ namespace Punchy.Fauna
                 Bodies = bodies,
                 Lookup = lookup,
                 Grid = grid,
+                Ghosts = SystemAPI.GetComponentLookup<Unity.NetCode.GhostInstance>(true),
                 Hunters = hunters.AsArray(),
                 Thinking = thinking,
                 StateRW = SystemAPI.GetComponentLookup<CreatureState>(false),
@@ -548,6 +549,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
             [ReadOnly] public NativeHashMap<Entity, int> Lookup;
             [ReadOnly] public NativeParallelMultiHashMap<int2, int> Grid;
+            /// <summary>A-120: ghost ids (a server's creatures), for the Holder key of one of the folk petting or carrying.</summary>
+            [ReadOnly] public ComponentLookup<Unity.NetCode.GhostInstance> Ghosts;
             /// <summary>Snapshot indices of the hunters out after game now (FolkHunting stages).</summary>
             [ReadOnly] public NativeArray<int> Hunters;
 
@@ -581,6 +584,9 @@ namespace Punchy.Fauna
                 using var ticked = TickMarker.Auto();
                 // A-104: a rider has no mind of its own while it rides; RideSystem puts it on its mount.
                 if (s.Mode == CreatureMode.Ride)
+                    return;
+                // A-110 row 5: a town member far from every player only follows its day (Legs) until something wakes it.
+                if (M.Legs != 0 && Legs(self, ref s, in body))
                     return;
                 // #59 brain LOD: far from every player it thinks only on its turn, for the time since its last think; on
                 // the frames between, anything moving coasts along its heading (taken back before it next thinks, so the
@@ -680,7 +686,7 @@ namespace Punchy.Fauna
                     return;
                 }
                 var g = Terrain.SampleGround(s.Position.xz);
-                var head = Breath.Head(s, ref b);
+                var head = Breath.Head(s, ref b, g.WaterSurface - g.Height);
                 var water = g.HasWater && g.WaterSurface > g.Height && head > g.Height - 0.5f;
                 // First where it may be (the think doesn't know its breath, so a walker is back on the bottom each
                 // tick), then whether that puts its head under. (Where it is when its head is just out: surfaced.)
@@ -738,7 +744,9 @@ namespace Punchy.Fauna
                 s.Clock += dt;
                 if (s.Mode == CreatureMode.Puppet)
                 {
-                    Advance(ref s, ref b, dt);
+                    // (An animal a player rides and steers, Holder naming the player: placed by SteeredMountSystem, A-126 row 4.)
+                    if (s.Holder <= 0)
+                        Advance(ref s, ref b, dt);
                     return;
                 }
                 // A sand or snow worm lives its own life under the ground, heeding nothing.
@@ -1343,6 +1351,17 @@ namespace Punchy.Fauna
                     desiredLook = 0f;
                     return;
                 }
+                // A-120 rows 2-3: going over to an animal, petting it, shooing it off, or fetching it to carry (Petting.cs).
+                if (s.Stage >= CreatureAnimator.PetGo && s.Stage <= CreatureAnimator.PetFetch)
+                {
+                    if (Petting(self, ref s, ref b, ref rng, dt))
+                    {
+                        targetSpeed = walk;
+                        moving = true;
+                    }
+                    desiredLook = 0f;
+                    return;
+                }
                 if (s.Stage >= MessageWait)
                 {
                     Receiving(ref s, ref b, ref rng, dt);
@@ -1352,7 +1371,7 @@ namespace Punchy.Fauna
                 if (s.Action == IdleAction.None)
                     s.Timer -= dt;
                 desiredLook = idleLook;
-                if (s.Timer <= 0f)
+                if (s.Timer <= 0f && !NoticePlayerAnimal(ref s, ref b, ref rng))
                     Decide(self, ref s, ref b, species, ref rng, perched, player);
             }
 
@@ -1784,7 +1803,9 @@ namespace Punchy.Fauna
                 {
                     s.Speed *= 0.5f;
                     // (A-88 row 1: one following a player veers too, for a moment, rather than crawl into it.)
-                    var following = M.FollowHolder != 0 && M.FollowDetourTime <= 0f;
+                    // (A-110 row 4: so does one walking to its door, which stood against a wall or a bank before, far
+                    // out of its town, till its brain gave the door up: GoIndoors keeps to the spot as Follow does.)
+                    var following = (M.FollowHolder != 0 || s.Mode == CreatureMode.Home && s.Stage == 0) && M.FollowDetourTime <= 0f;
                     if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1 || following)
                     {
                         // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its

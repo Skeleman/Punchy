@@ -10,8 +10,10 @@ namespace Punchy.Fauna
     /// machine gets the same answer with nothing sent or stored. It does not read who has died or who is out in the world
     /// as a real folk, since those differ from machine to machine. Dusk and dawn are fixed hours here; whatever draws the
     /// sign (R-25: panes, impostor glow, chimney smoke) may also gate the lamp by the sun.
-    /// The family's hours follow FarFolk.Day, so a house goes dark-hearthed as its far figures walk out and lights as
-    /// they come back.
+    /// Where the house's town has a plan (A-110 row 2), who is in and when the workers leave and come back are read
+    /// from Whereabouts, so a house goes dark-hearthed as its people walk out and lights as they come back; the other
+    /// home kinds (igloos, domes, huts with no plan) keep the fixed hours by role (Hours). Once the town's list of the
+    /// dead exists (A-110 row 6), the dead are to be left out of the count here: not built yet.
     /// </summary>
     public readonly struct HomeSign
     {
@@ -34,8 +36,8 @@ namespace Punchy.Fauna
         /// <summary>How long a fire or a lamp takes to come up or die down (hours).</summary>
         const float Ramp = 0.25f;
 
-        /// <summary>When a member goes out and when it is back in (hours), by its role: FarFolk.Day's hours (an elder
-        /// keeps to the house and its door, so it counts as in all day).</summary>
+        /// <summary>When a member goes out and when it is back in (hours), by its role, for a house whose town has no
+        /// plan (an elder keeps to the house and its door, so it counts as in all day).</summary>
         public static void Hours(in Kinsfolk member, out float leave, out float back)
         {
             var u = FarFolk.Hash01(member.Individual, 11);
@@ -80,7 +82,14 @@ namespace Punchy.Fauna
             hour = math.clamp(hour, 0f, 24f);
             int home = 0, adultsHome = 0;
             float firstOut = 24f, firstBack = 24f;
-            foreach (var member in house.Members)
+            if (Whereabouts.Towns.TryGetValue(house.Landmark, out var town) && town.LocalOf.TryGetValue(house, out var local))
+            {
+                home = Whereabouts.InHouse(town, local, day, hour, out adultsHome);
+                // (Before the folk day turns neither fire reads these: the day asked for would be yesterday's.)
+                if (hour >= Whereabouts.Turn)
+                    Whereabouts.WorkHours(town, local, day, out firstOut, out firstBack);
+            }
+            else foreach (var member in house.Members)
             {
                 Hours(member, out var leave, out var back);
                 var isIn = hour < leave || hour >= back;

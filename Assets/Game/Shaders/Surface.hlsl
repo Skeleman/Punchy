@@ -12,6 +12,8 @@
 // - PUNCHY_SURFACE_GLOW_WORLD: the far glow map too (PunchyGlowWorld), not only the 16 near glow lights.
 // - PUNCHY_SURFACE_LANTERN: the player's lantern as a soft diffuse term in lit.lantern. The shader declares
 //   _PunchyLantern and _PunchyLanternColor itself (Flora.hlsl, Water.shader); without the flag lit.lantern is 0.
+// - PUNCHY_SURFACE_REAL_LIGHTS: real lights (PunchyRealLights, the glow's falloff) in lit.lights; the shader sets
+//   s.positionCS. Under Forward+ the lantern is one of them, so lit.lantern stays 0 there.
 //
 // Needs URP's Lighting.hlsl, Sky.hlsl, WideShadow.hlsl and Glow.hlsl included first.
 
@@ -24,6 +26,8 @@ struct PunchySurface
     half3 wideNormalWS;        // the normal the wide map's bias uses: terrain its own, plants straight up
     half sunReach;             // how much of the sun gets here: 1 outside, 0 for cave plants and underground
     half skyReach;             // how much of the sky's ambient gets here: 1 outside, a little in caves
+    half glowWorldReach;       // how much of the far glow map: 1, plants 0 in caves (0 skips the lookup)
+    float4 positionCS;         // the clip position, for real lights' Forward+ clusters (PUNCHY_SURFACE_REAL_LIGHTS)
 };
 
 /// The light terms at that point, shared by every surface.
@@ -35,7 +39,8 @@ struct PunchyLit
     half shadow;        // the one tier blend: min(real-time, 1 - wide) x (1 - cloud) x sunReach
     half3 ambient;      // the sky's ambient x skyReach
     half3 glow;         // glow lights (and the far glow map under PUNCHY_SURFACE_GLOW_WORLD)
-    half3 lantern;      // the lantern's soft diffuse light (PUNCHY_SURFACE_LANTERN), else 0
+    half3 lantern;      // the lantern's soft diffuse light (PUNCHY_SURFACE_LANTERN, not under Forward+), else 0
+    half3 lights;       // real lights (PUNCHY_SURFACE_REAL_LIGHTS), else 0
 };
 
 /// A surface's defaults: shadows looked up where it is, the wide map biased along its normal, sun and sky in full.
@@ -48,6 +53,8 @@ PunchySurface PunchySurfaceAt(float3 positionWS, half3 normalWS)
     s.wideNormalWS = normalWS;
     s.sunReach = 1;
     s.skyReach = 1;
+    s.glowWorldReach = 1;
+    s.positionCS = 0;
     return s;
 }
 
@@ -66,13 +73,17 @@ PunchyLit PunchySurfaceLight(PunchySurface s)
     lit.shadow = PunchyShadowTiers(lit.sun.shadowAttenuation, lit.wide) * (1 - lit.cloud);
     lit.shadow *= s.sunReach;
     lit.ambient = SampleSH(s.normalWS) * s.skyReach;
-    #ifdef PUNCHY_SURFACE_GLOW_WORLD
-    lit.glow = PunchyGlowLight(s.positionWS, s.normalWS) + PunchyGlowWorld(s.positionWS, s.normalWS);
-    #else
     lit.glow = PunchyGlowLight(s.positionWS, s.normalWS);
+    #ifdef PUNCHY_SURFACE_GLOW_WORLD
+    [branch] if (s.glowWorldReach > 0)
+        lit.glow += PunchyGlowWorld(s.positionWS, s.normalWS) * s.glowWorldReach;
+    #endif
+    lit.lights = 0;
+    #ifdef PUNCHY_SURFACE_REAL_LIGHTS
+    lit.lights = PunchyRealLights(s.positionWS, s.normalWS, s.positionCS);
     #endif
     lit.lantern = 0;
-    #ifdef PUNCHY_SURFACE_LANTERN
+    #if defined(PUNCHY_SURFACE_LANTERN) && !(defined(PUNCHY_SURFACE_REAL_LIGHTS) && PUNCHY_REAL_LIGHTS)
     if (_PunchyLantern.w > 0)
     {
         float3 toLantern = _PunchyLantern.xyz - s.positionWS;
