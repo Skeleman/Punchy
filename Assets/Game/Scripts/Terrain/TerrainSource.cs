@@ -103,6 +103,9 @@ namespace Punchy.Terrain
         public BlobAssetReference<HeightmapBlob> Heightmap;
         /// <summary>Generator version 2 only: metres added to the biome shape heights (ridges between realms, the lake bowl).</summary>
         public BlobAssetReference<HeightmapBlob> Island;
+        /// <summary>M-07 r2b (#260): the map editor's painted height offsets, added to the base height before every place
+        /// is laid out (unset with no edits file: the bake is then byte-identical).</summary>
+        public BlobAssetReference<PaintedEditsBlob> Edits;
 
         public BiomeSourceKind BiomeKind;
         public BiomeNoiseSettings BiomeNoise;
@@ -401,6 +404,9 @@ namespace Punchy.Terrain
             }
             if (Island.IsCreated)
                 height += Island.Value.Sample(xz);
+            // M-07 r2b: painted edits go into the base height, so rivers, places, roads, ponds and scarps fit them.
+            if (Edits.IsCreated)
+                height += PaintedEditsBlob.Sample(ref Edits.Value, xz);
             return World.SeaLevel + height;
         }
 
@@ -728,7 +734,7 @@ namespace Punchy.Terrain
             if (Archipelago.IsCreated)
                 h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
             if (Rivers.IsCreated)
-                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h);
+                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h, xz);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
@@ -812,7 +818,7 @@ namespace Punchy.Terrain
                 var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
-                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
+                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height, xz);
                 g.River = RiverSampling.ChannelMask(river);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
@@ -1455,7 +1461,7 @@ namespace Punchy.Terrain
         }
 
         public bool Equals(TerrainSource o) =>
-            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
+            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island && Edits == o.Edits &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
             RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && V3Ground == o.V3Ground;
     }
