@@ -81,11 +81,13 @@ namespace Punchy.Terrain
     /// or an empty mesh when the chunk is dry.
     /// </summary>
     [BurstCompile]
-    struct BuildChunkMeshJob : IJobParallelFor
+    partial struct BuildChunkMeshJob : IJobParallelFor
     {
         [NativeDisableParallelForRestriction] public Mesh.MeshDataArray Meshes;
         [ReadOnly] public NativeArray<ChunkBuildRequest> Requests;
         [ReadOnly] public NativeArray<VertexAttributeDescriptor> WaterLayout;
+        /// <summary>W-174 r6: TerrainVertex.Layout, for a chunk whose temple collar changes its vertex count (unset: no collars).</summary>
+        [ReadOnly] public NativeArray<VertexAttributeDescriptor> TerrainLayout;
         public TerrainSource Source;
         public float ChunkSize;
         public float NormalEpsilon;
@@ -121,6 +123,14 @@ namespace Punchy.Terrain
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
             var glows = new NativeArray<float2>(v * v, Allocator.Temp);
             var pooled = new NativeArray<bool>(v * v, Allocator.Temp);
+            // W-174 r6: the sunken temple's entrance cut per vertex (and where each vertex lies), for its collar.
+            var templeLod = request.Lod <= TempleMaxLod && Source.Landmarks.IsCreated && TerrainLayout.IsCreated;
+            var templeCut = new NativeArray<float>(templeLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var worlds = new NativeArray<float2>(templeLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var collared = false;
+            var corners = new NativeList<float2>(16, Allocator.Temp);
+            if (templeLod)
+                TempleCorners(request.Origin, step, ref corners);
             // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
             // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
             // W-136: darkening where trunks, rocks, walls and props meet the ground, multiplied into the albedo.
@@ -147,11 +157,31 @@ namespace Punchy.Terrain
                 // near a rim moves onto it, so the per-pixel cut's edge runs through vertices on the rim (exact corners and
                 // noisy mouth rims, no slot beside a temple wall) instead of between grid points.
                 world = Seam(world, h, step, request.Lod, out var cave, out var strip, out var stripY);
+                // W-174 r6: the vertex nearest a corner of the temple's entrance takes it, so the rim turns on a vertex.
+                if (templeLod && world.Equals(grid) && SnapCorner(corners, grid, step, out var corner))
+                    world = corner;
                 if (!world.Equals(grid))
                 {
                     local = world - request.Origin;
                     ground = Source.SampleGround(world);
                     h = ground.Height;
+                }
+                // W-174 r6: the temple's cut is not snapped to; its triangles are split on the rim (Collars). It still goes
+                // into the vertex's cut, so a triangle Collars can't split is clipped per pixel as before.
+                if (templeLod)
+                {
+                    var tc = Source.TempleCut(world);
+                    templeCut[z * v + x] = tc;
+                    worlds[z * v + x] = world;
+                    collared |= tc < 0f;
+                    if (math.abs(tc) < RimOn)
+                    {
+                        tc = 0f;
+                        cave = math.min(cave, SeamEpsilon);
+                    }
+                    else
+                        cave = math.min(cave, tc);
+                    templeCut[z * v + x] = tc;
                 }
                 // Fixed-scale normals keep lighting identical across LODs, so LOD switches don't flicker.
                 var normal = Source.SampleNormal(world, NormalEpsilon);
@@ -263,6 +293,12 @@ namespace Punchy.Terrain
                 indices[t++] = a; indices[t++] = sa; indices[t++] = b;
                 indices[t++] = b; indices[t++] = sa; indices[t++] = sb;
             }
+
+            if (collared)
+                Collars(ref mesh, verts, worlds, templeCut, request, step, depth, ref minY, ref maxY);
+            templeCut.Dispose();
+            corners.Dispose();
+            worlds.Dispose();
 
             HeightRanges[index] = new float2(minY - depth, maxY);
             WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step, request.Origin);
@@ -601,11 +637,17 @@ namespace Punchy.Terrain
         /// </summary>
         public float Cut(float2 xz, float h, float step, bool cutHoles, int lod, out float strip, out float stripY)
         {
-            var cave = cutHoles ? MouthCut(xz, h, step) : 100f;
-            // W-56: the temple's entrance cut. W-174: exact now (it was widened a step, which left a slot beside the
-            // walls where the coping didn't reach); the seam builder puts the terrain's edge on the walls' line.
-            if (lod <= 1 && Source.Landmarks.IsCreated)
+            var cave = SeamCut(xz, h, step, cutHoles, lod, out strip, out stripY);
+            // W-56: the temple's entrance cut (exact; W-174 r6: to LOD2, with the triangles split on its rim by Collars).
+            if (lod <= TempleMaxLod && Source.Landmarks.IsCreated)
                 cave = math.min(cave, Source.TempleCut(xz));
+            return cave;
+        }
+
+        /// <summary>Cut without the temple (W-174 r6: Collars splits the triangles on its rim, so Seam leaves it alone).</summary>
+        float SeamCut(float2 xz, float h, float step, bool cutHoles, int lod, out float strip, out float stripY)
+        {
+            var cave = cutHoles ? MouthCut(xz, h, step) : 100f;
             strip = 100f;
             stripY = 0f;
             if (lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, xz, step, h, out var s, out var sy))
@@ -628,12 +670,12 @@ namespace Punchy.Terrain
         public float2 Seam(float2 grid, float h, float step, int lod, out float cave, out float strip, out float stripY)
         {
             var cutHoles = lod <= 1 && Source.Caves.IsCreated;
-            cave = Cut(grid, h, step, cutHoles, lod, out strip, out stripY);
+            cave = SeamCut(grid, h, step, cutHoles, lod, out strip, out stripY);
             if (!(cave > 0f && cave < 1.3f * step) || !SeamSnap(grid, cave, step, cutHoles, lod, out var rim))
                 return grid;
             // One Newton step lands on the rim of a straight edge or a smooth field, but not across a kink (where two
             // rooms' edges meet, a mouth's 5-tap min): a vertex that misses the rim keeps its grid point.
-            var at = Cut(rim, Source.SampleHeight(rim), step, cutHoles, lod, out var rimStrip, out var rimStripY);
+            var at = SeamCut(rim, Source.SampleHeight(rim), step, cutHoles, lod, out var rimStrip, out var rimStripY);
             if (math.abs(at) > SeamMiss + 0.25f * math.abs(cave))
                 return grid;
             cave = math.max(at, SeamEpsilon);
@@ -652,8 +694,8 @@ namespace Punchy.Terrain
             rim = xz;
             var e = math.min(SeamProbe, 0.25f * step);
             float2 ax = xz + new float2(e, 0f), az = xz + new float2(0f, e);
-            var g = new float2(Cut(ax, Source.SampleHeight(ax), step, cutHoles, lod, out _, out _) - cut,
-                               Cut(az, Source.SampleHeight(az), step, cutHoles, lod, out _, out _) - cut) / e;
+            var g = new float2(SeamCut(ax, Source.SampleHeight(ax), step, cutHoles, lod, out _, out _) - cut,
+                               SeamCut(az, Source.SampleHeight(az), step, cutHoles, lod, out _, out _) - cut) / e;
             var g2 = math.lengthsq(g);
             if (g2 < 0.04f)
                 return false;
@@ -669,7 +711,7 @@ namespace Punchy.Terrain
         /// <summary>Finite-difference distance (m) for the seam builder's gradient.</summary>
         const float SeamProbe = 0.2f;
         /// <summary>The cut value a snapped vertex keeps (its side's sign), so the clip edge runs through it.</summary>
-        const float SeamEpsilon = 0.001f;
+        public const float SeamEpsilon = 0.001f;
         /// <summary>How far off the rim (m of cut, plus a quarter of the grid point's) a snap may land and still count.</summary>
         const float SeamMiss = 0.02f;
         /// <summary>How far a vertex may move onto a rim, as a share of its fan (quads): most of it, so a ground vertex

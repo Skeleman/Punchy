@@ -106,6 +106,7 @@ namespace Punchy.Terrain
         NativeArray<ChunkBuildRequest> buildRequests;
         NativeArray<float2> buildRanges, buildWaterRanges;
         NativeArray<VertexAttributeDescriptor> buildWaterLayout;
+        NativeArray<VertexAttributeDescriptor> buildTerrainLayout;   // W-174 r6: chunks the temple's entrance re-cuts
 
         EntitiesGraphicsSystem graphics;
         BatchMaterialID materialId;
@@ -434,6 +435,7 @@ namespace Punchy.Terrain
             buildWaterRanges = new NativeArray<float2>(count, Allocator.Persistent);
             var layout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Temp);
             buildWaterLayout = new NativeArray<VertexAttributeDescriptor>(WaterVertex.Layout, Allocator.Persistent);
+            buildTerrainLayout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Persistent);
             building.Clear();
 
             for (int i = 0; i < count; i++)
@@ -465,6 +467,7 @@ namespace Punchy.Terrain
                 Meshes = buildData,
                 Requests = buildRequests,
                 WaterLayout = buildWaterLayout,
+                TerrainLayout = buildTerrainLayout,
                 Source = source,
                 ChunkSize = config.ChunkSize,
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
@@ -602,6 +605,7 @@ namespace Punchy.Terrain
             buildRanges.Dispose();
             buildWaterRanges.Dispose();
             buildWaterLayout.Dispose();
+            buildTerrainLayout.Dispose();
         }
 
         /// <summary>A chunk mesh's bounds from its height range, grown by <paramref name="pad"/> on every side (m; the
