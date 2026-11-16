@@ -634,6 +634,7 @@ Why (Zach 11-12): profiler runs keep showing start-up hitches. A faster, quieter
 
 ## Job 62 (2026-11-12, QUEUED after 64 (laptop); supervisor, from the outside shader audit, #269/#270): water cost split, variant counts, flora cull
 Purpose: find which part of water costs what, before any water or architecture work (R-15 row 4, #270). Main only (plus R-15 as arm B once row 1 lands).
+- 11-15 (render-2): arm B = render/audit-fixes efec19b7 (R-15 rows 1-3 plus main c0d4a6f1; compiles, suite clean apart from two tests already failing on main).
 - Arms: (A) origin/main; for each view also A with `-waterfield 0`, A with `-waterssr 0`, and A with water detail off. Profile builds, 1920x1080, High, uncapped, ABBA, 300 frames each.
 - Views: (a) a wide ocean view from a cliff, water most of the screen; (b) a whitewater river with the biggest waterfall in view; (c) wading in the lake with a herd in the water (as many swimmers as can be placed); (d) a cave pool.
 - Record: GPU ms for the depth pass, the opaque/forward pass, the water field compute dispatch and the SSR, where the profiler can split them (Frame Debugger/GPU markers); whole-frame GPU and CPU; WaterPatchSystem main-thread ms (SourceJob .Run and the sheet build) and the fine sheet's vertex/index count and rebuilds per second.

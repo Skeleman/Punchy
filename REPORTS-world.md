@@ -6064,6 +6064,17 @@ Branch `world/mountain-tunnels` at f6217674 (pushed), on a149c17f. One commit: C
 
 Waiting on job 62. Row 4 is only needed if job 62 puts the field step above 0.1 ms. Job 62 should cover render/audit-fixes at e495758c, dadf0457 and 1a2e5499.
 
+### R-15 land (render-2): render/audit-fixes efec19b7, ready for PR
+- Branch: render/audit-fixes fast-forwarded fa29fc64 -> efec19b7 (rule 11 OK'd). It carries the one-line Room fix (`bool Room => Presses.Length + Splashes.Length < MaxSources;`; fa29fc64 didn't compile, CS0019) and a merge of origin/main c0d4a6f1. Rows 1-3 are unchanged. The diff against main is 5 files: TerrainStreamingSystem(.FarRing), WaterPatchSystem, Water.shader, WaterField.hlsl. render/audit-fixes-wip 6d320e85 has the same Room fix and is now superseded.
+- Checks: C# compiles clean; Water.shader has 0 errors.
+  - Row 3 in play: the far plane goes 3744 (View 1.3) -> 5376 (View 2) -> 3000 (0.5) -> 3744, matching the row 3 table.
+  - Row 2: wading at the R-9 lake gives Sources 1, PlayerSources 1, SquareCreatures 1. On land it is 0/0/1.
+  - Row 1 lake shot: D:/Unity/PunchyMilestones/R-15/land/lake-wade2.png. Not viewed (image budget); the stats are normal. The first take was the async-compile cyan.
+- Suite: 52 passed, 2 failed, 19 skipped. Player_CrowFliesOutOfCaveThroughHitches (timeout) and CaveWater_SurfaceMatchesAndPoolStirs fail the same way on origin/main 5b953a34, so they're already broken on main.
+- BENCH: job 62 arm B is now render/audit-fixes efec19b7. Row 4 still waits on job 62's field-step number.
+- Pins: not touched. No timing.
+- NEXT: ready for PR (rows 1-3). #269 stays open for row 4.
+
 ## R-17: the sea swell never tiles from high up (#280)
 
 ### Row 1: seed-baked swell noise (render/swell-noise)
