@@ -126,7 +126,7 @@ namespace Punchy.Tests
             Assert.That(d.y, Is.LessThanOrEqualTo(8f), "village butterflies over the CritterSystem ceiling");
         }
 
-        const int VillageLow = 8, VillageFolkLow = 4, VillageHigh = 40;
+        const int VillageLow = 8, VillageFolkLow = 4, VillageHigh = 50;   // 50 since A-110 merged with main: every outdoor member spawns as itself (26 folk at noon) beside the household pets (main's lizards), 44 in all; was 40
 
         /// <summary>TestSceneSetup's spawn and weather, and a checked shot of the result (the shot helper's own test).</summary>
         [UnityTest, Order(6)]
