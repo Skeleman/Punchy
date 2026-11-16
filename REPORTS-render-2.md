@@ -146,3 +146,26 @@ Punchy-release tree, branch render/cloud-picks b7a1f7cc (no code change in this 
 - **Next:** row 3 once Zach picks (ship the picks on by default, E kept), plus BENCH on the draft above (the coordinator files it).
 - Risks: the picks were shot at Detail 1.5 (Zach's prefs), and E's diff is larger there by design (screen-size fades move with Detail).
 - Shares: the sky/cloud shared path (SkyCommon.hlsl `_PunchySkyOff` bits, ScreenSize.hlsl from #494). No parallel left unfolded.
+
+## Coordinator asks 11-16 (editor-free)
+### 1. Hour-sync doc line: ready for PR
+Branch render/hour-sync-doc @ 0fb62bf8 (off main fd2184ce). It adds one bullet under "How to take shots" in docs/agents/testing.md (LF, as before). Correction to my earlier wording: the snap-back is on a **joined client**, not the host. WorldSync.Update calls ApplyHostState only when `joined` (a client with no local server). The host's own LateUpdate PublishState sends its cycle's hour. The line says to set the time on the host, because `-time` and a direct TimeOfDay set on a joined client snap back. No issue.
+
+### 2. #494 cave gap above drift: not a code change. Explained by measuring method plus a clock that doesn't freeze.
+- **Code at fov 60, Detail 1:** every #494 fade in the cave view reads `PunchyReferenceDistance(d) = d * 935.3 / (540 * |P._m11| * Detail)`.
+  - Those fades are the TerrainSurface rock-face `steep` 40-90, cave-mouth `mouth` 30-60, grain 6-22, sheen, cobble and rain; Flora relief, leaf, sheen, glow and cell; and Creature fur.
+  - At fov 60, |P._m11| = 1/tan 30 = 1.73205, so the factor is 935.3 / 935.307 = 0.99999. A fade edge moves under 1 mm at 90 m.
+  - `abs()` covers the flipped D3D projection, and TAA jitter only touches _m02/_m12. No ortho camera draws terrain (checked in row 5).
+  - The Flora vertex breath/twitch/flutter read `_PunchyViewPpm` = 935.3074 at Detail 1, which this turn's e-fov60 state line confirms, so that factor is also 1.
+  - So at fov 60, Detail 1, the branch draws the cave like main. The rock-face and cave-mouth grain are not the cause.
+- **Why R-23 still showed cave 7.5 against today's drift 2.2:** the two numbers measure different things.
+  - R-23's main-vs-branch swapped shader files in with a live AssetDatabase.Refresh. Those shots were minutes apart.
+  - Today's drift pair is the same frozen view shot twice, seconds apart, with no reload.
+  - This turn's E test showed that the swap-and-reload method alone drifts by 12-14 mean even between two copies of the same shader.
+- **The clock that doesn't freeze (found reading the code):** `_PunchyClock` is set by WorldSync.SharedClock(). On a joined client it is the server tick time, not Time.time, so `Time.timeScale = 0` does not stop it.
+  - The probe editor was a joined client: ApplyHostState ran and the server ghost wasn't local.
+  - So everything that animates on `_PunchyClock` keeps moving in a "frozen" shot. That includes cave glow flora (part 5 pulse, 11 s period, x2.5 brighter underground), flora breath (4 s) and twitch, cloth, puddle rings and water.
+  - Shots seconds apart catch nearby phases (small diff). Shots minutes apart catch random phases (bigger diff). This fits cave 2.2 vs 7.5, and lake and colossus too.
+  - Not proven in editor. R-23's fov 90 cave at 0.7, below its fov 60, also argues against a fade cause, since fov 90 is where the fades do move.
+- **Intended?** There is no real change at fov 60 to approve. The only intended change is the rule 20 shift at other fovs and Details.
+- **Suggestion (not done):** for future frozen pairs, freeze on the host, or pin `_PunchyClock` too. Shader.SetGlobalFloat after WorldSync's Update won't hold, because WorldSync sets it every frame, so the probe would need to disable WorldSync for the shot. That could be a second docs line on render/hour-sync-doc if you want it.
