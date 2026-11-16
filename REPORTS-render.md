@@ -841,3 +841,8 @@ with main d95e7ff1); compiles, no suite run yet.
 - Not done: the same framings on plain main for a side-by-side. The tree was on main aeb9a5a8 and compiled when free RAM fell to 2.5 GB (other editors at 4-7 GB each), so I closed my editor (graceful exit) and put the tree back on render/foliage-realism.
 - Still to do, in the next editor slot: main A/B for R-30 (list R-30/work/m2.txt), the stone-include checks (diff vs main, NaN, EditMode test) and the R-22 r1 runs. Note: -sparkleprobe needs a label after it; the bare flag at the end of PlayArgs runs nothing.
 - Ask: ping me when 6 GB or more is free again.
+
+## 11-16 render: second editor slot cut short by RAM, no results
+- Opened my editor on main aeb9a5a8 (14 GB was free) for the R-30 side-by-side. Free RAM fell from about 10 GB to 0.9 GB within a few minutes of entering play mode, while the first shot (warm-up) was being taken. I stopped the run and exited the editor cleanly. The tree is back on render/foliage-realism, with nothing to commit. A scene backup from the exit is moved out of Temp so the next start doesn't get the recovery dialog.
+- No change to any card: the R-30 main side-by-side (R-30/work/m2.txt), stone-include (#452) and R-22 r1 are all still resumable as on BOARD.
+- Note: my play session plus the other editors needs more than the 14 GB that was free at the ping. The next slot needs about 8 GB of headroom that stays free during play, not just at start.
