@@ -8151,3 +8151,35 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **BENCH request (via supervisor):** Flora.shader brick parallax cost, on a town view with kit chimneys at 3-15 m, before (d321e4c3^) vs after (d321e4c3).
 - **Shares:** one include per family plus the FamilyMark slot table (rule 33). Parallel not folded in: Cave.shader's tunnel-lining brick could draw through Materials/Brick.hlsl (world lane, W-172).
 - Next: ice (igloos stay mostly colour, per the row 1 audit), then W-175 row 1.
+
+## W-166 row 3 (#336): ice family. Done (verified). W-166 ready for PR
+- **Branch:** world/material-library@439e8892.
+- **What changed:**
+  - New Shaders/Materials/Ice.hlsl (PunchyIce): cut blocks in staggered courses with packed-snow joints, each block its own whiteness, and a cloudy depth read about 5 cm into the block along the view (it drifts as you move), plus fine snow grain.
+  - Every detail fades by footprint and is centred on 1, so far ice keeps its colour.
+  - Bark mark slot 0.13; Flora.shader draws ice only through the include. The kit's KitMaterial.Ice parts already map to MaterialFamily.Ice, so no builder change was needed.
+- **Test:** FamilyMarksHaveTheirOwnSlots asserts ice's slot; the Families table adds Ice.hlsl. All three MaterialLibrary tests pass; Flora shader err 0.
+- **Numbers (luminance after vs before, NaN 0 everywhere):**
+  - Whole pieces (TurtleIgloo, TurtleAlpine, SnowShelterHouse): noon3 -1.2 to +0.1%, noon15 -0.2 to +0.1%, low sun -1.8 to +0.3%, far 0.0 to +0.1%.
+  - Close-ups framed on the ice, look off vs on: far 0.0% on all three. Far tone is unchanged.
+- **Shots:** PunchyMilestones/W-166/W166_ice-{noon3,noon15,low3,low15}.jpg and W166_ice-close-*.jpg.
+- **Look:** joints and depth show faintly on the igloo at 3 m and are gone by 15 m, which keeps igloos mostly colour, as the row 1 audit set. If Zach wants the blocks bolder, raise `seam` or the joint width in Ice.hlsl only.
+- **BENCH:** none needed for ice (ALU only, two noise reads, no texture reads). The brick parallax request above still stands.
+- **Shares:** one include per family plus the FamilyMark slot table (rule 33). The library now has wood, thatch, cloth, metal, plaster, brick and ice. Stone stays with R-34.
+- **W-166 is complete on world/material-library: ready for PR.**
+
+## W-175 row 1 (#415): parts and units audit. Done, waiting for Zach's OK
+- **Branch:** world/material-library@14429012 (doc only, docs/agents/parts-and-units.md).
+- **Findings:**
+  - Five separate prop builders exist: Flora species, StructureKit, DungeonProps, the colossus MeshBuilder, and PoseGear.
+  - The same part is built several times: lantern 6, crate 4, basket 4, barrel 3, bucket 3, chimney 3, trough 3, sign 3, and twice each for anvil, well, bench and awning.
+  - Kit door barrels are KitPiece.Column, so nothing downstream can tell them from posts.
+  - The ladder is already a single shared part (the model to follow).
+- **Proposal:**
+  - Parts stay code, defined once in a PartLibrary. Each part states its id, MaterialFamily, bounds, box collider, an optional use (AnchorKind) and a MinScreen cut (rule 20). Parts draw through a primitive sink with Flora, Dungeon and Colossus adapters.
+  - Units are data (JSON): part list, offsets, chance and group, a per-part seed salt, one nesting level. This is the same format as the Model Lab blueprint (M-06 row 5).
+  - In the world file, a placement stores unit id + seed + overrides (rule 22). Anchors come from part uses, retiring AddWorkSpots' size guess.
+- **Order:** (1) PartLibrary + anvil/crate/barrel/bucket, Smithy and Stall as units; (2) dungeon adapter; (3) camps/docks/lanterns; (4) anchors from uses + colossus gear; (5) Lab palette.
+- **Choices for Zach:** code parts with data units (the Lab composes but doesn't sculpt); unifying crates changes two of today's three looks; BENCH bake check after the first move row.
+- **Shares:** W-166 MaterialFamily, StructureKit KitPart, #399/W-173 r3, AnchorKind.
+- Next: stop for Zach's OK on the proposal.
