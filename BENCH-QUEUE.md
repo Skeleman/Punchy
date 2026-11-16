@@ -896,7 +896,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   LoadBoostBehind (provisional 2) and the load-boost cap. Pass: B's world ready comes no later than A's on any start;
   no hole visible in the first view.
 
-## Job 90 (2026-11-14, NEXT on the laptop, chained after 91 (q132.job); world lane, W-164 row 2, #334): garden beds in the ground pass
+## Job 90 (2026-11-14, RUNNING 11-15, chained after 91 (q132.job); world lane, W-164 row 2, #334): garden beds in the ground pass
 - world/level-gardens c378a480 (B) vs main 3b192717 (A). Profile builds, 1920x1080, Medium and High, uncapped,
   12:00, Clear. Island and landmark pins are unchanged (117 landmarks, 689D5348); only the ground under the
   HermitHut garden moves.
@@ -916,7 +916,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Record: whole-frame GPU ms; grass ForwardLit pass ms; the two FloraShadowCache passes' ms.
 - Pass (rule 23): Medium at most +0.3 ms GPU at its worst view, CPU within noise; High reported.
 
-## Job 92 (2026-11-14, QUEUED after 91; folk lane, A-115 row 1 #315 and A-116 rows 1-2 #316): lamplighter glow and notice boards
+## Job 92 (2026-11-14, NEXT on the laptop, chained after 90 (q133.job B2 boards, then q134.job B1 lamplighter; both merged, A = each branch's base); folk lane, A-115 row 1 #315 and A-116 rows 1-2 #316): lamplighter glow and notice boards
 - Arms: fauna/lamplighter a96f48d8 (B1) and fauna/notice-board-life 9a1694eb (B2), each against its base main (A). Profile
   builds, 1920x1080, Medium and High, uncapped, Clear, ABBA, 3 rounds.
 - B1, SurfaceGlow: the far-map rescan now also fires when TownLights' LitCount changes (at most once a second while a

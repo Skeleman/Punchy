@@ -13,6 +13,7 @@ ARMS="B A"
 arm() { case $1 in B) echo "Profile-c378a48";; A) echo "Profile-3b19271";; esac; }
 ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3
 after() {
+  [ -n "${DRY:-}" ] && return   # (a dry run must not launch games or Unity)
   for a in B A; do game High fresh $a 1; done
   for f in $R/q-$Q-*spawn-*-cs100-1.log $R/q-$Q-high-fresh-*-cs100-1.log; do
     echo "== $(basename $f)"; grep -a -h '\[start\]' $f | grep -o 'world ready at [0-9.]* s\|island bake [0-9]* / [0-9]*\|chunks apply [0-9]* / [0-9]*\|chunks start [0-9]* / [0-9]* / [0-9]*\|island ready [0-9.]*' | tr '\n' ';'; echo

@@ -1,0 +1,28 @@
+# Job 92, B2 (A-116 rows 1-2, #316): notice boards. fauna/notice-board-life 9a1694eb (B, merged as #362) vs its base,
+# main 3b192717 (A). Shelf builds. Medium and High, noon, Clear, 3 rounds, 60 s at town 73 centre (the card's "a town
+# board" has no spot; the centre is where the boards and readers are). After: a Profiler game per arm (NoticeSheets.Tick,
+# CreatureBrainSystem).
+Q=q133; TITLE="job 92 B2 notice boards"
+BUILDS="9a1694e 3b19271"
+VIEWS="board"
+view() { case $1 in board) echo "-goto 2972,-885 -benchstops spot -benchspot 2972,-885,0 -benchlong spot 60 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-9a1694e";; A) echo "Profile-3b19271";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3
+after() {
+  [ -n "${DRY:-}" ] && return   # (a dry run must not launch games or Unity)
+  for a in B A; do
+    local spec o t; spec=$(arm $a); o=${spec%% *}; t=$Q-prof-$a-cs100-1
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$a ${o#Profile-} s100 1 -gfx Medium -fpscap 0 $(view board) ${spec#$o} \
+      -profiler-enable -profiler-log-file "$W/q-$t.raw" -profiler-maxusedmemory 1073741824
+    check "$R/q-$t.log"
+    cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+    cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+    ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+        -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$t.txt")" -over 8 -keep Notice -logFile "$W/analyze-$t.log" )
+    cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+    rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+    [ -f "$R/$t.txt" ] && rm -f "$R/q-$t.raw"
+    echo "== $t"; grep -a "Notice\|Brain\|frames used" "$R/$t.txt" | head -8
+  done
+}
