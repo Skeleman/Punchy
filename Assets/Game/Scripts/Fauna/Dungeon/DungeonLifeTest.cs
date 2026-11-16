@@ -75,6 +75,15 @@ namespace Punchy.Fauna
                         return;
                     }
                     director.DungeonResidentsLeft(key, DungeonState.DrivenOff, out var residents, out leftBefore);
+                    // #24 phase 2 row 4: the props by the chest, as drawn ("-shotdir" for a picture of them).
+                    Debug.Log($"[dungeon life] props near the chest: {DungeonProps.Describe()}");
+                    var shot = System.Array.IndexOf(Punchy.Debugging.DebugControls.LaunchArgs, "-shotdir");
+                    if (shot >= 0 && shot + 1 < Punchy.Debugging.DebugControls.LaunchArgs.Length)
+                    {
+                        var dir = Punchy.Debugging.DebugControls.LaunchArgs[shot + 1];
+                        System.IO.Directory.CreateDirectory(dir);
+                        ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(dir, "dungeon-props-near.png"));
+                    }
                     var s = sim.GetComponentData<CreatureState>(victim);
                     Debug.Log($"[dungeon life] {World.Name}: tier {director.DungeonCount}/{FaunaDirector.MaxDungeon}; dungeon {key:X8} " +
                               $"{leftBefore}/{residents} at their posts; killing resident {ordinal} at ({s.Position.x:F1}, {s.Position.y:F1}, {s.Position.z:F1})");
@@ -106,7 +115,7 @@ namespace Punchy.Fauna
                     Hold(p, home + new float3(700f, 0f, 0f));
                     if (director.DungeonCount == 0 && now > stageAt + 1f)
                     {
-                        Debug.Log($"[dungeon life] away: dungeon tier empty after {now - stageAt:F1} s");
+                        Debug.Log($"[dungeon life] away: dungeon tier empty after {now - stageAt:F1} s; props: {DungeonProps.Describe()}");
                         Next(now);
                     }
                     else if (now > stageAt + 20f)
