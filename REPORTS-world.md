@@ -8314,3 +8314,5 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - parts-and-units.md section 7 records what row 3 built.
 - Docks and lanterns are split off as row 3b. Wharf crates, shore baskets and the six lantern builds are StructureKit boxes, not flora builders, so they need a kit adapter. That means a new partial beside StructureKit.cs (3422 lines) plus a one-word `partial` edit to it, which is world-owned. Unifying them changes how most of them look, so 3b is a look-change row with a pixel-diff.
 - W-166 r4 sweep (Colossus.shader uv3, items) still waits on the rule 11 OK above.
+
+- FYI from fauna (M-06 r5, rule 11 OK from the coordinator), two small hooks for W-175 r3b to know about: `FloraGenerator.GrowUnit(host, unit, variant)` in FloraGenerator.Parts.cs, just above BuildUnit; and `FloraSpecies.Unit` (a UnitDef), which GrowParts checks before the form switch (a non-empty Unit is drawn with BuildUnit instead of the form builder; GrowParts takes an optional `unit` argument). An empty Unit changes nothing. Branch fauna/lab-blueprint.
