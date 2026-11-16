@@ -11,7 +11,10 @@ namespace Punchy.Interact
     /// -seamless) can be climbed, up through the roof hatch and out onto the roof deck. With -atdoor N and -usedoor N, once door N stands open the player walks in to the
     /// ground floor, then up the stair tread by tread (each time to the lowest tread above its feet, by the kit boxes the
     /// stair is made of), through the hatch and out to the middle of the roof deck. Logs each tread reached, the storeys
-    /// and the height got to, then PASS (on the deck, which counts as outside the tower) or FAIL (70 s up). One shot from the top with -shotdir.
+    /// and the height got to, then PASS (on the deck, which counts as outside the tower) or FAIL (a fall off the stair, or
+    /// 70 s up). One shot from the top with -shotdir. P-52 (#518): with -stallframe, one frame on the stair 2 m up stalls
+    /// 0.5 s with the player walking along the wall, which must not carry it off the tread or through the wall;
+    /// -nosubstep moves that long frame in one piece again (the old way, which fails).
     /// </summary>
     public partial class Interiors
     {
@@ -19,7 +22,7 @@ namespace Punchy.Interact
         float climbAt, climbLog, climbBest, climbTop = float.NaN, climbStep = float.NaN;
         bool climbIn, climbDone, climbEntered, climbCentred, climbOnStair, climbStuckLogged;
         float3 climbLastPos, climbBestAt;
-        int climbFalls;
+        bool climbStall, climbStalled;
         float climbLongestFrame;
         float climbStillSince;
         float2 climbStepAt = float.NaN;
@@ -31,6 +34,8 @@ namespace Punchy.Interact
                 var args = System.Environment.GetCommandLineArgs();
                 var at = System.Array.IndexOf(args, "-climbtower");
                 climbTower = at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var n) ? n : -1;
+                climbStall = System.Array.IndexOf(args, "-stallframe") >= 0;
+                PlayerMovementSystem.NoSubstep.Data = System.Array.IndexOf(args, "-nosubstep") >= 0;
             }
             if (climbTower < 0 || climbDone || !Doors.TryGetDoor(climbTower, out var door, out var doorFacing))
                 return;
@@ -52,15 +57,9 @@ namespace Punchy.Interact
             climbLongestFrame = math.max(climbLongestFrame, Time.deltaTime);
             if (feet - w.Floor > climbBest)
                 (climbBest, climbBestAt) = (feet - w.Floor, player.Position);
-            // (A fall off the stair, back down near the floor: log what stood round the highest point reached, then walk
-            // in and climb again, at most twice. A long frame can carry the body off a tread and through the wall.)
-            if (climbBest - (feet - w.Floor) > 1f && feet - w.Floor < 0.5f && climbFalls < 2)
+            // (A fall off the stair: log what stood round the highest point reached, and fail.)
+            if (climbBest - (feet - w.Floor) > 1f)
             {
-                climbFalls++;
-                Debug.Log($"Interiors: -climbtower fell from {climbBestAt} to {player.Position} (longest frame so far {climbLongestFrame:F3} s), climbing again");
-                climbBest = feet - w.Floor;
-                climbIn = climbEntered = climbCentred = climbOnStair = false;
-                climbStep = float.NaN;
                 using var fq = World.DefaultGameObjectInjectionWorld.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
                 if (fq.TryGetSingletonBuffer<KitBox>(out var near, true))
                     foreach (var box in near)
@@ -69,6 +68,15 @@ namespace Punchy.Interact
                         if (math.all(math.abs(local) - box.Half <= 1.1f))
                             Debug.Log($"Interiors: -climbtower near the fall: box at {box.Centre}, half {box.Half}, local {local}");
                     }
+                Finish(false, $"fell from {climbBestAt} to {player.Position}, longest frame {climbLongestFrame:F3} s");
+                return;
+            }
+            // (P-52: the one stalled frame, walking along the wall on a tread.)
+            if (climbStall && !climbStalled && climbOnStair && feet - w.Floor > 2f)
+            {
+                climbStalled = true;
+                Debug.Log($"Interiors: -climbtower stalling one frame 0.5 s at {player.Position}{(PlayerMovementSystem.NoSubstep.Data ? " (no substeps)" : "")}");
+                System.Threading.Thread.Sleep(500);
             }
 
             // In first: to a point on the ground floor 0.4 of the way in from the wall by the doorway.
@@ -151,7 +159,7 @@ namespace Punchy.Interact
                     {
                         var inside = InWalkIn(player.Position, out var inHouse, out _) && inHouse == house;
                         Finish(!inside, $"on the roof deck, {feet - w.Floor:F2} m up (deck {roof - w.Floor:F2}), {climbTreads} treads climbed" +
-                                        (climbFalls > 0 ? $" after {climbFalls} fall(s), longest frame {climbLongestFrame:F3} s" : "") +
+                                        (climbStalled ? $" through a stalled frame, longest frame {climbLongestFrame:F3} s" : "") +
                                         (inside ? ", but still counted inside" : ""));
                         return;
                     }
@@ -182,7 +190,7 @@ namespace Punchy.Interact
                             Debug.Log($"Interiors: -climbtower near box at {box.Centre}, half {box.Half}, player local {local}");
                     }
             }
-            if (t > 70f + 40f * climbFalls)
+            if (t > 70f)
                 Finish(false, $"timed out at {feet - w.Floor:F2} m up (best {climbBest:F2}, top tread {climbTop - w.Floor:F2})");
 
             void Finish(bool pass, string why)

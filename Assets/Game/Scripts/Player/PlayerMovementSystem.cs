@@ -52,8 +52,34 @@ namespace Punchy.Player
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var dt = SystemAPI.Time.DeltaTime;
+            // P-52 (#518): a long frame (a hitch, a load) is moved in pieces of at most MaxStep, so the body never jumps
+            // further in one go than the walls' tests can catch: a 0.31 s frame once carried it off a stair tread and
+            // out through a tower wall. Past MaxSteps pieces the rest of the frame is dropped (the game slows instead).
+            // A normal frame (over 20 fps) is one piece, as before. Each machine moves its own player (client-authoritative),
+            // so this needs nothing from the network.
+            var frame = SystemAPI.Time.DeltaTime;
+            var steps = NoSubstep.Data ? 1 : math.clamp((int)math.ceil(frame / MaxStep), 1, MaxSteps);
+            var dt = NoSubstep.Data ? frame : math.min(frame, MaxStep * MaxSteps) / steps;
+            for (int i = 0; i < steps; i++)
+                Move(ref state, dt, i == 0);
+        }
+
+        /// <summary>The longest piece of a frame the player is moved by at once (s), and the most pieces in a frame (P-52).</summary>
+        const float MaxStep = 0.05f;
+        const int MaxSteps = 8;
+        /// <summary>Tests ("-nosubstep" with -climbtower -stallframe): long frames moved in one piece again, the old way.</summary>
+        public static readonly SharedStatic<bool> NoSubstep = SharedStatic<bool>.GetOrCreate<PlayerMovementSystem, NoSubstepKey>();
+        struct NoSubstepKey { }
+
+        /// <summary>One piece of a frame: every player body moved by dt. Presses (jump, crouch) count in the first piece only.</summary>
+        void Move(ref SystemState state, float dt, bool first)
+        {
             var rawInput = SystemAPI.GetSingleton<PlayerInput>();
+            if (!first)
+            {
+                rawInput.JumpPressed = false;
+                rawInput.CrouchPressed = false;
+            }
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var body = SystemAPI.TryGetSingleton<PlayerBody>(out var playerBody) ? playerBody : new PlayerBody { SpeedFactor = 1f };
             SystemAPI.TryGetSingletonBuffer<FloraObstacle>(out var obstacles, true);
