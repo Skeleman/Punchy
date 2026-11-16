@@ -12,7 +12,7 @@
     { "id": "sticks", "type": "fetch", "item": "Stick", "count": 3, "text": "The smithy in {town} needs {count} sticks for the forge. Bring them to {place}.", "reward": "Coin", "rewardCount": 6 },
     { "id": "berries", "type": "fetch", "item": "Berry", "count": 5, "text": "{town} is short of berries: {count} to {place}, please.", "reward": "Coin", "rewardCount": 4 },
     { "id": "stones", "type": "fetch", "item": "Stone", "count": 4, "text": "A wall in {town} needs mending: bring {count} stones to {place}.", "reward": "Coin", "rewardCount": 8 },
-    { "id": "lost-key", "type": "find", "item": "Key", "count": 1, "text": "Someone in {town} lost a key not far from the board. Find it and bring it back.", "reward": "Torch", "rewardCount": 1 },
+    { "id": "lost-key", "type": "find", "item": "Lost key", "count": 1, "text": "Someone in {town} lost a key not far from the board. Find it and bring it back.", "reward": "Torch", "rewardCount": 1 },
     { "id": "shell", "type": "find", "item": "Shell", "count": 1, "text": "A child in {town} dropped a lucky shell nearby. Find the shell and bring it to {place}.", "reward": "Mushroom", "rewardCount": 3 },
     { "id": "crows", "type": "clear", "creature": "Crow", "radius": 30, "text": "Crows are at the seed round {place}. Chase every {creature} off and keep them off a while.", "reward": "Coin", "rewardCount": 7 },
     { "id": "chickens", "type": "clear", "creature": "Chicken", "radius": 20, "text": "The {creature}s of {town} are all over the square. Shoo them away from {place}.", "reward": "Berry", "rewardCount": 6 },
@@ -22,8 +22,8 @@
     { "id": "shells-gift", "type": "deliver", "item": "Shell", "count": 3, "text": "{count} shells from {town} for a friend in {dest}. Leave them at the notice board there.", "reward": "Scarf", "rewardCount": 1 },
     { "id": "see-town", "type": "visit", "text": "Nobody in {town} has heard from {dest} in months. Go and see how they are, then come back to {place}.", "reward": "Cloak", "rewardCount": 1 },
     { "id": "far-news", "type": "visit", "text": "Take a walk to {dest} for {town} and bring back word to {place}.", "reward": "Hat", "rewardCount": 1 },
-    { "id": "heirloom", "type": "dungeon", "kind": "cave", "item": "Key", "count": 1, "text": "An old family {item} from {town} was left in a chest in the {dungeon} {where}. Bring it back to {place}.", "reward": "Coin", "rewardCount": 12 },
-    { "id": "elder-staff", "type": "dungeon", "kind": "ruin", "item": "Staff", "count": 1, "text": "The elder of {town} says her mother's {item} lies in a chest in the {dungeon} {where}. Fetch it for her.", "reward": "Cloak", "rewardCount": 1 },
+    { "id": "heirloom", "type": "dungeon", "kind": "cave", "item": "Heirloom key", "count": 1, "text": "A family's {item} from {town} was left in a chest in the {dungeon} {where}. Bring it back to {place}.", "reward": "Coin", "rewardCount": 12 },
+    { "id": "elder-staff", "type": "dungeon", "kind": "ruin", "item": "Elder staff", "count": 1, "text": "The elder of {town} says her mother's staff, the {item}, lies in a chest in the {dungeon} {where}. Fetch it for her.", "reward": "Cloak", "rewardCount": 1 },
     { "id": "scout", "type": "visit", "text": "{town} wants to know the road to {dest} is open. Get there, then report at {place}.", "reward": "Pack", "rewardCount": 1 }
   ]
 }
