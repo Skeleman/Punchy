@@ -87,7 +87,7 @@ Shader "Punchy/Cave"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
-            #include "Stone.hlsl"
+            #include "Materials/Stone.hlsl"
 
             Varyings Vert(CaveAttributes input)
             {
@@ -235,23 +235,12 @@ Shader "Punchy/Cave"
                     rock *= lerp(1, 0.75 + 0.5 * coarse.b, bareWall);
                     [branch] if (courses > 0)
                     {
-                        // Rows 0.42 m high, each set off along the wall by its own share of a block, joints where the
-                        // wall crosses the x or z planes it runs across (both on a slanting wall).
-                        const float rowHeight = 0.42, blockLength = 0.95;
-                        float row = floor(p.y / rowHeight);
-                        float fy = frac(p.y / rowHeight);
-                        float joint = min(fy, 1 - fy) * rowHeight;
-                        float offset = frac(row * 0.618) * blockLength;
-                        bool acrossX = abs(shape.x) < 0.75, acrossZ = abs(shape.z) < 0.75;
-                        float bx = (p.x + offset) / blockLength, bz = (p.z + offset) / blockLength;
-                        if (acrossX) joint = min(joint, min(frac(bx), 1 - frac(bx)) * blockLength);
-                        if (acrossZ) joint = min(joint, min(frac(bz), 1 - frac(bz)) * blockLength);
-                        int3 block = int3(row, acrossX ? floor(bx) : 0, acrossZ ? floor(bz) : 0);
-                        float blockTone = 0.8 + 0.4 * (FacetHash(block).x + 0.5);
-                        float mortar = 1 - smoothstep(0.012, 0.03, joint);
-                        float bevel = 1 - smoothstep(0.03, 0.09, joint);
-                        rock = lerp(rock, rock * blockTone * (1 - bevel * 0.25), courses);
-                        rock = lerp(rock, rock * 0.45, mortar * courses);
+                        // W-166 row 3: the one built stone (Materials/Stone.hlsl, cut courses), as the towns' fountains
+                        // and plinths. Its footprint from the distance, safe in this branch (rule 24).
+                        float footprint = length(_WorldSpaceCameraPos - p) * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11);
+                        half3 cutN = n;
+                        rock = lerp(rock, rock * PunchyStoneBlocks(p, cutN, footprint, false, 0), courses);
+                        n = normalize(lerp(n, cutN, courses));
                     }
                     // Fallen stones: pale grey, darker where they sit in the floor.
                     half3 stone = half3(0.62, 0.6, 0.56) * (0.7 + 0.6 * detail.b) * (0.8 + 0.4 * coarse.b) * input.data.y;
