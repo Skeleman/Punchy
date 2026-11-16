@@ -8409,3 +8409,11 @@ Plan:
 - Risks: the first load after merge misses the island cache once (cache format 5). The map editor's base island bakes without edits, so switching between map editor and play re-bakes once each way.
 - Shares: TerrainSource (Edits blob next to the height inputs) and the existing island cache key. Parallel not folded in: W-174's GroundEdits record could later take painted edits as one more edit kind.
 - Next: W-172 r7 (cave walls), then #400.
+
+## [materials] W-175 (#415) rows 4-6: plan note (2026-11-16) - IN PROGRESS
+- Branch world/parts-units-4 from origin/main cf60b03e, in Punchy-materials. (No REPORTS-materials file exists; materials rows stay here as before.)
+- **Missing part kinds (M-06 r5 gaps 1, 6):** walls/planks, floors, doors with frames, windows/shutters, gabled roof, beams/lintels, stairs, rails/fences, signs, plus unit-library wrappers for the kit lanterns and crates (StructureKit.Parts, rule 33). Each gets a W-166 MaterialFamily and a box collider. Posts, counter and roof gain colliders too.
+- **Row 4 (format, gaps 2-5, 7, 9):** Yaw and Mirror per part, one size rule (Span is full size), centred parts honour At, bounds opt-in, Host + Size (metres) + WidthOfHeight on the unit, per-part random streams (opt-in, so coded units keep their hashes), tidy JSON. Files: Flora/UnitDef.cs, FloraGenerator.Parts.cs, FloraGenerator.Units.cs, FloraMeshBuilder.cs (FlipWinding), FloraGenerator.cs (**shared, additive**: per-part stream switch on Grower), Editor/ModelLab.Blueprints.cs (**fauna-authored**: save Host, tidy JSON), Flora/Units/cookhouse.json, UnitLibraryTests, docs/agents/parts-and-units.md.
+- **Row 5 files:** FloraGenerator.Parts.cs plus a new FloraGenerator.Parts.Build.cs partial (walls, floors, doors, windows, roof, beams, stairs, rails, signs), StructureKit.Parts.cs adapter for lanterns and crates.
+- **Row 6 files:** UnitDef (nested unit part, snap points), BuildUnit, and placement reading FloraSpecies.Unit / JSON unit by id (world placement lists; will ask before touching Settlements/Landmarks).
+- RAM permitting (play mode only at >= 10 GB free). No timing.
