@@ -246,7 +246,14 @@ Branch player/tower-rooms from origin/main 2354d35d. No code yet.
 - **No changes to:** StructureKit.Tower, Beacon, Spire, SaltTower or shaders.
 - **Open question:** kit corner towers stay solid. Say if you want a freestanding kit tower family (the 4 x 4 m straight-flight version) carded later as well.
 
-## P-51 row 2 (WIP, blocked) - 2026-11-16
+## P-51 row 2 (WIP, blocked, then unblocked) - 2026-11-16
 - Pushed player/tower-rooms 7ab1fcd4: hollow ElfTower/ElfSpire with storeys and stair under -seamless only (FloraGenerator.TowerRooms), round walk-ins, -climbtower test. With Seamless off the tower model hash is still CE0716DB4B71F604.
 - Found and fixed: Interiors picked walk-ins by the layout building, but FloraPlacement.PlotSpecies builds the biggest town's houses from its Kit Building. Walk-ins now use the placed species (Interiors.PlacedSpecies).
 - Blocker: ElfGrove is the default world's biggest town, so all its ElfTower plots become KitHouses and no tower stands to climb (-climbtower 74 had hit a KitHouse). Options: (a) keep towers (Form Tower) out of the kit override (changes the default world), (b) a test-only flag that skips the override, (c) wait for a world where an elf grove isn't the biggest town.
+
+## P-51 row 2 #337 - done (verified) - 2026-11-16
+- player/tower-rooms@68817676. Option (a): Form Tower kept out of the kit override (FloraPlacement.PlotKit.cs, KeepsOwn), so elf groves keep their towers even as the biggest town. Default world changed: Fauna_Fingerprint 4BEFEA91 -> DFC4F03B (re-pinned); landmarks 114 9786243F unchanged. Default (no -seamless): 53 doors lead inside, 0 tower walk-ins.
+- Fixed: a tower's door leaf stands about 3.1 m in from its door anchor, past FloraSystem's DoorReach 2.5, so the leaf box never cleared. Doors now also opens a point by the leaf (Interiors.TowerLeaf); FloraSystem is untouched. The climb test now goes via the floor's middle (a straight line to the stair foot lodged on the round wall).
+- -seamless -climbtower: 74 PASS solo and host (7.81 m up, 31 treads), 75 PASS solo (3.51 m, 13 treads). Host and joiner room/walk-in lines are identical (doors 74, 75, 77 tower); joiner 0 errors. No shot (walk check per brief).
+- Deferred: roof access, windows, balconies. Stray untracked Assets/Game/Scripts/Flora/moved.txt and its .meta in Punchy-docs: please delete, not mine to commit.
+- Shares: extends Interiors walk-ins (round tower = WalkIn.Radius) and Doors/FloraDoors open state; same KeepsOwn list could hold other forms that must survive the kit override (none found yet).

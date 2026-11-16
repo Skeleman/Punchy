@@ -1103,3 +1103,6 @@ Meadow at noon, Medium and High. Compare three arms: today, e, f (use the existi
 casters) and CPU ms for each. About 3x the blades/m² (55 to 168), so expect a real cost. Zach is choosing between e and f; both are needed.
 - Addendum to 113 and 114 (supervisor, audit part 2 #311): in job 114, also run each arm once with grass shadow casting off, to get the grass-shadow share.
   In job 113, record the worst CPU frame on WideShadow's 90-frame rescan in a town (it walks every scene root's renderers).
+
+## Note (2026-11-16, player-2 lane, P-51 r2 #337, branch player/tower-rooms 68817676): default world changed
+Elf groves now keep their towers when they are the biggest town (no Kit Buildings there). Fauna fingerprint 4BEFEA91 -> DFC4F03B; landmarks 114 9786243F unchanged. Re-baseline any bench spot in the elf grove.
