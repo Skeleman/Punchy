@@ -105,7 +105,7 @@ namespace Punchy.Settings
         static readonly Dictionary<Vector4, (Vector4 color, Vector4 position)> heatLast = new Dictionary<Vector4, (Vector4, Vector4)>();
 
         // "-lightlog": per kind, requests, tiers (by LightTier), glow slots, real lights, dropped (wanted a light, got none).
-        const int Kinds = 7, Tiers = 6;
+        const int Kinds = 8, Tiers = 6;
         static readonly int[] logRequests = new int[Kinds], logSlots = new int[Kinds], logReal = new int[Kinds], logDropped = new int[Kinds];
         static readonly int[] logTiers = new int[Kinds * Tiers];
         static readonly StringBuilder logText = new StringBuilder(512);

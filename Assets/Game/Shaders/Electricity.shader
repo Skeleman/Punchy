@@ -103,7 +103,7 @@ Shader "Punchy/Electricity"
         uint quad = vid / 6u;
         uint corner = vid % 6u;
         uint copy = quad / QUADS_PER_PATH;          // 0 live path, 1 the one before (afterglow)
-        uint local = quad % QUADS_PER_PATH;
+        uint piece = quad % QUADS_PER_PATH;
 
         float t = _PunchyClock;
         float rate = max(_PunchyArcTiming.x, 0.1);
@@ -114,8 +114,8 @@ Shader "Punchy/Electricity"
         if (copy == 0u)
         {
             // Live: its own brightness, and dropouts in some 1/30 s slots.
-            uint slot = (uint)floor(t * 30.0);
-            bool dropped = Hash01(seed ^ PunchyArcHash(slot ^ 0x2545F491u)) < _PunchyArcTiming.z;
+            uint flickerSlot = (uint)floor(t * 30.0);
+            bool dropped = Hash01(seed ^ PunchyArcHash(flickerSlot ^ 0x2545F491u)) < _PunchyArcTiming.z;
             brightness = dropped ? 0.0 : 1.0 - _PunchyArcTiming.w * Hash01(seed ^ ((uint)k * 0xC2B2AE35u));
         }
         else
@@ -138,28 +138,28 @@ Shader "Punchy/Electricity"
         float3 a, b;
         float alphaA = 1.0, alphaB = 1.0;
         float thin = 1.0;
-        if (local < SPINE_SEGMENTS)
+        if (piece < SPINE_SEGMENTS)
         {
-            float u0 = local / (float)SPINE_SEGMENTS;
-            float u1 = (local + 1u) / (float)SPINE_SEGMENTS;
+            float u0 = piece / (float)SPINE_SEGMENTS;
+            float u1 = (piece + 1u) / (float)SPINE_SEGMENTS;
             a = SpinePoint(from, to, sideA, sideB, jag, u0, pathKey);
             b = SpinePoint(from, to, sideA, sideB, jag, u1, pathKey);
         }
         else
         {
-            uint f = (local - SPINE_SEGMENTS) / FORK_SEGMENTS;
-            uint j = (local - SPINE_SEGMENTS) % FORK_SEGMENTS;
+            uint f = (piece - SPINE_SEGMENTS) / FORK_SEGMENTS;
+            uint j = (piece - SPINE_SEGMENTS) % FORK_SEGMENTS;
             uint forkKey = PunchyArcHash(pathKey ^ (0x9E37u + f * 0x85EBu));
             if (Hash01(forkKey) >= _PunchyArcForks.x)
                 return o; // no fork in this slot on this path: a degenerate quad (clipped)
-            float base = 0.15 + 0.7 * Hash01(forkKey ^ 0x11u);
+            float forkBase = 0.15 + 0.7 * Hash01(forkKey ^ 0x11u);
             bool miss = Hash01(forkKey ^ 0x22u) < _PunchyArcForks.z;
-            float3 root = SpinePoint(from, to, sideA, sideB, jag, base, pathKey);
+            float3 root = SpinePoint(from, to, sideA, sideB, jag, forkBase, pathKey);
             float angle = Hash01(forkKey ^ 0x33u) * 2.0 * PI;
             float3 outward = normalize(dir * 0.8 + (sideA * cos(angle) + sideB * sin(angle)));
             float forkLength = _PunchyArcForks.y * arcLength;
             float3 tip = miss ? root + outward * forkLength
-                              : SpinePoint(from, to, sideA, sideB, jag, min(base + _PunchyArcForks.y, 0.98), pathKey);
+                              : SpinePoint(from, to, sideA, sideB, jag, min(forkBase + _PunchyArcForks.y, 0.98), pathKey);
             float3 forkSideA = normalize(cross(normalize(tip - root + 1e-4), sideB));
             float s0 = j / (float)FORK_SEGMENTS;
             float s1 = (j + 1u) / (float)FORK_SEGMENTS;

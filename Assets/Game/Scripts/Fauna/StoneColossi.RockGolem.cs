@@ -25,7 +25,7 @@ namespace Punchy.Fauna
         /// W-89 (#40, Zach's ElectricWastelands design): a golem about 55 m tall built from the area's floating rocks, caught
         /// mid-stride. Every body part is its own jagged rock (the floating rocks' dark basalt with violet and blue shards),
         /// hanging a couple of metres from the next, and each one bobs and turns on its own; the floating rocks' arcs
-        /// (ArcBolt, as between the arcing spires) crackle across every gap and hold it together (<see cref="GolemArcs"/>).
+        /// (ElectricitySystem, as between the arcing spires) crackle across every gap and hold it together (<see cref="GolemArcs"/>).
         /// Seeded per world: its size, the step, how far each arm swings and the tilt of the head. Details: shards orbiting
         /// the chest with arcs to some of them, crystal eyes, a scorched mound under each foot, and a rock it has dropped
         /// lying in the dirt with one weak arc still reaching up to its hand.

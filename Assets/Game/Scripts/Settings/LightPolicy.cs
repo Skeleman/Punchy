@@ -19,8 +19,10 @@ namespace Punchy.Settings
     ///   cinder snail, magma serpent, charred treant), puffball pores, ember trails, glowing eyes and markings.
     /// - AmbientGlow: many small, soft natural glows: glowing plants (cave and surface), crystals, lava pools, toxic
     ///   water, white pools.
+    /// - Electric: electric arcs (ElectricitySystem, R-29): spire strikes, the rock golem's arcs. Quick and bright, they
+    ///   flicker, so they rank below fires but keep a real light near.
     /// </summary>
-    public enum LightKind : byte { Celestial, SkyFlash, Carried, Fixture, Fire, Creature, AmbientGlow }
+    public enum LightKind : byte { Celestial, SkyFlash, Carried, Fixture, Fire, Creature, AmbientGlow, Electric }
 
     /// <summary>
     /// How a light is shown, best first. Real and RealShadowed are Unity lights (only the cave and terrain shaders
@@ -80,6 +82,9 @@ namespace Punchy.Settings
                 // Fires are big and bright: they keep a glow far out, then show as their flames.
                 case LightKind.Fire:
                     return new Rule { Best = LightTier.Real, Size = new DetailPolicy.Thresholds(50f, 15f, 2f), Worst = LightTier.Emissive, Importance = 2.5f };
+                // Arcs flicker too fast to be worth a shadow; a real light near, the glow list further, then the bolt.
+                case LightKind.Electric:
+                    return new Rule { Best = LightTier.Real, Size = new DetailPolicy.Thresholds(50f, 15f, 2f), Worst = LightTier.Emissive, Importance = 2f };
                 case LightKind.Creature:
                     return new Rule { Best = LightTier.Glow, Size = new DetailPolicy.Thresholds(20f, 4f, 1f), Worst = LightTier.Emissive, Importance = 1.5f };
                 // Many and soft: never real lights, a near glow and the far glow map, then just the glowing thing.

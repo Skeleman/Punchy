@@ -1378,24 +1378,18 @@ namespace Punchy.Flora
 
         /// <summary>
         /// Spire pairs within reach of each other near the camera (and the odd spire arcing to the ground): their ends,
-        /// rhythm (how often a strike comes and how long it lasts, s) and phase, all from their positions, so every
-        /// machine agrees; and the strike each last made a sound for.
+        /// rhythm (how often a strike comes and how long it lasts, s) and seed, all from their positions, so every
+        /// machine agrees.
         /// </summary>
         struct Bolt
         {
             public Vector3 A, B;
-            public float Period, Duration, Phase;
-            public long Struck;
+            public Punchy.Rendering.Effects.ElectricitySystem.Rhythm Rhythm;
+            public int Seed;
         }
         readonly List<Bolt> bolts = new List<Bolt>();
-        /// <summary>The bolts firing this frame, as tip-to-tip matrices for the bolt shader.</summary>
-        readonly List<Matrix4x4> firing = new List<Matrix4x4>();
-        static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
         float2 boltCentre = new float2(float.MaxValue);
         float nextBolts;
-        Mesh boltMesh;
-        Material boltMaterial;
-        bool boltsLoaded;
         /// <summary>Bolts are found among arcing spires within this distance of the camera.</summary>
         const float BoltRange = 160f;
         /// <summary>BoltRange at the graphics settings' View distance.</summary>
@@ -1405,19 +1399,11 @@ namespace Punchy.Flora
         /// Electric bolts between neighbouring arcing spires (FloraForm.ArcSpire): every spire near the camera pairs with
         /// its nearest neighbour 6-20 m away (about half of them, by a hash of the pair, so not every spire is wired),
         /// and a few spires now and then arc down to the ground beside them. Each fires on its own rhythm from the shared
-        /// clock (worked out here, so the crackle it makes lands on the strike), drawn by ArcBolt.shader while it lasts.
+        /// clock; R-29: the shared electricity (ElectricitySystem.AddStrike) times, draws, lights and cracks each strike.
         /// Pairs come from the placed spires alone, so every machine sees and hears the same ones.
         /// </summary>
         void DrawBolts(in TerrainSource source, float2 camXZ)
         {
-            if (!boltsLoaded)
-            {
-                boltsLoaded = true;
-                boltMaterial = Resources.Load<Material>("ArcBolt");
-                boltMesh = BoltMesh();
-            }
-            if (boltMaterial == null)
-                return;
             // Again when the camera has moved, and every couple of seconds (tiles stream in after a jump).
             if (math.distance(camXZ, boltCentre) > 20f || Time.unscaledTime > nextBolts)
             {
@@ -1425,33 +1411,8 @@ namespace Punchy.Flora
                 nextBolts = Time.unscaledTime + 2f;
                 GatherBolts(source, camXZ);
             }
-            if (bolts.Count == 0)
-                return;
-            var clock = Shader.GetGlobalFloat(ClockId);
-            firing.Clear();
-            for (int i = 0; i < bolts.Count; i++)
-            {
-                var bolt = bolts[i];
-                var t = clock + bolt.Phase * bolt.Period;
-                var strike = (long)math.floor(t / bolt.Period);
-                if (t - strike * bolt.Period >= bolt.Duration)
-                    continue;
-                firing.Add(Matrix4x4.TRS(bolt.A, Quaternion.LookRotation(bolt.B - bolt.A), new Vector3(1f, 1f, Vector3.Distance(bolt.A, bolt.B))));
-                // A crack once per strike, at its middle (a placeholder sound until the bank has a proper zap).
-                if (strike != bolt.Struck)
-                {
-                    bolt.Struck = strike;
-                    bolts[i] = bolt;
-                    var mid = (bolt.A + bolt.B) * 0.5f;
-                    if (Punchy.Audio.GameAudio.Audible(mid, 70f))
-                        Punchy.Audio.GameAudio.PlayOneShot(Punchy.Audio.SoundId.Zip, mid, 2.4f, 1f, 70f, Punchy.Audio.SoundGroup.World);
-                }
-            }
-            if (firing.Count == 0)
-                return;
-            var rp = new RenderParams(boltMaterial) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false,
-                                                       worldBounds = new Bounds(new Vector3(camXZ.x, 0f, camXZ.y), Vector3.one * 2f * BoltReach + Vector3.up * 2000f) };
-            Graphics.RenderMeshInstanced(rp, boltMesh, 0, firing);
+            foreach (var bolt in bolts)
+                Punchy.Rendering.Effects.ElectricitySystem.AddStrike(bolt.A, bolt.B, bolt.Seed, bolt.Rhythm);
         }
 
         /// <summary>A pair's rhythm from a hash of its ends' positions (whole metres, so every machine agrees).</summary>
@@ -1459,15 +1420,13 @@ namespace Punchy.Flora
         {
             var h = math.hash(new int4((int2)math.round(((float3)a).xz), (int2)math.round(((float3)b).xz)));
             var r = new Unity.Mathematics.Random(h | 1u);
-            return new Bolt { A = a, B = b, Period = r.NextFloat(5f, slowest), Duration = r.NextFloat(0.1f, 0.4f), Phase = r.NextFloat(), Struck = long.MinValue };
+            var rhythm = new Punchy.Rendering.Effects.ElectricitySystem.Rhythm(r.NextFloat(5f, slowest), r.NextFloat(0.1f, 0.4f));
+            return new Bolt { A = a, B = b, Rhythm = rhythm, Seed = (int)r.NextUInt() };
         }
 
         void GatherBolts(in TerrainSource source, float2 camXZ)
         {
-            // Keep each surviving bolt's last strike, so a regather doesn't crack it again.
-            var struck = new Dictionary<Vector3, long>();
-            foreach (var bolt in bolts)
-                struck[bolt.A + bolt.B * 3.1f] = bolt.Struck;
+            // (ElectricitySystem keeps each seed's last strike, so a regather doesn't crack it again.)
             bolts.Clear();
             var tips = new List<float3>();
             // Only the tiles within reach: the tree layer holds the island out to the horizon, far too many plants to
@@ -1522,46 +1481,6 @@ namespace Punchy.Flora
                 var foot = tip.xz + new float2(math.cos(a), math.sin(a)) * (3f + (h & 0xFF) / 255f * 3f);
                 bolts.Add(MakeBolt(tip, new float3(foot.x, source.SampleHeight(foot), foot.y), 90f));
             }
-            for (int i = 0; i < bolts.Count; i++)
-                if (struck.TryGetValue(bolts[i].A + bolts[i].B * 3.1f, out var last))
-                {
-                    var bolt = bolts[i];
-                    bolt.Struck = last;
-                    bolts[i] = bolt;
-                }
-        }
-
-        /// <summary>Two crossed ribbons along +z from 0 to 1 (ArcBolt.shader bends and widens them).</summary>
-        internal static Mesh BoltMesh()
-        {
-            const int segments = 24;
-            var positions = new List<Vector3>();
-            var uvs = new List<Vector4>();
-            var indices = new List<int>();
-            for (int ribbon = 0; ribbon < 2; ribbon++)
-            {
-                var first = positions.Count;
-                for (int s = 0; s <= segments; s++)
-                {
-                    var t = s / (float)segments;
-                    foreach (var side in new[] { -1f, 1f })
-                    {
-                        positions.Add(new Vector3(0f, 0f, t));
-                        uvs.Add(new Vector4(t, side, ribbon, 0f));
-                    }
-                }
-                for (int s = 0; s < segments; s++)
-                {
-                    int a = first + s * 2;
-                    indices.AddRange(new[] { a, a + 1, a + 2, a + 1, a + 3, a + 2 });
-                }
-            }
-            var mesh = new Mesh { name = "Arc bolt" };
-            mesh.SetVertices(positions);
-            mesh.SetUVs(0, uvs);
-            mesh.SetTriangles(indices, 0);
-            mesh.bounds = new Bounds(new Vector3(0f, 0f, 0.5f), new Vector3(4f, 4f, 2f));
-            return mesh;
         }
 
         void UpdateObstacles()

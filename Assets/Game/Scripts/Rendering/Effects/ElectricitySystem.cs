@@ -51,8 +51,9 @@ namespace Punchy.Rendering.Effects
         /// <param name="seed">Anything that stays the same while it lives (a colossus link index, a spire pair's hash),
         /// never a position that moves.</param>
         /// <param name="width">1 for a spire's arc; a colossus's arcs are about 7.</param>
-        public static void AddArc(Vector3 from, Vector3 to, int seed, int colour = Blue, float width = 1f)
-            => Push(from, to, seed, colour, width, false);
+        /// <param name="quiet">True for no cracks (a cluster of arcs where one cracking is enough).</param>
+        public static void AddArc(Vector3 from, Vector3 to, int seed, int colour = Blue, float width = 1f, bool quiet = false)
+            => Push(from, to, seed, colour, width, false, 0, quiet);
 
         /// <summary>
         /// An arc that fires now and then on <paramref name="rhythm"/>; strike times are jittered by the seed so a field
@@ -82,7 +83,7 @@ namespace Punchy.Rendering.Effects
             public Vector3 From, To;
             public float Width;
             public int Seed, Colour;
-            public bool Struck;
+            public bool Struck, Quiet;
             public long Strike;
         }
 
@@ -113,14 +114,14 @@ namespace Punchy.Rendering.Effects
         static readonly int ForkId = Shader.PropertyToID("_PunchyArcForks");
         static readonly int TimingId = Shader.PropertyToID("_PunchyArcTiming");
 
-        static void Push(Vector3 from, Vector3 to, int seed, int colour, float width, bool struck, long strike = 0)
+        static void Push(Vector3 from, Vector3 to, int seed, int colour, float width, bool struck, long strike = 0, bool quiet = false)
         {
             if (arcs.Count >= MaxArcs)
             {
                 Dropped++;
                 return;
             }
-            arcs.Add(new Arc { From = from, To = to, Seed = seed, Colour = Colour(colour), Width = width, Struck = struck, Strike = strike });
+            arcs.Add(new Arc { From = from, To = to, Seed = seed, Colour = Colour(colour), Width = width, Struck = struck, Strike = strike, Quiet = quiet });
         }
 
         static int Colour(int colour)
@@ -153,12 +154,11 @@ namespace Punchy.Rendering.Effects
             return k;
         }
 
-        /// <summary>Draws this frame's arcs and clears the list. Called once a frame by the effects driver
-        /// (TODO: LandmarkEffectSystem calls FireSystem.Draw today; the kit wants its own small driver, see the proposal).</summary>
+        /// <summary>Draws this frame's arcs and clears the list. Called once a frame by EffectsDriver.</summary>
         public static void Draw(Material material, Vector3 camera)
         {
             var e = Effect;
-            if (arcs.Count == 0 || material == null || e == null)
+            if (arcs.Count == 0 || material == null || e == null || e.Colours.Length == 0)
             {
                 arcs.Clear();
                 lastStrike.Clear();
@@ -191,7 +191,7 @@ namespace Punchy.Rendering.Effects
                 if (!lastStrike.ContainsKey(a.Seed) && a.Struck)
                     crack = true;
                 lastStrikeNext[a.Seed] = path;
-                if (crack)
+                if (crack && !a.Quiet)
                 {
                     var reachSound = e.CrackReach * math.sqrt(a.Width);
                     if (Punchy.Audio.GameAudio.Audible(mid, reachSound))
@@ -200,9 +200,8 @@ namespace Punchy.Rendering.Effects
                 }
 
                 // Its light: one moving request per arc (keyed by seed), flickering with the path's brightness.
-                // TODO: LightKind.Electric (LightPolicy is shared; ask the supervisor) - Fire for now.
                 var c = (Vector4)e.Colours[a.Colour].Light * (e.LightIntensity * fade * Brightness(e, a.Seed, path));
-                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, a.Seed, mid,
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Electric, a.Seed, mid,
                                                 new Vector4(c.x, c.y, c.z, e.LightReach * math.sqrt(a.Width)));
 
                 var jag = math.min(e.Jag * length, e.JagMax * math.max(a.Width, 1f));
