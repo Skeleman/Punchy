@@ -1066,6 +1066,18 @@ namespace Punchy.Flora
                 }
         }
 
+        /// <summary>Marks every plain foliage vertex as a silhouette-ring cut-out (0.52): its edge-on faces fray.</summary>
+        public void LeafRim()
+        {
+            for (int v = 0; v < positions.Count; v++)
+                if (PlainFoliage(v))
+                {
+                    var c = colors[v];
+                    c.a = 0.52f;
+                    colors[v] = c;
+                }
+        }
+
         /// <summary>A copy of the given foliage triangles pushed out along the normals, marked as cut-out shell k.</summary>
         public void LeafShell(List<int> tris, float offset, int shell)
         {
