@@ -312,10 +312,15 @@ namespace Punchy.Fauna
                 var nextPost = 0;
                 jobCounts.Clear();
                 var stayFree = 0;
+                var membersTown = TownOfMembers(source, i);
                 foreach (var r in landmarks[inst.Type].Residents)
                 {
                     var index = SpeciesIndex(r.Species);
                     if (index < 0)
+                        continue;
+                    // (A-110 row 3: a town's housed folk are its household members, each spawned as itself by
+                    // SpawnMembers; its rows no longer draw any. Its pens and other animals keep their rows.)
+                    if (membersTown && HousedFolk(index, out _))
                         continue;
                     var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
                     // Residents with a leash live round their own home spot (a pen); workers at their post (and stay near

@@ -51,8 +51,16 @@ namespace Punchy.Fauna
         /// <summary>Per creature: where its last print was, and which foot made it (w: +1 or -1); its last action.</summary>
         NativeHashMap<Entity, float4> steps;
         NativeHashMap<Entity, byte> actions;
-        /// <summary>Per sky serpent: whether it was under the water last frame (a splash where it crosses).</summary>
+        /// <summary>Per sky serpent, and per swimmer in trace range (A-125 row 2): whether it was under the water last
+        /// frame (a splash where it crosses).</summary>
         NativeHashMap<Entity, bool> under;
+        /// <summary>A-125 row 2: the most swimmer splashes (droplets and foam) running at once, and how long one runs;
+        /// a school of fish breaking the surface together throws only this many.</summary>
+        public const int MaxSwimmerSplashes = 4;
+        const float SwimmerSplashSpan = 2f;
+        readonly float[] swimmerSplashTimes = new float[MaxSwimmerSplashes];
+        /// <summary>Swimmer splashes thrown so far (x) and turned away by the cap (y), for checks.</summary>
+        public static int2 SwimmerSplashCount;
         /// <summary>Per child throwing a stone: how far into its throw it was last frame.</summary>
         NativeHashMap<Entity, float> throws;
 
@@ -61,7 +69,7 @@ namespace Punchy.Fauna
             Traces = new NativeArray<Trace>(Capacity, Allocator.Persistent);
             steps = new NativeHashMap<Entity, float4>(256, Allocator.Persistent);
             actions = new NativeHashMap<Entity, byte>(256, Allocator.Persistent);
-            under = new NativeHashMap<Entity, bool>(8, Allocator.Persistent);
+            under = new NativeHashMap<Entity, bool>(64, Allocator.Persistent);
             throws = new NativeHashMap<Entity, float>(16, Allocator.Persistent);
             query = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             RequireForUpdate<TerrainSource>();
@@ -106,7 +114,7 @@ namespace Punchy.Fauna
             Unity.Jobs.IJobExtensions.Run(new DueJob
             {
                 States = states, Bodies = bodies, Entities = entities, Camera = camPos, View = Punchy.Settings.DetailPolicy.Current.Data, OldOrder = OldOrder,
-                Steps = steps, Actions = actions, Throws = throws, Need = need, Due = due, LastPhases = lastPhases,
+                Steps = steps, Actions = actions, Throws = throws, Under = under, Need = need, Due = due, LastPhases = lastPhases,
                 Positions = positions
             });
             if (!OldTrace)
@@ -123,6 +131,11 @@ namespace Punchy.Fauna
                 if (b.Breaches || b.Tunnels)
                 {
                     Splash(entities[i], s, ref b, terrain, grounds[i], now);
+                    continue;
+                }
+                if (due[i] == SwimmerDue)
+                {
+                    SwimmerSplash(entities[i], s, ref b, grounds[i], camPos, now);
                     continue;
                 }
                 var feather = (due[i] & 1) != 0;
@@ -174,6 +187,7 @@ namespace Punchy.Fauna
             public NativeHashMap<Entity, float4> Steps;
             public NativeHashMap<Entity, byte> Actions;
             public NativeHashMap<Entity, float> Throws;
+            public NativeHashMap<Entity, bool> Under;
             public NativeArray<byte> Need, Due;
             public NativeArray<float> LastPhases;
             public NativeArray<float3> Positions;
@@ -188,14 +202,26 @@ namespace Punchy.Fauna
                     // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
                     var range = math.max(Punchy.Settings.DetailPolicy.ExtraReach(CreatureMotion.ApparentSize(s, ref b),
                         Punchy.Settings.DetailPolicy.TracePixels, View), b.SeenFrom);
-                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(s.Position, Camera), range, Steps.ContainsKey(Entities[i])))
+                    var swimmer = b.Habitat == Habitat.Swims && !b.LavaDweller && !b.Breaches;
+                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(s.Position, Camera), range,
+                            Steps.ContainsKey(Entities[i]) || swimmer && Under.ContainsKey(Entities[i])))
                     {
                         Steps.Remove(Entities[i]);
+                        if (swimmer)
+                            Under.Remove(Entities[i]);
                         continue;
                     }
                     if (b.Breaches || b.Tunnels)
                     {
                         Need[i] = 2;
+                        continue;
+                    }
+                    // (A-125 row 2: a swimmer in range has its water looked up, for a splash where it breaks the surface.
+                    // The range is its on-screen size: a dolphin's out to about 50 m, a trout's a few metres.)
+                    if (swimmer)
+                    {
+                        Need[i] = 2;
+                        Due[i] = SwimmerDue;
                         continue;
                     }
                     var flags = (FeatherDue(Actions, Entities[i], s, ref b) ? 1 : 0) | (StoneDue(Throws, Entities[i], s) ? 2 : 0) |
@@ -207,6 +233,9 @@ namespace Punchy.Fauna
                 }
             }
         }
+
+        /// <summary>Due flag for a swimmer whose splash is checked this frame (A-125 row 2), apart from the 1/2/4 bits.</summary>
+        const byte SwimmerDue = 8;
 
         /// <summary>A/B switch for #81: "-oldtrace" on a shot line (DebugControls) keeps the per-creature managed ground lookups.</summary>
         public static bool OldTrace;
@@ -429,17 +458,74 @@ namespace Punchy.Fauna
                 crest = snowy ? new float4(0.97f, 0.98f, 1f, 0.1f) : new float4(0.85f, 0.74f, 0.55f, 0f);
                 foam = snowy ? new float4(0.93f, 0.95f, 0.98f, 0f) : new float4(0.7f, 0.58f, 0.4f, 0f);
             }
-            // Droplets: up and out, as fast as the serpent is big (a few metres high for one this size), and a column of
+            SplashAt(ref rng, centre, size, 5f + 3f * math.sqrt(size), 1.5f + size, 110, true, 6, b.Tunnels, water, crest, foam, now);
+        }
+
+        /// <summary>
+        /// A-125 row 2: a fish or dolphin breaking the surface, or dropping back in, throws the sky serpent's splash
+        /// (SplashAt) scaled down to its body: droplets as many as it is big on screen (rule 20; a small fish far off gets
+        /// none), thrown about as high as it leaps, a thin foam ring only when it is big enough on screen to see one, no
+        /// mist. At most MaxSwimmerSplashes run at once. Cosmetic and per machine, from the creature snapshot.
+        /// (The wave field's ring at the same crossing is WaterPatchSystem's, row 1.)
+        /// </summary>
+        void SwimmerSplash(Entity e, in CreatureState s, ref CreatureBlob b, in GroundSample g, float3 camera, float now)
+        {
+            var body = math.max(b.FrontRadius * s.Scale, 0.01f);
+            // (A little either side of the surface before it counts as crossed, so one cruising along the top
+            // with its back awash does not splash every frame.)
+            var margin = 0.5f * body;
+            var known = under.TryGetValue(e, out var was);
+            var isUnder = g.HasWater && s.Position.y < g.WaterSurface + (known && was ? margin : -margin);
+            under[e] = isUnder;
+            if (!known || was == isUnder || !g.HasWater)
+                return;
+            var view = Punchy.Settings.DetailPolicy.Current.Data;
+            var perMetre = view.PixelsPerMetre > 0f ? view.PixelsPerMetre
+                : Punchy.Settings.DetailPolicy.PixelsPerMetreAt(Punchy.Settings.DetailPolicy.ReferenceFov);
+            var detail = view.PixelsPerMetre > 0f ? math.max(view.Detail, 0.1f) : 1f;
+            var pixels = Punchy.Settings.DetailPolicy.ScreenSize(2f * body, math.distance(s.Position, camera), perMetre) * detail;
+            // (Half a droplet per reference pixel across: about 45 for a dolphin at 5 m, 8 at 30 m; a trout's few, near.)
+            var drops = (int)math.min(pixels * 0.5f, 60f);
+            if (drops < 3)
+                return;
+            var slot = -1;
+            for (int k = 0; k < MaxSwimmerSplashes && slot < 0; k++)
+                if (swimmerSplashTimes[k] <= 0f || now - swimmerSplashTimes[k] >= SwimmerSplashSpan)
+                    slot = k;
+            if (slot < 0)
+            {
+                SwimmerSplashCount.y++;
+                return;
+            }
+            swimmerSplashTimes[slot] = now;
+            SwimmerSplashCount.x++;
+            var rng = new Unity.Mathematics.Random(math.hash(new float2(now, e.Index)) | 1u);
+            var centre = new float3(s.Position.x, g.WaterSurface, s.Position.z);
+            // (Thrown up about as fast as a leap this size: a dolphin's droplets reach half a metre, the column 1.5 m.)
+            SplashAt(ref rng, centre, body, 2f + 6f * body, 0.4f + 3f * body, drops, pixels >= 20f, 0, false,
+                new float4(0.55f, 0.7f, 0.74f, 0f), new float4(0.95f, 0.97f, 0.98f, 0.25f), new float4(0.94f, 0.96f, 0.97f, 0f), now);
+        }
+
+        /// <summary>
+        /// The splash kit (sky serpent, worm, swimmer): drops droplets thrown up and out from centre at lift (m/s), about
+        /// one in five in a column straight up, a broken foam ring spreading at spread (m/s) when foamRing, and mist puffs
+        /// of haze; all sized by size (m). Tunnels throws clods of sand or snow that lie where they land instead.
+        /// </summary>
+        void SplashAt(ref Unity.Mathematics.Random rng, float3 centre, float size, float lift, float spread, int drops,
+            bool foamRing, int mist, bool tunnels, float4 water, float4 crest, float4 foam, float now)
+        {
+            var surfaceY = centre.y;
+            // Droplets: up and out, as fast as the body is big (a few metres high for a serpent), and a column of
             // them straight up from where it broke the surface; each drawn as a streak along the way it's flying.
             // (A worm's are clods of sand or snow: not streaks, and they lie where they land for a while, fading.)
-            var lift = 5f + 3f * math.sqrt(size);
-            for (int k = 0; k < 110; k++)
+            var columnDrops = drops * 24 / 110;
+            for (int k = 0; k < drops; k++)
             {
-                var column = k < 24;
+                var column = k < columnDrops;
                 var out0 = rng.NextFloat2Direction();
                 var up = lift * (column ? rng.NextFloat(1.1f, 1.6f) : rng.NextFloat(0.4f, 1.1f));
                 var r = size * rng.NextFloat(0.04f, 0.11f);
-                Add(b.Tunnels ? new Trace
+                Add(tunnels ? new Trace
                 {
                     Position = centre + new float3(out0.x, 0f, out0.y) * size * (column ? rng.NextFloat(0f, 0.4f) : rng.NextFloat(0.3f, 1.2f)),
                     Rotation = quaternion.identity,
@@ -474,7 +560,7 @@ namespace Punchy.Fauna
             // Foam: patches of it in a broken ring round the splash, thin and see-through, spreading out and gone in
             // a second or two.
             const int ring = 22;
-            for (int k = 0; k < ring; k++)
+            for (int k = 0; foamRing && k < ring; k++)
             {
                 if (rng.NextFloat() < 0.4f)
                     continue;
@@ -491,13 +577,13 @@ namespace Punchy.Fauna
                     Color = foam,
                     Born = now,
                     Life = rng.NextFloat(1.2f, 1.9f),
-                    Velocity = out0 * (1.5f + size) * rng.NextFloat(0.8f, 1.1f),
-                    Grow = (1.5f + size) / start,
+                    Velocity = out0 * spread * rng.NextFloat(0.8f, 1.1f),
+                    Grow = spread / start,
                     Dither = 0.5f
                 });
             }
             // Mist: a low, wide, faint haze hugging the water round the splash, spreading and thinning.
-            for (int k = 0; k < 6; k++)
+            for (int k = 0; k < mist; k++)
             {
                 var out0 = rng.NextFloat2Direction();
                 var off = out0 * size * rng.NextFloat(0.5f, 1.6f);

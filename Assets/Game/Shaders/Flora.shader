@@ -35,8 +35,12 @@ Shader "Punchy/Flora"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
             #include "Flora.hlsl"
+            #include "Stone.hlsl"
             #include "Grounding.hlsl"
-            #include "Metal.hlsl"
+            #include "Materials/Wood.hlsl"
+            #include "Materials/Thatch.hlsl"
+            #include "Materials/Cloth.hlsl"
+            #include "Materials/Metal.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
 
@@ -67,126 +71,6 @@ Shader "Punchy/Flora"
             /// them), mottling at 0.7, 2.5 and 9 m, and rain streaks down the walls. Each octave drops out as it gets
             /// too fine for the pixels (PunchyOctave) and those left are scaled up to the same contrast, so a far wall
             /// keeps a few octaves of variation instead of fading to one flat colour. Returns an albedo multiplier.
-            /// Wood grain (Z-30): fine and broad streaks running along the piece (its grain axis, in the plant's own frame,
-            /// so they turn with it), wavering a little, darker in the lines; each scale drops out as it gets too fine for
-            /// the pixels, as the weathering's octaves do. Returns an albedo multiplier.
-            half PunchyWoodGrain(float3 p, half axisCode, float footprint)
-            {
-                int axis = (int)round(axisCode * 4);
-                float along = axis == 1 ? p.x : axis == 2 ? p.y : p.z;
-                float2 across = axis == 1 ? p.yz : axis == 2 ? p.xz : p.xy;
-                float sideways = across.x + across.y;
-                // Lines about 3 cm apart running along the piece, bent by a slow waver and a quicker one so they read
-                // as long wavy streaks, some fainter than others; broad lighter and darker bands under them. (The first
-                // version's streaks, at most 18% darker and mostly faded out by the pixel footprint, didn't show.)
-                float wobble = (PunchyValueNoise(float2(along * 0.6, sideways * 1.5)) - 0.5) * 2.0
-                             + (PunchyValueNoise(float2(along * 2.3, sideways * 5.0 + 7.1)) - 0.5) * 0.5;
-                float lines = sideways * 33 + wobble * 2;
-                half streak = smoothstep(0.55, 0.95, abs(frac(lines) * 2 - 1));
-                streak *= 0.55 + 0.45 * PunchyValueNoise(float2(lines * 0.5, along * 0.8));
-                half broad = PunchyValueNoise(float2(sideways * 8 + wobble, along * 0.35)) - 0.5;
-                half grain = streak * 0.45 * PunchyOctave(0.03, footprint) + broad * 0.35 * PunchyOctave(0.12, footprint);
-                return 1 - grain;
-            }
-
-            /// W-99: a sawn log end (look 5; the rings are in its vertex colours): fine end-grain speckle and saw marks only.
-            half PunchyLogEnd(float3 p, float footprint)
-            {
-                half fineFade = 1 - smoothstep(0.004, 0.012, footprint);
-                half speckle = PunchyValueNoise(p.yz * 160) * 0.6 + PunchyValueNoise(p.yz * 61 + 3.7) * 0.4;
-                half saw = PunchyValueNoise(float2(p.y * 7 + p.z * 2, 1.3) * 9);
-                return 1 + ((speckle - 0.5) * 0.22 + (saw - 0.5) * 0.08) * fineFade;
-            }
-
-            /// W-99: a built surface's look (FloraMeshBuilder.Surface): 1 planks, 2 shingles, 3 thatch, 4 a shingle course
-            /// laid as geometry (only its tiles here; key: the course's own colour, which staggers its joints). Worked out in
-            /// the plant's own frame: rows climb the face (on a slope measured along it, so a course keeps its size on any
-            /// pitch) and "across" runs level along it. Each scale drops out as it gets too fine for the pixels.
-            half PunchySurface(int look, float3 p, float3 nOS, float footprint, half3 key)
-            {
-                float slope = sqrt(saturate(1 - nOS.y * nOS.y));
-                float across = slope < 0.3 ? p.x : dot(p.xz, normalize(float2(-nOS.z, nOS.x) + float2(1e-4, 0)));
-                float row = slope < 0.3 ? p.z : p.y / max(slope, 0.35);
-                if (look == 1)
-                {
-                    // Lapped boards about 21 cm high, each its own length and shade, a shadow under each lap, butt joints.
-                    float r = row / 0.21;
-                    int board = (int)floor(r);
-                    half fr = frac(r);
-                    half h = PunchyCellHash(int2(board, 31));
-                    float len = 2.2 + h * 1.6;
-                    float a = across / len + h * 7.3;
-                    half piece = PunchyCellHash(int2(board, (int)floor(a) + 977));
-                    half joint = 1 - smoothstep(0.004, 0.014, min(frac(a), 1 - frac(a)) * len);
-                    half lap = smoothstep(0.78, 1.0, fr) * 0.4 + (1 - smoothstep(0.0, 0.05, fr)) * 0.2;
-                    half o = PunchyOctave(0.21, footprint);
-                    half grain = PunchyWoodGrain(float3(across, row + board * 0.37, 0), 0.25, footprint);
-                    return grain * lerp(1, lerp(0.84, 1.12, piece) * (1 - lap - joint * 0.4), o);
-                }
-                if (look == 2 || look == 4)
-                {
-                    // Shingles about 30 cm wide, joints staggered course to course, a shadow under the course above
-                    // (geometric courses cast their own), and a fine grain down each.
-                    float r = row / 0.24;
-                    half fr = frac(r);
-                    float course = look == 4 ? floor(frac(dot(key, half3(97.31, 61.17, 13.73))) * 64) : floor(r);
-                    float t = across / 0.3 + frac(course * 0.618);
-                    half ft = frac(t);
-                    half h = PunchyCellHash(int2((int)course, (int)floor(t)));
-                    half joint = 1 - smoothstep(0.02, 0.07, min(ft, 1 - ft));
-                    half under = look == 4 ? 0 : smoothstep(0.7, 1.0, fr) * 0.4;
-                    half lip = look == 4 ? 0 : (1 - smoothstep(0.0, 0.08, fr)) * 0.12;
-                    half fine = (PunchyValueNoise(float2(t * 9, row * 1.5 + h * 10)) - 0.5) * 0.3 * PunchyOctave(0.03, footprint);
-                    half m = lerp(0.8, 1.14, h) * (1 - under - joint * 0.45 * (1 - under)) * (1 + lip);
-                    return lerp(1, m, PunchyOctave(0.24, footprint)) * (1 + fine);
-                }
-                // Thatch: straw strands down the slope in ragged layers, clumps lighter and darker, shadow under each layer.
-                float rr = row / 0.42 + (PunchyValueNoise(float2(across * 1.3, 3.7)) - 0.5) * 0.4;
-                half strand = PunchyValueNoise(float2(across * 38, row * 1.2)) * 0.6 + PunchyValueNoise(float2(across * 90 + 3.1, row * 2.5)) * 0.4;
-                half clump = PunchyValueNoise(float2(across * 4.0, row * 1.5 + 11.1));
-                half layer = smoothstep(0.62, 1.0, frac(rr)) * 0.32 * PunchyOctave(0.42, footprint);
-                return (1 + (strand - 0.5) * 0.6 * PunchyOctave(0.02, footprint) + (clump - 0.5) * 0.3 * PunchyOctave(0.25, footprint)) * (1 - layer);
-            }
-
-            /// W-99: cloth's linen weave, on the facet's plane in the plant's own frame: 3 cm threads over and under in a
-            /// check, a little uneven along each thread (slubs), and broad soft blotches; fading out with the pixels.
-            half PunchyLinen(float3 p, float3 nOS, float footprint)
-            {
-                float3 a = abs(nOS);
-                float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
-                float2 t = uv / 0.03;
-                float2 f = frac(t);
-                int2 c = (int2)floor(t);
-                bool warp = ((c.x + c.y) & 1) == 0;
-                half thread = warp ? sin(f.x * 3.14159) : sin(f.y * 3.14159);
-                half slub = PunchyValueNoise(warp ? float2(c.x * 1.7, t.y * 0.15) : float2(t.x * 0.15, c.y * 1.7 + 9.3));
-                half fine = (thread * 0.7 + slub * 0.3 - 0.55) * 0.6 * PunchyOctave(0.03, footprint);
-                // Sewn panels: a dark seam every ~55 cm with a slight tone change per panel, so it reads at a few metres.
-                float pv = uv.y / 0.55;
-                half seam = (1 - smoothstep(0.0, 0.035, abs(frac(pv) - 0.5) - 0.465)) * 0.22;
-                half panel = (frac(sin(floor(pv) * 12.9898) * 43758.55) - 0.5) * 0.12;
-                half mid = (panel - seam) * PunchyOctave(0.12, footprint);
-                half coarse = (PunchyValueNoise(uv * 3.1) - 0.5) * 0.22 * PunchyOctave(0.3, footprint);
-                return 1 + fine + mid + coarse;
-            }
-
-            /// W-113: a tent's hide, as leather, not linen: blotchy tanning, fine creases and pores, so it reads at a few
-            /// metres. Playtest 11-07: the seams and stitches it had, on a square lattice about 80 cm apart, read as a grid
-            /// up close, not leather; the panels' own edges between the poles are the seams now, and each hide's tone
-            /// drifts softly over a metre or two instead of changing square by square.
-            half PunchyHide(float3 p, float3 nOS, float footprint)
-            {
-                float3 a = abs(nOS);
-                float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
-                half blotch = (PunchyValueNoise(uv * 1.4) - 0.5) * 0.34 + (PunchyValueNoise(uv * 4.3 + 5.1) - 0.5) * 0.16;
-                half crease = (PunchyValueNoise(uv * float2(9, 26)) - 0.5) * 0.12 + (PunchyValueNoise(uv * 55) - 0.5) * 0.08;
-                // Tanned unevenly: a slow drift in tone across the hide, and darker worn patches here and there.
-                half hides = (PunchyValueNoise(uv * 0.55 + 11.3) - 0.5) * 0.16;
-                half worn = smoothstep(0.62, 0.8, PunchyValueNoise(uv * 2.2 + 31.7)) * 0.1;
-                return 1 + blotch * PunchyOctave(0.4, footprint) + crease * PunchyOctave(0.03, footprint)
-                         + (hides - worn) * PunchyOctave(0.1, footprint);
-            }
-
             half3 PunchyWeathering(float3 p, half3 n, float footprint, half r)
             {
                 p += r * 37;
@@ -302,6 +186,7 @@ Shader "Punchy/Flora"
                 // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
                 bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
                 int look = wood ? (int)round((input.grainAxis - round(input.grainAxis * 4) * 0.25) / 0.02) : 0;
+                int woodKind = wood ? (int)round((frac(input.extra.x) - 0.015) / 0.0025) : 0;
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
                 // (PunchyWeathering). Timber takes only a little of it: its stone-like courses read as plaster (W-99).
                 bool strata = part == 0 && frac(input.extra.x) > 0.04 && frac(input.extra.x) < 0.15;
@@ -311,10 +196,10 @@ Shader "Punchy/Flora"
                 if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
+                // W-166: wood draws through Materials/Wood.hlsl, its kind riding on the wood mark (FloraMeshBuilder.WoodKind).
                 if (detail && wood)
-                    albedo *= look == 0 ? PunchyWoodGrain(input.grainPos, input.grainAxis, footprint)
-                                        : look == 5 ? PunchyLogEnd(input.grainPos, footprint)
-                                        : PunchySurface(look, input.grainPos, facetOS, footprint, input.color.rgb);
+                    albedo = look == 3 ? albedo * PunchyThatch(input.grainPos, facetOS, footprint)
+                                       : PunchyWoodSurface(albedo, look, input.grainPos, input.grainAxis, facetOS, footprint, input.color.rgb, woodKind);
                 // Cloth: a linen weave (W-99).
                 // Hide (Cloth + 0.45, W-113): leather instead.
                 if (detail && part == 10)
@@ -342,7 +227,10 @@ Shader "Punchy/Flora"
                 // it stays; the bark's own grain (below) does the work.
                 bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
                 near *= bark ? 0.35 : 1;
-                if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0)
+                // R-34 row 2: boulders and built stone (not timber, not living plants) draw their surface from the shared
+                // stone (Stone.hlsl) in place of the relief here. No marker tells built stone from plaster yet (W-166).
+                bool stone = part == 0 && !wood && input.living < 0.5 && _PunchyCaveDetailReady > 0;
+                if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0 && !stone)
                 {
                     float3 q = input.positionWS * 0.9;
                     float3 w = pow(abs(n), 4);
@@ -438,6 +326,13 @@ Shader "Punchy/Flora"
                 }
                 // Wet darkens. Bark and leaves (items 27-28) soak it up, so they darken more and shine far less (below).
                 albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
+                half stoneWet = 0, crevice = 0;
+                half3 stoneN0 = n;
+                if (stone)
+                {
+                    stoneWet = PunchyStoneWetness(wet);
+                    PunchyStoneSurface(input.positionWS, footprint, stoneWet, wet, albedo, n, crevice);
+                }
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
@@ -488,6 +383,8 @@ Shader "Punchy/Flora"
                 // surfaces have a little smoothness), so rocks fade into the same sky-tinted haze as the land. Metal
                 // and crystal too: dark ones (obsidian) otherwise stay black specks on a distant hazy slope. Up close
                 // dry stone, wood and plaster stay matte (rain adds its own sheen below).
+                if (stone && stoneWet > 0.01)
+                    color += SampleSH(reflect(-v, n)) * PunchyStoneFresnel(n, v, crevice, stoneWet) * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
@@ -620,6 +517,19 @@ Shader "Punchy/Flora"
                 // highlight of wet stone or planks (on them it read as shiny plastic and showed up the evergreens' facets).
                 bool damp = bark || leafy;
                 half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5);
+                if (stone && stoneWet > 0.01)
+                {
+                    // Wet stone's own two lobes, from the sun and the lantern, in place of the wet gloss.
+                    color += light.color * shadow * PunchyStoneSpec(n, stoneN0, v, light.direction, crevice, stoneWet) * ao;
+                    if (_PunchyLantern.w > 0)
+                    {
+                        float3 toLantern = _PunchyLantern.xyz - input.positionWS;
+                        float reachL = saturate(1 - length(toLantern) / _PunchyLanternColor.w);
+                        color += _PunchyLanternColor.rgb * _PunchyLantern.w * reachL * PunchyStoneSpec(n, stoneN0, v, normalize(toLantern), crevice, stoneWet) * ao;
+                    }
+                }
+                if (stone)
+                    gloss = 0;
                 if (gloss > 0)
                 {
                     half3 h = normalize(light.direction + v);
