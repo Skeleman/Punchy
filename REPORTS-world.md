@@ -8486,3 +8486,10 @@ Plan:
 - WorldTests 19/19 (one earlier Setup_SpawnRainAndShot timeout on an island cache miss bake; clean on rerun).
 - Shots (written check): D:/Unity/PunchyMilestones/W-175 w175-cookhouse20 (open post-and-roof cookhouse at the village square edge, standing on the ground, facing the square) and w175-cookhouse150 (in the village among houses).
 - Docs: docs/agents/parts-and-units.md section 12. Still to do (#415): converting older code-built buildings.
+
+## W-174 r6 row 1: temple entrance collars (#405), world/collars @ 9a6a6ac9
+- Temple only: rim vertices on the chunk grid where the cut crosses zero, at LOD0-2. On a shared grid edge both chunks compute the crossing from the same two samples in canonical order, so the result is bit-identical. Triangles inside the cut are dropped; a collar runs down to the wall-top line from the same blob function. The temple draws its entrance at LOD2. Cave mouths keep the old snap and clip until row 2. Code: BuildChunkMeshJob.Collars.cs (new partial); BuildChunkMeshJob keeps per-vertex cut; streaming owns a TerrainLayout buffer (near and far ring).
+- Guard: Seams_NoOpenRims now builds the real temple chunks per LOD and checks slot (cut ground left uncovered), lip (ground over the cut) and chunk-edge twins (exact y). It measured LOD0 42 rim / 32 collar tris / riser 0.16 m, LOD1 14 / 19 / 0.05 m, LOD2 3 / 17 / 0.27 m, slot 0.00 lip 0.00 at every LOD.
+- Fingerprints unchanged, collision unchanged, no re-pin. WorldTests 19/19.
+- Known gaps (the guard would report them): two corners claiming one vertex; corridors narrower than one step.
+- Shots (unviewed, the guard is the check): D:/Unity/PunchyMilestones/W-174r6 r6-temple20, r6-temple150, r6-walk60, r6-walk40.

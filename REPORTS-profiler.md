@@ -4131,3 +4131,5 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 - World W-174 r4b (world/seams): terrain chunk build now does extra Cut evaluations (2 gradient taps plus a re-check) for kept-side vertices within 1.3 quads of a rim (LOD0-2). Please compare chunk mesh build burst cost against main on the default seed when the queue allows.
 
 - World W-175 (world/json-units @ f4ea850a): fauna fingerprint re-pinned to 2486F68F (Cookhouse blueprint species joins the flora list). One more flora species and one HumanVillage prop; no new per-frame work, so no BENCH request.
+
+- World W-174 r6 row 1 (world/collars @ 9a6a6ac9), BENCH request: (1) LOD2 temple chunk triangles, including WideShadow, against main; (2) chunk build job cost for the temple chunks at LOD0-2 (the new Collars pass, plus a TempleCut per vertex); (3) the cost of WorldTests.Seams_NoOpenRims, which now builds 3 LODs of the real temple chunks.
