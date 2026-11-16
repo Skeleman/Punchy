@@ -95,3 +95,66 @@ Branch player/quest-items@d651e02f (off main 544d91cb, #486). Design A approved 
 - The editor was closed via EditorApplication.Exit. TempleGlow.mat was untouched.
 
 Shares: extends the one item system (ItemTable rows + a Quest/Base tag, rule 33). Any later quest item is a tagged row, and random rolls go through RandomLoot. Parallel found but not folded in: Gear.HeldFor and other per-id look switches could key off Base.
+
+## P-37 r3 (#369): seamless interiors, design (editor-free)
+
+Source: archived player/seamless (P-30 prototype 0c5e6b89, merged 2f8b77e2 onto base 393a9c20, #258), read-only. Main is now 544 commits ahead. `git merge-tree origin/main origin/player/seamless` is clean (no conflict hunks). The merge is textual only, though: main's kit and Use-target code has changed under it, so rebuild on main rather than merge.
+
+### 1. How doors and interiors become walk-through
+- The house shell is the room. For a walk-in kit type, the kit's own wall and floor boxes become the colliders, and three things are dropped: the centre cylinder, the wall circles and the trunk circle. The plinth floor stays solid, and the door step goes up to 0.25 m.
+- The door is a hinged leaf that Flora.hlsl swings. While FloraDoors says the door is shut, its DoorBox is solid. When open, the doorway is clear. No teleport, no load and no off-island room.
+- Inside is decided per house, with no global cells. Interiors.InWalkIn(p, out house, out depth) uses a 32 m grid lookup of walk-in houses, and the depth (0 at the sill, 1 at 1.5 m in) drives:
+  - an ambient blend from sky to room;
+  - the camera IndoorArm of 2.5-3.5 m (ThirdPersonCamera, player lane);
+  - the indoor audio and weather mute later.
+- Furnishing: each type gets a seeded layout in the house's own frame (yawed boxes). It is baked as one instanced mesh per type and built only when the house's DetailPolicy.ScreenSize passes a threshold (rule 20, no metres), with about 8 at once. At far LOD the doorway shows a dark panel and nothing inside is built.
+- Light: r2 (#490) removed the body glow, so rooms are lit by a seeded lamp or hearth per layout plus the player's torch. There is no special indoor light.
+- Old path: the current teleport rooms stay behind `-teleportrooms` (on for any type not yet walk-in), until all common types are converted.
+
+### 2. What player/seamless has and what's stale
+Reusable as-is (logic, re-applied by hand):
+- StormHouse WalkIn flag
+- DoorBoxes that are solid only while shut (FloraSystem plus FloraDoors.IsOpen(float3, within))
+- InWalkIn with the 32 m cell lookup
+- the depth ambient blend
+- IndoorArm
+- the test flags -walkin N, -atdoor, -usedoor and -shotdir
+
+Stale against main:
+- FloraGenerator.Kit.cs, the same spots, which have moved:
+  - The prototype edits the `p.Solid` path, the fat cylinder and the TrunkRadius circle (main lines 184 / 220 / 273).
+  - Main has since added W-166 material Family/Rubble, M-06 KitParts and W-147 ladders around them.
+  - The shell edit must carry Family through, or walls lose their brick and stone.
+- StructureKit.cs is now 3418 lines, over the rule-of-2500 limit. The WalkIn/Seamless flags must go in a partial (StructureKit.Parts.cs or a new StructureKit.WalkIn.cs), not the main file.
+- FloraGenerator.cs (M-06 r5 blueprint buildings on W-175 units, A-117 stables): DoorBoxes must read the blueprint's door, not the old fixed kit offset. This also fixes P-30's 1.66 m door-anchor error.
+- Interiors.cs:
+  - A-134 #488 moved storage to per-door household containers (Interiors.Storage, registered near players). This already matches "containers per door", so the prototype's room containers are dropped.
+  - P-39 r3's single facing-cone Use pick replaces the prototype's door prompt. The doorway anchor must sit on the real doorway line for the cone to pick it.
+- P-37 r1 #484 (sky hold, LoadVeil): this is the teleport path's veil. Walk-in needs none, and the teleport fallback keeps it.
+- P-37 r2 #490 (no body glow, starting torch): the prototype's interior relied on the glow, so the layouts need light sources.
+- Known gaps the prototype never fixed:
+  - Creatures path through walk-in walls, because the circles they used are gone.
+  - No furniture.
+  - Never run as a joined client.
+
+### 3. Rows (each verifiable alone)
+1. World shell (world lane, the supervisor routes it): a WalkIn flag for StormHouse in a StructureKit partial. The kit walls and floor collide and the circles go, keeping W-166 Family. Door anchor from the blueprint doorway. Verify: on -walkin 1 -atdoor, you walk through the open door and are blocked when it's shut. Shot inside shows brick/stone walls. Suite passes.
+2. Creature blocking: walk-in houses register their wall boxes (or a door-gap ring) with the fauna avoidance query, so creatures don't walk through walls. Fauna owns the query, so this goes to fauna or the supervisor. Verify: herd test near a walk-in house, no creature inside in 5 min.
+3. Player side (player lane):
+   - InWalkIn lookup in an Interiors partial
+   - ambient blend
+   - IndoorArm
+   - Use pick on the doorway line
+   - `-teleportrooms` fallback
+   Verify: solo, walk in and out of StormHouse. The prompt sits on the door, the camera pulls in, and the old teleport still works under the flag.
+4. Furnishing and light: seeded per-type layout plus a lamp or hearth, baked instanced and built by ScreenSize. A-134 household containers sit at the layout's store spots. Verify: a shot inside at night with no torch shows lamp light. Taking an item from a chest updates that household. Bench queue gets one cost check (rule 21, the profiler times it).
+5. Two more types: the commonest house kit per culture (say House and SnowHouse/Igloo, checked against the culture tables at build time). Verify: walk in and out of three types, one shot inside each.
+6. Network: host plus joined client, both walk in. The door is opened by one and seen by the other. The client sees the same furniture and containers. Late joiner too. Run on 7983. This closes the P-37 row 3 card.
+
+### 4. Network / save (rule 11 flags, not built)
+- No new RPC is expected. Layouts are seeded from the house, door state is already host-owned (FloraDoors), and household containers already sync per door (A-134).
+- Possible save change: if any old teleport-room container ids still sit in saves, moving those types to walk-in orphans them. Proposal: on load, map them to the house's door container, or drop them if empty. This needs your OK before row 4.
+- If row 2 needs fauna to read house walls, that's a cross-lane read of world data. No sync change.
+- -teleportrooms is a client-local flag. A host and a client on different settings would disagree on where the player is. Proposal: the host's setting wins and is sent once in the join handshake (one field). Flagged for rule 11. The alternative is no flag in multiplayer builds.
+
+Needs from world (send via supervisor first, card row 3): row 1 shell changes (FloraGenerator.Kit.cs, FloraGenerator.cs DoorBoxes, FloraSystem.cs leaf box, FloraDoors.IsOpen overload, StructureKit partial).
