@@ -19,7 +19,8 @@ namespace Punchy.Interact
     /// until a quest and a gift have each been offered, accepts both, then meets that folk again. With "pad": a virtual
     /// pad opens a talk, moves down the list, picks, tries to look and walk, and ends it two ways. With "replies" (P-42):
     /// walks a made-up reply branch (ReplyBook) through the window: a gesture, an item offer taken by a reply, the depth
-    /// cap, and a goodbye. "-talkshot dir" saves the whole screen, the window included, at each step.
+    /// cap, and a goodbye. With "exchanges" (P-42 row 2): the shipped reply exchanges (FolkTalk.Exchanges.cs).
+    /// "-talkshot dir" saves the whole screen, the window included, at each step.
     /// </summary>
     public partial class FolkTalk
     {
@@ -45,6 +46,7 @@ namespace Punchy.Interact
             testOffers = at + 2 < args.Length && args[at + 2] == "offers";
             testPad = at + 2 < args.Length && args[at + 2] == "pad";
             testReplies = at + 2 < args.Length && args[at + 2] == "replies";
+            testExchanges = at + 2 < args.Length && args[at + 2] == "exchanges";
             StartCoroutine(RunTest());
         }
 
@@ -137,6 +139,11 @@ namespace Punchy.Interact
             if (testReplies)
             {
                 yield return Replies(tried);
+                testCount = 0;
+            }
+            if (testExchanges)
+            {
+                yield return Exchanges(tried);
                 testCount = 0;
             }
             int opened = 0, fast = 0, stood = 0, faced = 0, total = 0;
