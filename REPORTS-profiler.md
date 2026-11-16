@@ -2,6 +2,19 @@
 
 Newest first.
 
+## Job 100: R-39 flames by screen size, darker nights (main d2dfcd1b = B vs d2dfcd1b^1 64eb479 = A), 2026-11-16 (q140.job): **PASS**
+Both arms built with the TestHooks.Options.cs editor guard (bench-only local commits; main's player build fails without it, see Job 97). Profile builds, 1920x1080, uncapped, ABBA, 3 rounds, 22:00 Clear, the R-25 town (2972,-885).
+Views: glide150 = 300 m line north into the town at 6 m/s, 150 m up; far600 = 600 m south of it, 150 m up, near-still.
+
+| view | preset | A GPU ms | B GPU ms | B vs A | bar | A / B 1% low fps | A / B frames over 33 ms (sum of 3) |
+|---|---|---|---|---|---|---|---|
+| glide150 | Medium | 12.87 | 13.10 | +0.23 | +0.3 PASS | 17.0 / 17.9 | 70 / 63 |
+| far600 | Medium | 12.90 | 12.63 | -0.27 | +0.3 PASS | 29.5 / 35.4 | |
+| glide150 | High | 18.93 | 19.03 | +0.10 | +0.5 PASS | 4.4 / 3.6 | 327 / 343 |
+| far600 | High | 19.10 | 19.30 | +0.20 | +0.5 PASS | 19.7 / 19.6 | |
+
+- CPU main thread is level (Medium glide 17.2 / 17.37 ms, High 27.97 / 27.97). Hitches held: the glide's frames over 33 ms are the same in both arms (High's worst are 89-98 ms near 2972,-1180, the line's start, in both).
+- Screenshots: the town's lights show as a glowing ring from 600 m in both arms. B's night reads darker and clearer (A has a lighter blue haze over the far ground); that's the intended R-39 look, not a bench difference.
 ## Job 86: third rebuild attempt, 2026-11-16 (q128d.job): **stopped before the games (its guard worked); the shader cache isn't Library/ShaderCache; q128e.job rehashes the shader**
 - q128d moved Library/ShaderCache aside and rebuilt B (42 min). The log compiles only five built-in shaders (URP Lit, UI, Sprites) and none of the game's, TerrainSurface included. So the player build serves its variants from its own caches, not Library/ShaderCache. B would again have carried the variants from q128b's FXC crash, so before() stopped it, as designed. The old ShaderCache is back in place.
 - **Next, q128e.job (chained last):** B = 5317827, a local bench-only commit (not pushed): ce3ff5a plus one unused `static const` in TerrainSurface.shader's ForwardLit pass. Its preprocessed source is new, so no cache can serve it. It must compile fresh, and if FXC really crashes on this shader, the crash will come back and say so.
