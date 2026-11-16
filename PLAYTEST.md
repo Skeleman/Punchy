@@ -180,3 +180,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #483 R-23 r3 (#298): one lighting path; cloud and wide shadows dim only direct sun, so sunlit colossus faces under cloud are about 25% darker even in Clear (shots PunchyMilestones/R-23/row3).
 - 11-16: #484 P-37 r1 (#369): no loading screen; the camera holds on the sky until the world is in, then tilts down (`-loadveil` brings the old veil back).
 - 11-16: #485 P-49 (#24, #27): dungeon quests; a notice board names a cave or ruin-room chest (heirloom Key, elder Staff) and you bring back what it holds.
+- 11-16: #486 W-166 r4 (#336), #24 p2: colossi wear library wood, stone, bone and ice; cave and ruin chests draw from their own loot rows.
