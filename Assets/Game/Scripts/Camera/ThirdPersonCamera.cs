@@ -408,7 +408,7 @@ namespace Punchy.CameraRig
             for (int i = 0; i < set.Pools.Length; i++)
             {
                 var pool = set.Pools[i];
-                if (pool.Lava > 0.5f || Unity.Mathematics.math.distance(p.xz, pool.Centre.xz) > pool.Radius)
+                if (pool.Lava > 0.5f || CaveSampling.PoolAcross(pool, p.xz) > 1f)
                     continue;
                 if (p.y < pool.Centre.y && p.y > pool.Centre.y - pool.Depth - 1.5f)
                     best = Unity.Mathematics.math.max(best, pool.Centre.y);
