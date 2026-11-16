@@ -8263,3 +8263,8 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Still off the library (follow-ups):** the salt tower and colossi are flat vertex colour (Colossus.shader, fauna); the temple's tiles and light shafts are not families; TerrainSurface still uses the forwarder (render); DwarfHold framing is poor; there is no dungeon landmark to walk yet.
 - **Noted:** R-30 LeafThinness about 1.6 for Fir and WhitePine (not added by me).
 - Next: W-175 row 2 (stalls and smithy as units). The row 4 sweep (items, colossi) stays queued after it.
+
+## W-175 row 2 (#415): stall and smithy as units. In progress (no blocker, no rule 11 ask)
+- **Branch:** world/parts-units off origin/main 7f7866a4, not pushed yet. It adds UnitDef.cs (a unit as data: parts placed by share of the frame plus metres), FloraGenerator.Parts.cs (a part library of 9 parts, each naming its own MaterialFamily) and FloraGenerator.Units.cs (StallUnit, SmithyUnit). Stall() and Smithy() are now one-line `BuildUnit` calls. It also adds UnitLibraryTests (3 reflection tests), parts-and-units.md section 6, and a line in flora.md. No shared files are touched.
+- **No look change:** I hashed meshes, colliders, perches and chimneys for 15 variants (Stall, Smithy, Dwarf/Elf/TownRamada) before and after. All 15 match. The first run had 2 TownRamada mismatches: the wares used a different float order (lerp in metres, not in shares). I fixed that and reran.
+- Next: tests (UnitLibrary, MaterialLibrary, Landmarks_V3), then a town pixel diff, a push, and "ready for PR" on the BOARD.
