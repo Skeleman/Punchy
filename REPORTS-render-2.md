@@ -109,7 +109,7 @@ Compared the reference (MIT @freeborn, PunchyReferences: a full-res, 500-step an
 
 ## R-35 row 2 (#333) 11-16: picks A-E written, editor-free (unverified, needs editor)
 Branch render/cloud-picks b7a1f7cc (new off main 25558ed8). The BENCH draft above now has this sha.
-- A, -skyoff 4096: the cloud noise's unused alpha now holds dome lobes, x / sqrt(x + 0.04) with x = 1 - F1�/0.36 over Worley cells at 8, 16 and 32, plus small |Perlin| bumps. It is stored as erosion and remapped to g's mean (0.48), so overall erosion is about the same (checked offline on a 32� sample). Clouds.hlsl reads it in place of g on billowy tops, in both octaves. The MIT notice (SPDX line, copyright @freeborn, licence URL) is in the CloudNoise.cs header.
+- A, -skyoff 4096: the cloud noise's unused alpha now holds dome lobes, x / sqrt(x + 0.04) with x = 1 - F1²/0.36 over Worley cells at 8, 16 and 32, plus small |Perlin| bumps. It is stored as erosion and remapped to g's mean (0.48), so overall erosion is about the same (checked offline on a 32³ sample). Clouds.hlsl reads it in place of g on billowy tops, in both octaves. The MIT notice (SPDX line, copyright @freeborn, licence URL) is in the CloudNoise.cs header.
 - B, 8192: the light's soft*phase becomes beer*phase + (0.5 e^-0.25od + 0.25 e^-0.06od) * lerp(phase, 1, 0.6), times 0.6, so a thin edge keeps today's brightness and bodies glow deeper. The MIT notice is in the Sky.hlsl header.
 - C, 16384: one density sample 300 m straight up, taken only when the sun samples are taken (reused otherwise). Ambient is multiplied by exp(-0.6 sigma od), and the height ramp is softened to 0.8-1.1.
 - D, 32768: the 90 m sun sample reads edge detail at the step's own detail level. It fades out with mergeFirst by 6 km.
@@ -169,3 +169,63 @@ Branch render/hour-sync-doc @ 0fb62bf8 (off main fd2184ce). It adds one bullet u
   - Not proven in editor. R-23's fov 90 cave at 0.7, below its fov 60, also argues against a fade cause, since fov 90 is where the fades do move.
 - **Intended?** There is no real change at fov 60 to approve. The only intended change is the rule 20 shift at other fovs and Details.
 - **Suggestion (not done):** for future frozen pairs, freeze on the host, or pin `_PunchyClock` too. Shader.SetGlobalFloat after WorldSync's Update won't hold, because WorldSync sets it every frame, so the probe would need to disable WorldSync for the shot. That could be a second docs line on render/hour-sync-doc if you want it.
+
+### 3. Freeze line: ready for PR
+render/hour-sync-doc @ **349c274e** (on 0fb62bf8). It adds one bullet to docs/agents/testing.md: take frozen comparison shots on the host, or with WorldSync off for the shot. On a joined client `_PunchyClock` follows the server tick, and `Time.timeScale = 0` doesn't stop shader animation. LF checked, pushed.
+
+## R-29
+### Row 1: effects inventory and kit proposal (editor-free, 11-16). Needs approval before row 3.
+**How each effect draws today**
+- **Electricity** (none of these share code):
+  - *ArcBolt.shader/.mat*: two crossed ribbons fixed in object space (FloraSystem.BoltMesh). It re-jags on a **fixed 8/s beat**, uses one envelope and one flat colour, and flickers on and off at 40 Hz. It has no forks, glow or afterglow, and no fog.
+  - *FloraSystem.DrawBolts* (Flora lane): spire-to-spire and spire-to-ground strikes timed from the shared clock, with a Zip crack. It uses a **fixed reach** of 160 m × ViewRange, which breaks rule 20.
+  - *Fauna/GolemArcs.cs* (W-89): continuous arcs with the same mesh at ×7 thickness, so the jag scales ×7 too. The rock bob runs on local `Time.time` and the crack on `UnityEngine.Random`, so it isn't shared between players.
+  - *FloraPart.Arc* (FloraGenerator.Crystals, Flora.shader): crystal arcs are **baked tubes** in the flora mesh. They only jitter by 0.18 × scale and flash in brightness bursts. **This is most likely the "one fixed shape that flashes colour" Zach saw.** The magnetic rock uses the same tubes.
+  - *Storm lightning* (WeatherSystem, LightningRpc): a sky flash and light only, with no visible bolt. It is a candidate kit consumer.
+- **Fire (the model):** FireEffect/FireSystem/Flame.shader. It is used by landmark flames, beacons, forest fire and colossus lanterns.
+- **Steam, smoke and spray on the GPU:** LandmarkEffectSystem plus LandmarkPlume.shader draw procedural emitters with no CPU sim. The landmark assets have 52 Plume, 18 Flame, 5 Bubbles and 1 Waterfall entries. Code also spawns emitters for chimney smoke (W-43c), river fall mist, foam and lip spray (R-21), and the grand falls.
+- **Smoke, steam, spray and sparks on the CPU (Shuriken one-offs, the cost risk):**
+  - AmbienceSystem: breath vapour (players, creatures), snow footstep powder and diving-bird spray.
+  - SkunkGas, WorkDust, and the ColossusWalker and ColossusRigs dust.
+  - The DunesColossus storm (600 particles).
+  - The StoneColossi.Puffs helper (max 300 each), shared by CarnivorousPlant, CharredTreant (smoke, ash, embers, coals), CinderSnail, HermitCrab, IceMammoth, MagmaSerpent (smoke, sparks), MireWalker, Puffball and SkyWhale.
+  - Underwater motes and bubbles.
+  - Weather: rain, snow, hail and DustVeils.
+- **Ambient (GPU):** AmbientParticleSystem types (AshFlecks, ColdMist, Embers, FogWisps, Pollen, SandPuffs, Sparkles, Spores, SwampMist), plus CaveDrips and the HeatHaze feature.
+- **Wind:** there is **no visible-wind effect**. Wind shows only as motion in grass, trees, hair and drapes, and as DustVeils, SandPuffs and Pollen drift.
+
+**Kit proposal.** Each family gets one asset, one draw path and presets by index (rule 30, the FireSystem model). The kit lives in `Scripts/Rendering/Effects/` (namespace Punchy.Rendering.Effects).
+1. **Electricity** (row 2, sketched below). It replaces ArcBolt, the golem arcs and the baked FloraPart.Arc tubes. The spire and crystal callers keep their placement, so there are no placement changes.
+2. **Smoke and steam:** turn the LandmarkPlume emitter into a callable `PlumeSystem.Add(pos, preset, strength)` with presets for chimney, steam, fumarole, toxic and smoke. The Shuriken smoke users move onto it one per commit.
+3. **Sparks and embers:** take Fire's ember path and the AmbientGlow sprite into one `SparkSystem` (burst plus drift), for MagmaSerpent sparks, CharredTreant embers and hammer sparks later.
+4. **Spray and gushing water:** reuse the R-21 fall spray and foam emitters as a `SprayPreset` on the plume path. HermitCrab, diving birds and colossus pools join it.
+5. **Wind (new):** gust streaks, plus leaves, dust or snow per biome, drifting on the shared wind. This is AmbientParticle drift with a gust field. Zach should OK the look first, since it is new.
+6. **Dust and puffs** (breath, footsteps, WorkDust, colossus dust) go onto the plume path as short bursts.
+
+Row 3 keeps every look the same. Weather precipitation and underwater stay as they are (they are not effects in this sense). Fire stays put unless you want FireEffect/FireSystem moved from fauna's Ambience into the kit folder; that would be a pure move.
+
+**Questions for you:**
+- (a) Is `Scripts/Rendering/Effects/` OK as the kit folder, owned by render-2?
+- (b) `LightKind.Electric` lives in player-owned LightPolicy.cs. For now the sketch uses LightKind.Fire.
+- (c) The call-site edits for row 2 are in FloraSystem.DrawBolts and FloraGenerator.Crystals (Flora lane) and in Fauna/GolemArcs.cs. I'll keep them to the call site and tell both owners when I get there.
+- (d) Should the Shuriken one-offs get a BENCH job before row 3, as a cost baseline?
+
+### Row 2 sketch: electricity on render/effects-kit @ 7a6ac495 (WIP, uncompiled, not wired)
+- `ElectricityEffect` (Resources/StandardElectricity) sets:
+  - colours by index (blue, violet, green, gold), each with core, glow and light;
+  - jag, core and glow width;
+  - fork chance, length and miss share;
+  - re-jag rate, afterglow, dropout and brightness jitter;
+  - light intensity and reach;
+  - crack chance, reach, volume and pitch.
+- `ElectricitySystem` is static, like FireSystem:
+  - `AddArc(from, to, seed, colour, width)` for steady arcs (golem) and `AddStrike(..., Rhythm)` for arcs that fire now and then (spires), with seeded jittered strike times.
+  - It does one GraphicsBuffer upload and one `RenderPrimitives` call. The fade is `DetailPolicy.ExtraReach(length, ArcPixels)` (rule 20).
+  - Light goes through `LightBudget.Add` keyed by seed. The crack goes through GameAudio Zip once per strike, plus a `Struck` event hook.
+- `Electricity.shader`:
+  - Path k starts at (k + 0.85·h_k)/rate, so the gaps are irregular and there is no beat.
+  - Each path gets three octaves of hashed jag, its own brightness, and two fork slots that come and go, most of them missing.
+  - The previous path stays as an afterglow that fades by exp(-age/afterglow), and 1/30 s dropouts give the flicker.
+  - It is camera-facing core plus glow, additive and fogged. All timing comes from `_PunchyClock` with no ghost field. The CPU and GPU use the same PCG hash.
+
+**Editor slot request:** I'm ready for one on port 7986. I'll check ≥ 6 GB free first and close with EditorApplication.Exit. In that slot I would compile, make the asset, add .meta files, and take 12-frame strips near and at 50 m with a 3-line call from a probe spot, with `-sparkleprobe` NaN 0.
