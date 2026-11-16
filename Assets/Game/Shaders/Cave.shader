@@ -23,6 +23,8 @@ Shader "Punchy/Cave"
         // A-91: what a room kit copy of this material is made of: -1 as is (crystals, bone), 0 bare rock (damp,
         // drips, mineral veins), 1 dressed stone (blocks, flagstones), 2 wood, 3 iron.
         [HideInInspector] _Dressed ("Dressed", Float) = 0
+        // Light a plain (slot 0) copy gives off everywhere: pale wall fungi that would read black deep in.
+        [HideInInspector] _OwnLight ("Own light", Color) = (0, 0, 0, 0)
     }
 
     SubShader
@@ -38,6 +40,7 @@ Shader "Punchy/Cave"
             half4 _DarkColor;
             half _Darkness;
             half _Dressed;
+            half4 _OwnLight;
         CBUFFER_END
 
         struct CaveAttributes
@@ -160,7 +163,7 @@ Shader "Punchy/Cave"
                 bool tunnel = code > 0;
                 bool paved = tunnel && ((code - 1) & 1) != 0;
                 bool built = tunnel && ((code - 1) & 2) != 0;
-                float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = 0, s3 = 0, s4 = float4(1, 0, 0, 0);
+                float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = float4(_OwnLight.rgb, 0), s3 = 0, s4 = float4(1, 1, 0, 0);
                 float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0), s8 = 0;
                 if (slot > 0)
                 {

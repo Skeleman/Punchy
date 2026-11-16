@@ -69,7 +69,7 @@ namespace Punchy.Terrain
             switch (kind)
             {
                 case CaveWallKind.Moss: rock = new Color(0.24f, 0.38f, 0.13f); dark = new Color(0.1f, 0.19f, 0.06f); break;
-                case CaveWallKind.Fungi: rock = new Color(0.66f, 0.48f, 0.3f); dark = new Color(0.36f, 0.23f, 0.12f); break;
+                case CaveWallKind.Fungi: rock = new Color(0.86f, 0.73f, 0.53f); dark = new Color(0.6f, 0.47f, 0.3f); break;
                 case CaveWallKind.GlowFungi: rock = new Color(0.5f, 1f, 0.92f); dark = new Color(0.22f, 0.75f, 0.68f); break;
                 case CaveWallKind.Carving: rock = new Color(0.56f, 0.53f, 0.48f); dark = new Color(0.3f, 0.28f, 0.25f); break;
                 case CaveWallKind.Fossil: rock = new Color(0.82f, 0.76f, 0.62f); dark = new Color(0.5f, 0.45f, 0.35f); break;
@@ -83,6 +83,13 @@ namespace Punchy.Terrain
                 default: rock = new Color(0.07f, 0.065f, 0.06f); dark = new Color(0.03f, 0.03f, 0.03f); break;
             }
         }
+
+        /// <summary>
+        /// Light a kind gives off everywhere (Cave.shader's _OwnLight). Fungi grow deep (more than 8 m in), where only
+        /// the cave's dim ambient reaches: without a soft glow of their own their caps read black against lit rock.
+        /// </summary>
+        public static Color OwnLight(CaveWallKind kind) =>
+            kind == CaveWallKind.Fungi ? new Color(0.34f, 0.27f, 0.17f) : Color.clear;
 
         // ------------------------------------------------------------------------------------------- choosing
 
