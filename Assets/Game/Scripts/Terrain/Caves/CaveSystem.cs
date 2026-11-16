@@ -1790,6 +1790,9 @@ namespace Punchy.Terrain
                     var reach = portal;
                     for (int k = 1; k < cv.NodeCount; k++)
                     {
+                        // W-172 row 5: a side way's or the niche's nodes sit off the road; the bore runs on past them.
+                        if (set.Nodes[Node(k)].Radius != set.Nodes[Node(0)].Radius)
+                            continue;
                         var to = set.Nodes[Node(k)].Position - portal;
                         if (math.length(to - axis * math.dot(to, axis)) > PortalSightStray)
                             break;

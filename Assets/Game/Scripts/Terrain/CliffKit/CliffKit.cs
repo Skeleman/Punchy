@@ -698,6 +698,8 @@ namespace Punchy.Terrain
                 }
             }
 
+            // W-172 row 4: rock framing every road tunnel portal, after the faces so no face piece moves.
+            var framed = PortalFrames(src, stream, pieces, near, kits);
             var acceptMs = watch.ElapsedMilliseconds;
             // The cell grid: each piece in every cell its reach (and the plants' pad) touches.
             var gs = new int2((int)math.ceil(size / GridCell));
@@ -759,9 +761,148 @@ namespace Punchy.Terrain
             var kitText = new System.Text.StringBuilder();
             for (int k = 0; k < CliffKit.KitCount; k++)
                 kitText.Append(k == 0 ? "" : ", ").Append(KitNames[k]).Append(' ').Append(kits[k]);
-            LastLog = $"[cliffkit] {pieces.Count} pieces in {groups} groups, {ledges.Count} ledges (sea cliff {seaCount}, mesa/canyon {mesaCount}; {kitText}) from {steep} steep blocks, {keptOut} kept out, {watch.ElapsedMilliseconds} ms ({looked} blocks looked at; heights {coarseMs}, faces {blocksMs - coarseMs}, accept {acceptMs - blocksMs}, grid {watch.ElapsedMilliseconds - acceptMs - ledgeMs}, ledges {ledgeMs})";
+            LastLog = $"[cliffkit] {pieces.Count} pieces in {groups} groups + {framed} framing tunnel portals, {ledges.Count} ledges (sea cliff {seaCount}, mesa/canyon {mesaCount}; {kitText}) from {steep} steep blocks, {keptOut} kept out, {watch.ElapsedMilliseconds} ms ({looked} blocks looked at; heights {coarseMs}, faces {blocksMs - coarseMs}, accept {acceptMs - blocksMs}, grid {watch.ElapsedMilliseconds - acceptMs - ledgeMs}, ledges {ledgeMs})";
             return blob;
         }
+
+        /// <summary>
+        /// W-172 row 4: cliff pieces framing each road tunnel portal, so the headwall reads as set into a rock face
+        /// rather than standing free in a smooth cut slope: a buttress at each end of the headwall swallowing its last
+        /// stones, a slab bedded over the coping, and a fallen block where each wing wall steps out of the ground. The
+        /// portal's own kit (TunnelPortalKit.Build, from the cave set and ground alone) gives the coping's height and the
+        /// headwall's and wings' ends, so the rock meets the stone. No piece reaches into the road's cutting (each is
+        /// nudged out along the headwall until clear). Its own rolls per portal, so no other piece moves. Returns the
+        /// count added.
+        /// </summary>
+        static int PortalFrames(in TerrainSource source, uint stream, List<CliffPiece> pieces, Dictionary<int2, List<int>> near, int[] kits)
+        {
+            var src = source;
+            if (!src.Caves.IsCreated)
+                return 0;
+            var portals = new List<TunnelPortalKit.Portal>();
+            TunnelPortalKit.Portals(ref src.Caves.Value, portals);
+            var boxes = new FixedList512Bytes<Punchy.Flora.KitBox>();
+            int added = 0;
+            foreach (var portal in portals)
+            {
+                var o = new float3(portal.Out.x, 0f, portal.Out.y);
+                var right = new float3(o.z, 0f, -o.x);
+                // The kit's coping (its top and ends) and each wing's outer end, in the portal's frame.
+                var kit = TunnelPortalKit.Build(src, portal);
+                float top = 0f, halfW = 0f;
+                float2 wingEnd = 0f, wingTop = 0f;   // per side (-x, +x): the farthest wing coping's end along z, its top
+                var cutHalf = SettlementSampling.PortalHalf(portal.Radius);
+                foreach (var part in kit.Parts)
+                {
+                    if (part.Group != TunnelPortalKit.Trim)
+                        continue;
+                    var l = Local(part.Centre);
+                    if (l.z < 0.4f)
+                    {
+                        top = math.max(top, l.y + part.Half.y);
+                        halfW = math.max(halfW, math.abs(l.x) + part.Half.x);
+                    }
+                    else
+                    {
+                        var s = l.x < 0f ? 0 : 1;
+                        var end = l.z + part.Half.z;
+                        if (end > wingEnd[s]) { wingEnd[s] = end; wingTop[s] = l.y + part.Half.y; }
+                    }
+                }
+                if (top <= 0f)
+                    continue;
+                var rng = new Random(BiomeSampling.Scramble(stream ^ portal.Seed ^ 0x9F7A11E5u) | 1u);
+                var yaw = math.atan2(o.x, o.z);
+                var tint = rng.NextFloat(0.88f, 1.05f);
+                var wall = cutHalf + SettlementSampling.PortalWall;
+
+                // Each end: a buttress leaning back into the hill, its top over the coping, its inner edge over the
+                // headwall's last stones (never into the cutting).
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    var size = rng.NextFloat(0.5f, 0.62f);
+                    var scale = new float3(size, size * rng.NextFloat(0.95f, 1.15f), size * rng.NextFloat(0.9f, 1.1f));
+                    // Buttress box: centre y -3, half height 7 (CliffKit.LocalBoxes), so its top is 4 x scale.y over Position.
+                    var hill = Ground(World(new float3(side * (halfW + 1f), 0f, -1.5f)));
+                    var y = math.max(top, hill) + rng.NextFloat(0.4f, 1.3f) - 4f * scale.y;
+                    var piece = Make(CliffKit.Buttress, World(new float3(side * (halfW - 0.4f), y, -0.6f)), yaw + rng.NextFloat(-0.2f, 0.2f), -0.12f, scale);
+                    Place(ref piece, side, wall - 0.5f, -0.2f);
+                }
+                // Over the coping: a slab bedded behind it, its lip just over the coping's back edge.
+                {
+                    var size = rng.NextFloat(0.5f, 0.62f);
+                    var scale = new float3(size * math.clamp(halfW / 4f, 1f, 1.5f), size, size);
+                    // Slab box: centre (0, -0.5, 0.5), half (3.4, 2.1, 3): its lip 3.5 x scale.z ahead of Position, its foot 2.6 x scale.y under it.
+                    var at = new float3(rng.NextFloat(-0.6f, 0.6f), top - 0.25f + 2.6f * scale.y, -0.45f - 3.5f * scale.z);
+                    Push(Make(CliffKit.Slab, World(at), yaw + rng.NextFloat(-0.12f, 0.12f), rng.NextFloat(-0.1f, 0.05f), scale));
+                }
+                // Where each wing ends: a fallen block against its end, burying the last step in rock.
+                for (int s = 0; s < 2; s++)
+                {
+                    if (wingEnd[s] <= 0f)
+                        continue;
+                    var side = s == 0 ? -1 : 1;
+                    var size = rng.NextFloat(0.32f, 0.42f);
+                    var at = new float3(side * (wall + 0.3f), 0f, wingEnd[s] + 0.2f);
+                    at.y = math.max(Ground(World(at)), wingTop[s] - 0.6f);
+                    var piece = Make(CliffKit.Fallen, World(at), rng.NextFloat(0f, math.PI * 2f), rng.NextFloat(-0.25f, 0.25f), new float3(size));
+                    Place(ref piece, side, cutHalf + 0.25f, 0f);
+                }
+
+                float3 World(float3 l) => portal.Floor + right * l.x + new float3(0f, l.y, 0f) + o * l.z;
+                float3 Local(float3 w) { var d = w - portal.Floor; return new float3(math.dot(d, right), d.y, math.dot(d, o)); }
+                float Ground(float3 w) => src.SampleHeight(w.xz) - portal.Floor.y;
+
+                // Nudges a piece out to its side until no box corner over the road and ahead of zFront lies inside
+                // |x| < inner, then keeps it.
+                void Place(ref CliffPiece piece, int side, float inner, float zFront)
+                {
+                    for (int k = 0; k < 24; k++)
+                    {
+                        boxes.Clear();
+                        CliffKit.Boxes(piece, ref boxes);
+                        var worst = 0f;
+                        for (int b = 0; b < boxes.Length; b++)
+                            for (int c = 0; c < 8; c++)
+                            {
+                                var corner = new float3((c & 1) == 0 ? -1f : 1f, (c & 2) == 0 ? -1f : 1f, (c & 4) == 0 ? -1f : 1f) * boxes[b].Half;
+                                var l = Local(boxes[b].Centre + math.mul(boxes[b].Rotation, corner));
+                                if (l.y > 0.1f && l.z > zFront)
+                                    worst = math.max(worst, inner - side * l.x);
+                            }
+                        if (worst <= 0f)
+                            break;
+                        piece.Position += right * (side * math.min(worst + 0.05f, 0.5f));
+                    }
+                    Push(piece);
+                }
+
+                void Push(CliffPiece piece)
+                {
+                    piece.Tint = tint * rng.NextFloat(0.95f, 1.05f);
+                    piece.Seed = rng.NextUInt();
+                    piece.Grade = CliffKit.GradeOf(piece.Kit);
+                    piece.Face = MesaFace;
+                    boxes.Clear();
+                    CliffKit.Boxes(piece, ref boxes);
+                    var reach = 0f;
+                    for (int k = 0; k < boxes.Length; k++)
+                        reach = math.max(reach, math.distance(boxes[k].Centre.xz, piece.Position.xz) + boxes[k].Reach);
+                    piece.Reach = reach;
+                    var cell = (int2)math.floor(piece.Position.xz / GroupSpacing);
+                    if (!near.TryGetValue(cell, out var inCell))
+                        near.Add(cell, inCell = new List<int>());
+                    inCell.Add(pieces.Count);
+                    pieces.Add(piece);
+                    kits[piece.Kit]++;
+                    added++;
+                }
+            }
+            return added;
+        }
+
+        static CliffPiece Make(byte kit, float3 at, float yaw, float tilt, float3 scale) =>
+            new CliffPiece { Position = at, Yaw = yaw, Tilt = tilt, Scale = scale, Kit = kit };
 
         /// <summary>W-149's face classes, narrowed to the two this row dresses: water round it (sea first, then a river or
         /// lake, which get no pieces), else a mesa or canyon face, else none.</summary>

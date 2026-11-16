@@ -499,7 +499,7 @@ namespace Punchy.Fauna
             /// </summary>
             bool DecideShield(ref CreatureState s, ref CreatureBlob b, ref Random rng)
             {
-                if (!b.ShunsLight || s.Held == HeldItem.Goggles || !LightNear(in s, ref b))
+                if (!b.ShunsLight || Punchy.Items.FolkKits.Shaded(in s) || !LightNear(in s, ref b))
                     return false;
                 SetMode(ref s, CreatureMode.Idle);
                 s.Action = IdleAction.ShieldEyes;
