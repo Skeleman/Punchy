@@ -1743,3 +1743,14 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Branch world/material-library-3 cd2b7084 edits player files: Items.cs (ItemDef gains Family/Kind and AccentFamily/AccentKind, filled for 71 rows; Items.Draw uses Items/Resources/ItemLibrary, a Colossus.shader material, for ground items with no property block) and ItemMeshes.cs (`ToMesh(in ItemDef)` bakes each part's colour into the vertex colours and its family into uv3; `Of()` uses it).
 - Fishing's ItemMeshes.Of mesh keeps its own URP Lit material, which ignores the new channels. Cubes, stands, props and the other ItemMaterial users are unchanged. Held and worn items are not moved yet: they would read ItemDef.Family the same way.
 - If you add an item, give it a Family (and Kind) so it takes the library look. None keeps the flat colour.
+
+## P-47 row 2: cave and ruin chests open like temple chests - ready for PR (#24, 2026-11-16, player-2)
+- Branch player/dungeon-chests@60312716, from main 5b0beff4. OpenChestRpc/ChestOpenedRpc are now {uint Dungeon; ushort Type, Socket}. Temple chests keep id = socket. Cave and ruin chests use 0x40000000 | (Scramble(Dungeon ^ Type<<16) & 0x3FFFF) << 12 | Socket. The host checks the ref against its own chest list, and a bad RPC is dropped with one log line.
+- Loot: PickChestLoot + RollContents, so temple loot is byte-identical and there are no DungeonLoot rows. A marked chest (cave/ruin only, read from DungeonState) is filled to 2 items with coins or a find. Items.ChestOpened is a read-only accessor. No fauna file was written. TempleSockets, CaveSockets and Landmarks_V3 are untouched.
+- Clash test WorldTests.DungeonChests_IdsUnique: PASS. 89 chests in 25 dungeon entities (temple 13, cave 75, ruin room 1), no clashes. The dungeon log says 30 caves / chest 76, which matches cave 75 + ruin 1, so every chest is registered. The island has only one ruin-room chest.
+- Port 7983, test flags -openchest cave,ruin / -takechest cave,ruin / -badchestrpc:
+  - Solo: both chests open; the marked ruin chest holds Stone x1, Coin x6; both empty into the inventory.
+  - Host + joiner: the joiner sees both "opened (from the host)" with the same seeds and loot as solo, and takes every item.
+  - Late joiner: it gets both chests as opened, takes the items, and the host logs "dropped a bad OpenChestRpc: dungeon DEADBEEF type 0 socket 4095".
+- Heads-up: materials' world/material-library-3 also edits Items.cs (ItemDef fields, Items.Draw). That touches different regions, but whichever merges second should re-check.
+- Shares: TestHooks.cs (one appended method), WorldTests.cs (one test), docs/agents/multiplayer.md (wire-change list).
