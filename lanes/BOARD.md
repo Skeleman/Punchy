@@ -13,7 +13,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits (new) | Row 1 audit and design note, after world-pack lands |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r2 | #336 | materials | active | world/material-library (tree Punchy-materials) | Wood library, shared includes, test |
+| W-166 r3 | #336 | materials | r2 done (verified); r3 next | world/material-library 34783390 (tree Punchy-materials) | Row 3: brick, thatch, plaster, metal, cloth, ice, one commit each |
 | A-126 r2-4 | #367 | fauna | active | fauna/playtest-1114 527e2f14 | Ledge hands, shimmy prompt, steer ridden animals |
 | A-108 r2 | #298 | fauna | ready for PR | fauna/far-life 1a3a7131 | Main merged in; island cache Format 4 = one rebake; fingerprint 859112C9 |
 | A-113 | no issue | fauna | ready? | flora/tree-variety f92b1fef | Merge main in, re-pin, hand off |

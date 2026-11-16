@@ -8038,3 +8038,29 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   may want a shared occlusion or fire-visible rule.
 - **BENCH:** none.
 - Next: W-172 row 4 (tunnel mouth -2061,263.2,691).
+
+## W-166 row 2 (#336), materials lane: done (verified)
+- **Branch:** world/material-library @ 34783390 (tree Punchy-materials).
+- **What:** every kit piece now states a material family and kind in the world-owned table (MaterialLibrary).
+  - Wood.hlsl under Shaders/Materials/ is the single wood path. W-163's grain is in it as original code, coloured by kind.
+  - Every plank, timber, shingle and wooden prop draws through Wood.hlsl.
+  - Hay, straw and bales are Thatch, the stall awning is Cloth, trough water is the new flat Water family, and bench feet are Stone.
+  - Elf pieces use Timber(g), which gives Plaster, so they stay wood-free (W-161).
+- **Tests:** EveryBuiltPieceHasAMaterial and OnlyTheFamilyIncludeDrawsAFamily both pass in edit mode.
+- **Gallery:** 16 wooden pieces, before (merge-base) beside after, in play mode with clear weather.
+  - Noon (sun y 0.82) and low sun (sun y 0.09), each at 3 m and 15 m.
+  - Sheets: D:/Unity/PunchyMilestones/W-166/W166_{noon3,noon15,low3,low15}.jpg; raw shots and stats are in raw/.
+- **Numbers:**
+  - NaN 0 in every shot. 0 flat-colour planks (the test enforces this).
+  - Plank lumStd rises where planks used to be flat: HitchRail 0.063 -> 0.093, Stall 0.049 -> 0.058, Signpost 0.027 -> 0.035.
+  - Far tone (rule 25): the buildings move by 4% or less (Stable, Lodge, Kit, Tent, Shrine, Pen, Garden).
+  - The formerly flat small props are 9-16% brighter far away: Stall, HitchRail, Bench, Signpost, Palisade. The kind tone replaced their old flat dark brown.
+- **Risks:** please review the far-brightness lift on those small props. Each has a one-line kind-tone fix if it should come back down.
+- **Off-limits, listed for their owners:**
+  - Creature.shader (fauna) and ItemMeshes (player) still draw wood their own way.
+  - Cave iron should move to Metal.hlsl in row 3.
+  - Colossus.shader is not covered.
+  - For W-161: the elf shingles, kit wood, stall and bench are now Plaster.
+- **Shares:** extends MaterialLibrary + FloraGenerator.Materials (rule 33, one material system for all built pieces). Parallel found but not folded in: fauna and player wooden items.
+- **BENCH:** wood-grain cost in Flora.shader, comparing a town view before and after 34783390.
+- Next: row 3, one commit per family (brick, thatch, plaster, metal, cloth, ice); then W-175 row 1 audit.
