@@ -1974,3 +1974,10 @@ Branch player/item-ids@6975ead4, off kit-wire. Written without an editor. It com
 - Pair, joiner with -catalogsalt 5: joiner "item catalog differs (host ...cc3, ours ...cc6)", then NetMenu notice "Can't join: the host's game has different items (another version). Both need the same build." and disconnect; host logs ClosedByRemote. 0 exceptions.
 - No shot (card asks for log checks). Risks: none seen; notice is logged twice on the joiner (refusal + menu), cosmetic.
 - Shares: WorldSync join checks (same path as the world signature check); no parallel left unfolded.
+
+## P-35 r3 row 3 (#26): the inventory holds ItemStacks - DONE (verified) 11-16
+- Branch player/item-stack@2ce4b898 (full 2ce4b89857794c2867d4448eee7d74b345b8ca62), off main, unchanged from the editor-free commit. Compiles clean (0 errors, 0 new warnings).
+- EditMode all: 26/26 pass (incl. the new ItemStackTests).
+- Solo play mode (editor): starting kit in slots 0:Rod x1, 1:Torch x1; Grant(Stone,2) then Grant(Stone,3) merged into one slot "Stone x5" (owner 0), carried weight 6.4. No exceptions or errors during play (the only captured error is a Water shader FXC crash from the 10:31 build, not this branch).
+- No shot (card asks for compile/tests/solo). Risk: network and container storage still carry byte rows until row 4, as planned.
+- Shares: ItemStack is the one slot shape for inventory, worn places, containers and lying items (rule 33); only the inventory uses it in this row.
