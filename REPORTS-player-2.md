@@ -179,3 +179,4 @@ Needs from world (send via supervisor first, card row 3): row 1 shell changes (F
 - Outside the lane: WorldSync.cs (one additive RPC field), FloraDoors.cs (HoldShut, additive), StructureKit.WalkIn.cs (LaunchSeamless). QuestSave is untouched.
 - Caveat: any new RPC field changes the NetCode RPC hash, so an older build can't join a newer one either way. "Old clients default off" only holds within the same build.
 - Next: the editor slot to compile rows 1 and 3 together, run the suite, then host + client on 7983 with `-seamless`: walk in and out, door from inside, chest contents equal on both machines, ambient and camera inside.
+- 11-16 follow-up: supervisor approved the Flora.hlsl change. It's done in c58c890b, touching only the door-match lines: an entry with w<0 forces the leaf shut, and open is clamped to >= 0 after the loop. CRLF kept. Uncompiled. The RPC hash note goes in the PR body and the release notes (A-124 precedent). Stopped until the editor slot.
