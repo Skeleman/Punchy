@@ -11,6 +11,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
 | W-175 | #415 | world | merged #516 (world part) | - | Cookhouse blueprint in human villages; fungi-cap brightness merged #521; next for world: W-174 r6 row 2 |
 | W-174 r6 | #405 | world | row 1 merged #520, row 2 (cave mouths) active | - | Entrance collars: row 1 temple collar in the chunk mesh at LOD0-2, rim on the grid, shared edges canonical, guard clean. Row 2: cave mouths (inner ring = cave wall 0.4 m level set) (option A: inner ring on the true wall field) |
+| W-177 | #522 | world | queued after W-174 r6 row 2 | world/cave-mushrooms (new off main) | Cave Fungi/GlowFungi patches grow real mushroom clusters from the flora Mushroom grower (rule 33); glowing caps for GlowFungi; ScreenSize LOD; BENCH for cost |
 | A-135 | #405 | fauna (paused) | queued | - | Creatures respect the W-174 hole mask: CreatureMotion.cs (~306/362) and TraceSystem.cs (~300) use GroundHoles not MouthCut only; DungeonSpawner and FaunaDirector spawns reject GroundHoles.Removed ground (goblin in temple cut) |
 | W-174 | #406 | world | merged rows 1-5 (#440 #481 #503 #512 #515) | - | Tail: A-135 (fauna) |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
