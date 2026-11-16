@@ -171,3 +171,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #472 P-46 (#24): temple torches no longer in low halls, clutter kept off chest spots; temple socket hash re-pinned 2D2BFAEB.
 - 11-16: #473 P-47 (#24): cave and ruin chests open and sync like the temple chest (dungeon, type, socket ids; 89 chests, no clashes).
 - 11-16: #474 P-48 (#24): debug dungeon walk no longer times out on stacked ruin and temple floors; cave pits filed as #475 (W-176).
+- 11-16: #476 W-166 r4 (#336): ground items and the salt tower use the material library; colossus shader reads a family channel.
+- 11-16: #477 W-175 r3b (#415): crate, basket and lantern head are shared kit parts.
