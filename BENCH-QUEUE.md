@@ -991,3 +991,6 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms. Ice and plaster are math only; this mainly prices the brick mortar parallax.
 
 ## Note (2026-11-15, supervisor): fauna fingerprint on main is 0206544F since #442 (Frostdeer joins the species and Tundra lists; no placement moved). Re-pin any bench check that reads it.
+
+## Job 102 (2026-11-15, QUEUED after 101; render lane, R-30 r1 trial, branch render/foliage-realism 9cec43a5): leaf looks
+-leaftrial off / a / b / c at the R-22 forest view and the oak glade, noon. Report GPU frame time, shadow pass time and flora triangles per mode. Questions: is (b) shells affordable at High, and what does (c) rim cost over off?
