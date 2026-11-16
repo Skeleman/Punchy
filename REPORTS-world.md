@@ -8133,3 +8133,21 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Note:** the shared TestResults.xml under LocalLow is overwritten by every editor (it held a Punchy-folk run); read results from the lane's Editor.log instead.
 - **Shares:** tunnel camp socket list (CaveBaking.TunnelCamps) for the folk/animal lanes; CaveStyle.Bench field (Mine set, other styles empty).
 - Next: row 6 (horse-sized cave mouth at -1796,51.2,-199, min clearance over all caves).
+
+## W-166 row 3 (#336): brick family. Done (verified)
+- **Branch:** world/material-library@d321e4c3.
+- **What changed:**
+  - New Shaders/Materials/Brick.hlsl (PunchyBrick): running bond with offset joints and recessed mortar (one-step parallax, 6 mm), normals lean into the joints, and the detail fades by footprint (rules 20/25).
+  - Bark mark slot 0.115; Flora.shader draws brick only through the include.
+  - Brick family now covers the kit stone chimneys (FloraGenerator.Kit) and the smithy stack (FloraGenerator.Town). Flora builders only, no other mesh data touched.
+- **Test:** FamilyMarksHaveTheirOwnSlots now also asserts brick's slot. The Families table adds Brick.hlsl. All three MaterialLibrary tests pass; Flora shader err 0.
+- **Numbers (luminance after vs before, NaN 0 everywhere):**
+  - Whole pieces (Smithy, Inn, KitHouse): noon3 -0.7 to -1.7%, noon15 -0.2 to -1.4%, low sun -0.3 to -3.2%. Far -1.1 to +1.0%, which is within the run-to-run spread of the earlier families.
+  - Close-ups framed on the brick, same session, look off vs on: far 0.0% on all three, noon3 at most -0.5%. Far tone is unchanged.
+- **Shots:** PunchyMilestones/W-166/W166_brick-{noon3,noon15,low3,low15}.jpg (whole pieces) and W166_brick-close-*.jpg (chimney close-ups; the courses show on the Inn chimney and the smithy stack). KitHouse is elf, with no chimney: it's the control.
+- **Risks / flags:**
+  - Kit stone chimneys move from stone to the Brick family, so they leave R-34's stone looks. Stone walls are untouched.
+  - The probe's 3 m frames aim at the piece centre, so brick is small there. The close-up sheets are the real before/after.
+- **BENCH request (via supervisor):** Flora.shader brick parallax cost, on a town view with kit chimneys at 3-15 m, before (d321e4c3^) vs after (d321e4c3).
+- **Shares:** one include per family plus the FamilyMark slot table (rule 33). Parallel not folded in: Cave.shader's tunnel-lining brick could draw through Materials/Brick.hlsl (world lane, W-172).
+- Next: ice (igloos stay mostly colour, per the row 1 audit), then W-175 row 1.
