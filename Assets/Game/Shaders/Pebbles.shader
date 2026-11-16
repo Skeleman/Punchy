@@ -25,6 +25,9 @@ Shader "Punchy/Pebbles"
             #include "Atmosphere.hlsl"
             #include "Glow.hlsl"
             #include "GroundDetail.hlsl"
+            #include "WideShadow.hlsl"
+            #define PUNCHY_SURFACE_REAL_LIGHTS
+            #include "Surface.hlsl"
 
             StructuredBuffer<Pebble> _Pebbles;
 
@@ -56,10 +59,11 @@ Shader "Punchy/Pebbles"
                 inputData.normalWS = normalize(input.normalWS);
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-                inputData.bakedGI = SampleSH(inputData.normalWS);
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, inputData.normalWS);
+                ps.positionCS = input.positionCS;
+                PunchyLit lit = PunchySurfaceLight(ps);
                 // Street lights, lanterns and glowing plants light the pebbles like the ground under them.
-                inputData.bakedGI += PunchyGlowLight(input.positionWS, inputData.normalWS)
-                                   + PunchyRealLights(input.positionWS, inputData.normalWS, input.positionCS);
+                inputData.bakedGI = lit.ambient + lit.glow + lit.lights;
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
@@ -68,8 +72,9 @@ Shader "Punchy/Pebbles"
                 surface.occlusion = 1;
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
-                color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
-                return half4(PunchyAtmosphere(color, input.positionWS), 1);
+                // The cloud and wide shadows dim only the share of the light that came straight from the sun (Surface.hlsl).
+                color = PunchySurfaceSunDim(color, ps, lit, inputData.bakedGI);
+                return half4(PunchySurfaceFinish(color, ps), 1);
             }
             ENDHLSL
         }
