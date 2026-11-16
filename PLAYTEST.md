@@ -162,3 +162,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #463 W-172 lava half-row (#365 open, row 7+): a volcano cone now stands in the Ashlands; one bone graveyard there is gone.
 - 11-16: #464 A-119 (#339 closed): a rider and its mount now change detail and vanish together at distance.
 - 11-16: #465 W-175 r3 (#415 open, row 3b+): tents and fire pits are built from shared parts; they look the same.
+- 11-16: #466 P-45 r1-3 (#24 open, spawn sockets next): debug `-place piece:hall|deadend|pool` drops you at a hall, dead end or pool; no change in play.
