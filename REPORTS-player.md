@@ -1888,3 +1888,38 @@ Unchanged and additive-friendly: PickupRpc, ItemGoneRpc, OpenChestRpc, ChestOpen
 - Folk Post0/Post1 stay as folk-only fields in row 4 (no set-piece move now): OK?
 - Owner as uint (Thefts.Key) instead of int: OK?
 - Files: Gear.cs 964, Items.cs 1464, Containers.cs 378, FolkKits.cs 510 and WorldSync.cs 483 lines, all under 2500. CreatureData.cs is 1718, and FolkKit stays there. New code goes in Items/ItemStack.cs and Items/Kit.cs. Touching CreatureData.cs (fauna-owned FolkKit) and WorldSync.cs (net) needs those lanes' OK through you.
+
+## P-35 r3 (#26): rows 2 and 3 written (uncompiled), row 4 struct list for fauna - 11-16
+Rows 2 and 3 are written editor-free and pushed. Neither is compiled yet; both get compiled when the editor slot is pinged.
+- Row 2, join check: on player/catalog-check@7c74901e.
+  - CatalogCheckRpc { ulong Print } is sent beside IslandVersionRpc.
+  - -catalogsalt N fakes a mismatch.
+  - On a mismatch, the joiner leaves with an on-screen notice ("the host's game has different items, both need the same build"). The notice is posted again after the lost-connection line.
+  - The host only logs the disconnect.
+  - Test added: JoinPrintIsStableAndSaltChangesIt.
+  - To verify when pinged: solo; host plus joiner; and a salted joiner on my own port.
+- Row 3, ItemStack used locally: on player/item-stack@2ce4b898.
+  - New file Items/ItemStack.cs holds ItemStack and KitPlace.
+  - The player's slots are ItemStack[] in Items, Gear, Containers, Fishing, Quests, QuestSave and QuestChecks. Grant merges only stacks with the same item, Data and owner.
+  - The network and container storage still carry byte rows.
+  - QuestChecks.CountHeld sits beside CountFor, because QuestItemTests finds CountFor by name.
+  - Tests added: ItemStackTests (row/id mapping, merge rules, TakeOne, CountHeld matching CountFor).
+  - Change from the ask: FolkKit stays bytes in row 3. It is fauna's file, so it changes in row 4 after the sign-off below.
+  - Also flagged: I made small touches to the quest partials (the slot loops only).
+
+### Row 4: FolkKit in CreatureData.cs, final struct list (fauna sign-off please)
+```
+public struct FolkKit : IEquatable<FolkKit>
+{
+    public ushort Hand, LeftHand, Sheath, Head, Body, Back, Neck;   // worn: catalog id, 0 = nothing (today's id + 1, same values)
+    public ushort Bag0, Bag1, Bag2, Bag3;
+    public ushort Post0, Post1;                                     // folk only, set-piece props (later world/fauna row)
+    public static ushort Of(int item) => (ushort)(item + 1);
+    public static int Item(ushort slot) => slot - 1;
+    Empty / Equals: same fields as today
+}
+```
+- What changes: only the field width, byte to ushort. The values and the + 1 stay the same, so FolkKits.cs callers that use Of()/Item() don't change. A few `(byte)` casts may need to become `(ushort)`.
+- Change from the r3 ask: folk keep their 7 worn places and do not get Face/Legs/Feet. No folk item uses those places yet, and leaving them out keeps the creature ghost at 13 fields (26 bytes, was 13). They can be added when a folk item needs one.
+- The ghost side, in CreatureGhosts.cs (net, folk kit fields): the same 13 Kit* GhostFields go from byte to ushort. That counts as a ghost change, so the protocol hash refuses old builds anyway. Row 4 also checks that an old-build joiner sees a visible message, as the coordinator asked.
+- The ghost size cost goes in a BENCH-QUEUE note with row 4.
