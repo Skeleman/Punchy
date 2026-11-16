@@ -6,7 +6,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 far-towns #373, lamplighter #374, notice-board-life #362, fire-heat #375, door-sound #376, scarps #377, level-gardens #378,
 cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382, cliff-kit #386,
 individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #390, spawn-wait-fix #391, cloth-legs #394,
-world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; branch continues), cloud-blocks #410, waterfall-sheets #411, folk/dialogue-archive #416, fauna/model-lab-2 #417, #418 (M-06 rows 1-3; branch continues), player/fishing #419 (P-33 rows 1-3), folk/dialogue-options #420 (A-131), fauna/dune-groves #421 (A-130), player/dismount #422 (P-40).
+world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; branch continues), cloud-blocks #410, waterfall-sheets #411, folk/dialogue-archive #416, fauna/model-lab-2 #417, #418 (M-06 rows 1-3; branch continues), player/fishing #419 (P-33 rows 1-3), folk/dialogue-options #420 (A-131), fauna/dune-groves #421 (A-130), player/dismount #422 (P-40), render/far-lights #423 (R-25 r3, R-38), b/fix-swapchain-stall #424.
 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |
@@ -22,12 +22,11 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | world/cave-trickles | W-141 | world | Job 68 FAIL: cheaper version. |
 | world/far-lite | W-132 | world | Check overlap with R-22/R-23. |
 | world/cave-climbs | W-144 | world | Waits on Zach's look at 1b pairs. |
-| render/far-lights | R-25 r3 | render | CaveSystem, SurfaceGlow vs lamplighter. |
 | render/audit-fixes | R-15 r1-3 | render | WaterPatchSystem. |
 | render/cobble-depth | R-28 r2 | render | Terrain shader vs puddle-edges. |
 | render/one-surface | R-23 r2 | render | Doc only. |
-| render/stone-trial | R-34 | render | In flight. |
-| b/cloud-shadow-map, b/fix-swapchain-stall | profiler | render | Clean; render reviews. |
+| render/stone-trial | R-34 r2 | render | Conflicts with main after #423: render merges main in, then squash. |
+| b/cloud-shadow-map | profiler | profiler | Rework: store raw density, apply R-20 r4 soft edge after the read; BENCH cost check. |
 | player/netsim | P-31 | player | Merge main, re-check -netsim. |
 | player/take-items | P-38 (#372) | player | Rows 1-2b DONE but never PR'd (11-15 audit): merge main in, hand off ready for PR. Holds unify-items, items-pick, items-axe, hair, clothing. |
 | fauna/playtest-1114, world/playtest-1114 | A-126 rows 2-4, W-172 rows 2+ | fauna, world | In flight. |

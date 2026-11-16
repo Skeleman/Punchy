@@ -120,3 +120,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: merged #420 (A-131, #25): folk talk lines offer replies that branch; guard, hermit and innkeeper have a work exchange (UI to show replies comes next).
 - 11-15: merged #421 (A-130, closes #404): desert biomes get palm and palo verde groves with clearings; fingerprint 9EFF3BCF.
 - 11-15: merged #422 (P-40, closes #396): you dismount when you no longer fit the mount; jump-off tested.
+- 11-15: merged #423 (R-25 row 3 #302, R-38 #366 closed): town lights stay steady as you walk in from 1 km; nothing switches on near you. Smooth sun step.
+- 11-15: merged #424 (profiler fix, job 42): -vsync and -maxqueued launch flags for benches.

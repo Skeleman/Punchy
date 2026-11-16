@@ -20,10 +20,9 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-110 | #298 | fauna | active | fauna/one-population 70d27698 | Rows to r7b |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
-| R-38 r2 | #366 | render | ready for PR | render/far-lights 4b95c112 | Verified by the R-25 r3 walk-in strip; merges with far-lights |
-| R-25 r3 | #302 | render | ready for PR | render/far-lights 4b95c112 | Verified no pop on approach; BENCH job 76 before merge |
+| R-25 r4-6 | #302 | render | next | - | Row 3 merged #423; rows 4-6 after R-34 lands and R-30 r1 |
 | R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
-| R-34 r2 | #332 | render | ready for PR | render/stone-trial 550ba9e0 | Verified; BENCH main vs branch asked; squash merge |
+| R-34 r2 | #332 | render | active | render/stone-trial 550ba9e0 | Merge main in (conflicts after #423), re-verify, squash merge; BENCH after |
 | R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance |
 | P-38 | #372 | player | blocked | player/take-items 487dd137 | option (a) sized at about 15-19 h (over a day), stopped; eyewear needs rule 11 (net look); go/no-go in REPORTS-player |
 | P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
