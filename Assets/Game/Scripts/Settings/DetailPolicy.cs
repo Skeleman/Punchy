@@ -65,10 +65,10 @@ namespace Punchy.Settings
                 Detail = GraphicsSettings.Detail,
                 Shadows = GraphicsSettings.Shadows
             };
-            Shader.SetGlobalFloat(TerrainParallaxId, TerrainParallaxSteps(GraphicsSettings.Detail));
+            // Looked up inline: a static PropertyToID field would give DetailPolicy a managed static constructor,
+            // which Burst jobs reading it can't compile in a player build (BC1091, job 86).
+            Shader.SetGlobalFloat(Shader.PropertyToID("_PunchyTerrainParallax"), TerrainParallaxSteps(GraphicsSettings.Detail));
         }
-
-        static readonly int TerrainParallaxId = Shader.PropertyToID("_PunchyTerrainParallax");
 
         /// <summary>R-28: how many steps the paving's offset parallax takes (TerrainSurface.shader): none at Low (Detail
         /// 0.5), 2 at Medium, 3 at High, 4 at Ultra. Fixed across the screen, so no ring shows where a count would change;
