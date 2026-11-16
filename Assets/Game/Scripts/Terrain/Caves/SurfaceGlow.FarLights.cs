@@ -116,7 +116,9 @@ namespace Punchy.Terrain
             farLightProps.SetVectorArray(FarLightIds.Bright, farBright);
             farLightProps.SetVectorArray(FarLightIds.Shape, farShape);
             farLightProps.SetVectorArray(FarLightIds.Fade, farFade);
-            farLightProps.SetVector(FarLightIds.Params, new Vector4(view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(60f), 0f, 0f, 0f));
+            // The core cap in scene light: the exposure lift (bat eyes) brightens everything after this draw.
+            var cap = FarLightPolicy.CoreCap / math.exp2(math.max(Punchy.CameraRig.BatVision.Exposure, 0f));
+            farLightProps.SetVector(FarLightIds.Params, new Vector4(view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(60f), cap, 0f, 0f));
             farLightProps.SetVector(FarLightIds.Fire, new Vector4(fireColor.x, fireColor.y, fireColor.z, 0f));
             var rp = new RenderParams(farLightMaterial)
             {

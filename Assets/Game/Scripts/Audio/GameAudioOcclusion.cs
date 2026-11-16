@@ -57,6 +57,8 @@ namespace Punchy.Audio
         int checkNext;
         EntityQuery kitQuery;
         World kitWorld;
+        EntityQuery terrainQuery;
+        World terrainWorld;
         readonly Voice[] checking = new Voice[ChecksPerFrame];
         readonly System.Diagnostics.Stopwatch occlusionWatch = new System.Diagnostics.Stopwatch();
         /// <summary>The time the tests took this frame, and averaged over about a second (ms).</summary>
@@ -220,6 +222,37 @@ namespace Punchy.Audio
                     open.Add(set.Anchors[near[i]].Position);
             near.Dispose();
             return open;
+        }
+
+        /// <summary>
+        /// #352: Terrain is a copy CreatureAudioSystem leaves here, and nothing clears it when the world or the island goes
+        /// (a test tearing down, a rebuild): its blobs would be read after they're released. So each frame, before
+        /// anything here reads it, it's taken again from the live singleton, or dropped when there is none.
+        /// </summary>
+        void KeepTerrainLive()
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated)
+            {
+                HasTerrain = false;
+                Terrain = default;
+                return;
+            }
+            if (terrainWorld != world)
+            {
+                terrainQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainSource>());
+                terrainWorld = world;
+            }
+            if (terrainQuery.TryGetSingleton<TerrainSource>(out var live))
+            {
+                Terrain = live;
+                HasTerrain = true;
+            }
+            else
+            {
+                HasTerrain = false;
+                Terrain = default;
+            }
         }
 
         /// <summary>The kit boxes near the player (the buildings' walls, roofs and floors), if there are any.</summary>

@@ -83,6 +83,9 @@ namespace Punchy.Flora
         /// <summary>W-127: its lit window panes (xyz the pane's middle, w the yaw (radians) it faces out along), before
         /// the plant's own rotation and scale, for the light they spill outside at night (WindowSpill).</summary>
         public readonly List<Vector4> Windows = new List<Vector4>();
+        /// <summary>M-06/M-08: a kit building's parts (StructureKit), from its finest level of detail, for the Model Lab's
+        /// parts list; null for everything else. Read only: nothing in the game draws from it.</summary>
+        public List<Punchy.Terrain.KitPart> KitParts;
         /// <summary>Whether it casts shadows. Small props (fences, palisades, signposts, garden rows, woodpiles,
         /// stalls, flowers) don't: towns have hundreds of them, and every shadow-casting draw costs a shadow pass.</summary>
         public bool CastsShadows = true;
@@ -366,6 +369,7 @@ namespace Punchy.Flora
                     model.Boats.AddRange(g.Boats);
                     model.Windows.AddRange(g.Windows);
                     model.Pools.AddRange(g.Pools);
+                    model.KitParts = g.KitParts;
                     model.DoorHeight = g.DoorHeight;
                     model.Height = g.Height;
                     if (g.TrunkAxis != null)
@@ -456,6 +460,7 @@ namespace Punchy.Flora
             public readonly List<Vector3> Boats = new List<Vector3>();
             public readonly List<Vector4> Windows = new List<Vector4>();
             public readonly List<FloraPool> Pools = new List<FloraPool>();
+            public List<Punchy.Terrain.KitPart> KitParts;
 
             /// <summary>
             /// Adds upright cylinders covering a rotated ellipsoid's footprint: a row of circles along its longer

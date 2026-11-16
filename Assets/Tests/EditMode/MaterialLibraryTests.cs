@@ -61,6 +61,29 @@ namespace Punchy.Tests
             Assert.IsEmpty(problems, string.Join("\n", problems) + $"\n(families: {string.Join(", ", familyNames)})");
         }
 
+        // W-166 row 3: each family with its own include gets a bark mark slot clear of every other decode in Flora.shader:
+        // wood 0.01-0.035, rock strata 0.06-0.09, glowing seams over 0.15; the shader reads a slot as its value +-0.005.
+        [Test]
+        public void FamilyMarksHaveTheirOwnSlots()
+        {
+            var builder = Game.GetType("Punchy.Flora.FloraMeshBuilder", true);
+            var mark = builder.GetMethod("FamilyMark", BindingFlags.Public | BindingFlags.Static);
+            var familyType = Game.GetType("Punchy.Terrain.MaterialFamily", true);
+            var used = new List<(string, float)>();
+            foreach (var name in Enum.GetNames(familyType))
+            {
+                var m = (float)mark.Invoke(null, new[] { Enum.Parse(familyType, name) });
+                if (m == 0f) continue;
+                Assert.That(m > 0.04f && m < 0.145f && (m < 0.055f || m > 0.095f), $"{name}'s mark {m} sits in another decode's band");
+                foreach (var (other, o) in used)
+                    Assert.That(Mathf.Abs(m - o) > 0.011f, $"{name} ({m}) and {other} ({o}) share a slot");
+                used.Add((name, m));
+            }
+            Assert.That(used.Any(u => u.Item1 == "Plaster"), "plaster has no slot");
+            Assert.That(used.Any(u => u.Item1 == "Brick"), "brick has no slot");
+            Assert.That(used.Any(u => u.Item1 == "Ice"), "ice has no slot");
+        }
+
         // Each family's include: what defining its look by hand looks like, what drawing it looks like, and which
         // shaders must draw it through the include (W-166 rows 2-3).
         static readonly (string include, string defines, string draws, string[] users)[] Families =
@@ -69,6 +92,9 @@ namespace Punchy.Tests
             ("Thatch.hlsl", @"\w*(Thatch|Straw)\w*", @"PunchyThatch\w*\s*\(", new[] { "Flora.shader" }),
             ("Cloth.hlsl", @"\w*(Linen|Hide|Weave)\w*", @"Punchy(Linen|Hide)\w*\s*\(", new[] { "Flora.shader" }),
             ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader", "Creature.shader" }),
+            ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
+            ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
+            ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
         };
 
         [Test]

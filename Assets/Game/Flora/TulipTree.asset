@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: TulipTree
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 0
+  Layer: 2
+  Height: {x: 22, y: 30}
+  Spread: 0.5
+  TrunkFraction: 0.5
+  Thickness: 0.03
+  Fullness: 0.55
+  Branches: {x: 3, y: 5}
+  Flexibility: 0.25
+  FlowerHead: 0
+  Bark: {r: 0.42, g: 0.38, b: 0.32, a: 1}
+  Foliage: {r: 0.2, g: 0.36, b: 0.1, a: 1}
+  FoliageVariation: {r: 0.3, g: 0.44, b: 0.14, a: 1}
+  Accents: []
+  AccentAmount: 0.3
+  ColorVariation: 0.1
+  MaxSlope: 28
+  Elevation: {x: 2, y: 110}
+  GrassAffinity: 0.5
+  ToleratesSnow: 0
+  PatchSize: 400
+  PatchCoverage: 0.7
+  NearWater: 3
+  OnlyNearWater: 0
+  WetReach: 2.5
+  GroveStraggle: 0.08
+  GroveGain: 6
+  GroveRadius: 26
+  GroveSpacing: 200
+  Shelter: 0.4
+  EdgeAffinity: 1
+  Solid: 1
+  Variants: 4
+  Seed: 61
