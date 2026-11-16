@@ -20,9 +20,9 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
-| M-06 r5 | #414 | fauna (lab agent gone) | ready for PR | fauna/lab-blueprint 75b30386 | Lab blueprint editor + GrowUnit/FloraSpecies.Unit hooks + cookhouse.json; tests pass, pins unchanged; kit gaps in REPORTS-animal for W-175 cards |
+| M-06 r5 | #414 | fauna | DONE, merged #469; #414 closed | - | Kit gaps carded as W-175 rows 4-6 (#415) |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
-| W-175 r1-3 | #415 | materials | r3 merged (PR #465); now W-166 r4 sweep (rule 11 OK 11-16) | world/material-library-3 7b152200 | then r3b docks + one lantern part (kit adapter, look change) |
+| W-175 r1-3 | #415 | materials | r3 merged (PR #465); now W-166 r4 sweep (rule 11 OK 11-16) | world/material-library-3 7b152200 | then r3b docks + one lantern part (kit adapter, look change), then rows 4-6 (kit gaps from M-06 r5) |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches. Lava far-light re-check now possible (#463 cone): render, after R-22 r1 |
 | R-30 r1-r2c | #323 | render | main merged in (#454); compiles, NaN 0, re-framed look shots OK (merged2); main A/B done (R-30/row2c/ab-main-vs-branch.jpg): same tree shapes, leaves a little darker and less flat, no glow | render/foliage-realism@161ecc3a | A/B reviewed OK by supervisor; #457 waits on bench job 102 (cost), then merge |
 | R-22 r1 | #298 | render | resumable: far mesh WIP, main 893d70a0 merged in (far-island reach now feeds the R-15 far-plane setter); Medium on shots done (pre-merge), Medium off + High on/off + NaN check pending (slot ended 11-16: RAM fell to 1 GB) | render/far-island@818ac88b (WIP) | when RAM allows: list2 shot runs, sparkle NaN, seams/coast check, final commit, handoff, BENCH ask |
