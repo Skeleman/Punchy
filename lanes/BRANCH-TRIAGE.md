@@ -23,7 +23,7 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | render/foliage-realism | R-30 r1-r2c (#323) | render | Draft PR #457 (main merged in at 161ecc3a); waits on editor checks and job 102. |
 | player/ships | P-44 r1 draft | player | Parked (Zach 11-16); input for the moving-bodies card. |
 | folk/ownership | A-134 r1 | folk | In flight (WIP). |
-| render/far-island | R-22 r1 | render | WIP; main merged, needs editor checks. |
+| render/far-island | R-22 r1 | render | Draft PR #482; verified, waits on BENCH job 107. |
 | render/one-surface-3 | R-23 r3 | render-2 | In flight (Sky.hlsl split). |
 
 ## Bench only (never merge)
