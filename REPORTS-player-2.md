@@ -257,3 +257,9 @@ Branch player/tower-rooms from origin/main 2354d35d. No code yet.
 - -seamless -climbtower: 74 PASS solo and host (7.81 m up, 31 treads), 75 PASS solo (3.51 m, 13 treads). Host and joiner room/walk-in lines are identical (doors 74, 75, 77 tower); joiner 0 errors. No shot (walk check per brief).
 - Deferred: roof access, windows, balconies. Stray untracked Assets/Game/Scripts/Flora/moved.txt and its .meta in Punchy-docs: please delete, not mine to commit.
 - Shares: extends Interiors walk-ins (round tower = WalkIn.Radius) and Doors/FloraDoors open state; same KeepsOwn list could hold other forms that must survive the kit override (none found yet).
+
+## P-51 row 3 #337 - done (verified) - 2026-11-16
+- player/tower-roof@eaa3a544 (from main b75c3dd3). Walk-in towers: hatch at the stair top onto a roof deck with parapet and merlons; two shared kit windows per storey (StructureKit window, rule 33) cut through the lining; outside window decals only on non-walk-in towers. Interiors.WalkIn reads each tower's deck height (WalkIn.Roof), so standing on the deck counts as outside.
+- -seamless -climbtower now ends on the deck: 74 PASS solo and host (11.72 m, 47 treads), 75 PASS solo (7.02 m, 28 treads). Host and joiner static Interiors lines match (only diff: host's 'out of the walk-in house'); joiner 0 errors. Default run: 53 doors lead inside, no walk-ins. No shot (walk check per brief).
+- Finding for the movement lane: one 75 run had a 0.31 s frame; PlayerMovementSystem stepped the full dt, carried the body ~1.9 m off a tread, through the tower wall and snapped it 2.3 m down. Not reproduced on rerun. A dt cap or substep would stop wall tunnelling everywhere. The climb test now walks back in and retries (max 2) after a fall.
+- Deferred: balconies. moved.txt strays still untracked in Punchy-docs.
