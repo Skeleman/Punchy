@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r3+ | #365 | world | active | world/playtest-1114 545782ea | Row 2 done (verified). Row 3: built pieces (stair top 2970,-879; ladders 3020,-901; ruin holes 3547,350; camp buildings) |
+| W-172 r4+ | #365 | world | active | world/playtest-1114 33286ba8 | Rows 2-3 done (verified). Row 4: tunnel mouth -2061,263.2,691 (W-162 cliff frame, W-166 lining) |
 | W-174 | #406 | world | next | world/ground-edits (new) | Row 1 audit and design note, after world-pack lands |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |

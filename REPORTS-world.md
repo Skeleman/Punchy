@@ -8011,3 +8011,30 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
   pool falls and stream heads. Parallel found but not folded in: lava pools keep their own round shape.
 - **BENCH:** none. Bake-time only.
 - Next: W-172 row 3.
+
+## W-172 row 3 (#365): built-piece fixes. Done (verified)
+- Branch world/playtest-1114@33286ba8. Shots (before/after pairs) in PunchyMilestones/W-172/: w172-r3-stair-*,
+  w172-r3-ladder-* and -ladder-close-*, w172-r3-ruin-* and -ruin-top-*, w172-r3-camp-*.
+- **Stair top (2970,-879):** the beacon's top flight now ends in a full-width landing at the deck.
+- **"Ladder" (3020,-901):** this was the storm shelter house's lightning rod. Its brackets ran up past the eave at
+  the corner, so it read as a half-built ladder. The rod is now a short tip past the ridge, with brackets only where
+  the wall is behind them. The real roof ladder was fine.
+- **Ruin holes (sunken temple 3547,350):** quarter-round sky holes at the pit's outer corners are now closed by
+  corner blocks, and coping over doors into closed rooms closes the slot there.
+- **Camps (892,-3799 and all goblin/ogre camps):** the light with no source was the stone shelter house's indoor
+  lamp shining through its walls. Each biome pair of stone ShelterHouses became one SlabShelter (a dug-in rock
+  lean-to with no lamp) plus one of the culture's own tents.
+  - Buildings by culture now:
+    - Ogre camp: OgreTent, GiantRibs, OgreLodge, biome OgreTents, plus per hazard-biome group one SlabShelter and
+      one OgreTent.
+    - Goblin camp: GoblinTent, BoneRemains, ChiefTent, MudHut, biome GoblinTents, plus per group one SlabShelter
+      and one GoblinTent.
+    - Dwarf and human mining camps keep their stone kit houses and ShelterHouses. Those are masonry cultures, and
+      the feedback named only goblins and ogres.
+- **Checks:** full PlayMode suite 40/41. Fauna_Fingerprint was re-pinned 859112C9 -> A4A00AFD because camp plots
+  changed; after the re-pin, WorldTests passes 14/14. Profiler: the fauna fingerprint moved.
+- **Shares:** camps reuse the kit's SlabShelter and tent species (no new pieces). Parallel found but not folded in:
+  every kit house's indoor lamp lights the ground through its walls at night. Masonry towns are affected too, so it
+  may want a shared occlusion or fire-visible rule.
+- **BENCH:** none.
+- Next: W-172 row 4 (tunnel mouth -2061,263.2,691).
