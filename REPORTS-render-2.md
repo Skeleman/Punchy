@@ -49,3 +49,14 @@ Same method as r4: the metre numbers stay, but each fade reads PunchyReferenceDi
 - **HeatHaze: pushback, left in metres.** The shimmer (15-220 m) and mirage (250-700 m) are physical: how much hot air the ray crosses, and the grazing angle at range. They are not detail LOD. A zoomed view of a mirage 500 m away should still show it, and its wobble is already sized in screen pixels. Also, that blit's projection isn't the camera's, so it could only use _PunchyViewPpm. I'll move it if you still want it moved.
 - No orthographic camera draws terrain or water (grep), so per-camera P._m11 is safe in both ForwardLit passes.
 - Editor to-do: compile TerrainSurface and Water (0 failed); fov 60 shots must match one-surface-4; fov 90 cobble, rock-face and ripple fades at the same on-screen size. Cost note for BENCH: at narrow fov, rock-face grain is drawn further out (and at wide fov less far).
+
+## DRAFT BENCH request, R-23 r4+r5 (for the coordinator to file after verification; not in BENCH-QUEUE)
+### Job (render-2 lane, R-23 r4+r5 #298, branch render/one-surface-5 <sha after verification>, includes one-surface-4): detail fades on screen size
+- r4: the Creature fur/pattern and Flora relief/leaf/sheen/glow/cell fades read PunchyReferenceDistance (each camera's projection x Detail). The Flora.hlsl breath, twitch and flutter read PunchyMainReferenceDistance (`_PunchyViewPpm`). DetailPolicy sets `_PunchyDetail` and `_PunchyViewPpm` from beginContextRendering each frame. r5: TerrainSurface sheen/cobble/rock-face/cave-mouth/grain/rain and Water rippleNear do the same. Per-pixel cost added: one multiply and one divide per fade. At fov 60 the fade distances match main; elsewhere they move. Rule 21: the lane did not time it.
+- Reach note: at a narrow fov (zoom) the gated branches reach further, at a wide fov less far. Cobbles (`cobbleFade > 0.001`) and the rock-face/cave-mouth grain (`steep > 0.01`, cave detail sampling) are the costly ones. At fov 90 the rock-face grain ends at 52 m instead of 90 m; at fov 40 it reaches about 141 m.
+- Arms: main (A) against render/one-surface-5 (B), editor on each tree, ShaderCache (Library/ShaderCache) cleared first, -fpscap 0.
+- Record:
+  - full shader import time after the cache clear, and the variant count for Creature, Flora, FloraImpostor, TerrainSurface and Water;
+  - frame time at fov 60 and at fov 90, standing at the village (117,-470) with deer spawned, at a cliff face with a cave mouth in view, and at a lakeshore at noon in rain (puddles, ripples);
+  - one fov 40 sample at the cliff, for the rock-grain reach.
+- Expect fov 60 to be within noise of A, and fov 90 to be equal or cheaper. Report only; nothing fails.
