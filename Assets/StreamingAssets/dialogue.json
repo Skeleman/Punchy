@@ -482,8 +482,17 @@
       "state: tired, busy, hungry, thirsty, lonely, scared, hurt, weather (a list; !busy for not). weather: Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind. mood: Cheerful, Plain, Grumpy (its temper today). stance: Kin, Warm, Rival, Wary, Annoyed. trade: a job (Smith, Baker, Farmer...) or task. when: day, night, dawn, morning, afternoon, evening.",
       "true or false: home (lives in a town), job (has one), need (wants a quest done), willing (will do a favour: trust and warmth against stance and how often it was asked lately), pestered (asked twice in the last few minutes: never willing then).",
       "gesture: an emote it makes (Wave, Bow, Cheer, Dance, Pet, LookAround...) or a word the talk window shows. offer: quest, item:<item name>, directions, rumour:<what about>, discount:<percent>, refuses. ends: true closes the talk. weight: default 1.",
-      "family (A-105): kin is the household member a line is about, by what it is to the speaker: partner, child, parent, grandparent, grandchild, sibling, inlaw (one or a list), or none for a folk with nobody else at home. {kin_name} and {kin_word} name that member and what the speaker calls it (daughter, husband, grandmother). gone: true for a member who has died (the line misses them), false or left out for the living. A line with a kin slot and no kin key is about anyone living in the house."
+      "family (A-105): kin is the household member a line is about, by what it is to the speaker: partner, child, parent, grandparent, grandchild, sibling, inlaw (one or a list), or none for a folk with nobody else at home. {kin_name} and {kin_word} name that member and what the speaker calls it (daughter, husband, grandmother). gone: true for a member who has died (the line misses them), false or left out for the living. A line with a kin slot and no kin key is about anyone living in the house.",
+      "options (A-131): a line can give the player 1 to 4 replies, each { \"say\": the player's words (slots allowed), \"then\": a topic whose lines answer it (left out: back to the topic list), \"do\": accept or decline (the line's quest or item offer), end, or gesture:<emote> }. A topic with lines and no label in topics is reply-only: it never shows in the list. Any line key on a reply (traits, state, stance, mood, trade...) is a condition on showing it. Replies go three deep at most. A quest or item offer with no replies gets Accept and Decline."
     ],
+    "quests": {
+      "_readme": "A quest put in a few words, for {quest} in a line (when quests.json gives the quest no \"talk\" of its own). find: a lost thing; clear: beasts to drive off; bring / bringMany: things to fetch (one, or {count}); other: anything else. Slots: {item}, {items} (plural), {creature}, {creatures}, {count}.",
+      "find": "find the {item} I lost",
+      "clear": "drive off the {creatures}",
+      "bring": "bring me a {item}",
+      "bringMany": "bring me {count} {items}",
+      "other": "a little job"
+    },
     "topics": {
       "who": "Who are you?",
       "how": "How are you?",
@@ -518,6 +527,7 @@
         { "text": "Well enough. My {kin_word} {kin_name} had us up half the night, mind.", "kin": "child", "weight": 0.4 },
         { "text": "Can't complain. {kin_name}, my {kin_word}, does the complaining for both of us.", "kin": "partner", "weight": 0.4 },
         { "text": "Not so good. I keep thinking of my {kin_word} {kin_name}.", "gone": true, "weight": 0.6 },
+        { "text": "Fine. {pet_name}, our {pet_kind}, kept me up chasing something in the dark.", "pet": true, "weight": 0.4 },
         "Can't complain.",
         { "text": "Very well, thank you!", "mood": "Cheerful", "gesture": "Cheer" },
         { "text": "Never better. Lovely day for it.", "mood": "Cheerful", "when": "day" },
@@ -568,7 +578,68 @@
         { "text": "Trees. Chop. Repeat.", "trade": ["Woodcutter", "Chop"] },
         { "text": "Down in the dark, digging.", "trade": ["Miner", "Mine"] },
         { "text": "Tracking. Quietly. You're not helping.", "trade": ["Hunter", "Hunt"] },
-        { "text": "Walking, mostly. The road's my work.", "trade": ["Traveller", "Travel", "Camper"] }
+        { "text": "Walking, mostly. The road's my work.", "trade": ["Traveller", "Travel", "Camper"] },
+        { "text": "Work? I left all that behind. Now I listen to the trees.", "trade": "Hermit", "weight": 3, "options": [
+          { "say": "Why did you leave?", "then": "hermit_why" },
+          { "say": "What do the trees say?", "then": "hermit_trees" },
+          { "say": "I'll leave you be.", "do": "end" } ] },
+        { "text": "Watching the road. Something's been at the fences after dark.", "trade": ["Guard", "Patrol", "Watch", "Gatekeeper"], "weight": 3, "options": [
+          { "say": "What kind of something?", "then": "guard_tracks" },
+          { "say": "Need a hand?", "then": "guard_help" },
+          { "say": "Stay safe.", "do": "gesture:Wave" } ] },
+        { "text": "Beds upstairs, stew on the fire, and the best gossip this side of the hills.", "trade": "Innkeeper", "weight": 3, "options": [
+          { "say": "A bed for the night?", "then": "inn_room" },
+          { "say": "What's the gossip?", "then": "inn_gossip" },
+          { "say": "Just looking.", "do": "end" } ] }
+      ],
+      "_replies": "A-131: reply-only topics (no label in topics, so never in the list): reached only through a line's options.",
+      "hermit_why": [
+        { "text": "Too many bells. Too many people asking things. Like you are now.", "options": [
+          { "say": "Sorry. I'll be quiet.", "do": "gesture:Bow" },
+          { "say": "Don't you get lonely?", "then": "hermit_lonely" } ] }
+      ],
+      "hermit_lonely": [
+        "A fox visits most evenings. She doesn't ask questions.",
+        "Some nights. Then a heron lands on the stones, and it passes."
+      ],
+      "hermit_trees": [
+        { "text": "That rain's coming. That the river's lower than last year. Mostly they say hush.", "options": [
+          { "say": "Hush it is.", "do": "end" },
+          { "say": "Thanks for sharing.", "do": "gesture:Bow" } ] }
+      ],
+      "guard_tracks": [
+        { "text": "Big prints. Four toes, and a drag mark behind. I don't like it.", "options": [
+          { "say": "I'll keep my eyes open.", "then": "guard_thanks" },
+          { "say": "Probably just a badger." } ] }
+      ],
+      "guard_help": [
+        { "text": "If you're offering... there's {quest}, if you've the stomach for it.", "need": true, "offer": "quest", "options": [
+          { "say": "I'll do it.", "do": "accept", "then": "guard_thanks" },
+          { "say": "Not right now.", "do": "decline" } ] },
+        { "text": "Kind of you. Keep to the lit paths after dark, that's help enough.", "need": false, "options": [
+          { "say": "Will do.", "then": "guard_thanks" } ] }
+      ],
+      "guard_thanks": [
+        "Good. One more pair of eyes.",
+        "Appreciated. Mind the ditch by the gate, it's deeper than it looks."
+      ],
+      "inn_room": [
+        { "text": "Second door on the left. The window sticks, and the cat thinks it's her room.", "options": [
+          { "say": "I'll share with the cat.", "then": "inn_cat" },
+          { "say": "Maybe another night." } ] }
+      ],
+      "inn_cat": [
+        "She snores. You've been warned.",
+        "Her name's Pudding. Keep her away from your boots."
+      ],
+      "inn_gossip": [
+        { "text": "A trader swore he saw lights out on the water last week. Drank three pints first, mind.", "offer": "rumour:lights", "options": [
+          { "say": "Lights? Where?", "then": "inn_lights" },
+          { "say": "Sounds like the pints talking.", "do": "gesture:Cheer" } ] }
+      ],
+      "inn_lights": [
+        "Off the north shore, he said. Bobbing, like lanterns with nobody holding them.",
+        { "text": "Out past the reeds. My cook saw them too, and she doesn't drink.", "trust": ["mid", "high"] }
       ],
       "town": [
         "I'm only passing through.",
@@ -612,7 +683,10 @@
         { "text": "For you? A tenth off, if you buy today.", "willing": true, "trade": ["Trader", "Merchant", "Smith", "Baker", "Tanner"], "offer": "discount:10" },
         { "text": "Call it a friend's price.", "willing": true, "warmth": "high", "trade": ["Trader", "Merchant", "Smith", "Baker", "Tanner"], "offer": "discount:20" },
         { "text": "Have a fish. Caught this morning.", "willing": true, "trade": ["Fisher", "Fish", "PoolFisher"], "offer": "item:Fish" },
-        { "text": "Mushrooms. The good kind, I promise.", "willing": true, "trade": "Forager", "offer": "item:Mushroom" }
+        { "text": "Mushrooms. The good kind, I promise.", "willing": true, "trade": "Forager", "offer": "item:Mushroom" },
+        { "text": "Here, this scarf's yours. Keeps the wind off your neck.", "willing": true, "warmth": "high", "offer": "item:Scarf", "weight": 0.2 },
+        { "text": "You look cold. Take this old cloak, it's done me well.", "willing": true, "warmth": "high", "offer": "item:Cloak", "weight": 0.1 },
+        { "text": "A spare tunic. Better than what you've got on.", "willing": true, "trade": ["Trader", "Merchant", "Tanner"], "offer": "item:Tunic", "weight": 0.2 }
       ],
       "help": [
         { "text": "No, I'm all right, thanks.", "need": false },
@@ -664,6 +738,9 @@
         { "text": "My {kin_word} {kin_name} and I get on. Mostly. On good days.", "kin": "inlaw" },
         { "text": "My {kin_word} {kin_name} borrowed my boots. That was a year ago.", "kin": "sibling" },
         { "text": "Seen my {kin_word} {kin_name} about? Tell them supper's on.", "kin": "partner" },
+        { "text": "Our {pet_kind} {pet_name} rules the house, really. We just live in it.", "pet": true },
+        { "text": "There's us, and there's {pet_name}, our {pet_kind}. Don't tell the others, but {pet_name}'s my favourite.", "pet": true, "warmth": ["mid", "high"] },
+        { "text": "If you see a {pet_kind} answering to {pet_name}, send it home. It knows the way, it just won't.", "pet": true },
         { "text": "We lost my {kin_word} {kin_name}. The house is too quiet now.", "gone": true, "weight": 2 },
         { "text": "I still set a place for my {kin_word} {kin_name}. Silly, I know.", "gone": true, "weight": 2, "warmth": ["mid", "high"] },
         { "text": "My {kin_word} {kin_name} is gone. Don't ask me more than that.", "gone": true, "weight": 2, "mood": "Grumpy" }
@@ -802,6 +879,11 @@
       "predator": ["GilaMonster", "SwampSerpent", "BoneHound"],
       "awe": ["Roc", "SkySerpent", "SandWorm", "SnowWorm", "BoneStag", "CrystalHare", "Dolphin", "StaticRam"],
       "pet": ["Cat", "Puppy", "Dog"]
+    },
+    "topics": {
+      "_readme": "What an animal player can do in the talk window: go up to the folk (meet), or leave (bye).",
+      "meet": "(go up to them)",
+      "bye": "(wander off)"
     },
     "Any": {
       "pet": [

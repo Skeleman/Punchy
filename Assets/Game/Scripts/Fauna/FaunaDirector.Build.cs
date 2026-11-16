@@ -167,6 +167,7 @@ namespace Punchy.Fauna
                 Regards(i, out var regard, out var kinship);
                 Vector2? home = homes.TryGetValue(species[i].name, out var sum) ? new Vector2(sum.x / sum.z, sum.y / sum.z) : null;
                 blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship, home));
+                blobInputs.Add(new BlobInputs { Prey = preyLists[i], Hunted = hunted[i], Regard = regard, Kinship = kinship, Home = home });
             }
             Stage("blobs");
 
@@ -230,6 +231,7 @@ namespace Punchy.Fauna
                 ClimbLadders.Flora.Data = floraBlob;
                 Stage("flora");
             }
+            BuildHerdKinds();
             Debug.Log($"[fauna build] {species.Count} species, ms:{stages} fingerprint {BuildFingerprint():X8}");
             lastSource = source;
             configStamp = ConfigStamp();

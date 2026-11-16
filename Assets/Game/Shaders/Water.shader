@@ -109,6 +109,7 @@ Shader "Punchy/Water"
             {
                 float4 positionCS : SV_POSITION;
                 float2 restXZ     : TEXCOORD0;   // where the point is before the swell moves it
+                float3 positionWS : TEXCOORD1;   // where it ends up (R-21: is it behind a river curtain)
             };
 
             DepthVaryings DepthVert(DepthAttributes input)
@@ -119,10 +120,15 @@ Shader "Punchy/Water"
                 float3 rest = TransformObjectToWorld(input.positionOS);
                 o.restXZ = rest.xz;
             #ifdef _WATER_FIELD
-                o.positionCS = TransformWorldToHClip(PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell));
+                o.positionWS = PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell);
             #else
-                o.positionCS = TransformWorldToHClip(PunchySwellVertex(rest, input.data.z, _PunchyClock, swell));
+                o.positionWS = PunchySwellVertex(rest, input.data.z, _PunchyClock, swell);
+                // R-21 row 4: the water dips above a fall's lip and heaves at its foot (the same move as the main pass's).
+                float fallChurn;
+                float2 fallSlope;
+                o.positionWS.y += PunchyFallWater(rest, _PunchyClock, 0, fallChurn, fallSlope);
             #endif
+                o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;
             }
 
@@ -132,6 +138,8 @@ Shader "Punchy/Water"
                 // (The fine sheet stands in for the chunk water near the player; cave water is never under it.)
                 clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
+                // (R-21: a river fall's face is drawn by its curtain, LandmarkEffectSystem.cs.)
+                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
                 return 0;
             }
             ENDHLSL
@@ -252,6 +260,11 @@ Shader "Punchy/Water"
                 pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data, input.parent, input.parentY, _PunchyClock, o.swell);
             #else
                 pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
+                // R-21 row 4: the water dips above a fall's lip and heaves at its foot (broad moves only: this mesh
+                // is too coarse for the short waves, which the fine sheet and the fragment's slope carry).
+                float fallChurnV;
+                float2 fallSlopeV;
+                pos.positionWS.y += PunchyFallWater(float3(o.restXZ.x, pos.positionWS.y, o.restXZ.y), _PunchyClock, 0, fallChurnV, fallSlopeV);
             #endif
                 pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 o.positionCS = pos.positionCS;
@@ -537,6 +550,8 @@ Shader "Punchy/Water"
                 // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
                 clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
+                // (R-21: a river fall's face, here or on the fine sheet, is drawn by its curtain, LandmarkEffectSystem.cs.)
+                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
                 float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;
@@ -670,6 +685,16 @@ Shader "Punchy/Water"
                     }
                 }
             #endif
+                // R-21 row 4: round every fall the water tilts with its dip, its turbulence above the lip and the
+                // rings spreading from its foot, and whitens where it is churned (the short waves fade out by the
+                // pixels a metre covers, rule 20).
+                {
+                    float fallWaterChurn;
+                    float2 fallWaterSlope;
+                    PunchyFallWater(float3(input.restXZ.x, input.positionWS.y, input.restXZ.y), t, smoothstep(3, 9, pixelsPerMetre), fallWaterChurn, fallWaterSlope);
+                    wakeSlope += fallWaterSlope;
+                    wakeFoam = max(wakeFoam, (half)(fallWaterChurn * 0.7));
+                }
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = 0;

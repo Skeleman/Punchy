@@ -28,6 +28,14 @@ namespace Punchy.Items
         public GearSlot Slot;
         public float Light, Reach, Cover;
         public int Slots;
+        /// <summary>P-28: a weapon's numbers (the game has no fighting yet, so only the swing uses Speed: swings a
+        /// second), whether it takes both hands, and how the body draws it (CreatureWeapon).</summary>
+        public float Damage, Speed;
+        public bool TwoHanded;
+        public byte Weapon;
+        /// <summary>P-28 row 2: armour's protection (a number only, for now), and how the body draws it (CreatureArmour).</summary>
+        public float Armour;
+        public byte Look;
     }
 
     /// <summary>The item table (#26, P-11). An item's id is its index here; never reorder, only append.</summary>
@@ -47,8 +55,33 @@ namespace Punchy.Items
             new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f },
             new ItemDef { Name = "Hat", Colour = new Color(0.62f, 0.5f, 0.3f), Accent = new Color(0.36f, 0.24f, 0.16f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.3f },
             new ItemDef { Name = "Pack", Colour = new Color(0.42f, 0.33f, 0.2f), Accent = new Color(0.25f, 0.18f, 0.12f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Back, Slots = 8 },
+            new ItemDef { Name = "Club", Colour = new Color(0.45f, 0.3f, 0.17f), Accent = new Color(0.3f, 0.2f, 0.12f), Stack = 1, Weight = 1.4f, Slot = GearSlot.Hand, Damage = 6f, Reach = 0.9f, Speed = 1.1f, Weapon = Punchy.Fauna.CreatureWeapon.Club },
+            new ItemDef { Name = "Spear", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1.9f, Speed = 0.8f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Spear },
+            new ItemDef { Name = "Sword", Colour = new Color(0.7f, 0.72f, 0.75f), Accent = new Color(0.4f, 0.26f, 0.14f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 9f, Reach = 1.1f, Speed = 1.4f, Weapon = Punchy.Fauna.CreatureWeapon.Sword },
+            new ItemDef { Name = "Bow", Colour = new Color(0.55f, 0.38f, 0.2f), Accent = new Color(0.88f, 0.85f, 0.75f), Stack = 1, Weight = 0.9f, Slot = GearSlot.Hand, Damage = 7f, Reach = 25f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bow },
+            new ItemDef { Name = "Arrow", Colour = new Color(0.6f, 0.45f, 0.28f), Accent = new Color(0.9f, 0.9f, 0.88f), Stack = 30, Weight = 0.03f },
+            new ItemDef { Name = "Cap", Colour = new Color(0.45f, 0.3f, 0.18f), Accent = new Color(0.32f, 0.2f, 0.12f), Stack = 1, Weight = 0.5f, Slot = GearSlot.Head, Armour = 1f, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Cap },
+            new ItemDef { Name = "Helm", Colour = new Color(0.55f, 0.57f, 0.6f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.Helm },
+            new ItemDef { Name = "Jerkin", Colour = new Color(0.47f, 0.31f, 0.18f), Accent = new Color(0.3f, 0.19f, 0.1f), Stack = 1, Weight = 3f, Slot = GearSlot.Body, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Jerkin },
+            new ItemDef { Name = "Chainmail", Colour = new Color(0.52f, 0.54f, 0.57f), Accent = new Color(0.36f, 0.37f, 0.4f), Stack = 1, Weight = 9f, Slot = GearSlot.Body, Armour = 5f, Look = Punchy.Fauna.CreatureArmour.Chain },
+            new ItemDef { Name = "Greaves", Colour = new Color(0.5f, 0.52f, 0.55f), Accent = new Color(0.36f, 0.24f, 0.14f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Legs, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Greaves },
+            new ItemDef { Name = "Boots", Colour = new Color(0.33f, 0.21f, 0.12f), Accent = new Color(0.22f, 0.14f, 0.08f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Feet, Armour = 1f, Look = Punchy.Fauna.CreatureArmour.Boots },
+            new ItemDef { Name = "Tunic", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.Tunic },
+            new ItemDef { Name = "Robe", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Body, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Robe },
+            new ItemDef { Name = "Cloak", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1f, Slot = GearSlot.Back, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Cloak },
+            new ItemDef { Name = "Scarf", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.15f, Slot = GearSlot.Neck, Cover = 0.05f, Look = Punchy.Fauna.CreatureArmour.Scarf },
+            new ItemDef { Name = "Hood", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Hood },
+            new ItemDef { Name = "Woolcap", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Cover = 0.15f, Look = Punchy.Fauna.CreatureArmour.Woolcap },
+            new ItemDef { Name = "Brimhat", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.3f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.Brimhat },
+            // Item rows (Zach 11-10: never idle, more weapons and wear in small rows).
+            new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe },
+            new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer },
+            // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
+            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod },
         };
-        public const byte Key = 7, Torch = 8, Staff = 9;
+        public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
+        /// <summary>The fishing rod (P-41: in every player's start pack).</summary>
+        public static readonly byte Rod = (byte)System.Array.FindIndex(Items, d => d.Name == "Rod");
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>
@@ -138,6 +171,7 @@ namespace Punchy.Items
             Debug.Log("Items: table of " + ItemTable.Items.Length + ": " + string.Join(", ", names));
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
+            instance.StartPack();
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-pickup");
             if (at >= 0 && at + 1 < args.Length)
@@ -154,6 +188,7 @@ namespace Punchy.Items
             instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
             instance.QuestArgs(args);
             instance.GearArgs(args);
+            instance.FishArgs(args);
             instance.CheckArgs(args);
         }
 
@@ -201,11 +236,13 @@ namespace Punchy.Items
                     added.Clear();
                     openedChests.Clear();
                     seededFor = default;
+                    rodsFor = default;
                 }
             }
             if (!TryTerrain(out var terrain))
                 return;
             RegisterChests();
+            LayRods(terrain);
             if (Hosting)
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())
@@ -227,7 +264,12 @@ namespace Punchy.Items
             Tests(terrain);
             GearTest();
             GearLootTest();
+            SwingKeys();
+            FishKeys(terrain);
+            SyncHair();
             ApplyGear();
+            DrawFishing(terrain);
+            ArmLog();
             PadTest();
             UpdateInventoryKeys();
             Draw();
@@ -387,10 +429,10 @@ namespace Punchy.Items
             return Entity.Null;
         }
 
-        /// <summary>What the inventory weighs now (kg).</summary>
+        /// <summary>What the inventory and everything on weigh now (kg).</summary>
         float CarriedWeight()
         {
-            var total = 0f;
+            var total = WornWeight();
             foreach (var slot in slots)
                 if (slot.item != 255)
                     total += ItemTable.Items[slot.item].Weight * slot.count;
@@ -544,6 +586,10 @@ namespace Punchy.Items
         {
             var em = server.EntityManager;
             ServeGear(em);
+            ServeArmour(em);
+            ServeSlots(em);
+            ServeSwings(em);
+            ServeFish(em);
             using (var rs = Q(em, ComponentType.ReadWrite<PickupRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
@@ -613,6 +659,10 @@ namespace Punchy.Items
             Each(em, joined, onQuestState ??= ReceiveQuestState);
             Each(em, joined, onChestOpened ??= OnChestOpened);
             Each(em, joined, onGearState ??= OnGearState);
+            Each(em, joined, onArmourState ??= OnArmourState);
+            Each(em, joined, onSlotState ??= OnSlotState);
+            Each(em, joined, onSwing ??= OnSwing);
+            Each(em, joined, onFish ??= OnFish);
         }
 
         System.Action<ItemGoneRpc> onItemGone;
@@ -622,6 +672,10 @@ namespace Punchy.Items
         System.Action<QuestStateRpc> onQuestState;
         System.Action<ChestOpenedRpc> onChestOpened;
         System.Action<GearStateRpc> onGearState;
+        System.Action<ArmourStateRpc> onArmourState;
+        System.Action<SlotStateRpc> onSlotState;
+        System.Action<SwingRpc> onSwing;
+        System.Action<FishRpc> onFish;
 
         /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
         void Each<T>(EntityManager em, bool joined, System.Action<T> act) where T : unmanaged, IRpcCommand

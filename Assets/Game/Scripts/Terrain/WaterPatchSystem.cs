@@ -103,6 +103,8 @@ namespace Punchy.Terrain
         /// <summary>Geyser vents inside the square, and the splashes they gave, when the field last stepped, and all the
         /// splashes vents have given (probe).</summary>
         public int VentsInField, VentSplashes, VentSplashTotal;
+        /// <summary>All the splashes swimmers have made dropping in (x) and breaking out (y) (A-125 probe).</summary>
+        public int2 SwimmerSplashTotal;
 
         static readonly int FieldId = Shader.PropertyToID("_PunchyWaterField");
         static readonly int FieldAtId = Shader.PropertyToID("_PunchyWaterFieldAt");
@@ -310,18 +312,19 @@ namespace Punchy.Terrain
             public float Clock, LastClock;
             /// <summary>x vents inside the square, y splashes they gave.</summary>
             public NativeReference<int2> VentCount;
+            /// <summary>Swimmer splashes this step: x in, y out (A-125 probe).</summary>
+            public NativeReference<int2> SwimmerSplashes;
             /// <summary>One-off knocks this step (world x, z, radius m, depth m), and how thick the liquid is at each of the
             /// square's metre corners (0..255).</summary>
             [ReadOnly] public NativeArray<float4> Knocks;
             [ReadOnly] public NativeArray<byte> Viscosity;
-
             /// <summary>The creatures in the square in turn order (kept between runs: no allocation once it has grown).</summary>
             public NativeList<SourceTurn> Turns;
             /// <summary>Out (probes): sources the players made, creatures in the square.</summary>
             public NativeArray<int> Stats;
 
             /// <summary>Presses and splashes share the list's MaxSources slots.</summary>
-            bool Room => Presses.Length + Splashes.Length < MaxSources;
+            bool Room => Presses.Length + Room;
 
             public void Execute()
             {
@@ -392,81 +395,109 @@ namespace Punchy.Terrain
             {
                 Turns.Clear();
                 var centre = new float2(Size * 0.5f);
+                var puppets = 0;
                 for (int i = 0; i < States.Length; i++)
                 {
                     var s = States[i];
                     var at = (s.Position.xz - Corner) * TexelsPerMetre;
                     if (math.any(at < -8f) || math.any(at > Size + 8f) || s.Gone || s.Fly > 0.5f)
                         continue;
+                    if (s.Mode == CreatureMode.Puppet)
+                        puppets++;
                     Turns.Add(new SourceTurn { Key = s.Mode == CreatureMode.Puppet ? -1f : math.lengthsq(at - centre), Index = i });
                 }
                 Turns.Sort();
-                var players = 0;
+                // (The players' turns come first: what is on the list once theirs are done is theirs.)
+                var before = Presses.Length + Splashes.Length;
+                Stats[0] = 0;
+                Stats[1] = Turns.Length;
                 for (int t = 0; t < Turns.Length; t++)
                 {
+                    if (t == puppets)
+                        Stats[0] = Presses.Length + Splashes.Length - before;
                     var i = Turns[t].Index;
                     var s = States[i];
                     var at = (s.Position.xz - Corner) * TexelsPerMetre;
-                    var made = Presses.Length + Splashes.Length;
-                    Add(i, s, at);
-                    if (s.Mode == CreatureMode.Puppet)
-                        players += Presses.Length + Splashes.Length - made;
+                    ref var b = ref Bodies[i].Blob.Value;
+                    bool upright = b.Upright || s.Mode == CreatureMode.Puppet || b.CrossesWater;
+                    if (b.Habitat != Habitat.Swims && b.Habitat != Habitat.Floats && !upright)
+                        continue;
+                    var e = Entities[i];
+                    var hadY = LastAt.TryGetValue(e, out var lastAt);
+                    var lastY = lastAt.y;
+                    LastAt[e] = s.Position;
+                    // (The float3 sample: in a cave pool or stream it is that water's, W-134.)
+                    var g = Terrain.SampleGround(s.Position);
+                    if (!g.HasWater || g.WaterSurface - g.Height < 0.15f)
+                        continue;
+                    var under = g.WaterSurface - s.Position.y;
+                    if (under < -0.8f || under > 1.6f)
+                        continue;
+                    var size = math.clamp(s.Scale * b.FrontRadius * 6f, 0.5f, 1.5f);
+                    // (At least 35 cm across, or a wader's legs dent the sheet too narrowly to read as a wake.)
+                    var radius = math.clamp(s.Scale * b.FrontRadius * 4f, 0.35f, 1f) * TexelsPerMetre;
+                    // (Something standing in it, feet down, crosses the surface wherever its feet are under; a fish or a
+                    // diver only dents it near the top.)
+                    var near = upright ? 1f : 1f - math.smoothstep(0.3f, 1.2f, under);
+                    var depth = (0.04f + 0.05f * math.min(s.Speed, 3f)) * size * near;
+                    if (depth > 0.002f && Room)
+                        Presses.Add(new float4(at, radius, depth));
+                    // And while it moves, it keeps shoving water aside (a small knock every step, in with the dimples so
+                    // every step gets it): the troughs it leaves spring back as rings, and in a line they make its wake.
+                    var shove = 0.006f * math.min(s.Speed, 4f) * size * near;
+                    if (shove > 0.0005f && Room)
+                        Presses.Add(new float4(at, -radius, shove));
+                    // Zach's leading swell (13:05): moving, it heaps the water up just ahead of itself, a raised hump before
+                    // the V of its wake (a held press lifting the surface: a negative depth). Which way is ahead: the way
+                    // it actually went since last time, or where it faces when it has hardly moved.
+                    var went = hadY ? (s.Position.xz - lastAt.xz) / math.max(Time - LastTime, 1e-3f) : float2.zero;
+                    var ahead = math.lengthsq(went) > 0.04f ? math.normalize(went) : new float2(math.sin(s.Yaw), math.cos(s.Yaw));
+                    var hump = 0.03f * math.min(s.Speed, 3f) * size * near;
+                    if (s.Speed > 0.4f && hump > 0.002f && Room)
+                        Presses.Add(new float4(at + ahead * radius * 1.6f, radius * 1.2f, -hump));
+                    // A wader's strides: a small knock a few times a second, each spreading as a ring, so a line of them
+                    // trails it (each creature on its own beat).
+                    var beat = 1.2f + 0.8f * math.min(s.Speed, 3f);
+                    var phase = (e.Index * 0.618f) % 1f;
+                    if (upright && s.Speed > 0.3f && math.floor(Time * beat + phase) != math.floor(LastTime * beat + phase)
+                        && Room)
+                        Splashes.Add(new float4(at, -radius, 0.035f * math.min(s.Speed, 2.5f) * size));
+                    // A splash where it has just come down through the surface (a jump, a fall, a fish breaching).
+                    var fall = hadY ? (s.Position.y - lastY) / math.max(DeltaTime, 1e-3f) : 0f;
+                    if (upright)
+                    {
+                        // (The player and waders: as before.)
+                        if (hadY && lastY - g.WaterSurface > 0.05f && -under <= 0.05f && fall < -1.5f && Room)
+                            Splashes.Add(new float4(at, -radius * 1.5f, math.clamp(-fall * 0.03f, 0.04f, 0.2f) * size));
+                        continue;
+                    }
+                    // A-125 row 1: a swimmer splashes both ways, breaking out and dropping back in, all sized by its body:
+                    // how fast it must cross, the ring's width and its knock. A trout's hop makes a ring a hand across; a
+                    // dolphin's leap one over two metres.
+                    var body = s.Scale * b.FrontRadius;
+                    var gate = math.clamp(0.6f + body * 4f, 0.6f, 1.5f);
+                    var ring = math.clamp(body * 5f, 0.12f, 1.5f) * TexelsPerMetre;
+                    var knock = math.clamp(body * 6f, 0.15f, 1.5f);
+                    if (!hadY || !Room)
+                        continue;
+                    // (Its climb over the time since it was last seen here, the sources' own interval, so the rate
+                    // holds at any frame rate.)
+                    var climb = (s.Position.y - lastY) / math.max(Time - LastTime, 1e-3f);
+                    // (Through the surface itself between two samples, fast: one step of a leap can be a few
+                    // centimetres, and the speed gate keeps a swimmer idling at the top from ringing.)
+                    if (lastY > g.WaterSurface && under >= 0f && climb < -gate)
+                    {
+                        Splashes.Add(new float4(at, -ring, math.clamp(-climb * 0.03f, 0.02f, 0.2f) * knock));
+                        SwimmerSplashes.Value += new int2(1, 0);
+                    }
+                    else if (lastY < g.WaterSurface && under <= 0f && climb > gate)
+                    {
+                        Splashes.Add(new float4(at, -ring * 0.8f, math.clamp(climb * 0.025f, 0.02f, 0.16f) * knock));
+                        SwimmerSplashes.Value += new int2(0, 1);
+                    }
                 }
-                Stats[0] = players;
-                Stats[1] = Turns.Length;
-            }
-
-            /// <summary>One creature's sources, while the list has room.</summary>
-            void Add(int i, in CreatureState s, float2 at)
-            {
-                ref var b = ref Bodies[i].Blob.Value;
-                bool upright = b.Upright || s.Mode == CreatureMode.Puppet || b.CrossesWater;
-                if (b.Habitat != Habitat.Swims && b.Habitat != Habitat.Floats && !upright)
-                    return;
-                var e = Entities[i];
-                var hadY = LastAt.TryGetValue(e, out var lastAt);
-                var lastY = lastAt.y;
-                LastAt[e] = s.Position;
-                // (The float3 sample: in a cave pool or stream it is that water's, W-134.)
-                var g = Terrain.SampleGround(s.Position);
-                if (!g.HasWater || g.WaterSurface - g.Height < 0.15f)
-                    return;
-                var under = g.WaterSurface - s.Position.y;
-                if (under < -0.8f || under > 1.6f)
-                    return;
-                var size = math.clamp(s.Scale * b.FrontRadius * 6f, 0.5f, 1.5f);
-                // (At least 35 cm across, or a wader's legs dent the sheet too narrowly to read as a wake.)
-                var radius = math.clamp(s.Scale * b.FrontRadius * 4f, 0.35f, 1f) * TexelsPerMetre;
-                // (Something standing in it, feet down, crosses the surface wherever its feet are under; a fish or a
-                // diver only dents it near the top.)
-                var near = upright ? 1f : 1f - math.smoothstep(0.3f, 1.2f, under);
-                var depth = (0.04f + 0.05f * math.min(s.Speed, 3f)) * size * near;
-                if (depth > 0.002f && Room)
-                    Presses.Add(new float4(at, radius, depth));
-                // And while it moves, it keeps shoving water aside (a small knock every step, in with the dimples so
-                // every step gets it): the troughs it leaves spring back as rings, and in a line they make its wake.
-                var shove = 0.006f * math.min(s.Speed, 4f) * size * near;
-                if (shove > 0.0005f && Room)
-                    Presses.Add(new float4(at, -radius, shove));
-                // Zach's leading swell (13:05): moving, it heaps the water up just ahead of itself, a raised hump before
-                // the V of its wake (a held press lifting the surface: a negative depth). Which way is ahead: the way
-                // it actually went since last time, or where it faces when it has hardly moved.
-                var went = hadY ? (s.Position.xz - lastAt.xz) / math.max(Time - LastTime, 1e-3f) : float2.zero;
-                var ahead = math.lengthsq(went) > 0.04f ? math.normalize(went) : new float2(math.sin(s.Yaw), math.cos(s.Yaw));
-                var hump = 0.03f * math.min(s.Speed, 3f) * size * near;
-                if (s.Speed > 0.4f && hump > 0.002f && Room)
-                    Presses.Add(new float4(at + ahead * radius * 1.6f, radius * 1.2f, -hump));
-                // A wader's strides: a small knock a few times a second, each spreading as a ring, so a line of them
-                // trails it (each creature on its own beat).
-                var beat = 1.2f + 0.8f * math.min(s.Speed, 3f);
-                var phase = (e.Index * 0.618f) % 1f;
-                if (upright && s.Speed > 0.3f && math.floor(Time * beat + phase) != math.floor(LastTime * beat + phase)
-                    && Room)
-                    Splashes.Add(new float4(at, -radius, 0.035f * math.min(s.Speed, 2.5f) * size));
-                // A splash where it has just come down through the surface (a jump, a fall, a fish breaching).
-                var fall = hadY ? (s.Position.y - lastY) / math.max(DeltaTime, 1e-3f) : 0f;
-                if (hadY && lastY - g.WaterSurface > 0.05f && -under <= 0.05f && fall < -1.5f && Room)
-                    Splashes.Add(new float4(at, -radius * 1.5f, math.clamp(-fall * 0.03f, 0.04f, 0.2f) * size));
+                if (puppets == Turns.Length)
+                    Stats[0] = Presses.Length + Splashes.Length - before;
             }
         }
 
@@ -488,11 +519,11 @@ namespace Punchy.Terrain
         float lastSourceTime, lastClock;
         static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
         NativeHashMap<Entity, float3> lastAt;
+        NativeList<ParentQuad> quads;
         /// <summary>SourceJob's lists, kept (R-15: no allocation per step).</summary>
         NativeList<float4> presses, splashes;
         NativeList<SourceTurn> turns;
         NativeArray<int> sourceStats;
-        NativeList<ParentQuad> quads;
         readonly List<Mesh> gatherMeshes = new List<Mesh>(4);
         readonly List<int2> gatherOrigins = new List<int2>(4);
         /// <summary>W-148 row 6: how thick the liquid is at each of the square's metre corners (0..255), from the chunk
@@ -553,11 +584,11 @@ namespace Punchy.Terrain
             focusQuery = GetEntityQuery(ComponentType.ReadOnly<TerrainFocus>(), ComponentType.ReadOnly<LocalTransform>());
             creatureQuery = GetEntityQuery(ComponentType.ReadOnly<CreatureState>(), ComponentType.ReadOnly<CreatureBody>());
             lastAt = new NativeHashMap<Entity, float3>(64, Allocator.Persistent);
+            quads = new NativeList<ParentQuad>(1024, Allocator.Persistent);
             presses = new NativeList<float4>(MaxSources, Allocator.Persistent);
             splashes = new NativeList<float4>(MaxSources, Allocator.Persistent);
             turns = new NativeList<SourceTurn>(256, Allocator.Persistent);
             sourceStats = new NativeArray<int>(2, Allocator.Persistent);
-            quads = new NativeList<ParentQuad>(1024, Allocator.Persistent);
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-waterfield");
             if (at >= 0 && at + 1 < args.Length && args[at + 1] == "0")
@@ -572,11 +603,11 @@ namespace Punchy.Terrain
             DestroyFall();
             Shader.SetGlobalVector(RectId, NoRect);
             if (lastAt.IsCreated) lastAt.Dispose();
+            if (quads.IsCreated) quads.Dispose();
             if (presses.IsCreated) presses.Dispose();
             if (splashes.IsCreated) splashes.Dispose();
             if (turns.IsCreated) turns.Dispose();
             if (sourceStats.IsCreated) sourceStats.Dispose();
-            if (quads.IsCreated) quads.Dispose();
             if (viscosityField.IsCreated) viscosityField.Dispose();
             Object.Destroy(viscosity);
             sourceBuffer?.Release();
@@ -1031,6 +1062,7 @@ namespace Punchy.Terrain
                 for (int v = 0; v < Vents.Count; v++)
                     vents[v] = Vents[v];
                 var ventCount = new NativeReference<int2>(Allocator.TempJob);
+                var swimmerSplashes = new NativeReference<int2>(Allocator.TempJob);
                 var knocks = new NativeArray<float4>(Knocks.Count, Allocator.TempJob);
                 for (int k = 0; k < Knocks.Count; k++)
                     knocks[k] = Knocks[k];
@@ -1040,8 +1072,8 @@ namespace Punchy.Terrain
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
                     Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes,
-                    Turns = turns, Stats = sourceStats,
-                    Vents = vents, Clock = clock, LastClock = lastClock, VentCount = ventCount, Knocks = knocks, Viscosity = viscosityField
+                    Vents = vents, Clock = clock, LastClock = lastClock, VentCount = ventCount, SwimmerSplashes = swimmerSplashes, Knocks = knocks, Viscosity = viscosityField,
+                    Turns = turns, Stats = sourceStats
                 }.Run();
                 knocks.Dispose();
                 CreatureSnapshotSystem.Release(World, states, bodies, entities);
@@ -1050,6 +1082,8 @@ namespace Punchy.Terrain
                 VentSplashTotal += VentSplashes;
                 vents.Dispose();
                 ventCount.Dispose();
+                SwimmerSplashTotal += swimmerSplashes.Value;
+                swimmerSplashes.Dispose();
                 lastSourceTime = now;
                 lastClock = clock;
                 if (lastAt.Count > 2000)

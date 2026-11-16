@@ -60,13 +60,13 @@ namespace Punchy.Flora
                 b.Box(new Vector3(x, 0.75f, back + 0.4f), new Vector3(stall * 0.6f, 0.4f, 0.5f), Quaternion.identity, plank * 0.6f, FloraPart.Bark);
                 if (g.Lod < 2)
                 {
-                    b.Wood = false;
+                    b.Family = Punchy.Terrain.MaterialFamily.Thatch;   // W-166: loose hay
                     b.Blob(new Vector3(x, 1.0f, back + 0.4f), new Vector3(stall * 0.26f, 0.18f, 0.22f), Quaternion.identity, 1, 0.45f, g.R() * 50f,
                            hay, FloraPart.Bark);
                     b.Wood = true;
                 }
             }
-            b.Wood = false;
+            b.Family = Punchy.Terrain.MaterialFamily.Thatch;   // W-166: the lean-to is a turf-and-straw slab
             // The lean-to roof: one slab from over the back wall down past the front posts.
             var run = new Vector2(shed - back + 0.9f, height - eave + 0.25f);
             var slope = Mathf.Atan2(run.y, run.x) * Mathf.Rad2Deg;
@@ -103,16 +103,18 @@ namespace Punchy.Flora
             // A trough along one side, hay bales stacked in the other front corner of the shed.
             var trough = new Vector3(-hx + 0.6f, 0.24f, (shed + front) * 0.5f);
             b.Box(trough, new Vector3(0.55f, 0.48f, Mathf.Min(2f, front - shed - 1f)), Quaternion.identity, plank * 0.65f, FloraPart.Bark);
-            b.Wood = false;
+            b.Family = Punchy.Terrain.MaterialFamily.Water;
             if (g.Lod < 2)
                 b.Box(trough + Vector3.up * 0.2f, new Vector3(0.4f, 0.04f, Mathf.Min(1.85f, front - shed - 1.15f)), Quaternion.identity,
                       new Color(0.16f, 0.22f, 0.24f), FloraPart.Bark);
+            b.Family = Punchy.Terrain.MaterialFamily.Thatch;
             var bales = g.Lod == 0 ? 3 : g.Lod == 1 ? 2 : 1;
             for (int k = 0; k < bales; k++)
             {
                 var at = new Vector3(hx - 0.75f - (k % 2) * 1.05f, 0.25f + (k / 2) * 0.5f, shed + 0.55f + (k / 2) * 0.1f);
                 b.Box(at, new Vector3(1f, 0.5f, 0.6f), Quaternion.Euler(0f, g.Range(-8f, 8f), 0f), hay * g.Range(0.85f, 1f), FloraPart.Bark);
             }
+            b.Family = b.BaseFamily;
 
             // The walls and rails stop the player; the open shed front and the gate don't.
             FenceColliders(g, new Vector3(-hx, 0f, back), new Vector3(hx, 0f, back), height);
@@ -150,14 +152,16 @@ namespace Punchy.Flora
             b.Beam(new Vector3(-half - 0.15f, height * 0.9f, 0f), new Vector3(half + 0.15f, height * 0.9f, 0f), 0.11f, 0.09f, wood * 0.9f, FloraPart.Bark);
             var trough = new Vector3(g.Range(-0.3f, 0.3f), 0.2f, 0.75f);
             b.Box(trough, new Vector3(Mathf.Min(1.6f, length * 0.6f), 0.4f, 0.45f), Quaternion.identity, wood * 0.65f, FloraPart.Bark);
-            b.Wood = false;
+            b.Family = Punchy.Terrain.MaterialFamily.Water;
             if (g.Lod < 2)
             {
                 b.Box(trough + Vector3.up * 0.17f, new Vector3(Mathf.Min(1.45f, length * 0.55f), 0.04f, 0.32f), Quaternion.identity,
                       new Color(0.16f, 0.22f, 0.24f), FloraPart.Bark);
+                b.Family = Punchy.Terrain.MaterialFamily.Thatch;   // the hay bale
                 b.Box(new Vector3(half + 0.7f, 0.25f, 0.3f), new Vector3(0.6f, 0.5f, 0.95f), Quaternion.Euler(0f, g.Range(-12f, 12f), 0f),
                       AccentAt(g, 0), FloraPart.Bark);
             }
+            b.Family = b.BaseFamily;
             FenceColliders(g, new Vector3(-half, 0f, 0f), new Vector3(half, 0f, 0f), height);
         }
     }

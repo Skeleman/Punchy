@@ -16,6 +16,9 @@ namespace Punchy.Fauna
     /// without two arms falls back to where the carry table puts it. The carrier's body is the one this machine draws
     /// (our own avatar, or another player's remote body), so the animal never lags behind them as its interpolated
     /// ghost would. All of it is worked out from what every machine already has: nothing is sent.
+    /// A-120 row 3: one of the folk may carry an animal too (Holder negative in Mode Held: Interactions.FolkHolder, minus
+    /// its ghost id), on the host and on every client alike; its body is then a carrier like a player's. The creatures
+    /// are only gone through for folk carriers while one is carrying (or just put one down, to close its arms).
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [UpdateBefore(typeof(CreatureRenderSystem))]
@@ -23,6 +26,9 @@ namespace Punchy.Fauna
     {
         ComponentLookup<GhostOwner> owners;
         ComponentLookup<NetPlayerLook> looks;
+        ComponentLookup<GhostInstance> ghosts;
+        /// <summary>Whether one of the folk carried something last time (so its arms are closed again once it doesn't).</summary>
+        bool folkCarried;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -30,6 +36,7 @@ namespace Punchy.Fauna
             state.RequireForUpdate<CreatureState>();
             owners = state.GetComponentLookup<GhostOwner>(true);
             looks = state.GetComponentLookup<NetPlayerLook>(true);
+            ghosts = state.GetComponentLookup<GhostInstance>(true);
         }
 
         /// <summary>A-70 row 3: whether anything was held, or a carrier's arms open, in CreatureSnapshotSystem's last copy
@@ -49,12 +56,13 @@ namespace Punchy.Fauna
         {
             // A-70 row 3: with nothing held and no arms open there is nothing to do (every CarryWidth is already 0), and
             // going through the creatures would wait for the brain on the main thread.
-            if (Needed.Data == 0 && Pending.Data == 0)
+            if (Needed.Data == 0 && Pending.Data == 0 && !folkCarried)
                 return;
             Pending.Data = 0;
             Ran.Data = 1;
             owners.Update(ref state);
             looks.Update(ref state);
+            ghosts.Update(ref state);
             var table = SystemAPI.TryGetSingleton<CarryTable>(out var carryTable) ? carryTable : default;
 
             // How wide what each carrier holds is, by holder id (the widest, if somehow two).
@@ -84,6 +92,23 @@ namespace Punchy.Fauna
                 body.ValueRW.CarryWidth = widths.TryGetValue(holder, out var w) ? w : 0f;
                 carriers[holder] = (body.ValueRO, shape.ValueRO, looks.HasComponent(ghost) ? looks[ghost].Species : -1);
             }
+            // A-120 row 3: folk carriers, keyed as Interactions.FolkHolder keys them (the same on every machine).
+            var folkCarrying = false;
+            foreach (var key in widths.GetKeyArray(Allocator.Temp))
+                folkCarrying |= key < 0;
+            if (folkCarrying || folkCarried)
+                foreach (var (body, shape, e) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithNone<PlayerAvatar, RemoteAvatar>().WithEntityAccess())
+                {
+                    if (!shape.ValueRO.Blob.Value.Upright || !shape.ValueRO.Blob.Value.Hands)
+                        continue;
+                    var holder = Interactions.FolkHolder(e, ghosts.HasComponent(e) ? ghosts[e].ghostId : 0);
+                    var w = folkCarrying && widths.TryGetValue(holder, out var width) ? width : 0f;
+                    if (body.ValueRO.CarryWidth != w)
+                        body.ValueRW.CarryWidth = w;
+                    if (w > 0f)
+                        carriers[holder] = (body.ValueRO, shape.ValueRO, -1);
+                }
+            folkCarried = folkCarrying;
             if (carriers.Count == 0 || widths.Count == 0)
                 return;
             var hasTerrain = SystemAPI.TryGetSingleton<TerrainSource>(out var terrain);

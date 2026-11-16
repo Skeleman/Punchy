@@ -24,7 +24,8 @@ namespace Punchy.Flora
             var pole = g.Bark;
             var bays = Mathf.Max(3, Mathf.RoundToInt(half / 1.8f));
 
-            // Pole pairs crossing above the ridge, and the ridge pole.
+            // Pole pairs crossing above the ridge, and the ridge pole (W-166: wood; the hides are the form's leather).
+            b.Family = Timber(g);
             for (int k = 0; k <= bays; k++)
             {
                 var x = Mathf.Lerp(-half, half, k / (float)bays) + g.Range(-0.15f, 0.15f);
@@ -34,6 +35,7 @@ namespace Punchy.Flora
             }
             b.Tube(new List<Vector3> { new Vector3(-half - 0.6f, height - 0.05f, 0f), new Vector3(half + 0.6f, height - 0.05f, 0f) },
                    new List<float> { 0.13f, 0.13f }, g.Sides(6, 4, 3), pole, FloraPart.Bark);
+            b.Family = b.BaseFamily;
 
             // Hides: one sagging panel per bay and side, from the ridge to the ground, and the two ends closed.
             var rows = g.Sides(4, 2, 1);
@@ -192,6 +194,7 @@ namespace Punchy.Flora
             g.Width = length;
             g.TrunkRadius = 0f;
             var logs = g.Lod == 2 ? 4 : 10;
+            b.Family = Timber(g);   // W-166: logs and rails
             for (int k = 0; k < logs; k++)
             {
                 var x = Mathf.Lerp(-length * 0.5f, length * 0.5f, (k + 0.5f) / logs);
@@ -207,6 +210,7 @@ namespace Punchy.Flora
             if (g.Lod < 2)
                 foreach (var y in new[] { 0.25f, 0.7f })
                     b.Box(new Vector3(0f, height * y, -0.2f), new Vector3(length, 0.12f, 0.1f), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
+            b.Family = b.BaseFamily;
             for (int k = -1; k <= 1; k++)
                 g.Colliders.Add(new Vector4(k * 1f, 0f, 0.55f, height));
         }
