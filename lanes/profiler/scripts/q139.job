@@ -1,0 +1,27 @@
+# Job 99a (fauna #428-#431): far herds and one population. 6ce454c2 (B) vs 84d7d574 (A). Medium and High, Clear,
+# 3 rounds. B's first launch rebakes the island cache (Format 4): before() warms each build once at the spawn and
+# prints its [start] ledger (island bake ms). Views: job 81's summit vantage over the herds (-benchspot -2496,294,960,55,
+# noon; the card's "grassland vantage" isn't located, this one looks out over 300 m-1.5 km of herd ground), and town 73
+# at dusk from 100 m south (job 92's view, 19.2). Record CPU main-thread and GPU ms and the [herds] line.
+Q=q139; TITLE="job 99a far herds"
+BUILDS="6ce454c 84d7d57"
+VIEWS="vantage dusk"
+view() { case $1 in
+  vantage) echo "-goto -2496,294,960 -benchstops spot -benchspot -2496,294,960,55 -benchhour 12 -benchweather Clear";;
+  dusk)    echo "-goto 2972,-785 -benchstops spot -benchspot 2972,-785,180 -benchhour 19.2 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-6ce454c";; A) echo "Profile-84d7d57";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3
+before() {
+  [ -n "${DRY:-}" ] && return
+  local a o
+  for a in B A; do o=$(arm $a)
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-warm-$a ${o#Profile-} s100 1 -gfx Medium -fpscap 0 -benchstops here -benchlong here 20 -benchhour 12 -benchweather Clear
+    check "$R/q-$Q-warm-$a-cs100-1.log"
+    echo "warm $a: $(grep -ah '\[start\]' "$R/q-$Q-warm-$a-cs100-1.log" | tr '\n' ' ' | cut -c1-400)"
+  done
+}
+after() {
+  [ -n "${DRY:-}" ] && return
+  for f in "$L"/q-$Q-*-cs100-1.log; do echo "== $(basename $f): $(grep -ah '\[herds\]' $f | tail -1 | cut -c1-250)"; done
+}

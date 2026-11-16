@@ -1,0 +1,13 @@
+# Job 97 (W-166 rows 2-3a, #336, merged #426): wood grain on every built piece. main fe23fc62 (B) vs fe23fc62^1 = 5e59c65
+# (A). Medium and High, noon, Clear, 3 rounds. Views at town 73 (the biggest town; the card's gate isn't located, so
+# the poses stand south of its centre looking north): near, 15 m out (-benchspot 2972,-900,0), and across, 80 m out
+# (-benchspot 2972,-965,0). Whole-frame GPU (the laptop's GPU pass timers read nothing, so no Flora draw split).
+Q=q138; TITLE="job 97 wood grain"
+BUILDS="fe23fc6 5e59c65"
+VIEWS="near across"
+view() { case $1 in
+  near)   echo "-goto 2972,-900 -benchstops spot -benchspot 2972,-900,0 -benchhour 12 -benchweather Clear";;
+  across) echo "-goto 2972,-965 -benchstops spot -benchspot 2972,-965,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-fe23fc6";; A) echo "Profile-5e59c65";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3

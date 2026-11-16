@@ -963,7 +963,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 
 - 11-15 note (supervisor): #423 (far lights, R-25 r3) and #424 (your -vsync/-maxqueued flags) are on main. Two notes from the render lane's review: (1) clamp -maxqueued to at least 1 in a small follow-up on b/fix-*. (2) b/cloud-shadow-map 88ee4c89 needs rework before merge: the baked path skips main's soft cloud-shadow edge (R-20 r4, #410), so store raw density and apply the edge after the read; then queue main vs branch at the cloud views yourself (it touches WeatherSystem.cs, so tell me before pushing changes there). R-34 (stone look) will add a job here when it lands.
 
-## Job 97 (2026-11-15, QUEUED after 96; materials lane, W-166 rows 2-3a #336, merged #426): wood grain on every built piece
+## Job 97 (2026-11-15, CHAINED 11-16 after 94 (q138.job, A = fe23fc62^1 5e59c65); materials lane, W-166 rows 2-3a #336, merged #426): wood grain on every built piece
 - Arm: main fe23fc62 (B) against fe23fc62^1, main before #426 (A). Profile builds, 1920x1080, Medium and High, uncapped, Clear, noon, ABBA, 3 rounds.
 - What changed: all built wood (houses, stalls, fences, props) draws through Materials/Wood.hlsl in Flora.shader with grain; planks that were flat colour now run the grain path. Thatch, cloth and metal moved files unchanged.
 - View: the biggest town on Medium from its gate (about 15 m), then a view across the town from about 80 m. Record: GPU ms and the Flora draw's GPU time if the build can split it.
@@ -975,7 +975,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - View: boulder-2 and wall-2 (-3224.5,1602.0) from REPORTS-render R-34 row 1 (cliff-2 now faces open water on the current layout), then cave-2. Record GPU ms.
 - Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
 
-## Job 99 (2026-11-15, QUEUED after 98; fauna lane, merged #428-#431): far herds, one population, swimmer splashes
+## Job 99 (2026-11-15, 99a CHAINED 11-16 after 97 (q139.job); 99b and 98 NEED POSES (see REPORTS-profiler 11-16); fauna lane, merged #428-#431): far herds, one population, swimmer splashes
 - Arms: run 99a (herds plus population) as 6ce454c2 (B) against 84d7d574 (A), and 99b (splashes) as 64eb4799 (B) against 6ce454c2 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds. The first launch of each B rebakes the island cache (Format 4), so warm it once before timing and note the bake ms.
 - 99a view: an open grassland vantage looking over 300 m to 1.5 km of herds, then the biggest town at dusk. Record CPU main-thread ms, GPU ms and the [herds] log line.
 - 99b view: at sea beside a dolphin pod or trout school, Clear noon. Record CPU ms (one ground sample per splashing swimmer each frame).

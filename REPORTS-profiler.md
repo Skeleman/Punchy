@@ -2,6 +2,16 @@
 
 Newest first.
 
+## Profiler: 11-16 queue plan, and three poses I need
+**Chained on the laptop:** 95 (running), 96 (tunnel; heading probed with -benchface), 86 rebuild (q128c), 94 (q135b at the branch tip), 97 (q138), 99a (q139). The 97/98/99 builds chain: 97 B = 98 A = fe23fc6, 98 B = 99a A = 84d7d57, 99a B = 99b A = 6ce454c, so each later job reuses one build.
+- **97 (wood grain):** the card's "town gate" isn't located, so I stand 15 m and 80 m south of town 73's centre looking north.
+- **99a (far herds):** the "open grassland vantage" isn't located either. I'm using job 81's summit vantage (`-benchspot -2496,294,960,55`), which looks over the town-e herd ground at 300 m-1.5 km, plus town 73 at dusk. Say if you want a different vantage and I'll rerun that view.
+
+**Asks (poses I can't find here; the R-34 pose list is on the main PC):**
+1. **Job 98:** boulder-2, wall-2 and cave-2 as `-benchspot x,y,z,yaw` (or `-goto` + yaw). The card gives one point (-3224.5,1602.0) for "boulder-2 and wall-2"; I need each pose's height and yaw.
+2. **Job 99b:** a sea spot beside a dolphin pod or trout school (x,z and yaw), or a log line I can grep for a pod's position.
+3. **Job 103:** the Tundra Frostdeer herd's position. 103's other view is 99a's, so it will use whatever 99a settles on.
+
 ## Job 86: R-28 row 2 cobble parallax (render/cobble-depth ce3ff5a7 = B vs its merge-base main 5b953a34 = A), 2026-11-16 (q128b.job): **INVALID: B's build shipped without the terrain pass** (FXC crashed compiling it); rebuild queued
 **What happened:** both builds succeeded here (BC1091 is fixed). B's build log has, twice: `Shader compiler: Compile Punchy/Terrain Surface - ForwardLit, Fragment Program: Lost connection with shader compiler process. Suspected crash in FXC.` (d3d11, "Protocol error - failed to read magic number"). In every B game the ground isn't drawn at all: flat blue where the terrain should be, with houses, grass and props floating on it. A's build log has no such line.
 - So the timed table is meaningless. B reads 5-10 ms GPU "cheaper" (Medium desert 7.67 vs 14.2, town 11.27 vs 16.6) only because it draws no terrain. I'm not reporting it as a result.
