@@ -5329,3 +5329,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Note: `-testFilter FolkConversationTests` also selects the Explicit Beast_Shots, which stalls on a busy machine; filter by test names.
 - Shares: FolkConversation talk book + JsonProblems (one dialogue system); the Accept/Decline pair folded in. No other parallel found.
 - NEXT: row 2 (hermit, innkeeper, guard exchanges).
+
+### Row 2 - three sample conversations, done (verified)
+- folk/dialogue-options@d42f64e0. dialogue.json +66: Any.work lines keyed on trade Hermit, Guard/Patrol/Watch/Gatekeeper, Innkeeper, with reply-only topics (hermit_why/lonely/trees, guard_tracks/help/thanks, inn_room/cat/gossip/lights) and a `_readme` note on options.
+- Guard "Need a hand?" offers its quest (accept/decline, with a no-quest fallback line); innkeeper gossip offers Rumour:lights; hermit uses end and bow.
+- Check: Options_SampleBranchesWalk passes for all three (every reply walked to depth 3, filled words, no empty answers); archive shipped problems 0; full FolkConversationTests 12/12.
+- Gap: there is no innkeeper job in FolkJobs, so the innkeeper exchange is only reachable through the API today. Follow-up idea: an inn post in FolkJobs.VillagePosts.
+- Shares: same talk book (dialogue.json) as every folk line. No parallel found.
+- DONE: A-131 ready for PR (folk/dialogue-options, 2 commits on main a143924d).
