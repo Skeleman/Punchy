@@ -84,12 +84,15 @@ float PunchyCloudDensityFine(float3 p, half4 weather, float4 shape, float detail
             // thin veils. Near the camera a second, smaller octave joins in; it fades out by 6 km, where it would only
             // shimmer on the half-resolution buffer.
             float billowy = saturate(h * 2.5 + 0.2) * saturate(0.4 + coverage) * (1 - layering);   // stratus frays, never billows
-            float carve = lerp(erosion.b, erosion.g, billowy);
+            // (R-35 pick A, -skyoff 4096 while Zach compares: the billows from round dome lobes, the noise's alpha,
+            // instead of Worley's ridges, so heads read as cauliflower domes.)
+            bool domes = ((uint)_PunchySkyOff & 4096u) != 0;
+            float carve = lerp(erosion.b, domes ? erosion.a : erosion.g, billowy);
             [branch] if (fine > 0.01)
             {
                 float3 uvwFine = float3(uvw.x * 0.6 - uvw.z * 0.8, uvw.y * 1.3, uvw.x * 0.8 + uvw.z * 0.6) * 11.3 + 0.21;
-                float2 small = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwFine, 0).gb;
-                carve = lerp(carve, carve * 0.6 + lerp(small.y, small.x, billowy) * 0.4, fine);
+                float3 small = SAMPLE_TEXTURE3D_LOD(_PunchyCloudNoise, sampler_PunchyCloudNoise, uvwFine, 0).gba;
+                carve = lerp(carve, carve * 0.6 + lerp(small.y, domes ? small.z : small.x, billowy) * 0.4, fine);
             }
             // Strongest at the edges, where the body is thin; a dense core keeps its mass. Thin, sparse cloud is eroded
             // less overall so it doesn't break into specks, and so is the flat base (holes there would show the sunlit

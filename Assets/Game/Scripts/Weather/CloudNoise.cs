@@ -4,13 +4,21 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
+// The dome lobes baked into the alpha channel (R-35 pick A: Dome and the lobes mix below) are adapted from a cumulus
+// raymarch shader under the MIT licence, whose notice they keep:
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 @freeborn
+// https://opensource.org/licenses/MIT
+
 namespace Punchy.Weather
 {
     /// <summary>
     /// Generates the tiling 3D noise the volumetric clouds are carved from (the usual real-time cloud recipe):
     ///  r = "Perlin-Worley" shape noise: billowy Perlin shaped by inverted Worley cells, for puffy cloud masses;
     ///  g = higher-frequency Worley detail, used to erode cloud edges into cauliflower-like billows;
-    ///  b = higher-frequency Perlin fBm, used to fray thin edges and cloud bases into wisps (R-4).
+    ///  b = higher-frequency Perlin fBm, used to fray thin edges and cloud bases into wisps (R-4);
+    ///  a = round dome lobes with small billow bumps, an alternative to g that keeps rounded heads instead of Worley's
+    ///      ridges (R-35 pick A, read only under -skyoff 4096 until Zach picks a look). Same scale and mid-grey as g.
     /// Every component repeats exactly across the texture, so it tiles seamlessly over the sky.
     /// </summary>
     public static class CloudNoise
@@ -65,13 +73,40 @@ namespace Punchy.Weather
                 }
                 wisp = math.saturate(wisp * 0.9f + 0.5f);
 
-                Voxels[i] = new Color32((byte)(shape * 255f), (byte)(detail * 255f), (byte)(wisp * 255f), 255);
+                // Dome lobes (R-35 pick A): a rounded cap over each Worley cell's feature point, x / sqrt(x + 0.04) with
+                // x = 1 - F1^2 / 0.36, summed over the same three frequencies as g, plus billow bumps (|Perlin|) on the
+                // domes. Stored as erosion (1 - dome), so the gaps between heads are carved and the heads kept, and
+                // remapped to g's mean (0.48) so the shader's stretch erodes about as much overall.
+                var dome = Dome(p, 8) * 0.625f + Dome(p, 16) * 0.25f + Dome(p, 32) * 0.125f;
+                float bumps = 0f;
+                amp = 0.5f;
+                freq = 32f;
+                for (int o = 0; o < 2; o++)
+                {
+                    bumps += amp * math.abs(noise.pnoise(p * freq + 41.7f, new float3(freq)));
+                    amp *= 0.5f;
+                    freq *= 2f;
+                }
+                var lobes = math.saturate(0.48f + (1f - dome - 0.594f) * 0.7f + (bumps - 0.2f) * 0.25f * dome);
+
+                Voxels[i] = new Color32((byte)(shape * 255f), (byte)(detail * 255f), (byte)(wisp * 255f), (byte)(lobes * 255f));
             }
 
             static float Remap(float v, float a, float b, float c, float d) => c + (v - a) / (b - a) * (d - c);
 
             /// <summary>Inverted, tiling Worley noise: 1 at feature points, falling to 0 between them.</summary>
-            static float Worley(float3 p, int cells)
+            static float Worley(float3 p, int cells) => math.saturate(1f - NearestFeature(p, cells));
+
+            /// <summary>A rounded dome over each tiling Worley cell's feature point: about 1 on it, 0 from 0.6 cells out.</summary>
+            static float Dome(float3 p, int cells)
+            {
+                var f1 = NearestFeature(p, cells);
+                var x = math.max(1f - f1 * f1 / 0.36f, 0f);
+                return x * math.rsqrt(x + 0.04f);
+            }
+
+            /// <summary>Distance to the nearest feature point of tiling Worley cells, in cell units (F1).</summary>
+            static float NearestFeature(float3 p, int cells)
             {
                 var cell = (int3)math.floor(p * cells);
                 var nearest = 1e9f;
@@ -86,7 +121,7 @@ namespace Punchy.Weather
                     var feature = ((float3)n + jitter) / cells;
                     nearest = math.min(nearest, math.distance(p, feature) * cells);
                 }
-                return math.saturate(1f - nearest);
+                return nearest;
             }
         }
     }

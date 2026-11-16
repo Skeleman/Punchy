@@ -39,7 +39,7 @@ float4 _PunchyUnderwaterShafts;  // under water, x light shaft march steps (0 of
 
 float3 _PunchySunDirection;    // towards the sun
 float3 _PunchyMoonDirection;   // towards the moon
-float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12), 2048 weather, cloud and wetness maps read plain bilinear, hard cloud shadow edge (before R-20 row 4)
+float _PunchySkyOff;           // test only (-skyoff n, to price the sky's parts): 1 no cloud march, 2 no far clouds, 4 no sky colour, 8 no weather volumes, 16 old even steps, 32 steps-per-pixel overlay, 64 always four sun samples, 128 cloud edges before R-4, 256 cloud light before R-4, 512 one cloud type everywhere (before R-4), 1024 cloud maps read straight (before R-12), 2048 weather, cloud and wetness maps read plain bilinear, hard cloud shadow edge (before R-20 row 4); R-35 picks, on while compared: 4096 dome-lobe billows, 8192 multiple-scattering light, 16384 skylight dimmed by cloud overhead, 32768 detailed nearest sun sample
 float4 _PunchyMoonPhase;       // phase (0 new, 0.5 full), lit share
 float3 _PunchyBlueMoon;        // towards the second, blue moon
 static const float PunchyBlueMoonRadius = 0.22;    // radians (about 25 degrees across): 6.5x its v0.11.0 size, a sister planet (Zach, #34)

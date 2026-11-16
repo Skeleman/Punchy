@@ -4,6 +4,12 @@
 // R-23 row 3: the shared parts live in SkyCommon.hlsl, Clouds.hlsl and Atmosphere.hlsl (see SkyCommon.hlsl).
 #include "Atmosphere.hlsl"
 
+// The multiple-scattering octaves in the cloud light (R-35 pick B) are adapted from a cumulus raymarch shader under the
+// MIT licence, whose notice they keep:
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 @freeborn
+// https://opensource.org/licenses/MIT
+
 // ------------------------------------------------------------------------------------------------ far clouds, march
 
 #define PUNCHY_FAR_START 15000.0
@@ -92,8 +98,14 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
     bool stride = ((uint)_PunchySkyOff & 16u) == 0;
     bool allSunSamples = ((uint)_PunchySkyOff & 64u) != 0;
     bool oldLight = ((uint)_PunchySkyOff & 256u) != 0;
+    // R-35 picks, off until Zach picks a look: B multiple-scattering light octaves (8192), C skylight dimmed by the cloud
+    // overhead (16384), D the nearest sun sample with edge detail, so near billows shade each other (32768).
+    bool multiScatter = ((uint)_PunchySkyOff & 8192u) != 0;
+    bool skyOcclusion = ((uint)_PunchySkyOff & 16384u) != 0;
+    bool nearSunDetail = ((uint)_PunchySkyOff & 32768u) != 0;
     int stepsTaken = 0;
     float lastOpticalDepth = -1;   // the light samples' last result, reused where a step's light hardly shows
+    float lastSkyDepth = 0;        // (pick C) the cloud overhead, reused with it
     [loop]
     for (int i = 0; i < maxSteps && t < t1; i++)
     {
@@ -182,10 +194,13 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
                 opticalDepth = PunchyCloudDensityAt(p + lightDir * 360.0, 0) * (270.0 + 90.0 * mergeFirst + 225.0 * mergeThird)
                              + PunchyCloudDensityAt(p + lightDir * 1440.0, 0) * (630.0 + 225.0 * mergeThird);
                 [branch] if (mergeFirst < 1)
-                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, 0) * 90.0 * (1 - mergeFirst);
+                    opticalDepth += PunchyCloudDensityAt(p + lightDir * 90.0, nearSunDetail ? detail : 0) * 90.0 * (1 - mergeFirst);
                 [branch] if (mergeThird < 1)
                     opticalDepth += PunchyCloudDensityAt(p + lightDir * 810.0, 0) * 450.0 * (1 - mergeThird);
                 lastOpticalDepth = opticalDepth;
+                // (Pick C: one sample 300 m straight up, standing for the cloud between this point and the open sky.)
+                [branch] if (skyOcclusion)
+                    lastSkyDepth = PunchyCloudDensityAt(p + float3(0, 300.0, 0), 0) * 300.0;
             }
             float beer = exp(-opticalDepth * PUNCHY_CLOUD_SIGMA);
             float powder = 1 - exp(-density * 6);   // edges facing the light stay a touch darker
@@ -210,13 +225,22 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
                 // light back yet and stay darker; looking towards the sun that fades and a silver lining takes over, light
                 // pushed forward through the thin edges.
                 float soft = max(beer, exp(-opticalDepth * PUNCHY_CLOUD_SIGMA * 0.25) * 0.55);
+                float body = soft * phase;
+                [branch] if (multiScatter)
+                {
+                    // (Pick B: multiple scattering as octaves, after the MIT cumulus reference by @freeborn: each bounce
+                    // falls off more slowly and forgets more of the phase. Scaled so a thin edge keeps today's brightness.)
+                    float od = opticalDepth * PUNCHY_CLOUD_SIGMA;
+                    body = (beer * phase + (0.5 * exp(-od * 0.25) + 0.25 * exp(-od * 0.06)) * lerp(phase, 1, 0.6)) * 0.6;
+                }
                 float towardSun = saturate(cosTheta);
                 float powderNew = lerp(1 - exp(-density * 9), 1, towardSun * towardSun);
                 half3 silver = light * pow(towardSun, 8) * (1 - powder) * soft * 2.5;
-                direct = light * soft * phase * (0.35 + 0.65 * powderNew) * 3.4 + (lining + silver) * soft * (1 - powder);
+                direct = light * body * (0.35 + 0.65 * powderNew) * 3.4 + (lining + silver) * soft * (1 - powder);
                 // Darker bases: the underside sees little of the bright sky above and the sun's light has crossed the
-                // whole body to reach it.
-                ambient *= lerp(0.6, 1.1, height);
+                // whole body to reach it. (Pick C measures the cloud overhead instead and keeps only a gentle ramp.)
+                ambient *= skyOcclusion ? lerp(0.8, 1.1, height) * exp(-lastSkyDepth * PUNCHY_CLOUD_SIGMA * 0.6)
+                                        : lerp(0.6, 1.1, height);
             }
             ambient = lerp(ambient, dot(ambient, half3(0.3, 0.5, 0.2)) * half3(0.85, 0.75, 1.1), twilight * 0.6);
             half3 flash = half3(0.75, 0.82, 1.0) * _PunchyLightningPos.w * 2.5
