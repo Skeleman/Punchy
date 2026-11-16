@@ -1059,3 +1059,10 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 ## Note (2026-11-16, player lane, P-35 r3 row 4, #26, branch player/kit-wire 46958dcc): kit ghost size
 - When row 4 is compiled and merged: the player ghost gains NetPlayerKit (8 ushort + 4 byte GhostFields), and each folk creature ghost's 13 Kit* fields go from byte to ushort. Gear RPC traffic drops: there are no per-change broadcasts and no per-joiner resend.
 - Record the snapshot bytes per tick at the village (117,-470) with folk about, host plus 1 joiner, before and after. Report only; nothing fails unless the snapshot grows by more than 10%.
+
+## Job 110 (2026-11-16, QUEUED once player/seamless-2 is on main; fauna lane, P-37 r3 row 2, #369, branch fauna/walkin-walls dbbb352e): walk-in wall test cost
+- BuildingFootprints.Blocked also walks the town plots round each tested spot and tests walk-in houses by their kit boxes (WalkInWalls.Inside). It costs nothing where there are no walk-in houses (main today).
+- Arms: (A) main with seamless-2 merged; (B) the same plus fauna/walkin-walls. Profile builds, 1920x1080, Medium, uncapped, ABBA, 300 frames per arm.
+- Views: (a) standing in a town with walk-in houses with deer and folk about; (b) open country as a control.
+- Record: CreatureBrainSystem job ms (worker), the footprint bake ms at load, whole-frame CPU ms.
+- Pass: B within 0.2 ms brain job and no change at (b). Report the numbers otherwise.
