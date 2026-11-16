@@ -42,4 +42,4 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
 | M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); r2b bake hook waits on Zach + W-174 | merged #425 | r2b blocked; lab takes M-08 meanwhile |
 | M-08 | #414 | lab | merged #435 | lab/set-piece-view | rows 1-3 shipped; #414 stays open for M-06 row 5 blueprints |
-| M-06 r3b | #413 | lab | merged #442 (next: Lab species herd) | lab/new-species 3c1ee5f1 | Homes merge, Lab species index group (after 124 built-ins), Save as new panel, KitParts field; Frostdeer (Tundra) verified solo + host; Fauna_Fingerprint 0206544F; temple Ruin ctor dropped (public static offered) |
+| M-06 r3b | #413 | lab | merged #442 (Lab species herds moved to fauna, who own Herds.cs; lab blocked on W-166 / Zach) | lab/new-species 3c1ee5f1 | Homes merge, Lab species index group (after 124 built-ins), Save as new panel, KitParts field; Frostdeer (Tundra) verified solo + host; Fauna_Fingerprint 0206544F; temple Ruin ctor dropped (public static offered) |
