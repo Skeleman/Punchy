@@ -31,7 +31,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   R-33), wet stone (#332, R-34, shipped PR #427), clouds from a reference shader (#333, R-35).** Next, render lane.
 - **Sun moves smoothly (R-38, 11-15).** Sun position every 0.1 s as a trial. Shipped (R-38, PRs #409, #423).
 - **Caves.** Shipped: screen-size cave LOD, cave water, dungeon texturing and collision. Shipped: no paddy spikes on slopes (W-172 row 1, PR #384). Shipped: playtest
-  fixes and tunnel variety (W-172 rows 2-6, PR #451). In flight: cave walls that fit the place (W-172 row 7: moss only near light or damp,
+  fixes and tunnel variety (W-172 rows 2-6, PR #451). Shipped: cave walls that fit the place (W-172 row 7, PR #507; next: brighter fungi caps, volcanic cave details; moss only near light or damp,
   glowing fungi deep, carvings near ruins, fossils in sedimentary rock, frost, salt crust, flowstone, tide
   marks, soot near camps, roots under forest). Later: small-animal passages to secret rooms and river-carved
   tunnels (#370).

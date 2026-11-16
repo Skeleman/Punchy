@@ -197,3 +197,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #504 world/map-edits-bake, M-07 r2b (#260): painted map edits reach the game world; edits change the join signature only when present. One island cache miss on first load.
 - 11-16: #505 fauna/dungeon-r5, #24 phase 2 r4-r5: dungeon props drawn by screen size; dungeon creatures roost, patrol and sleep at socket posts (bats on ceilings). Playtest: bats roosting in caves.
 - 11-16: #506 fauna/walkin-walls-doors, P-37 r3 row 2 (#369): creatures stay out of walk-in houses unless the door is open.
+- 11-16: #507 world/cave-walls, W-172 r7 (#262): cave wall details by biome, rock and cave type. Playtest: fungi caps may look too dark; volcanic caves have none yet.
