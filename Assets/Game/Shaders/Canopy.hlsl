@@ -49,9 +49,10 @@ half PunchyCanopyApply(float3 p, float distance, half3 viewDir, inout half3 albe
     float mpp = distance / max(_PunchyCanopyScale.w, 1e-3);   // metres a pixel spans here
     float lod = log2(max(mpp / max(ndv, 0.25) / _PunchyCanopyRect.w, 1e-3));
     float4 d = PunchyCanopyRead(TEXTURE2D_ARGS(_PunchyCanopyData, sampler_PunchyCanopyData), uv, lod);
-    [branch] if (d.r < 0.004)
-        return 0;
     float4 c = PunchyCanopyRead(TEXTURE2D_ARGS(_PunchyCanopyColour, sampler_PunchyCanopyData), uv, lod);
+    // (Ground with no crowns of its own still carries the nearest forest's height, up to 4 texels off, for its shade.)
+    [branch] if (d.r < 0.004 && c.a < 0.004)
+        return 0;
 
     // The hand-over: these trees' end (as the cull works it out) and its last 12%, where they fade; inside the radius
     // the share the cull thins out of them.
@@ -93,7 +94,7 @@ half PunchyCanopyApply(float3 p, float distance, half3 viewDir, inout half3 albe
     }
 
     half alpha = saturate(cover * fadeIn);
-    albedo *= 1 - 0.45 * shade * fadeIn;
+    albedo *= 1 - 0.45 * shade * handoff * _PunchyCanopyScale.z;   // (only past the trees' end: nearer, they cast their own)
     albedo = lerp(albedo, crown, alpha);
     normalWS = normalize(lerp(normalWS, crownN, alpha));
     return alpha;

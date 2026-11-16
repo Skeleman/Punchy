@@ -259,7 +259,8 @@ namespace Punchy.Flora
 
         /// <summary>
         /// A 3 x 3 tent over the sums, then each texel's means. A texel with no trees of its own takes its neighbours'
-        /// colour, reach and height (cover-weighted), so the bilinear read at a forest's edge never fades towards black.
+        /// colour, reach and height (cover-weighted), so the bilinear read at a forest's edge never fades towards black;
+        /// one with none in the tent either takes them from up to FillReach texels off (with cover still 0).
         /// </summary>
         [BurstCompile]
         struct CanopyBlurJob : IJobParallelFor
@@ -286,6 +287,22 @@ namespace Punchy.Flora
                         weight += w;
                     }
                     var cover = a.x / weight;
+                    if (a.x <= 1e-6f)
+                    {
+                        // No trees in reach: take the nearest forest's means (up to FillReach texels off, unweighted)
+                        // with no cover of its own, so the ground beside a forest knows how tall its trees are and lies
+                        // in their shade (Canopy.hlsl), and the bilinear read at the edge keeps the crowns' colour.
+                        for (int dy = -FillReach; dy <= FillReach; dy++)
+                        for (int dx = -FillReach; dx <= FillReach; dx++)
+                        {
+                            var sx = x + dx;
+                            var sy = row + dy;
+                            if (sx < 0 || sy < 0 || sx >= CanopyMapSize || sy >= CanopyMapSize)
+                                continue;
+                            a += Sums[sy * CanopyMapSize + sx];
+                            b += SumsB[sy * CanopyMapSize + sx];
+                        }
+                    }
                     var inv = a.x > 1e-6f ? 1f / a.x : 0f;
                     OutA[row * CanopyMapSize + x] = new Color32(Byte(cover), Byte(a.y * inv / CanopyReachScale),
                                                                 Byte(a.z * inv), Byte(a.w * inv));
@@ -294,6 +311,9 @@ namespace Punchy.Flora
                                                                 Byte(b.w * inv / CanopyHeightScale));
                 }
             }
+
+            /// <summary>How far (texels) an empty texel looks for a forest's means: a 20 m tree's shadow at a 25 degree sun.</summary>
+            const int FillReach = 4;
 
             static byte Byte(float v) => (byte)math.clamp((int)math.round(v * 255f), 0, 255);
         }
