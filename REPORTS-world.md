@@ -8440,3 +8440,8 @@ Plan:
 - Counts (31 caves, current seed): Moss 43/10 caves, Fungi 19/6, GlowFungi 17/6, Carving 6/5, Fossil 2/2, Ossuary 0, Bones 5/2, Frost 54/12, Icicles 31/12, Salt 9/3, Flowstone 0, TideLine 4/4, Soot 3/2. Ossuary/Flowstone 0 by seed: no Limestone cave, the one ruin cave rolled others. Volcanic caves take none (follow-up idea: ash/scorch kind).
 - Shots: 11 kinds in PunchyMilestones/W-172/r7-*.png (Bones/Frost also -lifted: those caves are dark). Fungi caps read very dark in the crystal cave (follow-up). Checks: compile clean after rebase, WorldTests 17/17 (fingerprints pinned there).
 - BENCH: counts rise (up to 4 meshes per nearby cave, built 2 placements a frame); request below in REPORTS-profiler.
+
+## W-175 row 6 DONE (materials lane, 2026-11-16) - world/parts-units-4 @ 393c4588
+- A "unit" part nests a whole unit by id (UnitPart.Unit, max depth 4). UnitLibrary finds units by id (coded, species JSON, and editor blueprints). Lab: Snap joins button (12 cm join, 5 cm grid) and a Unit id field.
+- FloraSpecies.UnitJson: a species grows a saved blueprint wherever it is placed. Additive line in shared FloraGenerator.cs (owner please note).
+- Checks: Smithy/Stall/Tent/FirePit hashes same; EditMode 19/19; Landmarks_V3 pass. No look change, so no shots. Settlement placement of JSON units is left to world.
