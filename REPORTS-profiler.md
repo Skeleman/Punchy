@@ -4129,3 +4129,5 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 - IsCaveHole and flora placement now add a ScarpSet.Strip lookup per sample. Please compare flora/settlement bake and streaming burst cost against main on the default seed when the queue allows.
 
 - World W-174 r4b (world/seams): terrain chunk build now does extra Cut evaluations (2 gradient taps plus a re-check) for kept-side vertices within 1.3 quads of a rim (LOD0-2). Please compare chunk mesh build burst cost against main on the default seed when the queue allows.
+
+- World W-175 (world/json-units @ f4ea850a): fauna fingerprint re-pinned to 2486F68F (Cookhouse blueprint species joins the flora list). One more flora species and one HumanVillage prop; no new per-frame work, so no BENCH request.

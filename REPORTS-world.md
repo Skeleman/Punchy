@@ -8477,3 +8477,12 @@ Plan:
 - **Collision.** No mesh collider. Movement reads TerrainSource (SampleHeight, FloorUnder, GroundHoles.Removed). The collar band becomes a ground-edit shape: GroundEdits answers rim height blended to frame height across the band, so walking matches the art and spawns, flora and roads see the same ground. Guard: collar faces vs SampleHeight, worst error <= 5 cm.
 - **Seam and the guard.** At mouths and temples Seam stops moving vertices (Cut stays the same function), and the clip stays only for scarps. Seams_NoOpenRims gains, at every LOD a chunk can be built at: collar outer vertices equal chunk rim vertices bit for bit (misses 0), inner ring on the frame, gap and lip 0, and the collision error above.
 - **Row 1 build.** One temple and one cave mouth; 20 m and 150 m shots; a walk from 60 m to the mouth with no pop. Risks: a mouth across a chunk corner (handled by the shared-edge rule); job cost in entrance chunks (marching squares only there; BENCH request after the build); the cave inner ring needs the wall field sampled in the chunk job (it is in TerrainSource already).
+
+## W-175 #415 (world part): settlements place JSON units (world/json-units @ f4ea850a)
+
+- Cookhouse species (copy of Stall, own seed, empty Unit) carries the Model Lab cookhouse.json as UnitJson; HumanVillage lists it as a prop (ring 0.6, angle 70, faces the square, count 1). Placement, drawing and collision come from the species like any other.
+- Guard: TestHooks.BlueprintPlacements + WorldTests.Blueprints_PlacedInSettlements: every UnitJson species must read parts, not be shadowed by a filled Unit, be listed by a landmark and stand in at least one. Measure: Cookhouse x1 in 1/1 @ 2957,-834; all placed.
+- Re-pin: Fauna_Fingerprint DFC4F03B -> 2486F68F (Cookhouse joins the flora list, 185 species). Landmarks 114 9786243F, temple sockets C41A5BA2 and seams unchanged.
+- WorldTests 19/19 (one earlier Setup_SpawnRainAndShot timeout on an island cache miss bake; clean on rerun).
+- Shots (written check): D:/Unity/PunchyMilestones/W-175 w175-cookhouse20 (open post-and-roof cookhouse at the village square edge, standing on the ground, facing the square) and w175-cookhouse150 (in the village among houses).
+- Docs: docs/agents/parts-and-units.md section 12. Still to do (#415): converting older code-built buildings.
