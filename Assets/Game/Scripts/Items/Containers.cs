@@ -121,7 +121,7 @@ namespace Punchy.Items
         void OpenContainer(int id)
         {
             openContainer = id;
-            panel = true;
+            Punchy.UI.FieldMenu.Show(ItemsTab, true);
             nav.Reset();
             Debug.Log($"Items: looking in container {id} ({containers[id].Name}): {Describe(containers[id].Slots)}");
         }

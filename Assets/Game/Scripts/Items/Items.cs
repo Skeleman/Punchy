@@ -238,9 +238,13 @@ namespace Punchy.Items
         int nextDrop = DropBase;
         int target = -1, targetChest = -1;
         string prompt;
-        bool panel;
+        /// <summary>The in-world menu is up (any tab; P-39, #397: the inventory is its Items tab).</summary>
+        static bool panel => Punchy.UI.FieldMenu.Open;
+        /// <summary>The menu shows the Items tab: the slots have the focus and the Use key drops, puts or takes.</summary>
+        static bool itemsTab => Punchy.UI.FieldMenu.Showing == ItemsTab;
+        const string ItemsTab = "Items", QuestsTab = "Quests";
         int selected, lastFocus = -1;
-        readonly Punchy.UI.MenuNav nav = new Punchy.UI.MenuNav();
+        static Punchy.UI.MenuNav nav => Punchy.UI.FieldMenu.Nav;
         bool padTest;
         float padAt;
         int padStep;
@@ -282,7 +286,9 @@ namespace Punchy.Items
                 instance.spareOnlyArg = true;
             instance.dropArg = System.Array.IndexOf(args, "-drop") >= 0;
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
-            instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
+            // (P-39: the inventory and the quest log are tabs of the in-world menu; "-inventory" opens it there.)
+            Punchy.UI.FieldMenu.AddTab(ItemsTab, 0, instance.DrawItemsTab);
+            Punchy.UI.FieldMenu.AddTab(QuestsTab, 10, instance.DrawQuestsTab);
             instance.padTest = System.Array.IndexOf(args, "-invpad") >= 0;
             instance.itemRowArg = System.Array.IndexOf(args, "-itemrow") >= 0;
             var rowAt = System.Array.IndexOf(args, "-itemrow");
@@ -536,6 +542,9 @@ namespace Punchy.Items
                     return entities[i];
             return Entity.Null;
         }
+
+        /// <summary>What the local player carries and wears now (kg), for the Status tab.</summary>
+        public static float Carried => instance != null ? instance.CarriedWeight() : 0f;
 
         /// <summary>What the inventory and everything on weigh now (kg).</summary>
         float CarriedWeight()
@@ -911,39 +920,21 @@ namespace Punchy.Items
         }
 
         /// <summary>
-        /// The panel: Tab or I, or View on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
-        /// (arrows, d-pad; the left stick walks) and Submit (Enter, A) or the Use key drops one of the focused slot's items.
+        /// The Items tab of the in-world menu (FieldMenu opens and closes it, reads the d-pad and moves the focus): while
+        /// it shows, the focus is on a slot, and Submit (Enter, A) or the Use key drops one of its items (puts it in, or
+        /// takes it out of, an open container).
         /// </summary>
         void UpdateInventoryKeys()
         {
             if (Punchy.UI.Overlay.Frozen)
                 return;
-            var keyboard = Keyboard.current;
-            var pad = Gamepad.current;
-            // (Any pad's View / B, not only Gamepad.current: P-16's virtual pad wasn't current on its first press. View
-            // since Zach 11-12: LB is the left hand's block.)
-            bool padLB = false, padB = false;
-            foreach (var g in Gamepad.all)
+            if (!itemsTab)
             {
-                padLB |= g.selectButton.wasPressedThisFrame;
-                padB |= g.buttonEast.wasPressedThisFrame;
-            }
-            var toggle = keyboard != null && (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame) || padLB;
-            if (toggle || panel && padB)
-            {
-                panel = toggle && !panel;
-                nav.Reset();
-                lastFocus = -1;
-                Debug.Log($"Items: inventory {(panel ? "open" : "closed")}");
-            }
-            if (!panel)
-            {
+                // (Closing the menu, or leaving its Items tab, steps back from an open container.)
                 openContainer = -1;
+                lastFocus = -1;
                 return;
             }
-            // (P-39, #397: the menu has the buttons, not the walk.)
-            Punchy.UI.Overlay.HoldForFieldMenu();
-            nav.ReadInput();
             if (nav.Active && nav.Focus != lastFocus)
             {
                 lastFocus = nav.Focus;
@@ -951,9 +942,8 @@ namespace Punchy.Items
                 Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
             }
             selected = nav.Focus;
-            // (In the panel the pad's A is its own Submit; the Use key, or RB, as before.)
-            var padRB = Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame;
-            if (target < 0 && targetChest < 0 && targetContainer < 0 && (UseKey.KeyWasPressed() || padRB))
+            // (In the menu the pad's A is its own Submit, and RB switches tab; the Use key as before.)
+            if (target < 0 && targetChest < 0 && targetContainer < 0 && UseKey.KeyWasPressed())
             {
                 if (openContainer >= 0 && selected >= Capacity) TakeFromContainer(openContainer, selected - Capacity);
                 else if (openContainer >= 0) Put(selected);
@@ -1141,7 +1131,22 @@ namespace Punchy.Items
         // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
         void Start()
         {
-            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => !Punchy.UI.Overlay.Frozen && (prompt != null || panel), true);
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => !Punchy.UI.Overlay.Frozen && prompt != null, true);
+        }
+
+        /// <summary>Where the inventory stands: on the right, its top a quarter down the screen (higher for more rows).</summary>
+        Rect InventoryRect(float cell, float gap)
+        {
+            var w = 4 * cell + 5 * gap;
+            var rows = Capacity / 4;
+            return new Rect(Screen.width - w - 20f, Mathf.Max(80f, Screen.height * 0.25f - 28f - (rows - 4) * cell), w, rows * (cell + gap) + gap + 28f);
+        }
+
+        /// <summary>The in-world menu's Quests tab: the quest log, where the inventory stands.</summary>
+        void DrawQuestsTab(Punchy.UI.MenuNav menuNav)
+        {
+            var area = InventoryRect(74f, 6f);
+            DrawQuestLog(new Rect(area.x, area.y, area.width, Screen.height - area.y - 40f));
         }
 
         void DrawGui()
@@ -1157,17 +1162,22 @@ namespace Punchy.Items
                 var height = promptStyle.CalcHeight(content, width);
                 GUI.Box(new Rect((Screen.width - width) * 0.5f, Screen.height * 0.72f, width, height), content, promptStyle);
             }
-            if (!panel)
-                return;
+        }
+
+        /// <summary>
+        /// The in-world menu's Items tab: the inventory on the right, an open container's pane left of it, what's worn
+        /// under it (P-39).
+        /// </summary>
+        void DrawItemsTab(Punchy.UI.MenuNav menuNav)
+        {
             slotStyle ??= new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.LowerCenter, wordWrap = true };
             const float cell = 74f, gap = 6f;
-            var w = 4 * cell + 5 * gap;
+            var area = InventoryRect(cell, gap);
+            var w = area.width;
             var rows = Capacity / 4;
-            var area = new Rect(Screen.width - w - 20f, Mathf.Max(8f, Screen.height * 0.25f - 28f - (rows - 4) * cell), w, rows * (cell + gap) + gap + 28f);
             // (P-20: the button for the device in use: the Use key, or A on a pad.)
             GUI.Box(area, $"Inventory   ({(InputGlyphs.Gamepad ? InputGlyphs.Path("<Gamepad>/buttonSouth") ?? "A" : UseKey.Current.ToString())}: drop one)");
             var colour = GUI.color;
-            nav.Begin();
             GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));
             for (int row = 0; row < rows; row++)
             {
@@ -1198,8 +1208,6 @@ namespace Punchy.Items
             GUILayout.EndArea();
             DrawContainerPane(cell, gap, area);
             DrawWorn(area, cell, gap);
-            DrawQuestLog(area);
-            nav.End();
             GUI.color = colour;
         }
     }

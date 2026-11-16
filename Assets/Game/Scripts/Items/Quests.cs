@@ -501,10 +501,10 @@ namespace Punchy.Items
         GUIStyle questLineStyle;
 
         /// <summary>
-        /// The quest log, under the inventory pane (P-16): each quest's row as tall as its wrapped text, and the list
-        /// scrolls once it would run past the bottom of the screen.
+        /// The quest log, the in-world menu's Quests tab (P-16, P-39): in the given room, each quest's row as tall as its
+        /// wrapped text, and the list scrolls once it would run past the room's foot.
         /// </summary>
-        void DrawQuestLog(Rect inventory)
+        void DrawQuestLog(Rect room)
         {
             questLineStyle ??= new GUIStyle(GUI.skin.label) { richText = true, wordWrap = true, fontSize = 13 };
             var lines = new List<string>();
@@ -527,15 +527,12 @@ namespace Punchy.Items
                 Row($"<i>[lost to time] {lost.Saved.id}: {lost.Why}.</i>  (press to drop, {LostRefund} coins back)", (-1, -1), lost);
             if (lines.Count == 0)
                 Row("No quests yet: notice boards stand in every town.", (-1, -1), null);
-            var inner = inventory.width - 16f;
+            var inner = room.width - 16f;
             var heights = lines.ConvertAll(l => questLineStyle.CalcHeight(new GUIContent(l), inner - 16f) + 4f);
             var total = 0f;
             foreach (var h in heights) total += h;
-            // (On the left of the screen, up to three quarters of its height: under the inventory there was no room.)
-            var top = Screen.height * 0.12f;
-            var room = Screen.height * 0.75f;
-            var boxHeight = Mathf.Min(total + 30f, room);
-            var area = new Rect(20f, top, inventory.width, boxHeight);
+            var boxHeight = Mathf.Min(total + 30f, room.height);
+            var area = new Rect(room.x, room.y, room.width, boxHeight);
             GUI.Box(area, "");
             GUI.Label(new Rect(area.x + 8f, area.y + 4f, inner, 22f), "<b>Quests</b>   (press one, or U: follow it)", questLineStyle);
             var view = new Rect(area.x + 8f, area.y + 26f, inner, boxHeight - 30f);
