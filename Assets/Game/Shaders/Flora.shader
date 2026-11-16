@@ -325,12 +325,14 @@ Shader "Punchy/Flora"
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them.
-                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
+                half wideLit = 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0));
+                half cloudLit = (1 - PunchyCloudShadow(input.positionWS)) * (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                half shadow = min(light.shadowAttenuation, wideLit) * cloudLit;
                 // Underground (cave plants, seen from a cave) the sun and sky don't reach; the player's lantern does.
                 // Cave plants are underground whatever the camera's depth: no direct sun (nor light through leaves, nor
                 // sheen, which made roots flare against the sun from near a mouth), and only a little of the sky's
                 // ambient (the daylight spilling in at a mouth).
-                shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                // (folded into cloudLit above, so the light through leaves below is dark there too)
                 half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
                 // Roof undersides, eaves and overhangs on built things see the ground, not the sky (Grounding.hlsl).
                 half under = part == 0 && built ? PunchyUnderside(n.y) : 0;
@@ -356,14 +358,16 @@ Shader "Punchy/Flora"
 #endif
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
-                half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
                 // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
                 // worked out at the vertices it smeared the tight band at the ground over a whole face, so a building's
                 // foundation exposed on a slope (a metre or two of skirt) showed it stretched down its length (Z-12, G-22).
                 half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
-                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
+                half3 color = albedo * (light.color * shadow * diffuse * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
+                // Light through the leaves (R-30 row 2, Flora.hlsl), its own soft self-shadow; thinner deep in the crown.
+                if (leafy && !metal)
+                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, wideLit * cloudLit, lerp(0.5, 1, ao));
                 // Tinted reflections of the sky, a sharp sun highlight, and glints that twinkle as the leaves move and
                 // the view changes (shared with creature gear: Metal.hlsl).
                 if (metal)

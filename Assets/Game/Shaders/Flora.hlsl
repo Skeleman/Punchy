@@ -349,6 +349,22 @@ void FloraLeafClip(float mark, float3 p)
     }
 }
 
+// R-30 row 2: sunlight through leaves, shared by the mesh (Flora.shader) and the impostor (FloraImpostor.shader).
+// A back lobe round the sun, bent a little by the leaf's normal so a crown lights up across its edge rather than at
+// one spot, scaled by how thin the leaf is (1 at a crown's open edge, less where the vertex AO says it sits deep).
+// A crown's own shadow only dims it: light scatters on through the layers, so a backlit crown glows instead of going
+// black. The wide and cloud shadows (open) still block it. Tinted by the leaf twice over (light through a leaf is
+// filtered by it), so it reads warmer and more saturated than the lit side. Returns light to multiply by albedo.
+half3 FloraLeafTransmission(half3 albedo, half3 n, float3 v, half3 l, half3 lightColor, half selfShadow, half open, half thin)
+{
+    half back = saturate(dot(-v, SafeNormalize(l + n * 0.3)));
+    half lobe = back * back;
+    lobe = lobe * lobe * 0.8 + lobe * 0.45;
+    half lit = lerp(selfShadow, 1, 0.75 * thin) * open;
+    half3 tint = lerp(1, saturate(albedo * 2.5), 0.5);
+    return lightColor * tint * (lobe * thin * lit);
+}
+
 void FloraMossClip(float4 moss)
 {
     if (moss.x > 2.5)

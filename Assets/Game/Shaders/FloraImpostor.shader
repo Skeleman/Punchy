@@ -164,8 +164,9 @@ Shader "Punchy/FloraImpostor"
                 albedo *= lerp(1, leafy ? 0.82 : 0.62, wet);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(positionWS));
-                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(positionWS));
-                shadow *= (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                half wideLit = 1 - PunchyWideShadow(positionWS, half3(0, 1, 0));
+                half cloudLit = (1 - PunchyCloudShadow(positionWS)) * (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                half shadow = min(light.shadowAttenuation, wideLit) * cloudLit;
                 half3 sky = SampleSH(n) * lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
                 sky += PunchyGlowLight(positionWS, n) + PunchyGlowWorld(positionWS, n) * (1 - _FloraInCave);
                 if (_PunchyLantern.w > 0)
@@ -176,9 +177,10 @@ Shader "Punchy/FloraImpostor"
                 }
                 half ndl = dot(n, light.direction);
                 half diffuse = leafy ? saturate(ndl * 0.6 + 0.4) : saturate(ndl * 0.8 + 0.2);
-                half through = leafy ? pow(saturate(dot(-v, light.direction)), 4) * 0.55 : 0;
                 half ao = surface.occlusion * PunchyGrounding(positionWS.y - input.ground.x, n.y, leafy ? 0 : 1);
-                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao);
+                half3 color = albedo * (light.color * shadow * diffuse * lerp(0.6, 1, ao) + sky * ao);
+                if (leafy)   // light through the leaves, as on the mesh (Flora.hlsl)
+                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, wideLit * cloudLit, lerp(0.5, 1, ao));
                 // Bark and rock: the mesh's faint sky reflection at grazing angles (Flora.shader), at its far strength, so
                 // a far trunk or rock fades into the haze as the mesh beside it does and the hand-off keeps its tone (R-11).
                 if (!leafy)
