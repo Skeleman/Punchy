@@ -954,7 +954,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Pass: load +50 ms or less, frame +0.2 ms or less.
 - 11-15 note (supervisor): #385-#391 merged to main (37750588). Fauna fingerprint now 859112C9 (was DDE01A70 -> 43D1F778 with body-reads #385, then 859112C9 with the turtle robe panels #390; limb data only, no placement moved). Landmarks 117 689D5348 unchanged. Re-pin your baseline if a job compares it. The cliff kit (#386) adds pieces on sea cliffs and mesas, so a far-view cost check after it would be useful when the queue allows.
 
-## Job 96 (2026-11-15, RUNNING 11-16 (q137.job, v0.16.0 4e02a1b0; heading probed with -benchface); v0.16 playtest #400): tunnel entry hitch
+## Job 96 (2026-11-15, REPORTED 11-16 (q137.job: FAIL, cause pending; Profiler run q137b.job chained last; heading asked) (q137.job, v0.16.0 4e02a1b0; heading probed with -benchface); v0.16 playtest #400): tunnel entry hitch
 - Build: v0.16.0 (main 40478293 + bump). 1920x1080, Medium, uncapped.
 - View: start at -goto -2089,259.3,732 facing the tunnel; run in. Record the worst frames and what spikes (cave streaming, mesh builds, lights, GC).
 - Pass: no frame over 33 ms on entry. Report the cause and the owning system; the supervisor cards the fix.

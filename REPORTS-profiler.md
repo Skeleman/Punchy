@@ -2,6 +2,24 @@
 
 Newest first.
 
+## Job 96: v0.16 tunnel entry (#400; v0.16.0 4e02a1b0), 2026-11-16 (q137.job): **FAIL, far worse than a hitch: 4.6-8.5 fps for the whole run, frames up to 5.5 s**; cause not yet profiled
+**Setup:** Profile build of v0.16.0, 1920x1080, Medium, uncapped, 12:00, Clear. The card gives the start (`-goto -2089,259.3,732`) but no heading.
+- I took the heading from `-benchface` at that point: the slope rises toward yaw 45. The ground there is 268.4, so the card's y = 259.3 is 9 m under the surface, i.e. in the bore or portal cut.
+- The run: `-benchline -2089,732,-2004.1,816.9,6,-200`, 120 m at 6 m/s along yaw 45, holding the -goto height and carrying only x and z (the bench's swim mode). `-hitchms 33`, 3 games.
+- **Caveat:** the player's height drifts from 261 up to 278, then back to 265, over the run. So I'm not sure it follows the bore rather than pushing up through rock. **Ask: the tunnel's heading (or its far portal) from #400**, and I'll rerun along it.
+
+| game | avg fps | 1% low | median | worst frame | main thread | GPU | frames over 33 ms per 5 s |
+|---|---|---|---|---|---|---|---|
+| r1 | 8.5 | 0.2 | 22.3 ms | **5456 ms** | 104.6 ms | 12.9 ms | 27, 15, 12 |
+| r2 | 7.3 | 0.3 | 14.0 ms | 3936 ms | 95.1 ms | 12.6 ms | 8, 7, 22, 3 |
+| r3 | 4.6 | 0.5 | 17.1 ms | 2105 ms | 186.3 ms | 31.5 ms | 7, 11, 11 |
+
+- **Pass (no frame over 33 ms on entry): FAIL.** The first spike (808 ms) comes on the first moving frame, 3-4 m from the start. Spikes of 0.6-5.5 s then keep coming all the way along (r1: 808, 601, 5456, 880, 1359, 2220, 1297, 1633 ms). The GPU is fine (13 ms); this is the main thread (95-186 ms average).
+- The runner reads 131 cave chunks around the run (56 meshed, 6 buried, 21k tris), so cave/tunnel geometry is in play. No log line explains the spikes. The 21 stone colossi build at load (frames 78-122, 2-360 ms each) and are done long before the run; WideShadow redraws cost under 10 ms CPU.
+- **Cause and owning system: not yet.** Round 3 crashed after its measurement was logged (native "UNKNOWN", no managed stack; at exit, it seems). The job stops on any crash, so the Profiler run never happened. It's re-queued alone as q137b.job at the end of the current chain. If you want it sooner, say so and I'll move it up.
+
+Cost: laptop total $941 (laptop session e163d8ab; 1 build, 4 games).
+
 ## Job 95: A-124 row 1 one build per person (merge #387 db79d9f8 = B vs its first parent 509022e4 = A), 2026-11-16 (q136.job): load PASS; frame level except B's first game (+0.30 over all rounds, at the bar)
 **Setup:** local builds, 1920x1080, Medium, uncapped, 12:00, Clear, arms alternated, 3 rounds. Each game launches straight into town 73's centre (`-goto 2972,-885`, `-benchspot 2972,-885,0`), a fresh load every time, and holds 60 s. Then one Profiler game per arm (BProfileTools, Creature/FaunaDirector kept).
 
