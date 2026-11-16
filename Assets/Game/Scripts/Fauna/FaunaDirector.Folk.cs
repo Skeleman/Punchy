@@ -430,7 +430,7 @@ namespace Punchy.Fauna
         /// The village posts (FolkJobs.VillagePosts) a landmark can staff with this many free folk: each by the
         /// nearest unused anchor of its kind. Standing a step from the anchor, toward the village centre, facing it;
         /// a fisher at the water's edge (its brain finds the shore from there). A-106: a harsh biome's work set adds its
-        /// posts after the usual ones that need as many free folk; a door job stands on the doorstep facing the door.
+        /// posts after the usual ones that need as many free folk; a door job stands on the doorstep facing the door, an innkeeper behind its counter (A-132).
         /// No rng, and with no work set the posts are exactly the usual ones.
         /// </summary>
         static void VillagePosts(in TerrainSource source, float2 centre, float radius, int free, FolkWorkSet workSet, List<Post> into)
@@ -480,9 +480,10 @@ namespace Punchy.Fauna
                 var spot = set.Anchors[best].Position.xz;
                 var toCentre = centre - spot;
                 var dir = math.lengthsq(toCentre) > 0.01f ? math.normalize(toCentre) : new float2(0f, 1f);
-                if (p.Kind == AnchorKind.Door)
+                if (p.Kind == AnchorKind.Door || p.Kind == AnchorKind.Counter)
                 {
-                    // (The door anchor already stands outside the door, facing out: work a step further out, facing in.)
+                    // (The door anchor already stands outside the door, facing out: work a step further out, facing in.
+                    // A counter faces back toward its inn, so its keeper stands behind it facing the street.)
                     var outward = set.Anchors[best].Facing;
                     outward = math.lengthsq(outward) > 0.01f ? math.normalize(outward) : dir;
                     into.Add(new Post { Job = p.Job, Task = p.Task, Stand = spot + outward * 0.9f, Face = spot - outward });

@@ -53,7 +53,13 @@ namespace Punchy.Terrain
         /// </summary>
         Home,
         /// <summary>A tended patch (hermits' gardens). Position its centre; Size its radius; Facing along its rows; Capacity 1.</summary>
-        Garden
+        Garden,
+        /// <summary>
+        /// A-132: where an inn is served from: on the inn's porch beside its barrels. Position is the serving spot's
+        /// front edge; Facing back toward the inn, so whoever works it stands a step behind (Position + Facing * 0.9)
+        /// facing out to the street, as at a Door; Size 0.6; Capacity 1.
+        /// </summary>
+        Counter
     }
 
     /// <summary>

@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be30a536c49003f42bba655b0fd41247, type: 3}
+  m_Name: Beech
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
+  Form: 0
+  Layer: 2
+  Height: {x: 13, y: 18}
+  Spread: 0.95
+  TrunkFraction: 0.42
+  Thickness: 0.03
+  Fullness: 0.85
+  Branches: {x: 4, y: 6}
+  Flexibility: 0.3
+  FlowerHead: 0
+  Bark: {r: 0.53, g: 0.53, b: 0.5, a: 1}
+  Foliage: {r: 0.22, g: 0.36, b: 0.08, a: 1}
+  FoliageVariation: {r: 0.38, g: 0.42, b: 0.1, a: 1}
+  Accents: []
+  AccentAmount: 0.3
+  ColorVariation: 0.16
+  MaxSlope: 30
+  Elevation: {x: 5, y: 120}
+  GrassAffinity: 0.3
+  ToleratesSnow: 0
+  PatchSize: 260
+  PatchCoverage: 0.5
+  NearWater: 1.2
+  OnlyNearWater: 0
+  Shelter: 0.8
+  GroveStraggle: 0.15
+  GroveGain: 5
+  GroveRadius: 30
+  GroveSpacing: 110
+  Solid: 1
+  Variants: 4
+  Seed: 67

@@ -403,6 +403,7 @@ namespace Punchy.Flora
 
             // Stone plinth, then timber walls with posts.
             var first = b.VertexCount;
+            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the plinth and steps are stone
             b.Box(new Vector3(0f, plinth * 0.5f - 0.15f, 0f), new Vector3(half * 2f + 0.4f, plinth + 0.3f, front * 2f + 0.4f), Quaternion.identity, stone, FloraPart.Bark);
             b.Wood = true;   // timber walls, posts and the wall plate (Z-30)
             b.Box(new Vector3(0f, (plinth + wall) * 0.5f, 0f), new Vector3(half * 2f, wall - plinth, front * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
@@ -446,7 +447,9 @@ namespace Punchy.Flora
 
             // A wide door up two steps, windows along both long walls, banners either side of the door.
             Door(g, new Vector3(0f, plinth - 0.05f, front + 0.04f), Quaternion.identity, 1.8f, Mathf.Min(wall - plinth - 0.4f, HumanDoor * 1.15f));
+            b.Family = Punchy.Terrain.MaterialFamily.Stone;
             b.Box(new Vector3(0f, plinth * 0.29f, front + 0.75f), new Vector3(3.2f, plinth * 0.75f, 0.8f), Quaternion.identity, stone, FloraPart.Bark);
+            b.Family = b.BaseFamily;
             var light = AccentAt(g, 0);
             if (g.Lod < 2)
             {
