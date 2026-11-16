@@ -1997,3 +1997,7 @@ Branch player/item-ids@6975ead4, off kit-wire. Written without an editor. It com
 - Solo (dev build, -goto 2950,-880 -enterdoor 13): 192 seeded door items, 5 rods, room stores with new ids (door 13 chest 623535570: Stick x2, Stone x2). -takeitem empties the slot and the Stone lands in the inventory. 0 "id clash", 0 exceptions.
 - Pair (port 7991): host and joiner register the same 5 stores with the same ids and contents; joiner take -> host "slot 1: empty (host, for a client)" -> joiner "empty (from the host)". 0 "id clash", 0 exceptions both sides.
 - Risk: room store contents and door starter items reshuffle once (layout-free). Shares: one id scheme (WorldIds) for seeded items, spares, rods and stores.
+
+## P-35 r3 main-conflict merges (11-16)
+- catalog-check fcd945e8 (main merged; WorldSync keeps edits hash + catalog line). item-ids 9858dfb2 (merge; Interiors.Storage keeps #502 walk-in merge/move with record ids).
+- Compiles; EditMode 32/32. Solo + pair NOT rerun: free RAM 0.7 GB (other editors), editor closed per rule. Needs the runs when RAM allows.
