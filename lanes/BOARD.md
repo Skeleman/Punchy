@@ -28,7 +28,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-38 | #372 | player | in progress | player/take-items 0fa149fd | row 0 merge of main done; next row 1 (A-106 job gear as kit items), then A-128 drape, eyewear items (rule 11 OK), Model Lab PoseKit |
 | P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
-| P-39 | #397 #398 | player-2 (supervisor agent) | active | player/menus@144a2ce9 (tree Punchy-docs, on take-items 487dd137) | Rows 1-2 done (verified); next row 3 UseTarget arbiter (#398) |
+| P-39 | #397 #398 | player-2 (supervisor agent) | done | player/menus@cd837c12 (tree Punchy-docs, on take-items 487dd137) | Rows 1-3 done (verified); ready for PR after P-38 |
 | P-42 | #25 | player | next | - | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
 | P-43 | #396 | player | next | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | A-132 | #25 | folk | active | folk/inn-job@e98b9491 | r1 done (verified): innkeeper works the inn porch Counter by day, "work" line reached; r2 (wipe/stack idle pose) in verification |

@@ -1584,3 +1584,11 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Shots: D:/Unity/PunchyMilestones/P-39/row2-items-solo.png, row2-status-solo.png, row2-quests-host.png.
 - Risks: Containers.OpenContainer now opens the menu on Items (same behaviour as before, new route). The editor logs PlayArgs.txt sharing violations from the test harness (not game code).
 - Shares: MenuTabs is the one tab system for MainMenu and FieldMenu (rule 33); Items/Quests/Status register tabs like MainMenu.AddTab.
+
+## player-2 - P-39 row 3 (#398) one Use-target pick - done (verified); P-39 ready for PR
+- Branch player/menus @ cd837c12 (stacked on unmerged take-items 487dd137; merge P-38 first). New Interact/UseTarget; edits Interact/Doors, FolkTalk, Interiors, Items/Items, Containers, Quests.
+- Every Use prompt (door, folk, item, chest, container, notice board, a room's way out and lamp) scores its best candidate with DoorPick.Aim and bids it each frame. The lowest bid shows its prompt and takes the key; doors are scored at x0.8. Chests, containers, boards and room targets now need facing. A board with nothing left shows its note only when nothing else is in reach.
+- Check `-atdoor 3` with test containers placed by eval, solo and host give the same result. At 1.4 m from the opening the door bids 1.12. A barrel beside the door (1.35 m away, nearer than the door, so the old rule gave it the key) bids 1.40, and the door keeps its prompt. A barrel 0.7 m straight ahead bids 0.70 and wins ("look in the barrel"). 0 exceptions. No joined client run (RAM ~1.6 GB free). The pick is local only, and Use still goes through each system's existing RPCs.
+- Shot: D:/Unity/PunchyMilestones/P-39/row3-door-over-barrel-solo.png shows "F open door". The test barrel is logic only, with no model, so it isn't visible in the shot.
+- Risks: in a room, the way out and the lamp now need facing within 1.2 m+ (Aim). The camera cone also counts, so a candidate on the side the camera looks toward is more likely to win.
+- Shares: UseTarget is the one Use-key arbiter (rule 33). Not folded in, since it is a rule 11 Fauna file: the creature Interact button's prompt (Fauna/InteractionInputSystem, "E pet the dog") picks its target separately.
