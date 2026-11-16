@@ -5741,3 +5741,22 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Editor note:** the pipeline `test run` finds 0 play-mode tests in this project and `unity test` refuses to run while the editor is open, so tests ran in batch. The update-callback Exit took several minutes because of Hub IPC write timeouts, but it closed by itself.
 - No timing (rule 21). Shares (rule 33): the same exception pattern as the towns (DESIGN-population.md, P-25 TownExceptionsRpc): records on every machine, the host's per-group bitmask sent at join and on change.
 - NEXT: r4 (instanced props on DetailPolicy screen-size tiers), then r5 (roost/sleep/patrol). r6 stays a note.
+
+## A-134 row 4: a member at home steps out after a seen theft (2026-11-16) - DONE (verified)
+- Issue #460. Branch folk/owner-steps-out a00c2fef, off main f15c7d3d, one commit. Pushed. No PR opened: the card says "open a PR", but my brief says lanes never open PRs, so that is left to the supervisor.
+- **What changed:**
+  - New partial FaunaDirector.OwnerOut.cs. After a seen take with someone at home, Thefts calls CallOwnerOut. It picks one grown, unpinned member at home (Whereabouts.InHouse).
+  - Once a player is within Radius of the door, StepOwnersOut spawns that member on the resident path: Enqueue as Housed, then SetUpMember plus StepOutOf. StepOutOf is the step-out block taken out of Members.cs, with no change in behaviour. The member then walks to 2 m from the nearest player within 30 m.
+  - SendMembersIn leaves that member alone for 45 s, then it goes back in as usual.
+  - A call lapses after TheftOwnerWait, or when the member goes out on its own day.
+  - Its line is the existing SayTheftLines one (within 25 m).
+  - Session reset clears the calls.
+- **Network:** no new RPC, table or save field. On a joiner, the take already reaches the host by TheftRpc. The host spawns an ordinary resident, which reaches the joiner as a ghost, and the joiner says the owner's line locally.
+- **Verified (player builds, port 7984, door 13 = Edda's house, household 46, -time 22):**
+  - Solo: the take is seen, Edda is called out, steps out of her door with the player 1 m away, and says "Thief! Somebody fetch the guard!" in the same game minute (hour 23.31). She went back in at hour 0.05.
+  - Host + joiner: the joiner went in and out of the room and took from the chest. The host logged the take as seen, called Edda out and spawned her at the door (hour 23.59). The joiner's own log has Edda's theft line. The host's guard line was "no guard near".
+  - Shot: D:/Unity/PunchyMilestones/A-134/row4-owner-steps-out.png (117 s, Edda out at the door, not viewed).
+- **Tests:** PlayMode 56/57. The one failure is FolkConversationTests.LiveFolk_InnkeeperAtCounter ("no live innkeeper"). It passes alone, on main's code and on this branch, after a recompile, and fails only in the full run. No theft happens before it in the run, so the new code returns at once there. It is an order dependence that predates r4 (it follows the body-swap and beast-response tests). It is worth a card of its own.
+- **Known gap:** a theft made while every player is inside a room holds the call until someone comes near the door. The probes took after leaving the room, so the hold itself is r5's case to verify.
+- Shares (rule 33): the resident spawn (Enqueue/SetUpMember/StepOutOf), Whereabouts, Ownership and SayTheftLines. No second spawner. No timing (rule 21).
+- NEXT: r5 (thefts while every player is inside a room).

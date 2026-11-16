@@ -39,7 +39,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-43 | #396 | player-2 | DONE: fold + RiderBody refresh already on main (a980ae54, #441); re-verified on main fd90e634 11-16: solo + joined pair on -port 7983 PASS | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | B-port | - | player-2 | DONE, merged #467 | - | -port N flag (default 7979) and -join ip:port; two hosts plus joiners side by side verified |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
-| A-134 | #460 | folk | r0-r3 merged #488; r4 in flight: a member at home steps out of the door and confronts the thief within seconds (today the line waits until the thief meets one, up to 600 s); no new network table without asking | folk/owner-steps-out (new off main) | after r4: guards for players inside rooms (limit 2) |
+| A-134 | #460 | folk | r0-r3 merged #488; r4 DONE (verified solo + host/joiner, no new RPC/table): a member at home steps out of the door and says the owner's line within seconds; awaiting review/PR; r5 next | folk/owner-steps-out@a00c2fef | after r4: guards for players inside rooms (limit 2) |
 | A-124 r2 | #358 | folk | merged #458; #358 closed | folk/gait@7aa37dc3 | Per-person gait styles (verified solo + host/client, 28 clips, pins held); BENCH crowd-cost request in REPORTS-animal |
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
