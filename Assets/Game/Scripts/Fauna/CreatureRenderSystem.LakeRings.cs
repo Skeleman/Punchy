@@ -59,9 +59,10 @@ namespace Punchy.Fauna
                 var cell = centre + new int2(cx, cz);
                 for (int lane = 0; lane < RingLanes; lane++)
                 {
-                    var laneShift = (math.hash(new int3(cell, lane + 77)) % 1000u) / 1000.0 * RingSlot;
+                    // (Scrambled: math.hash of a vector has no final mix, so next-door patches' draws would rise in step.)
+                    var laneShift = (BiomeSampling.Scramble(math.hash(new int3(cell, lane + 77))) % 1000u) / 1000.0 * RingSlot;
                     var slot = (long)math.floor((t + laneShift) / RingSlot);
-                    var rng = new Random(math.hash(new int4(cell, lane + 77, (int)slot)) | 1u);
+                    var rng = new Random(BiomeSampling.Scramble(math.hash(new int4(cell, lane + 77, (int)slot))) | 1u);
                     if (rng.NextFloat() >= rate)
                         continue;
                     var start = slot * (double)RingSlot - laneShift + rng.NextFloat(0f, RingSlot - RingLife);
