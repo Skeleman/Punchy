@@ -11,11 +11,17 @@ namespace Punchy.Terrain
     public static partial class StructureKit
     {
         /// <summary>
-        /// Whether walk-in houses are on this session. Off by default until the player side (Interiors, row 3) lands;
-        /// "-seamless" turns it on. Row 3 makes it the default, with "-teleportrooms" for the old rooms, and the host's
-        /// choice sent once at join. It must be set before the flora models are built: their colliders are baked from it.
+        /// Whether walk-in houses are on this session. Off by default until rows 1 and 3 are verified in play; "-seamless"
+        /// turns it on and "-teleportrooms" keeps the old rooms (it wins over -seamless, and stays meaningful once the
+        /// default flips). A joined client takes the host's choice (WorldSync's IslandVersionRpc, before its island and
+        /// flora build); a world that isn't joined goes back to <see cref="LaunchSeamless"/>. It must be set before the
+        /// flora models are built: their colliders are baked from it.
         /// </summary>
-        public static bool Seamless { get; set; } = Array.IndexOf(Environment.GetCommandLineArgs(), "-seamless") >= 0;
+        public static bool Seamless { get; set; } = LaunchSeamless;
+
+        /// <summary>This launch's own choice, from its command line.</summary>
+        public static bool LaunchSeamless =>
+            Array.IndexOf(Environment.GetCommandLineArgs(), "-seamless") >= 0 && Array.IndexOf(Environment.GetCommandLineArgs(), "-teleportrooms") < 0;
 
         /// <summary>Whether this kit shape is walked into this session (row 1: the storm house, with Seamless on).</summary>
         public static bool WalkIn(KitShape s) => Seamless && s == KitShape.StormHouse;

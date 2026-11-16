@@ -58,6 +58,8 @@ namespace Punchy.Net
     public struct IslandVersionRpc : IRpcCommand
     {
         public int Version;
+        /// <summary>P-37 r3 (#369): 1 if the host walks into its houses (StructureKit.Seamless), 0 for teleport rooms.</summary>
+        public byte Seamless;
     }
 
     /// <summary>
@@ -123,6 +125,8 @@ namespace Punchy.Net
                 stateGhost = Entity.Null;
                 checkedConnections.Clear();
                 versionSent.Clear();
+                // (P-37 r3: back to this launch's own walk-in choice; a joined client takes the host's below.)
+                Punchy.Terrain.StructureKit.Seamless = Punchy.Terrain.StructureKit.LaunchSeamless;
             }
             if (Weather != null && !subscribed)
             {
@@ -284,7 +288,7 @@ namespace Punchy.Net
                 if (!versionSent.Add(connection))
                     continue;
                 var rpc = em.CreateEntity(typeof(IslandVersionRpc), typeof(SendRpcCommandRequest));
-                em.SetComponentData(rpc, new IslandVersionRpc { Version = version });
+                em.SetComponentData(rpc, new IslandVersionRpc { Version = version, Seamless = (byte)(Punchy.Terrain.StructureKit.Seamless ? 1 : 0) });
                 em.SetComponentData(rpc, new SendRpcCommandRequest { TargetConnection = connection });
                 Debug.Log($"WorldSync: sent island v{version} to player {em.GetComponentData<NetworkId>(connection).Value}");
             }
@@ -331,6 +335,10 @@ namespace Punchy.Net
                 var version = em.GetComponentData<IslandVersionRpc>(r).Version;
                 if (joined)
                 {
+                    var seamless = em.GetComponentData<IslandVersionRpc>(r).Seamless != 0;
+                    if (seamless != Punchy.Terrain.StructureKit.Seamless)
+                        Debug.Log($"WorldSync: the host {(seamless ? "walks into its houses" : "uses teleport rooms")}; this client follows");
+                    Punchy.Terrain.StructureKit.Seamless = seamless;
                     var active = Punchy.Terrain.IslandV2.ActiveVersion;
                     Debug.Log($"WorldSync: host runs island v{version} (this launch asked for v{Punchy.Terrain.IslandV2.RequestedVersion()})");
                     if (active != 0 && active != version)
