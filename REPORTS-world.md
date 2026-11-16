@@ -8282,3 +8282,10 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Tests:** UnitLibraryTests 3/3, MaterialLibraryTests 4/4, Landmarks_V3 passes (pin kept).
 - **Still open (in the doc):** per-part seed salts (parts share the unit's RNG today, so part order is fixed), sink adapters, crate/barrel/bucket parts, optional parts, MinScreen, Use anchors.
 - Next: W-166 row 4 sweep (items, colossi), or the next W-175 family (camps, docks), whichever the supervisor wants.
+
+## 2026-11-16 world: #259 rejoin crash, ready for review (PR #461)
+- **Branch:** world/fix-259-rejoin 77721cff off main ec1ea218. Merges cleanly into main. PR #461 opened at the supervisor's request.
+- **Cause:** terrain systems that keep their job handles privately, outside the world's tracked jobs. `DisposeGameWorlds` frees the TerrainSource blobs (subscene unload) before world.Dispose, and a chunk-mesh build still running read freed memory. This matches the BuildChunkMeshJob stack.
+- **Fix:** on `WorldsReplacing`, these finish or drop their in-flight work: TerrainStreamingSystem.CancelBuild, ScarpDebris/ScarpSkin Clear, WaterPatchSystem.DropCuts, GroundDetailSystem.DropPending. The change is 39 lines in 5 files, and line endings are kept.
+- **Verified:** Development build. Each run was 1 host + 1 joiner with -autowalk -rejoin 45,3. 3 valid runs, all 3 rejoins back in game every time, 0 crashes, 0 exceptions on either side. One run was discarded because player-2's host held port 7979 and my host couldn't bind; it didn't crash either.
+- Next: ashlands-lava rebase + re-pin, then W-174 row 2.
