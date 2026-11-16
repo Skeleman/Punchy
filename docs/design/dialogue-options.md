@@ -1,7 +1,9 @@
 # Dialogue options (A-129 row 3, design note)
 
-Status: proposal. Nothing here is built yet. Owners: folk lane (data, choosing, the reply), player lane (the talk window,
-input, what an option does to the player's things).
+Status: folk side built (A-131: data, `Answer.Options`, `FolkConversation.Choose`, samples for a hermit, a guard and an
+innkeeper in dialogue.json); the talk window still shows only its own Accept/Decline until the player lane wires it.
+Owners: folk lane (data, choosing, the reply), player lane (the talk window, input, what an option does to the player's
+things). Code: `Fauna/FolkConversation.Options.cs`.
 
 ## Today
 

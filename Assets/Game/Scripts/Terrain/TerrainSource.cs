@@ -142,6 +142,9 @@ namespace Punchy.Terrain
         public BlobAssetReference<ArchipelagoBlob> Archipelago;
         /// <summary>The scarps (W-155, baked after every place): rim lines where the ground is cut to a true step, each drawn by a skin mesh.</summary>
         public BlobAssetReference<ScarpSetBlob> Scarps;
+        /// <summary>The herds (A-108 row 2, v2 only, baked last; animal lane): read by fauna alone, never by the ground. Left out of
+        /// Equals on purpose: it is rebuilt with the blobs above, so they already tell one bake from another.</summary>
+        public BlobAssetReference<Punchy.Fauna.HerdSetBlob> Herds;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>

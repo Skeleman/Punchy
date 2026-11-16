@@ -47,8 +47,18 @@ namespace Punchy.Fauna
         public bool Ends;
         public BeastReaction Reaction;
         public BeastResponse Response;
+        /// <summary>A-131: the player's replies to it (1-4), or null for none (back to the topic list). An offer of a quest
+        /// or an item with no replies in the file gets Accept and Decline (FolkConversation.DefaultOptions).</summary>
+        public Option[] Options;
+        /// <summary>A-131: how many replies deep this answer is (0 for a topic's answer; FolkConversation.Choose counts).</summary>
+        public int Depth;
+        /// <summary>A-131: on an answer from FolkConversation.Choose, the reply picked, and for accept or decline the offer
+        /// it was about (the earlier answer's: taking it through Items stays the talk window's).</summary>
+        public Option Chosen;
+        public Offer ChosenOffer;
         public override string ToString() => $"[{Topic}] \"{Text}\"" + (Gesture != null ? $" <{Gesture}>" : "") + (Offer.Kind != OfferKind.None ? $" offer {Offer}" : "")
-            + (Reaction != BeastReaction.None ? $" ({Reaction}" + (Response != BeastResponse.None ? $", {Response})" : ")") : "") + (Ends ? " (ends)" : "");
+            + (Reaction != BeastReaction.None ? $" ({Reaction}" + (Response != BeastResponse.None ? $", {Response})" : ")") : "") + (Ends ? " (ends)" : "")
+            + (Options != null ? " replies: " + string.Join(" | ", Array.ConvertAll(Options, o => o.ToString())) : "");
     }
 
     /// <summary>Everything an answer is built from, gathered from a folk entity (FolkConversation.TryTalker) or made up
@@ -86,7 +96,7 @@ namespace Punchy.Fauna
     /// runs per frame. Local: each machine picks its own words; a quest or item it offers is the asker's to take through
     /// the usual host calls (the talk window, P-26). The "asked too often" ledger is this machine's.
     /// </summary>
-    public static class FolkConversation
+    public static partial class FolkConversation
     {
         public const string Who = "who", How = "how", Work = "work", Town = "town", News = "news", Favour = "favour", Help = "help", Bye = "bye";
         /// <summary>An animal player's one topic: going up to the folk (A-93 row 3).</summary>
@@ -263,14 +273,16 @@ namespace Punchy.Fauna
             TalkLine line = null;
             string text = null;
             kinPicked = -1;
-            var known = Array.Exists(AllTopics, t => t.Id == topic) || topic == Meet || archive?.Talk != null && archive.Talk.Labels.ContainsKey(topic);
+            var talk = TestTalk ?? archive?.Talk;
+            // (A reply-only topic, A-131: lines and no label, reached through an option's "then".)
+            var known = Array.Exists(AllTopics, t => t.Id == topic) || topic == Meet || talk != null && (talk.Labels.ContainsKey(topic) || talk.Has(topic));
             if (!known)
                 topic = Who;
             // (An animal player: the beastTalk lines for how it takes it, or its goodbye; then the plain ones.)
             if (who.Beast && archive?.BeastTalk != null)
                 text = Choose(archive.BeastTalk, archive, speaker, reaction != BeastReaction.None ? ReactionId(reaction) : topic, ctx, ref rng, out line);
-            if (text == null && archive?.Talk != null)
-                text = Choose(archive.Talk, archive, speaker, topic, ctx, ref rng, out line);
+            if (text == null && talk != null)
+                text = Choose(talk, archive, speaker, topic, ctx, ref rng, out line);
             if (text == null)
                 text = Choose(Defaults, archive, speaker, topic, ctx, ref rng, out line);
             if (text == null)
@@ -284,6 +296,8 @@ namespace Punchy.Fauna
             answer.Offer = OfferOf(line, ctx);
             if (kinPicked >= 0 && who.House != null && HouseholdLog)
                 LogKin(who, answer.Text);
+            if (!who.Beast)
+                answer.Options = OptionsOf(line, archive, speaker, ctx, ref rng, answer.Offer);
             if (reaction != BeastReaction.None)
             {
                 answer.Reaction = reaction;
@@ -858,6 +872,8 @@ namespace Punchy.Fauna
             public bool Pet;
             /// <summary>How many things it's keyed on (traits, conditions): a more particular line is more likely.</summary>
             public int Keys;
+            /// <summary>A-131: the player's replies to this line (1-4), or null.</summary>
+            public TalkOption[] Options;
         }
 
         /// <summary>Lines per culture and topic, and the topics' labels.</summary>
@@ -870,6 +886,15 @@ namespace Punchy.Fauna
             public readonly Dictionary<string, string> Groups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             /// <summary>conversation.quests: a quest in a few words, by kind (QuestWords).</summary>
             public readonly Dictionary<string, string> Quests = new Dictionary<string, string>(StringComparer.Ordinal);
+            /// <summary>Whether any culture has lines for this topic (a reply-only topic has lines and no label).</summary>
+            public bool Has(string topic)
+            {
+                foreach (var c in Cultures.Values)
+                    if (c.TryGetValue(topic, out var lines) && lines.Count > 0)
+                        return true;
+                return false;
+            }
+
             public int Count
             {
                 get
@@ -906,6 +931,7 @@ namespace Punchy.Fauna
             }
             problems ??= new JsonProblems();
             var book = new TalkBook();
+            var thens = new List<(JToken At, string Topic)>();
             foreach (var pair in root)
             {
                 if (pair.Key.StartsWith("_"))
@@ -967,7 +993,7 @@ namespace Punchy.Fauna
                     var list = new List<TalkLine>();
                     foreach (var l in lines)
                     {
-                        var line = ParseLine(l, problems);
+                        var line = ParseLine(l, problems, thens);
                         if (line != null)
                             list.Add(line);
                     }
@@ -975,6 +1001,7 @@ namespace Punchy.Fauna
                 }
                 book.Cultures[pair.Key] = culture;
             }
+            CheckThens(book, thens, problems);
             return book;
         }
 
@@ -982,12 +1009,12 @@ namespace Punchy.Fauna
         static readonly HashSet<string> LineKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "text", "gesture", "when", "weight", "weather", "mood", "stance", "trade", "group", "willing", "pestered", "need",
-            "home", "job", "ends", "kin", "gone", "pet", "offer", "response", "state"
+            "home", "job", "ends", "kin", "gone", "pet", "offer", "response", "state", "options"
         };
 
         static readonly string[] KinWords = { "partner", "child", "parent", "grandparent", "grandchild", "sibling", "inlaw", "none" };
 
-        static TalkLine ParseLine(JToken t, JsonProblems problems)
+        static TalkLine ParseLine(JToken t, JsonProblems problems, List<(JToken, string)> thens = null)
         {
             if (t.Type == JTokenType.String)
             {
@@ -1009,33 +1036,12 @@ namespace Punchy.Fauna
             {
                 Text = text,
                 Gesture = problems.Str(o, "gesture"),
-                When = problems.Str(o, "when"),
                 Weight = problems.Num(o, "weight", 1f),
-                Weather = problems.Strings(o["weather"], "weather"),
-                Moods = problems.Strings(o["mood"], "mood"),
-                Stances = problems.Strings(o["stance"], "stance"),
-                Trades = problems.Strings(o["trade"], "trade"),
-                Groups = problems.Strings(o["group"], "group"),
-                Willing = problems.Bool(o, "willing"),
-                Pestered = problems.Bool(o, "pestered"),
-                Need = problems.Bool(o, "need"),
-                Home = problems.Bool(o, "home"),
-                Job = problems.Bool(o, "job"),
                 Ends = problems.Bool(o, "ends") ?? false,
-                Kin = problems.Strings(o["kin"], "kin"),
-                Gone = problems.Bool(o, "gone") ?? false,
-                Pet = problems.Bool(o, "pet") ?? false,
             };
             if (line.Gesture != null && !Enum.TryParse(line.Gesture, true, out IdleAction _))
                 problems.Add(o["gesture"], $"\"gesture\": no gesture called \"{line.Gesture}\"");
-            problems.OneOf(o, "when", line.When, "day", "night", "dawn", "morning", "afternoon", "evening", "dusk");
-            if (line.Weather != null)
-                foreach (var w in line.Weather)
-                    if (!Enum.TryParse(w, true, out ComfortKind _))
-                        problems.Add(o["weather"], $"\"weather\": no weather called \"{w}\"");
-            if (line.Kin != null)
-                foreach (var k in line.Kin)
-                    problems.OneOf(o, "kin", k, KinWords);
+            ParseConditions(o, line, problems);
             var offer = problems.Str(o, "offer");
             line.OfferKind = OfferOf(offer, out line.OfferId);
             if (offer != null && line.OfferKind == OfferKind.None)
@@ -1048,6 +1054,36 @@ namespace Punchy.Fauna
                 else
                     problems.Add(o["response"], $"\"response\": \"{response}\" isn't approach, feed, backoff, flee or none");
             }
+            line.Options = ParseOptions(o, line, problems, thens);
+            return line;
+        }
+
+        /// <summary>The keys that say when a line fits (traits, state, weather, mood, stance, trade, when, group, the
+        /// true/false ones, kin, gone, pet) into line: shared by lines and, A-131, by a line's options.</summary>
+        static void ParseConditions(JObject o, TalkLine line, JsonProblems problems)
+        {
+            line.When = problems.Str(o, "when");
+            line.Weather = problems.Strings(o["weather"], "weather");
+            line.Moods = problems.Strings(o["mood"], "mood");
+            line.Stances = problems.Strings(o["stance"], "stance");
+            line.Trades = problems.Strings(o["trade"], "trade");
+            line.Groups = problems.Strings(o["group"], "group");
+            line.Willing = problems.Bool(o, "willing");
+            line.Pestered = problems.Bool(o, "pestered");
+            line.Need = problems.Bool(o, "need");
+            line.Home = problems.Bool(o, "home");
+            line.Job = problems.Bool(o, "job");
+            line.Kin = problems.Strings(o["kin"], "kin");
+            line.Gone = problems.Bool(o, "gone") ?? false;
+            line.Pet = problems.Bool(o, "pet") ?? false;
+            problems.OneOf(o, "when", line.When, "day", "night", "dawn", "morning", "afternoon", "evening", "dusk");
+            if (line.Weather != null)
+                foreach (var w in line.Weather)
+                    if (!Enum.TryParse(w, true, out ComfortKind _))
+                        problems.Add(o["weather"], $"\"weather\": no weather called \"{w}\"");
+            if (line.Kin != null)
+                foreach (var k in line.Kin)
+                    problems.OneOf(o, "kin", k, KinWords);
             foreach (var trait in FolkPersona.Traits)
             {
                 var bands = problems.Strings(o[trait.Name], trait.Name);
@@ -1090,7 +1126,6 @@ namespace Punchy.Fauna
                 line.Keys++;
             if (line.Kin != null || line.Gone || line.Pet)
                 line.Keys++;
-            return line;
         }
 
         /// <summary>

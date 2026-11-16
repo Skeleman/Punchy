@@ -354,6 +354,13 @@ namespace Punchy.Settings
         /// <summary>Behind the camera a creature is still posed while bigger than this (reference pixels, no Detail):
         /// its shadow falls into view. A deer inside 25 m, as before; a 6 m beast inside 100 m.</summary>
         public const float BehindPixels = 56.12f;
+        /// <summary>Far herds (A-108 row 2; animal lane), by one member's torso length. A species lives in baked herds
+        /// when it comes in threes or this big at 300 m at the reference view (the same on every machine). A member is
+        /// drawn with legs above HerdLegsPixels, as a body and head above HerdBodyPixels, and below that as a single body
+        /// widened to HerdDotPixels, fading out between HerdFadePixels and HerdGonePixels.</summary>
+        public const float HerdSpeciesPixels = 2f;
+        public const float HerdLegsPixels = 6f, HerdBodyPixels = 1.5f, HerdDotPixels = 1.5f;
+        public const float HerdFadePixels = 0.5f, HerdGonePixels = 0.35f;
 
         /// <summary>How far something this big keeps this many reference pixels at the current view, Detail included
         /// (<see cref="SetView"/> first; before any view, the reference one at the current Detail).</summary>
@@ -448,6 +455,9 @@ namespace Punchy.Settings
         public const float CaveMouthSize = 6f, SurfaceHiddenPixels = 124.7f, SurfaceShownPixels = 224.5f;
         public const float WorldGlowSize = 8f, WorldGlowFromPixels = 31.18f, WorldGlowToPixels = 23.38f;
         public const float SpillSize = 4f, SpillFromPixels = 62.35f, SpillToPixels = 44.01f;
+        /// <summary>A far town's glow map (R-25 row 3) fades in while a street light's 9 m of lit ground shrinks from
+        /// 33.67 to 25.51 pixels: 250 m to 330 m at the reference view, never past where the far map's own end.</summary>
+        public const float TownGlowSize = 9f, TownGlowFromPixels = 33.67f, TownGlowToPixels = 25.51f;
         public const float CaveWaterPixels = 2f;
 
         /// <summary>How far something this big keeps this many reference pixels at the current view, Detail left out:
