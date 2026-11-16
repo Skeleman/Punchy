@@ -5368,3 +5368,9 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Gaps: no unit format (W-175 not on main), so view only. Cave room sizes are copied from CaveBaking.Rooms (kept inline there); the room's surrounding cave rock isn't drawn. Temple (SunkenTempleSystem) mesher is private, so temple pieces aren't shown yet.
 - Shares: extends the Model Lab (one viewer for creatures, colossi, set pieces); reads game meshes through Mesh.AcquireReadOnlyMeshData since the game uploads them unreadable.
 - NEXT: row 2 (seed/variant field, all kinds checked).
+
+### Row 2 (#414) - WIP, UNVERIFIED (resumable)
+- Code: variant field (< > Random) for buildings, clamped to the species' variant count; seed field for cave rooms; stepping keeps the camera in place; hook ModelLab.SetPieceVariant(int). All 4 cave room types and all 79 structure species were already listed in r1. lab/set-piece-view 5b5d9b8c.
+- Not compiled or verified: free RAM was 0.5 GB on resume, so I closed my editor (PID killed, by PID); it then stayed at 3.4-9.9 GB for about 8 min while other editors held it.
+- Shares: Model Lab only. Temple pieces still skipped (private mesher).
+- NEXT: when >= 12 GB free, reopen, compile, loop all set pieces x 2 variants for errors, shoot to M-08, hand off, then r3.
