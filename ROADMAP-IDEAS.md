@@ -79,7 +79,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 
 ## Dungeons, items, quests
 - **Dungeons (#24).** Shipped: texturing, bigger caves and ruins, a dungeon state API, collision (A-91 row 1,
-  A-95). Next: A-91 rows 2-4; set pieces (player lane), then spawn sockets (animal lanes).
+  A-95). Shipped: A-91 rows 2-4 (PR #249). Next: set pieces (player lane), then spawn sockets (animal lanes).
 - **Items and inventory (#26).** Shipped: first items and doors (P-28), pocket reach (A-114). In flight: hand
   actions and weapons (P-38). Next: one item definition and saved state (P-35, design first).
 - **Quests (#27).** Shipped: first quests (P-28). Later: more objective types, tracking, dungeon quests.
