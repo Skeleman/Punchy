@@ -1,5 +1,10 @@
 # World: terrain, biomes, landmarks, caves
 
+**Far view (Zach, 2026-11-13):** a landform, forest, water body, town or landmark must read from kilometres away, not
+only up close. When you add or change one, give it a far form (far-ground tint, canopy map entry, stand-in, light or
+plume) built from the same placement records, and check it from a summit and from the air. Nature first: landform,
+forest, water, sky and light carry the far view; built things sit inside it.
+
 Read before changing terrain, biomes, rivers, landmarks, settlements, roads or caves.
 
 - **`TerrainSource` is the single source of truth** for the ground: height, biome weights, rivers, lakes, water
@@ -35,6 +40,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   `CaveDistance`, `IsCaveHole` (surface cut away at an entrance), `IsRock` and `FloorUnder(float3)` (the cave
   floor under a point, or the surface). Anything that can go underground must use `FloorUnder` with a 3D
   position instead of `SampleHeight` (player movement, the player's body in `CreatureAnimator`, the camera).
+  Water works the same way (W-134): `SampleGround(float3)` is the float2 answer at and above the ground, and below
+  it the cave pool or stream the point is in (`CaveWater` set, Height = its bed). Anything that can swim or splash
+  underground (wakes, the R-9 field, swimming) asks with its 3D position.
   `CaveDistance` has an exact sign but its size can overstate the distance to rock 2-9x (squashed floors,
   ledges, wall noise); carving and placement hash on it, so it never changes. For push-out, sphere casts or step
   sizes use `CaveDistanceBound` (`CaveSampling.LowerBound`): a lower bound (W-33 probe: 5 of ~10k points over,
@@ -47,10 +55,37 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   logs each step. `-whitepools` draws every cave water pool as white pool water (`CaveSystem.WhitePoolWater`,
   #35); murk above about 0.3 makes the pool a hard-edged opaque slab that reads as snow. White pools set `_SoftRim`:
   the rim fades, the middle darkens and stays see-through (body alpha x0.55), and the glow is a band inside the rim.
-- **Road tunnels (W-110):** RoadBaking marks the roofed core of steep crest stretches as `TunnelRoad`
-  (`Stats.Tunnels`); `CaveBaking.Tunnels` appends one cave per bore after the natural caves (`CaveData.Tunnel` 1 dark,
+- **Road tunnels (W-110, strict since W-138):** RoadBaking bores a crest only where the hill is a real mountain
+  over the road's straight grade: a core >= `TunnelLeast` (60 m) with >= `TunnelPortal` (6 m) over every metre and
+  >= `TunnelDeep` (20 m) over half of it; lesser crests stay cuttings. It marks that core as `TunnelRoad`
+  (`Stats.Tunnels`). The router's climb/detour/tunnel costs are `RoadBaking.Router` (setting A = no router bores); `CaveBaking.Tunnels` appends one cave per bore after the natural caves (`CaveData.Tunnel` 1 dark,
   2 lamps, 3 lamps + frames), with no chambers, so cave sockets and bat folk skip them. Any code that loops
   every cave (fauna den visitors, anchors) also sees tunnels: filter on `Tunnel != 0` there.
+- **Spurs and hand tunnels (W-138 row 2b):** destination spurs, the lake loop and hand tunnels' roads go through
+  `SpurRoute`, which only takes a bored route if it comes out 20% shorter (router C alone sent spurs through every
+  mountain). `Route` can move a path's end off its cell centre; `Shape` never counts a route's first or last hop as a
+  bore, or 30 m "tunnels" appear at road ends. Hand tunnels (`HandBores`) are re-checked by `HandBoreHolds` and left out
+  on islands without the mountain; `Portals` feeds the roadside waystations. Ruining a bridge must also take any other
+  road's bridge over the same crossing (`RuinTwin`).
+- **Portal cuttings (W-138 row 3):** a road street within `PortalReach` of a tunnel portal carries `Portal` (way into
+  the hill, its plane, the cutting's half width). `SettlementSampling.Height` then cuts a narrow walled cutting in front
+  of the headwall and levels nothing past `PortalBack` behind it. Gotcha: a street's round end cap carves a disc, so
+  without that clip the hill behind every headwall was levelled flat (the "arch embedded in flat ground" look). The
+  cutting's flat floor runs to `PortalCutHalf`, just behind `TunnelPortalKit`'s wing walls (`PortalWall` thick), because
+  a steep cut at a metre a cell draws sawtooth triangles; with the edge inside the wall they never poke out of its face.
+  `InPortalCut` keeps trees out of the cutting and its mouth: scattered trees through `SettlementSampling.Keep`, placed
+  props through FloraPlacement's `OnRoad` (both are needed; `OnRoad` alone left the swamp trees standing).
+  Bore radius is `TunnelRadius(width)` in both bakers.
+- **Portal ledge and tunnel rock (W-138 row 3b):** behind each headwall the ground is capped at the road plus
+  `PortalLedge` (2 m over the passage crown) for `PortalLedgeBack` (4 m), and the headwall is raised (up to
+  `HeadwallRaise`) to hide that ledge. Gotcha: without the ledge one mesh cell climbed from the road to the hilltop
+  right behind the headwall, and the mouth cut (which drops every triangle touching a cut vertex) dropped that whole
+  cliff-high quad: a window straight through the ridge above the arch. `BiomeStyle` picks only plain styles (no glow,
+  gloss <= 0.5) for road tunnels: Ice and the like lit the bore blue-white and spilt their tint onto the cutting.
+- **Tunnel details (W-138 row 4):** `CaveBaking.PlaceTunnelDetails` adds a side niche (its segment ends in a smaller
+  node: `NicheSegment`, so code walking a tunnel's road must skip it), a shrine and a torch there, `CaveStyle.Marker`
+  stones where the biome above changes, and fallen-stone speleothems. Bores >= 300 m are always lit. A cave plant of
+  form Shrine glows in proportion to its set scale (`CaveSystem`); at full strength it flooded the niche blue-white.
 - **Bat folk (#35, W-18):** `BatFolkBaking` runs after CaveBaking, reads the caves only and writes its own blob
 - **Bat folk kit (#35, W-61):** wall/ceiling houses are kit `StructureKit.House` in `FolkCulture.BatFolk` trim, rebuilt in `BatFolkMeshes` from a hash of the spot (no extra blob data; Lamp/Rune parts skipped, never add lights). Details come from the weighted `BatFolkBaking.Details` table, jittered per site. Pools of bat sites use `CaveSystem.WhitePoolWater`.
   (`TerrainSource.BatFolk`), so landmark and cave hashes never see it. A cave qualifies with a chamber >= 9 m
@@ -77,7 +112,12 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   level at its centre's `BaseHeight`, with a bank 0.3 m above the higher neighbour. Contour bands (W-24) were ~1-6 m
   wide and read as mud lines; cells keep the paddies wide on any slope. The 16 m pond
   grid labels on the pre-terrace dig (`PondDig`), or the banks split every pond and the mask drops them.
-- Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).
+- Roads (W-16): the A* routes run in parallel on a managed copy of the cost grid with a precomputed wander array; Emit and bridge sampling run in parallel and are added serially in pair order, so output is identical. W-138: `SettlementBaking` finds the sea folk pair early (`SeaFolkBaking.Place`) and keeps it
+  in `SettlementBaking.LastSeaFolk`; the late pass in TerrainAuthoring reuses those spots (found again there, the
+  spur's grading moved the landing 15 m off the road's end) and  `RoadBaking.Destinations` adds it, every mine, caves with chambers and ridge-mountain grottos (a footpath end) as
+  spurs routed after the town roads, nearest first, so town roads keep their streets. `Stats.Spurs` lists each;
+  `RoadBaking.SpurStreets` is their street range, which roadside landmarks only keep their middles off
+  (`SpurClear`), or a spur beside a roadside cave pushed the cave away. The `[bake] stages` line splits settlements into towns/roads/roadside/blob. Settlements went from about 970 ms to about 290 ms (editor bench, hash unchanged).
 
 ## Island version and waterfalls (W-22)
 

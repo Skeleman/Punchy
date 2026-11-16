@@ -61,7 +61,7 @@ namespace Punchy.Ambience
                     var flicker = 0.85f + 0.1f * Mathf.Sin(t * 7.1f + (i & 255)) + 0.05f * Mathf.Sin(t * 19.3f + i);
                     var light = FireSystem.Light(colour, flicker * lit * 1.8f);
                     light.w *= 2.6f;   // it lights the square below, not only the deck
-                    Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Fire, seed, at, light);
+                    Punchy.Settings.LightBudget.AddPooled(Punchy.Settings.LightKind.Fire, at, light);
                 }
                 if (d > flameRange * HandOverFrom && d < far)
                 {

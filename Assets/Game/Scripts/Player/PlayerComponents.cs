@@ -65,6 +65,19 @@ namespace Punchy.Player
         public float TrunkRadius, TrunkHeight, TrunkAngle;
         /// <summary>How the trunk leans from its foot, at half its height and at its height (FloraObstacle.LeanMid/Top).</summary>
         public float2 TrunkLeanMid, TrunkLeanTop;
+        /// <summary>
+        /// A-102 breath (Punchy.Fauna.Breath): how much is used up under water (0 full, 1 empty; 0 by default, so a new
+        /// body starts full), and whether, having emptied it, the body hasn't yet caught enough back. Local player
+        /// state, sent to the others with the avatar (NetPlayerLook.BreathUsed).
+        /// </summary>
+        public float BreathUsed;
+        public bool Gasping;
+        /// <summary>A-102 row 3: how far under the swim depth a swimming body has dived (m, 0 at the surface). Local
+        /// player state; the others see it in the avatar's position.</summary>
+        public float Dive;
+        /// <summary>A-101 row 1b: hanging from a ledge's lip (Punchy.Fauna.ClimbLedges): its index + 1, 0 when not (OnWall
+        /// is set too, the climb pose the others see). Local player state.</summary>
+        public byte Hang;
     }
 
     /// <summary>
@@ -78,19 +91,24 @@ namespace Punchy.Player
         public float JumpFactor;
         public bool Flies;
         public float FlySpeed;
-        /// <summary>Can climb up onto ledges (a body with hands, or a climber); others only step up and drop down.</summary>
-        public bool Climbs;
+        /// <summary>
+        /// Its climbing skill (Punchy.Fauna.Climbing, 0-5): it climbs a trunk or wall whose grade is at most this (5 any
+        /// surface, 3 trees, 2 a humanoid's ladders and vines), and with any at all pulls itself up onto ledges; others
+        /// only step up and drop down. From the body's species, or "-climbskill N".
+        /// </summary>
+        public byte ClimbSkill;
         /// <summary>Its height next to a human's (steps, reach and ledges scale with it); 0 reads as 1.</summary>
         public float Size;
         /// <summary>A fish: swims anywhere under the water; out of it, flops along in little hops.</summary>
         public bool Swims;
         /// <summary>A ghost: drifts above the ground or water, no gravity, rising with jump and sinking with sprint.</summary>
         public bool Hovers;
-        /// <summary>Climbs tree trunks (a monkey, a lizard, a spider): walking into one, it goes up it; and how fast (m/s).</summary>
-        public bool ClimbsTrees;
+        /// <summary>How fast it climbs (m/s) a section at its own skill; quicker on easier ones (Climbing.Speed).</summary>
         public float ClimbSpeed;
-        /// <summary>Climbs any surface (a lizard, a spider): a wall it's pushed into, it goes up.</summary>
-        public bool ClimbsWalls;
+        /// <summary>A-102: never runs out of breath under water (water and sea folk; a fish body too), else how long it
+        /// holds its breath (s): its species' (CreatureBlob.BreathesWater, HoldBreath).</summary>
+        public bool BreathesWater;
+        public float HoldBreath;
     }
 
     /// <summary>Singleton written by PlayerInputSystem each frame. MoveDirection is world-space XZ, length 0..1.</summary>

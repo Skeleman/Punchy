@@ -89,14 +89,34 @@ namespace Punchy.Fauna
         /// apron for smiths and stallholders, a straw hat for those working outdoors, a fisher's hat). Since A-33 the job
         /// (CreatureState.Job, else the one the task implies) picks the props too: a baker's dough, table and cap, a
         /// healer's bowl and satchel, a well keeper's rope and bucket, a gatekeeper's spear, a smith's tongs and hot iron,
-        /// a woodcutter's chopping block, a farmer's hoe, a trader's wares in hand. Slots: 0-1 the tool, 2 the apron,
-        /// 3-4 the hat, 5-7 extras.
+        /// a woodcutter's chopping block, a farmer's hoe, a trader's wares in hand. Slots: 0-1 the tool, 2-3 the apron
+        /// (bib and skirt, A-128), 4-5 the hat, 6-8 extras.
         /// </summary>
-        const int GearParts = 8;
+        const int GearParts = 9;
         static bool HasGear(CreatureTask task) => task == CreatureTask.Hammer || task == CreatureTask.Chop || task == CreatureTask.Tend ||
                                                   task == CreatureTask.Gesture || task == CreatureTask.Fish || task == CreatureTask.Hermit ||
                                                   task == CreatureTask.Watch;
         static int GearCount(CreatureTask task) => HasGear(task) ? GearParts : 0;
+        /// <summary>A-128: room <see cref="PoseKit"/> needs after a body's own segments.</summary>
+        public const int KitParts = GuardParts + GearParts;
+        /// <summary>
+        /// A-128: a posed body's kit beyond its own segments, by the same code PoseJob draws it with, for the Model Lab:
+        /// a patrolling guard's kit and a worker's gear, written from <paramref name="at"/> (KitParts of room).
+        /// </summary>
+        public static void PoseKit(ref CreatureBlob b, in CreatureState state, NativeArray<SegmentInstance> output, int at)
+        {
+            var job = new PoseJob { Output = output };
+            if (state.Task == CreatureTask.Patrol)
+                job.Guard(state, ref b, 0, at, 0f, 0);
+            if (HasGear(state.Task))
+                job.Gear(state, ref b, 0, at + GuardParts, 0f);
+        }
+        /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack; and (A-103 row 5) its
+        /// eyewear, two lenses and a bridge or strap.</summary>
+        const int WornParts = 6;
+        static int WornCount(in CreatureState s) => s.Worn != 0 || s.Outfit.Weapon != 0 || s.Outfit.Armoured ? WornParts + WeaponParts + ArmourParts : 0;
+        /// <summary>Capsules for a player's own hair (P-29), after the worn block: only bodies with OwnHair.</summary>
+        static int HairCount(in CreatureState s) => s.Outfit.OwnHair ? HairParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat and the most per roost. Colonies show while DetailPolicy.ColonyPixels
@@ -139,6 +159,7 @@ namespace Punchy.Fauna
             noBodies = new NativeArray<CreatureBody>(0, Allocator.Persistent);
             noEntities = new NativeArray<Entity>(0, Allocator.Persistent);
             noDecisions = new NativeArray<byte>(0, Allocator.Persistent);
+            CreatePockets();
         }
 
         protected override void OnDestroy()
@@ -151,6 +172,7 @@ namespace Punchy.Fauna
             noBodies.Dispose();
             noEntities.Dispose();
             noDecisions.Dispose();
+            DisposePockets();
             if (roosts.IsCreated) roosts.Dispose();
             if (hives.IsCreated) hives.Dispose();
             buffer?.Release();
@@ -203,6 +225,10 @@ namespace Punchy.Fauna
             // And anything well behind the camera (past NearBehind, so the shadows of those close behind still fall
             // in view) is neither posed nor drawn: about half of them at any moment, the biggest share of the pose cost.
             var hidden = Punchy.Terrain.CaveSystem.SurfaceHidden >= 0.99f;
+            // P-25: in first person the player's own body isn't drawn, so nothing of it can block the lens.
+            var hideBody = Entity.Null;
+            if (Punchy.CameraRig.ThirdPersonCamera.FirstPerson)
+                SystemAPI.TryGetSingletonEntity<PlayerAvatar>(out hideBody);
             SystemAPI.TryGetSingleton<TerrainSource>(out var hiddenFrom);
             float3 camPos = cam.transform.position, camFwd = cam.transform.forward;
             // (Behind: more than about 100 degrees off the way the camera looks, well outside any view it has.)
@@ -241,7 +267,7 @@ namespace Punchy.Fauna
                     var behind = far && math.dot(math.normalizesafe(to), camFwd) < behindCos &&
                                  math.length(to) > allBodies[i].Blob.Value.SeenFrom * 0.5f;
                     var underground = hidden && !(allStates[i].Position.y < hiddenFrom.SampleHeight(allStates[i].Position.xz) - 1f);
-                    keepFlags[i] = allStates[i].Mode == CreatureMode.Puppet || !behind && !underground;
+                    keepFlags[i] = allEntities[i] != hideBody && (allStates[i].Mode == CreatureMode.Puppet || !behind && !underground);
                 }
             }
             else
@@ -249,6 +275,8 @@ namespace Punchy.Fauna
                 {
                     States = allStates,
                     Bodies = allBodies,
+                    Entities = allEntities,
+                    HideBody = hideBody,
                     Terrain = hiddenFrom,
                     CameraPosition = camPos,
                     CameraForward = camFwd,
@@ -281,7 +309,13 @@ namespace Punchy.Fauna
                 PrevIndex = prevIndex,
                 PrevDecisions = usePrev ? prevPosed.Decisions : noDecisions,
                 Decisions = decisions,
-                GroupStarts = groupStarts
+                GroupStarts = groupStarts,
+                Time = (float)SystemAPI.Time.ElapsedTime,
+                Frame = poseFrame,
+                PocketScrub = PocketScrub,
+                PocketStarted = pocketStarted,
+                SeenHeld = pocketSeen,
+                PocketMoves = pocketMoves
             }.Schedule(JobHandle.CombineDependencies(culling, indexing));
 
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
@@ -292,8 +326,16 @@ namespace Punchy.Fauna
             // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
             var skyClock = SkyClock(out var skyHour);
             extraCount += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
+            // The towns' far figures (A-109), drawn only, from the households and the shared clock.
+            extraCount += GatherFarFolk(camAt0, skyClock, skyHour);
+            // The small things round the towns (A-110 row 7): boats, washing.
+            extraCount += GatherFarDetails(terrain, camAt0, skyClock, skyHour);
+            // (-homesign: the debug markers of what each house shows, A-109 row 3.)
+            extraCount += GatherHomeSigns(terrain, camAt0, skyHour);
             // Fish in the caves' pools near the camera, drawn only.
             extraCount += GatherCaveFish(terrain, camAt0) * FishParts;
+            // The baked herds' far form, island-wide, from the shared clock (CreatureRenderSystem.Herds).
+            extraCount += GatherHerds(camAt0, skyClock, skyHour, terrain, (float)SystemAPI.Time.ElapsedTime);
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
             var traceCount = traces != null ? traces.Count : 0;
@@ -304,6 +346,16 @@ namespace Punchy.Fauna
             culling.Complete();
             CreatureSnapshotSystem.WaitTicks += System.Diagnostics.Stopwatch.GetTimestamp() - waitStart;
             keepFlags.Dispose();
+            // (A-114: what each body last held, with the gone pruned now and then so they don't pile up.)
+            if ((poseFrame & 255) == 0)
+                PrunePockets(poseFrame, (float)SystemAPI.Time.ElapsedTime);
+            if (pocketStarted[0] > 0)
+            {
+                PocketStarts += pocketStarted[0];
+                if (PocketLog)
+                    UnityEngine.Debug.Log($"[pocket] {pocketStarted[0]} put away or taken out, {PocketStarts} on this machine");
+            }
+            pocketStarted[0] = 0;
             if (ownCopy)
             {
                 allBodies.Dispose();
@@ -441,9 +493,9 @@ namespace Punchy.Fauna
                 ForceCues = ForceNeedCues,
                 CameraPosition = cam.transform.position,
                 FadeInTime = 1.2f,
-                FadeOutRange = 25f,
+                FadeOutRange = CreatureFadeRange,
                 // A little short of FaunaDirector's despawn distance (170 m), so it's gone before it's removed.
-                FadeFar = 165f,
+                FadeFar = CreatureFadeFar,
                 Night = night,
                 PrevOutput = usePrev ? prevPosed.Instances : noSegments,
                 PrevOffsets = usePrev ? prevPosed.Offsets : noOffsets,
@@ -455,7 +507,9 @@ namespace Punchy.Fauna
                 Frame = poseFrame++,
                 Looks = looks.Blob,
                 HaveLooks = haveLooks,
-                Stats = stats
+                Stats = stats,
+                PocketScrub = PocketScrub,
+                PocketMoves = pocketMoves
             }.Schedule(bodies.Length, 8, indexing);
             Pass(5);
             // While the creatures are posed on the workers, the rest is drawn here into its own array (the colonies, the
@@ -483,7 +537,11 @@ namespace Punchy.Fauna
             foreach (var critter in critters)
                 at = Critter(critter, (float)SystemAPI.Time.ElapsedTime, extras, at);
             at = WriteSkyBirds(skyClock, extras, at);
+            at = WriteFarFolk(skyClock, extras, at);
+            at = WriteFarDetails(extras, at);
+            at = WriteHomeSigns(extras, at);
             at = WriteCaveFish(skyClock, extras, at);
+            at = WriteHerds(skyClock, extras, at);
             if (traceCount > 0)
                 at = traces.Write(extras, at, (float)SystemAPI.Time.ElapsedTime);
             Pass(6);
@@ -518,6 +576,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<int> Offsets;
             [NativeDisableParallelForRestriction] public NativeArray<SegmentInstance> Output;
             public float Time;
+            /// <summary>A-114 shots: PocketScrub, read once for the frame.</summary>
+            public float PocketScrub;
             public Unity.Mathematics.float3 CameraRight, CameraPosition;
             /// <summary>"-needcues": every creature shows a need cue all the time (for shots of #64).</summary>
             public bool ForceCues;
@@ -541,6 +601,8 @@ namespace Punchy.Fauna
             public bool HaveLooks;
             /// <summary>Per worker, StatStride apart: ticks, posed afresh, moved on (for -perflog).</summary>
             [NativeDisableParallelForRestriction] public NativeArray<long> Stats;
+            /// <summary>A-114: items being put away and taken out (CompactJob starts and ends them).</summary>
+            [ReadOnly] public NativeParallelHashMap<Entity, PocketMove> PocketMoves;
             [Unity.Collections.LowLevel.Unsafe.NativeSetThreadIndex] int threadIndex;
 
             public void Execute(int index)
@@ -555,12 +617,16 @@ namespace Punchy.Fauna
                 // As it looks smaller (Decisions, refactor 3.7) a body is posed afresh only every 2nd frame, then every 4th
                 // (staggered by entity), and between those its last pose is carried along to where it is now and turned as
                 // it turns (A-70 row 4).
-                var reused = Tiers && Reuse(state, body, entity, offset, Decisions[index]);
+                // (A-114: one reaching to a pocket is posed afresh every frame, so the reach doesn't stutter.)
+                var pocket = default(PocketReach);
+                if (body.Blob.Value.Upright && PocketMoves.TryGetValue(entity, out var move))
+                    pocket = SamplePocket(move, PocketClock(move, Time, PocketScrub), out _, out _);
+                var reused = Tiers && pocket.Amount <= 0f && Reuse(state, body, entity, offset, Decisions[index]);
                 if (!reused)
                 {
                     var decision = new Punchy.Settings.DetailPolicy.Decision { Packed = Decisions[index] };
                     CreatureAnimator.Evaluate(ref body.Blob.Value, state, body.Coat, Terrain, Output, offset, decision.Feet,
-                                              decision.Geometry == 0);
+                                              decision.Geometry == 0, pocket);
                 }
                 RideSwell(state, body, offset);
                 Rest(index, state, body, entity, offset);
@@ -653,6 +719,9 @@ namespace Punchy.Fauna
                 // Stepping through a door: dithered out going in, gone indoors, dithered back in coming out.
                 if (state.Mode == CreatureMode.Home && state.Stage >= 1)
                     faded = Unity.Mathematics.math.max(faded, state.Stage == 2 ? 1f : state.ActionTime);
+                // (A-120 row 3: an animal carried through a door in someone's arms goes with them: the brain's Held.)
+                else if (state.Mode == CreatureMode.Held && state.Stage == 1)
+                    faded = Unity.Mathematics.math.max(faded, state.ActionTime);
                 // A ghost is only half there (shimmering), and not there at all by day.
                 if (body.Blob.Value.Haunts)
                 {
@@ -718,6 +787,10 @@ namespace Punchy.Fauna
                     Goggles(state, ref body.Blob.Value, offset, held, faded);
                 if (HasGear(state.Task))
                     Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
+                if (WornCount(state) != 0)
+                    Worn(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task), faded);
+                if (HairCount(state) != 0)
+                    Hair(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state), faded);
             }
         }
     }

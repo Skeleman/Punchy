@@ -30,6 +30,13 @@ namespace Punchy.Flora
         static readonly int ReceiveSunId = Shader.PropertyToID("_FloraReceiveSun");
         static readonly int CacheParamsId = Shader.PropertyToID("_FloraCacheParams");
         static readonly int CacheFadeId = Shader.PropertyToID("_FloraCacheFade");
+        static readonly int CacheOldTexId = Shader.PropertyToID("_FloraCacheOldTex");
+        static readonly int CacheOldMatrixId = Shader.PropertyToID("_FloraCacheOldMatrix");
+        static readonly int ReceiveOldSunId = Shader.PropertyToID("_FloraReceiveOldSun");
+        static readonly int CacheBlendId = Shader.PropertyToID("_FloraCacheBlend");
+        /// <summary>R-16 row 3: a new cache blends in over the old one over this long (s; 0 swaps at once). The sun
+        /// turns CacheSunDegrees in about 2 s on the 24 min day, so a blend ends before the next turn redraw.</summary>
+        public static float CacheBlendSeconds = 1f;
 
         /// <summary>Last finished redraw, for the world probe: "frames, trees, centre, sun".</summary>
         public static string LastCacheLog = "";
@@ -47,7 +54,10 @@ namespace Punchy.Flora
         bool cacheReady;
         /// <summary>The redraw under way's next frame (-1: none).</summary>
         int cacheStep = -1;
-        Matrix4x4 cacheBackVP, cacheBackUv, cacheFrontUv;
+        Matrix4x4 cacheBackVP, cacheBackUv, cacheFrontUv, cacheOldUv;
+        Vector3 cacheOldSun;
+        float cacheSwappedAt = -1e6f;
+        bool cacheOldReady;
         Vector3 cacheBackSun, cacheFrontSun, cacheLaidSun;
         float3 cacheLaidAt;
         /// <summary>The near range the cache was laid for (it's redrawn when the near range changes).</summary>
@@ -89,9 +99,11 @@ namespace Punchy.Flora
 
             if (cacheStep >= 0 && (l.Instances != cacheFor || l.Count != cacheForCount))
                 cacheStep = -1;   // the layer re-uploaded mid-redraw: its visible list points at old plants
-            if (cacheStep < 0 && (!cacheReady || Vector3.Angle(dir, cacheLaidSun) > FloraShadowOptions.CacheSunDegrees ||
-                                  math.distance(eye, cacheLaidAt) > FloraShadowOptions.CacheMove ||
-                                  cacheLaidNear != FloraShadowOptions.NearRange))
+            // R-16 row 3: the sun's redraws wait for the last blend (the old cache sits in the back texture the next
+            // redraw draws into); the camera leaving the laid view or a new near range does not wait.
+            if (cacheStep < 0 && (!cacheReady || math.distance(eye, cacheLaidAt) > FloraShadowOptions.CacheMove ||
+                                  cacheLaidNear != FloraShadowOptions.NearRange ||
+                                  CacheBlend() >= 1f && Vector3.Angle(dir, cacheLaidSun) > FloraShadowOptions.CacheSunDegrees))
                 StartCacheRedraw(l, eye, dir);
             if (cacheStep >= 0)
                 DrawCacheSlice(l);
@@ -154,8 +166,17 @@ namespace Punchy.Flora
         {
             var reach = FloraShadowOptions.CacheRange + CacheMargin;
             var up = math.abs(dir.y) > 0.99f ? Vector3.forward : Vector3.up;
+            // R-16 row 3: the view's centre snaps to the cache's texels across the sun's view, so a tree's shadow lands on
+            // the same texels from one redraw to the next (only the sun turning moves it) instead of crawling as the
+            // camera drifts a part of a texel each time.
+            var rot = Quaternion.LookRotation(dir, up);
+            var texel = 2f * reach / FloraShadowOptions.CacheSize;
+            var local = Quaternion.Inverse(rot) * (Vector3)eye;
+            local.x = Mathf.Round(local.x / texel) * texel;
+            local.y = Mathf.Round(local.y / texel) * texel;
+            var centre = rot * local;
             var view = Matrix4x4.Scale(new Vector3(1f, 1f, -1f)) *
-                       Matrix4x4.TRS((Vector3)eye - dir * CacheDepth, Quaternion.LookRotation(dir, up), Vector3.one).inverse;
+                       Matrix4x4.TRS(centre - dir * CacheDepth, rot, Vector3.one).inverse;
             var proj = Matrix4x4.Ortho(-reach, reach, -reach, reach, 1f, CacheDepth * 2f);
             var vp = proj * view;
             cacheBackVP = GL.GetGPUProjectionMatrix(proj, true) * view;
@@ -240,6 +261,10 @@ namespace Punchy.Flora
             Graphics.ExecuteCommandBuffer(cmd);
             if (++cacheStep < frames)
                 return;
+            cacheOldReady = cacheReady;
+            cacheOldUv = cacheFrontUv;
+            cacheOldSun = cacheFrontSun;
+            cacheSwappedAt = Time.unscaledTime;
             (cacheFront, cacheBack) = (cacheBack, cacheFront);
             cacheFrontUv = cacheBackUv;
             cacheFrontSun = cacheBackSun;
@@ -257,6 +282,11 @@ namespace Punchy.Flora
             m.SetTexture(CacheTexId, cacheFront);
             m.SetMatrix(CacheMatrixId, cacheFrontUv);
             m.SetVector(ReceiveSunId, cacheFrontSun);
+            var blend = CacheBlend();
+            m.SetVector(CacheBlendId, new Vector4(blend, 0f, 0f, 0f));
+            m.SetTexture(CacheOldTexId, blend < 1f ? cacheBack : cacheFront);
+            m.SetMatrix(CacheOldMatrixId, cacheOldUv);
+            m.SetVector(ReceiveOldSunId, cacheOldSun);
             m.SetVector(CacheParamsId, new Vector4(eye.x, eye.y, eye.z, FloraShadowOptions.CacheDarkness * sun.shadowStrength * up));
             // In from half the near range (the real-time shadows keep it from doubling), out over the cache's last 8 m.
             // (R-6 row 0: 3D distance from the camera, as the cull hands trees over by; on the ground plane a summit's
@@ -272,6 +302,10 @@ namespace Punchy.Flora
             Graphics.RenderPrimitives(rp, MeshTopology.Triangles, 3);
         }
 
+        /// <summary>How far the last swapped-in cache has blended over the one before (1 when done or there was none).</summary>
+        float CacheBlend() => !cacheOldReady || cacheStep >= 0 || CacheBlendSeconds <= 0f
+            ? 1f : math.saturate((Time.unscaledTime - cacheSwappedAt) / CacheBlendSeconds);
+
         void ReleaseCacheTextures()
         {
             foreach (var rt in new[] { cacheFront, cacheBack })
@@ -282,6 +316,7 @@ namespace Punchy.Flora
                 }
             cacheFront = cacheBack = null;
             cacheReady = false;
+            cacheOldReady = false;
         }
 
         void ReleaseShadowCache()

@@ -27,6 +27,13 @@ namespace Punchy.Terrain
     /// Outside the square, on Low water quality or with "-waterfield 0", the swimmer ripples carry on alone.
     /// A river fall that looks big enough gets a fine sheet of its own (row 5, WaterPatchSystem.Falls.cs): its sloping
     /// quads cut along the drop, with a curling lip, a rippled curtain and churn at the foot.
+    /// W-148 row 5: a geyser's vent in the square stirs it too, a soft splash every second or so (each on its own seeded
+    /// beat), stronger as the spout builds and while it erupts; cave water and landmark pools show the field in their
+    /// normals (_LatticeField in Water.shader).
+    /// W-148 row 6: each liquid has a viscosity (<see cref="Viscosity"/>: water 0, toxic and white 0.3, lava 1), kept per
+    /// metre corner of the square (<see cref="Liquids"/> adds the pools off the chunk water): in thicker liquid the field's
+    /// waves run slower and die sooner, presses spread wider and shallower and splashes knock less deep. Water keeps
+    /// exactly the values it had.
     /// Cosmetic and per machine, from state every machine already has (the creature snapshot); nothing is sent.
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
@@ -50,6 +57,54 @@ namespace Punchy.Terrain
         /// a walk, so a wader trails a V rather than pushing a ring ahead of it.</summary>
         const float StepTime = 1f / 60f, WaveSpeed = 0.9f;
         const int MaxSteps = 4, MaxSources = 64;
+        /// <summary>A geyser vent's splash: its radius (m) and how deep it knocks the surface (m) at rest, how much deeper
+        /// as the spout builds up (the last <see cref="VentBuild"/> of its period) and while it erupts.</summary>
+        const float VentRadius = 0.3f, VentDepth = 0.018f, VentBuildGain = 1.2f, VentEruptGain = 2.5f, VentBuild = 0.15f; // sim: a source in the field, not a view range
+
+        /// <summary>A spout that erupts from water (W-148 row 5): where, and its eruption clock as its plume's (period s,
+        /// duty, seed; LandmarkEffects.hlsl). LandmarkEffectSystem keeps the list of those near the camera.</summary>
+        public struct Vent
+        {
+            public float2 At;
+            public float Period, Duty, Seed;
+        }
+        public static readonly List<Vent> Vents = new List<Vent>();
+
+        /// <summary>W-148 row 6: how thick a liquid is (0 water .. 1 lava), from its glow (x self-glow, y lava): lava is
+        /// 1, a glowing liquid (toxic, the bat folk's white pools) <see cref="ThinViscosity"/>, plain water exactly 0.
+        /// Water.shader's PunchyLiquidViscosity (WaterField.hlsl) is the same.</summary>
+        public static float Viscosity(float2 glow) =>
+            math.max(math.saturate(glow.y), ThinViscosity * math.smoothstep(0f, 0.1f, glow.x));
+        public const float ThinViscosity = 0.3f;
+        /// <summary>At viscosity 1 (lava): how fast the field's waves run (times water's), how much of the surface's speed
+        /// a step keeps, and how much of its height (water's are <see cref="WaveSpeed"/>, 0.994 and 0.999); thinner liquid
+        /// lies between, by its viscosity.</summary>
+        public const float ThickSpeed = 0.35f, ThickDamping = 0.947f, ThickDecay = 0.993f; // sim: per-step field physics, not a view range
+        const float WaterDamping = 0.994f, WaterDecay = 0.999f; // sim: per-step field physics, not a view range
+        /// <summary>The field's wave speed (times water's), velocity kept and height kept a step at a viscosity (probe).</summary>
+        public static float3 FieldParams(float viscosity) => new float3(
+            math.lerp(1f, ThickSpeed, viscosity), math.lerp(WaterDamping, ThickDamping, viscosity), math.lerp(WaterDecay, ThickDecay, viscosity));
+        /// <summary>A source's radius and depth at a viscosity, times water's: a held press spreads wider and shallower, a
+        /// splash wider and much less deep (x press radius, y press depth, z splash radius, w splash depth).</summary>
+        public static float4 SourceScale(float viscosity) =>
+            new float4(1f + 0.8f * viscosity, 1f - 0.4f * viscosity, 1f + 0.5f * viscosity, 1f - 0.6f * viscosity);
+
+        /// <summary>A liquid off the chunk water (a landmark pool, a cave pool) that isn't water: where its surface is, how
+        /// far it reaches (m) and how thick it is. CaveSystem keeps the list (and bumps <see cref="LiquidsVersion"/>).</summary>
+        public struct Liquid
+        {
+            public float3 Centre;
+            public float Radius, Viscosity;
+        }
+        public static readonly List<Liquid> Liquids = new List<Liquid>();
+        public static int LiquidsVersion;
+        /// <summary>One-off knocks on the field (world x, z, radius m, depth m), used once at the next step (tests, probes).</summary>
+        public static readonly List<float4> Knocks = new List<float4>();
+        /// <summary>Geyser vents inside the square, and the splashes they gave, when the field last stepped, and all the
+        /// splashes vents have given (probe).</summary>
+        public int VentsInField, VentSplashes, VentSplashTotal;
+        /// <summary>All the splashes swimmers have made dropping in (x) and breaking out (y) (A-125 probe).</summary>
+        public int2 SwimmerSplashTotal;
 
         static readonly int FieldId = Shader.PropertyToID("_PunchyWaterField");
         static readonly int FieldAtId = Shader.PropertyToID("_PunchyWaterFieldAt");
@@ -65,6 +120,10 @@ namespace Punchy.Terrain
         static readonly int CourantId = Shader.PropertyToID("_Courant2");
         static readonly int DampingId = Shader.PropertyToID("_Damping");
         static readonly int DecayId = Shader.PropertyToID("_Decay");
+        static readonly int ViscosityId = Shader.PropertyToID("_Viscosity");
+        static readonly int ThickSpeedId = Shader.PropertyToID("_ThickSpeed");
+        static readonly int ThickDampingId = Shader.PropertyToID("_ThickDamping");
+        static readonly int ThickDecayId = Shader.PropertyToID("_ThickDecay");
         static readonly Vector4 NoRect = new Vector4(1e9f, 1e9f, -1e9f, -1e9f);
 
         /// <summary>A fine sheet vertex: the chunk water's (WaterVertex) plus where it sits on a coarser neighbour's edge.</summary>
@@ -222,6 +281,10 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>R-39 row 4 (#269): how much of a wader's speed-driven dimple and shove is kept (the trailing
+        /// rebound behind a run through shallows), 1 being the old height.</summary>
+        public static float WadeRebound = 0.4f;
+
         /// <summary>What presses on the field this frame (CreatureWakeSystem's choice of creatures): a dimple under each
         /// at the surface, and a splash where one has just dropped through it.</summary>
         [BurstCompile]
@@ -233,13 +296,91 @@ namespace Punchy.Terrain
             [ReadOnly] public TerrainSource Terrain;
             public float2 Corner;
             public float DeltaTime;
+            /// <summary>R-39 row 4: WadeRebound, handed in (Burst reads no mutable statics).</summary>
+            public float Rebound;
             /// <summary>Seconds since play began, now and when this last ran (wading strides keep time by it).</summary>
             public float Time, LastTime;
             /// <summary>Each creature's place when this last ran (to see it drop through the surface, and which way it goes).</summary>
             public NativeHashMap<Entity, float3> LastAt;
             public NativeList<float4> Presses, Splashes;
+            /// <summary>Geyser vents near the camera, and the shared clock now and when this last ran (the spouts' own).</summary>
+            [ReadOnly] public NativeArray<Vent> Vents;
+            public float Clock, LastClock;
+            /// <summary>x vents inside the square, y splashes they gave.</summary>
+            public NativeReference<int2> VentCount;
+            /// <summary>Swimmer splashes this step: x in, y out (A-125 probe).</summary>
+            public NativeReference<int2> SwimmerSplashes;
+            /// <summary>One-off knocks this step (world x, z, radius m, depth m), and how thick the liquid is at each of the
+            /// square's metre corners (0..255).</summary>
+            [ReadOnly] public NativeArray<float4> Knocks;
+            [ReadOnly] public NativeArray<byte> Viscosity;
 
             public void Execute()
+            {
+                Creatures();
+                Spouts();
+                for (int k = 0; k < Knocks.Length && Splashes.Length < MaxSources; k++)
+                    Splashes.Add(new float4((Knocks[k].xy - Corner) * TexelsPerMetre, -Knocks[k].z * TexelsPerMetre, Knocks[k].w));
+                // W-148 row 6: in thicker liquid every source spreads wider and presses less deep.
+                Thicken(Presses);
+                Thicken(Splashes);
+            }
+
+            void Thicken(NativeList<float4> sources)
+            {
+                for (int i = 0; i < sources.Length; i++)
+                {
+                    var s = sources[i];
+                    var m = math.clamp((int2)math.round(s.xy / TexelsPerMetre), 0, Span);
+                    var v = Viscosity[m.y * (Span + 1) + m.x] / 255f;
+                    if (v <= 0f)
+                        continue;
+                    var scale = SourceScale(v);
+                    sources[i] = s.z < 0f ? new float4(s.xy, s.z * scale.z, s.w * scale.w) : new float4(s.xy, s.z * scale.x, s.w * scale.y);
+                }
+            }
+
+            void Spouts()
+            {
+                // After every creature's (they keep the slots first, R-15 row 2): each geyser vent in the square knocks
+                // a soft splash ring out from its centre on its own beat, every 0.5-1.5 s.
+                var counted = int2.zero;
+                for (int v = 0; v < Vents.Length; v++)
+                {
+                    var vent = Vents[v];
+                    var at = (vent.At - Corner) * TexelsPerMetre;
+                    if (math.any(at < 0f) || math.any(at > Size))
+                        continue;
+                    counted.x++;
+                    // The spout's eruption, as its plume draws it (LandmarkEffects.hlsl), and the build-up just before.
+                    var phase = math.frac(Clock / vent.Period + vent.Seed);
+                    var erupt = math.smoothstep(0f, 0.04f, phase) * (1f - math.smoothstep(vent.Duty * 0.6f, vent.Duty, phase));
+                    var build = math.smoothstep(1f - VentBuild, 1f, phase);
+                    var depth = VentDepth * (1f + VentBuildGain * build + VentEruptGain * erupt);
+                    // Splash j comes at j plus a seeded jitter of up to a quarter second either way (so 0.5-1.5 s apart);
+                    // while it erupts, a second beat half a second on doubles them.
+                    var beats = erupt > 0.3f ? 2 : 1;
+                    for (int b = 0; b < beats; b++)
+                    {
+                        var shift = vent.Seed * 17.3f + b * 0.5f;
+                        var now = Clock + shift;
+                        var then = LastClock + shift;
+                        for (var j = math.floor(now) - 1f; j <= math.floor(now) + 1f; j++)
+                        {
+                            var jitter = (math.frac(math.sin(j * 12.9898f + vent.Seed * 78.233f + b * 3.7f) * 43758.5453f) - 0.5f) * 0.5f;
+                            var when = j + jitter;
+                            if (when > then && when <= now && Splashes.Length < MaxSources)
+                            {
+                                Splashes.Add(new float4(at, -VentRadius * TexelsPerMetre, depth));
+                                counted.y++;
+                            }
+                        }
+                    }
+                }
+                VentCount.Value = counted;
+            }
+
+            void Creatures()
             {
                 for (int i = 0; i < States.Length; i++)
                 {
@@ -255,7 +396,8 @@ namespace Punchy.Terrain
                     var hadY = LastAt.TryGetValue(e, out var lastAt);
                     var lastY = lastAt.y;
                     LastAt[e] = s.Position;
-                    var g = Terrain.SampleGround(s.Position.xz);
+                    // (The float3 sample: in a cave pool or stream it is that water's, W-134.)
+                    var g = Terrain.SampleGround(s.Position);
                     if (!g.HasWater || g.WaterSurface - g.Height < 0.15f)
                         continue;
                     var under = g.WaterSurface - s.Position.y;
@@ -268,11 +410,16 @@ namespace Punchy.Terrain
                     // diver only dents it near the top.)
                     var near = upright ? 1f : 1f - math.smoothstep(0.3f, 1.2f, under);
                     var depth = (0.04f + 0.05f * math.min(s.Speed, 3f)) * size * near;
+                    // R-39 row 4 (#269): something on its feet running through shallows left a trailing rebound 2-3x too
+                    // high: its dimple's speed share and its shove spring back behind it. Damped for upright waders only;
+                    // the leading hump (the bow wave) and swimmers are untouched.
+                    if (upright)
+                        depth = (0.04f + 0.05f * Rebound * math.min(s.Speed, 3f)) * size * near;
                     if (depth > 0.002f && Presses.Length < MaxSources)
                         Presses.Add(new float4(at, radius, depth));
                     // And while it moves, it keeps shoving water aside (a small knock every step, in with the dimples so
                     // every step gets it): the troughs it leaves spring back as rings, and in a line they make its wake.
-                    var shove = 0.006f * math.min(s.Speed, 4f) * size * near;
+                    var shove = 0.006f * math.min(s.Speed, 4f) * size * near * (upright ? Rebound : 1f);
                     if (shove > 0.0005f && Presses.Length < MaxSources)
                         Presses.Add(new float4(at, -radius, shove));
                     // Zach's leading swell (13:05): moving, it heaps the water up just ahead of itself, a raised hump before
@@ -292,8 +439,37 @@ namespace Punchy.Terrain
                         Splashes.Add(new float4(at, -radius, 0.035f * math.min(s.Speed, 2.5f) * size));
                     // A splash where it has just come down through the surface (a jump, a fall, a fish breaching).
                     var fall = hadY ? (s.Position.y - lastY) / math.max(DeltaTime, 1e-3f) : 0f;
-                    if (hadY && lastY - g.WaterSurface > 0.05f && -under <= 0.05f && fall < -1.5f && Splashes.Length < MaxSources)
-                        Splashes.Add(new float4(at, -radius * 1.5f, math.clamp(-fall * 0.03f, 0.04f, 0.2f) * size));
+                    if (upright)
+                    {
+                        // (The player and waders: as before.)
+                        if (hadY && lastY - g.WaterSurface > 0.05f && -under <= 0.05f && fall < -1.5f && Splashes.Length < MaxSources)
+                            Splashes.Add(new float4(at, -radius * 1.5f, math.clamp(-fall * 0.03f, 0.04f, 0.2f) * size));
+                        continue;
+                    }
+                    // A-125 row 1: a swimmer splashes both ways, breaking out and dropping back in, all sized by its body:
+                    // how fast it must cross, the ring's width and its knock. A trout's hop makes a ring a hand across; a
+                    // dolphin's leap one over two metres.
+                    var body = s.Scale * b.FrontRadius;
+                    var gate = math.clamp(0.6f + body * 4f, 0.6f, 1.5f);
+                    var ring = math.clamp(body * 5f, 0.12f, 1.5f) * TexelsPerMetre;
+                    var knock = math.clamp(body * 6f, 0.15f, 1.5f);
+                    if (!hadY || Splashes.Length >= MaxSources)
+                        continue;
+                    // (Its climb over the time since it was last seen here, the sources' own interval, so the rate
+                    // holds at any frame rate.)
+                    var climb = (s.Position.y - lastY) / math.max(Time - LastTime, 1e-3f);
+                    // (Through the surface itself between two samples, fast: one step of a leap can be a few
+                    // centimetres, and the speed gate keeps a swimmer idling at the top from ringing.)
+                    if (lastY > g.WaterSurface && under >= 0f && climb < -gate)
+                    {
+                        Splashes.Add(new float4(at, -ring, math.clamp(-climb * 0.03f, 0.02f, 0.2f) * knock));
+                        SwimmerSplashes.Value += new int2(1, 0);
+                    }
+                    else if (lastY < g.WaterSurface && under <= 0f && climb > gate)
+                    {
+                        Splashes.Add(new float4(at, -ring * 0.8f, math.clamp(climb * 0.025f, 0.02f, 0.16f) * knock));
+                        SwimmerSplashes.Value += new int2(0, 1);
+                    }
                 }
             }
         }
@@ -313,11 +489,26 @@ namespace Punchy.Terrain
         int kernel = -1;
         ComputeBuffer sourceBuffer;
         readonly float4[] sourceArray = new float4[MaxSources];
-        float lastSourceTime;
+        float lastSourceTime, lastClock;
+        static readonly int ClockId = Shader.PropertyToID("_PunchyClock");
         NativeHashMap<Entity, float3> lastAt;
         NativeList<ParentQuad> quads;
         readonly List<Mesh> gatherMeshes = new List<Mesh>(4);
         readonly List<int2> gatherOrigins = new List<int2>(4);
+        /// <summary>W-148 row 6: how thick the liquid is at each of the square's metre corners (0..255), from the chunk
+        /// water's own quads (cut, then on show) and with the <see cref="Liquids"/> near the player's height added
+        /// (viscosityBytes, and the field's copy); rebuilt when the square moves, the list changes or the player climbs or
+        /// drops a few metres.</summary>
+        readonly byte[] cutSurfaceViscosity = new byte[(Span + 1) * (Span + 1)];
+        readonly byte[] surfaceViscosity = new byte[(Span + 1) * (Span + 1)];
+        readonly byte[] viscosityBytes = new byte[(Span + 1) * (Span + 1)];
+        Texture2D viscosity;
+        NativeArray<byte> viscosityField;
+        bool viscosityDirty = true;
+        int viscosityVersion = -1;
+        float viscosityY;
+        /// <summary>The highest viscosity in the square (probe).</summary>
+        public float ViscosityMax { get; private set; }
 
         /// <summary>The square on show (its corner; NoCorner while none), and the chunk builds its sheet was cut from.</summary>
         static readonly int2 NoCorner = new int2(int.MinValue, int.MinValue);
@@ -345,6 +536,8 @@ namespace Punchy.Terrain
         int2 tierCorner = NoCorner;
         /// <summary>Indices in the sheet on show (for probes and the R-9 bench).</summary>
         public int SheetIndices { get; private set; }
+        /// <summary>How many presses creatures made on the field at its last step (the play-mode tests, W-134).</summary>
+        public int Presses { get; private set; }
         /// <summary>The field's corner (texels follow the square), texels it still has to move, and time not yet stepped.</summary>
         int2 fieldCorner = NoCorner;
         int2 pendingShift;
@@ -372,6 +565,8 @@ namespace Punchy.Terrain
             Shader.SetGlobalVector(RectId, NoRect);
             if (lastAt.IsCreated) lastAt.Dispose();
             if (quads.IsCreated) quads.Dispose();
+            if (viscosityField.IsCreated) viscosityField.Dispose();
+            Object.Destroy(viscosity);
             sourceBuffer?.Release();
             if (fieldA != null) fieldA.Release();
             if (fieldB != null) fieldB.Release();
@@ -428,7 +623,7 @@ namespace Punchy.Terrain
 
             if (shownCorner.Equals(NoCorner))
                 return;
-            StepField();
+            StepField(focus.y);
             Graphics.RenderMesh(new RenderParams(material)
             {
                 worldBounds = shownBounds,
@@ -469,6 +664,9 @@ namespace Punchy.Terrain
             mesh.MarkDynamic();
             mask = new Texture2D(Span, Span, TextureFormat.R8, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = "Water fine sheet mask" };
             weight = new Texture2D(Span + 1, Span + 1, TextureFormat.R8, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, name = "Water fine sheet weight" };
+            viscosity = new Texture2D(Span + 1, Span + 1, TextureFormat.R8, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, name = "Water field viscosity" };
+            viscosityField = new NativeArray<byte>((Span + 1) * (Span + 1), Allocator.Persistent);
+            viscosityDirty = true;
             fieldA = MakeField("Water field A");
             fieldB = MakeField("Water field B");
             sourceBuffer = new ComputeBuffer(MaxSources, 16);
@@ -561,6 +759,20 @@ namespace Punchy.Terrain
             }
             if (quads.Length == 0)
                 lowY = highY = 0f;
+            // W-148 row 6: how thick the chunk water is at each metre corner, from its quads' glow (all of them, before the
+            // cut leaves the whole ones out; not water far above or below the player, a lake over a cave they're in).
+            System.Array.Clear(cutSurfaceViscosity, 0, cutSurfaceViscosity.Length);
+            for (int i = 0; i < quads.Length; i++)
+            {
+                var q = quads[i];
+                if (math.abs(q.A.Position.y - focus.y) > 12f) // sim: which water layer the player is in, not a view range
+                    continue;
+                var c = q.Cell - corner;
+                ThickenCorner(c, q.A.Glow);
+                ThickenCorner(c + new int2(1, 0), q.B.Glow);
+                ThickenCorner(c + new int2(0, 1), q.C.Glow);
+                ThickenCorner(c + new int2(1, 1), q.D.Glow);
+            }
             var pad = WaterSwells.BoundsPad + new float3(0f, 0.5f, 0f);
             var lo = new float3(corner.x, lowY, corner.y) - pad;
             var hi = new float3(corner.x + Span, highY, corner.y + Span) + pad;
@@ -645,6 +857,52 @@ namespace Punchy.Terrain
             cutPending = true;
         }
 
+        void ThickenCorner(int2 c, float2 glow)
+        {
+            if (math.any(c < 0) || math.any(c > Span))
+                return;
+            var i = c.y * (Span + 1) + c.x;
+            cutSurfaceViscosity[i] = (byte)math.max(cutSurfaceViscosity[i], (int)math.round(Viscosity(glow) * 255f));
+        }
+
+        /// <summary>W-148 row 6: the square's viscosity (the chunk water's, with the liquids near the player's height
+        /// added), uploaded for the field's step and copied for its sources.</summary>
+        void BuildViscosity(float focusY)
+        {
+            System.Array.Copy(surfaceViscosity, viscosityBytes, viscosityBytes.Length);
+            var lo = (float2)fieldCorner;
+            for (int l = 0; l < Liquids.Count; l++)
+            {
+                var liquid = Liquids[l];
+                if (liquid.Viscosity <= 0f || math.abs(liquid.Centre.y - focusY) > 4f)
+                    continue;
+                var c = liquid.Centre.xz - lo;
+                if (math.any(c < -liquid.Radius) || math.any(c > Span + liquid.Radius))
+                    continue;
+                var b = (int)math.round(liquid.Viscosity * 255f);
+                var from = math.clamp((int2)math.floor(c - liquid.Radius), 0, Span);
+                var to = math.clamp((int2)math.ceil(c + liquid.Radius), 0, Span);
+                for (int z = from.y; z <= to.y; z++)
+                for (int x = from.x; x <= to.x; x++)
+                {
+                    if (math.distancesq(new float2(x, z), c) > liquid.Radius * liquid.Radius)
+                        continue;
+                    var i = z * (Span + 1) + x;
+                    viscosityBytes[i] = (byte)math.max(viscosityBytes[i], b);
+                }
+            }
+            var most = 0;
+            for (int i = 0; i < viscosityBytes.Length; i++)
+                most = math.max(most, viscosityBytes[i]);
+            ViscosityMax = most / 255f;
+            viscosity.SetPixelData(viscosityBytes, 0);
+            viscosity.Apply(false, false);
+            viscosityField.CopyFrom(viscosityBytes);
+            viscosityDirty = false;
+            viscosityVersion = LiquidsVersion;
+            viscosityY = focusY;
+        }
+
         /// <summary>The field's weight at each corner (weightBytes): 0 at a corner touching a cell the sheet doesn't
         /// cover (the chunk water's, dry, or past the square), then up by 0.4 a step (8-way) further in.</summary>
         void Weigh()
@@ -716,6 +974,8 @@ namespace Punchy.Terrain
             weight.SetPixelData(weightBytes, 0);
             weight.Apply(false, false);
             Shader.SetGlobalTexture(WeightId, weight);
+            System.Array.Copy(cutSurfaceViscosity, surfaceViscosity, surfaceViscosity.Length);
+            viscosityDirty = true;
             Shader.SetGlobalVector(RectId, new Vector4(cutCorner.x, cutCorner.y, cutCorner.x + Span, cutCorner.y + Span));
             // (The field's texels move with the square, whole texels at a time; the shader's corner moves with them.)
             if (!fieldCorner.Equals(NoCorner))
@@ -725,8 +985,10 @@ namespace Punchy.Terrain
 
         /// <summary>Steps the wave field at 60 steps a second (at least once if it has moved, so its texels and the
         /// square stay together), pressed by this frame's creatures.</summary>
-        void StepField()
+        void StepField(float focusY)
         {
+            if (viscosityDirty || viscosityVersion != LiquidsVersion || math.abs(focusY - viscosityY) > 2f)
+                BuildViscosity(focusY);
             if (!fieldClear)
             {
                 var active = RenderTexture.active;
@@ -749,18 +1011,43 @@ namespace Punchy.Terrain
                 var presses = new NativeList<float4>(16, Allocator.TempJob);
                 var splashes = new NativeList<float4>(4, Allocator.TempJob);
                 var now = (float)SystemAPI.Time.ElapsedTime;
+                // (The spouts' clock: the shared one their plumes erupt by.)
+                var clock = Shader.GetGlobalFloat(ClockId);
+                if (clock < lastClock || clock - lastClock > 1f)
+                    lastClock = clock;
+                var vents = new NativeArray<Vent>(Vents.Count, Allocator.TempJob);
+                for (int v = 0; v < Vents.Count; v++)
+                    vents[v] = Vents[v];
+                var ventCount = new NativeReference<int2>(Allocator.TempJob);
+                var swimmerSplashes = new NativeReference<int2>(Allocator.TempJob);
+                var knocks = new NativeArray<float4>(Knocks.Count, Allocator.TempJob);
+                for (int k = 0; k < Knocks.Count; k++)
+                    knocks[k] = Knocks[k];
+                Knocks.Clear();
                 CreatureSnapshotSystem.Get(World, creatureQuery, out var states, out var bodies, out var entities);
                 new SourceJob
                 {
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
-                    Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes
+                    Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes,
+                    Vents = vents, Clock = clock, LastClock = lastClock, VentCount = ventCount, SwimmerSplashes = swimmerSplashes, Knocks = knocks, Viscosity = viscosityField,
+                    Rebound = WadeRebound
                 }.Run();
+                knocks.Dispose();
                 CreatureSnapshotSystem.Release(World, states, bodies, entities);
+                VentsInField = ventCount.Value.x;
+                VentSplashes = ventCount.Value.y;
+                VentSplashTotal += VentSplashes;
+                vents.Dispose();
+                ventCount.Dispose();
+                SwimmerSplashTotal += swimmerSplashes.Value;
+                swimmerSplashes.Dispose();
                 lastSourceTime = now;
+                lastClock = clock;
                 if (lastAt.Count > 2000)
                     lastAt.Clear();
                 // (Dimples first, splashes after: later steps leave the splashes out, as they knock the surface once.)
                 var pressCount = presses.Length;
+                Presses = pressCount;
                 var count = math.min(MaxSources, pressCount + splashes.Length);
                 for (int i = 0; i < count; i++)
                     sourceArray[i] = i < pressCount ? presses[i] : splashes[i - pressCount];
@@ -772,8 +1059,13 @@ namespace Punchy.Terrain
                 compute.SetInt(SizeId, Size);
                 var courant = WaveSpeed * StepTime * TexelsPerMetre;
                 compute.SetFloat(CourantId, courant * courant);
-                compute.SetFloat(DampingId, 0.994f);
-                compute.SetFloat(DecayId, 0.999f);
+                compute.SetFloat(DampingId, WaterDamping);
+                compute.SetFloat(DecayId, WaterDecay);
+                // (W-148 row 6: thicker liquid, by the viscosity texture, lies between these and water's.)
+                compute.SetFloat(ThickSpeedId, ThickSpeed);
+                compute.SetFloat(ThickDampingId, ThickDamping);
+                compute.SetFloat(ThickDecayId, ThickDecay);
+                compute.SetTexture(kernel, ViscosityId, viscosity);
                 compute.SetBuffer(kernel, SourcesId, sourceBuffer);
                 for (int s = 0; s < steps; s++)
                 {

@@ -15,13 +15,27 @@ using UnityEngine.InputSystem.LowLevel;
 
 namespace Punchy.Items
 {
-    /// <summary>One kind of item (#26): its name, the colour it's drawn and shown in, how many stack, its weight (kg).</summary>
+    /// <summary>One kind of item (#26): its name, the colour it's drawn in and a second colour for a part of it (ItemMeshes),
+    /// how many stack, its weight (kg).</summary>
     public struct ItemDef
     {
         public string Name;
-        public Color Colour;
+        public Color Colour, Accent;
         public int Stack;
         public float Weight;
+        /// <summary>P-23: where it's worn (None: not gear), and what it gives: the reach of its light (m), of the wearer (m),
+        /// its cover from the weather (0..1), extra inventory slots.</summary>
+        public GearSlot Slot;
+        public float Light, Reach, Cover;
+        public int Slots;
+        /// <summary>P-28: a weapon's numbers (the game has no fighting yet, so only the swing uses Speed: swings a
+        /// second), whether it takes both hands, and how the body draws it (CreatureWeapon).</summary>
+        public float Damage, Speed;
+        public bool TwoHanded;
+        public byte Weapon;
+        /// <summary>P-28 row 2: armour's protection (a number only, for now), and how the body draws it (CreatureArmour).</summary>
+        public float Armour;
+        public byte Look;
     }
 
     /// <summary>The item table (#26, P-11). An item's id is its index here; never reorder, only append.</summary>
@@ -31,14 +45,43 @@ namespace Punchy.Items
         {
             new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f },
             new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f },
-            new ItemDef { Name = "Berry", Colour = new Color(0.75f, 0.1f, 0.3f), Stack = 30, Weight = 0.02f },
-            new ItemDef { Name = "Mushroom", Colour = new Color(0.85f, 0.75f, 0.6f), Stack = 20, Weight = 0.05f },
+            new ItemDef { Name = "Berry", Colour = new Color(0.75f, 0.1f, 0.3f), Accent = new Color(0.25f, 0.5f, 0.2f), Stack = 30, Weight = 0.02f },
+            new ItemDef { Name = "Mushroom", Colour = new Color(0.72f, 0.32f, 0.2f), Accent = new Color(0.9f, 0.85f, 0.72f), Stack = 20, Weight = 0.05f },
             new ItemDef { Name = "Shell", Colour = new Color(0.95f, 0.85f, 0.8f), Stack = 20, Weight = 0.05f },
-            new ItemDef { Name = "Fish", Colour = new Color(0.4f, 0.6f, 0.75f), Stack = 5, Weight = 0.8f },
+            new ItemDef { Name = "Fish", Colour = new Color(0.4f, 0.6f, 0.75f), Accent = new Color(0.3f, 0.42f, 0.55f), Stack = 5, Weight = 0.8f },
             new ItemDef { Name = "Coin", Colour = new Color(1f, 0.8f, 0.2f), Stack = 99, Weight = 0.01f },
             new ItemDef { Name = "Key", Colour = new Color(0.8f, 0.7f, 0.3f), Stack = 5, Weight = 0.05f },
+            new ItemDef { Name = "Torch", Colour = new Color(0.42f, 0.28f, 0.15f), Accent = new Color(1f, 0.55f, 0.15f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Hand, Light = 11f },
+            new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f },
+            new ItemDef { Name = "Hat", Colour = new Color(0.62f, 0.5f, 0.3f), Accent = new Color(0.36f, 0.24f, 0.16f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.3f },
+            new ItemDef { Name = "Pack", Colour = new Color(0.42f, 0.33f, 0.2f), Accent = new Color(0.25f, 0.18f, 0.12f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Back, Slots = 8 },
+            new ItemDef { Name = "Club", Colour = new Color(0.45f, 0.3f, 0.17f), Accent = new Color(0.3f, 0.2f, 0.12f), Stack = 1, Weight = 1.4f, Slot = GearSlot.Hand, Damage = 6f, Reach = 0.9f, Speed = 1.1f, Weapon = Punchy.Fauna.CreatureWeapon.Club },
+            new ItemDef { Name = "Spear", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1.9f, Speed = 0.8f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Spear },
+            new ItemDef { Name = "Sword", Colour = new Color(0.7f, 0.72f, 0.75f), Accent = new Color(0.4f, 0.26f, 0.14f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 9f, Reach = 1.1f, Speed = 1.4f, Weapon = Punchy.Fauna.CreatureWeapon.Sword },
+            new ItemDef { Name = "Bow", Colour = new Color(0.55f, 0.38f, 0.2f), Accent = new Color(0.88f, 0.85f, 0.75f), Stack = 1, Weight = 0.9f, Slot = GearSlot.Hand, Damage = 7f, Reach = 25f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bow },
+            new ItemDef { Name = "Arrow", Colour = new Color(0.6f, 0.45f, 0.28f), Accent = new Color(0.9f, 0.9f, 0.88f), Stack = 30, Weight = 0.03f },
+            new ItemDef { Name = "Cap", Colour = new Color(0.45f, 0.3f, 0.18f), Accent = new Color(0.32f, 0.2f, 0.12f), Stack = 1, Weight = 0.5f, Slot = GearSlot.Head, Armour = 1f, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Cap },
+            new ItemDef { Name = "Helm", Colour = new Color(0.55f, 0.57f, 0.6f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.Helm },
+            new ItemDef { Name = "Jerkin", Colour = new Color(0.47f, 0.31f, 0.18f), Accent = new Color(0.3f, 0.19f, 0.1f), Stack = 1, Weight = 3f, Slot = GearSlot.Body, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Jerkin },
+            new ItemDef { Name = "Chainmail", Colour = new Color(0.52f, 0.54f, 0.57f), Accent = new Color(0.36f, 0.37f, 0.4f), Stack = 1, Weight = 9f, Slot = GearSlot.Body, Armour = 5f, Look = Punchy.Fauna.CreatureArmour.Chain },
+            new ItemDef { Name = "Greaves", Colour = new Color(0.5f, 0.52f, 0.55f), Accent = new Color(0.36f, 0.24f, 0.14f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Legs, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Greaves },
+            new ItemDef { Name = "Boots", Colour = new Color(0.33f, 0.21f, 0.12f), Accent = new Color(0.22f, 0.14f, 0.08f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Feet, Armour = 1f, Look = Punchy.Fauna.CreatureArmour.Boots },
+            new ItemDef { Name = "Tunic", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.Tunic },
+            new ItemDef { Name = "Robe", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Body, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Robe },
+            new ItemDef { Name = "Cloak", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1f, Slot = GearSlot.Back, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Cloak },
+            new ItemDef { Name = "Scarf", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.15f, Slot = GearSlot.Neck, Cover = 0.05f, Look = Punchy.Fauna.CreatureArmour.Scarf },
+            new ItemDef { Name = "Hood", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Hood },
+            new ItemDef { Name = "Woolcap", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Cover = 0.15f, Look = Punchy.Fauna.CreatureArmour.Woolcap },
+            new ItemDef { Name = "Brimhat", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.3f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.Brimhat },
+            // Item rows (Zach 11-10: never idle, more weapons and wear in small rows).
+            new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe },
+            new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer },
+            // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
+            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod },
         };
-        public const byte Key = 7;
+        public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
+        /// <summary>The fishing rod (P-41: in every player's start pack).</summary>
+        public static readonly byte Rod = (byte)System.Array.FindIndex(Items, d => d.Name == "Rod");
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>
@@ -90,7 +133,7 @@ namespace Punchy.Items
         readonly HashSet<int> gone = new HashSet<int>();
         readonly Dictionary<int, WorldItem> added = new Dictionary<int, WorldItem>();
         readonly HashSet<int> openedChests = new HashSet<int>();
-        readonly (byte item, int count)[] slots = new (byte, int)[16];
+        readonly (byte item, int count)[] slots = new (byte, int)[BaseSlots + MaxExtraSlots];
         BlobAssetReference<AnchorSetBlob> seededFor;
         readonly HashSet<Entity> sentTo = new HashSet<Entity>();
         World server, client;
@@ -128,6 +171,7 @@ namespace Punchy.Items
             Debug.Log("Items: table of " + ItemTable.Items.Length + ": " + string.Join(", ", names));
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
+            instance.StartPack();
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-pickup");
             if (at >= 0 && at + 1 < args.Length)
@@ -136,12 +180,15 @@ namespace Punchy.Items
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
             instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
             instance.padTest = System.Array.IndexOf(args, "-invpad") >= 0;
+            instance.itemRowArg = System.Array.IndexOf(args, "-itemrow") >= 0;
             var ca = System.Array.IndexOf(args, "-container");
             if (ca >= 0 && ca + 1 < args.Length)
                 int.TryParse(args[ca + 1], out instance.containerArg);
             instance.putArg = System.Array.IndexOf(args, "-putitem") >= 0;
             instance.takeArg = System.Array.IndexOf(args, "-takeitem") >= 0;
             instance.QuestArgs(args);
+            instance.GearArgs(args);
+            instance.FishArgs(args);
             instance.CheckArgs(args);
         }
 
@@ -189,11 +236,13 @@ namespace Punchy.Items
                     added.Clear();
                     openedChests.Clear();
                     seededFor = default;
+                    rodsFor = default;
                 }
             }
             if (!TryTerrain(out var terrain))
                 return;
             RegisterChests();
+            LayRods(terrain);
             if (Hosting)
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())
@@ -201,7 +250,7 @@ namespace Punchy.Items
 
             FindTarget();
             // (The Use key goes to the nearer of a door and an item, judged on last frame's distances.)
-            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && TargetDistance <= Doors.FacingDistance && UseKey.WasPressed())
+            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && TargetDistance <= Doors.FacingDistance && TargetDistance <= FolkTalk.TargetDistance && UseKey.WasPressed())
             {
                 if (target >= 0) Pickup(target);
                 else if (targetChest >= 0) OpenChest(targetChest);
@@ -213,6 +262,14 @@ namespace Punchy.Items
             ContainerTests();
             UpdateQuests(terrain);
             Tests(terrain);
+            GearTest();
+            GearLootTest();
+            SwingKeys();
+            FishKeys(terrain);
+            SyncHair();
+            ApplyGear();
+            DrawFishing(terrain);
+            ArmLog();
             PadTest();
             UpdateInventoryKeys();
             Draw();
@@ -305,7 +362,7 @@ namespace Punchy.Items
                 (target, targetChest) = (-1, -1);
             else
                 targetContainer = -1;
-            if (TargetDistance > Doors.FacingDistance)
+            if (TargetDistance > Doors.FacingDistance || TargetDistance > FolkTalk.TargetDistance)
                 return;
             var key = UseKey.Name;
             var item = target >= 0 ? world[target] : default;
@@ -372,8 +429,24 @@ namespace Punchy.Items
             return Entity.Null;
         }
 
+        /// <summary>What the inventory and everything on weigh now (kg).</summary>
+        float CarriedWeight()
+        {
+            var total = WornWeight();
+            foreach (var slot in slots)
+                if (slot.item != 255)
+                    total += ItemTable.Items[slot.item].Weight * slot.count;
+            return total;
+        }
+
         void Pickup(int uid)
         {
+            // (P-27: only stops anything when stats.json sets enforceCarry.)
+            if (world.TryGetValue(uid, out var lying) && !Punchy.Player.PlayerStats.CanCarry(CarriedWeight() + ItemTable.Items[lying.Item].Weight * lying.Count))
+            {
+                Debug.Log($"Items: too heavy to pick up item {uid}");
+                return;
+            }
             if (Joined)
             {
                 SendToHost(new PickupRpc { Uid = uid });
@@ -399,14 +472,14 @@ namespace Punchy.Items
         void Grant(byte item, int count)
         {
             var stack = ItemTable.Items[item].Stack;
-            for (int i = 0; i < slots.Length && count > 0; i++)
+            for (int i = 0; i < Capacity && count > 0; i++)
                 if (slots[i].item == item && slots[i].count < stack)
                 {
                     var n = math.min(count, stack - slots[i].count);
                     slots[i].count += n;
                     count -= n;
                 }
-            for (int i = 0; i < slots.Length && count > 0; i++)
+            for (int i = 0; i < Capacity && count > 0; i++)
                 if (slots[i].item == 255)
                 {
                     var n = math.min(count, stack);
@@ -512,6 +585,11 @@ namespace Punchy.Items
         void Serve()
         {
             var em = server.EntityManager;
+            ServeGear(em);
+            ServeArmour(em);
+            ServeSlots(em);
+            ServeSwings(em);
+            ServeFish(em);
             using (var rs = Q(em, ComponentType.ReadWrite<PickupRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
@@ -580,6 +658,11 @@ namespace Punchy.Items
             Each(em, joined, onContainerSlot ??= ReceiveContainer);
             Each(em, joined, onQuestState ??= ReceiveQuestState);
             Each(em, joined, onChestOpened ??= OnChestOpened);
+            Each(em, joined, onGearState ??= OnGearState);
+            Each(em, joined, onArmourState ??= OnArmourState);
+            Each(em, joined, onSlotState ??= OnSlotState);
+            Each(em, joined, onSwing ??= OnSwing);
+            Each(em, joined, onFish ??= OnFish);
         }
 
         System.Action<ItemGoneRpc> onItemGone;
@@ -588,6 +671,11 @@ namespace Punchy.Items
         System.Action<ContainerSlotRpc> onContainerSlot;
         System.Action<QuestStateRpc> onQuestState;
         System.Action<ChestOpenedRpc> onChestOpened;
+        System.Action<GearStateRpc> onGearState;
+        System.Action<ArmourStateRpc> onArmourState;
+        System.Action<SlotStateRpc> onSlotState;
+        System.Action<SwingRpc> onSwing;
+        System.Action<FishRpc> onFish;
 
         /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
         void Each<T>(EntityManager em, bool joined, System.Action<T> act) where T : unmanaged, IRpcCommand
@@ -626,8 +714,35 @@ namespace Punchy.Items
 
         // ------------------------------------------------------------------ tests, keys, drawing
 
+        bool itemRowArg;
+
+        /// <summary>"-itemrow" (P-23): one of every item in a row 1.8 m in front of the player and in the inventory, the camera close.</summary>
+        void ItemRow(in TerrainSource terrain)
+        {
+            if (!itemRowArg || Time.realtimeSinceStartup < 20f || !TryPlayer(out var player))
+                return;
+            itemRowArg = false;
+            var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
+            var right = new float2(forward.y, -forward.x);
+            var count = ItemTable.Items.Length;
+            for (int i = 0; i < count; i++)
+            {
+                var xz = player.Position.xz + forward * 1.8f + right * ((i - (count - 1) * 0.5f) * 0.5f);
+                Spawn((byte)i, 1, new float3(xz.x, terrain.SampleHeight(xz), xz.y));
+                Grant((byte)i, 1);
+            }
+            var cam = FindAnyObjectByType<Punchy.CameraRig.ThirdPersonCamera>();
+            if (cam != null)
+            {
+                cam.Distance = 3.5f;
+                cam.SetView(math.degrees(math.atan2(forward.x, forward.y)), 34f);
+            }
+            Debug.Log($"Items: -itemrow: {count} items spawned; inventory: {DescribeInventory()}");
+        }
+
         void Tests(in TerrainSource terrain)
         {
+            ItemRow(terrain);
             if (pickupArg <= 0 && !dropArg && !openChestArg)
                 return;
             testAt = testAt == 0f ? Time.realtimeSinceStartup + 30f : testAt;
@@ -710,16 +825,17 @@ namespace Punchy.Items
             if (nav.Active && nav.Focus != lastFocus)
             {
                 lastFocus = nav.Focus;
-                (byte item, int count) s = nav.Focus < slots.Length ? slots[nav.Focus] : ((byte)255, 0);
+                (byte item, int count) s = nav.Focus < Capacity ? slots[nav.Focus] : ((byte)255, 0);
                 Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
             }
             selected = nav.Focus;
             if (target < 0 && targetChest < 0 && targetContainer < 0 && UseKey.WasPressed())
             {
-                if (openContainer >= 0 && selected >= slots.Length) TakeFromContainer(openContainer, selected - slots.Length);
+                if (openContainer >= 0 && selected >= Capacity) TakeFromContainer(openContainer, selected - Capacity);
                 else if (openContainer >= 0) Put(selected);
-                else Drop(selected);
+                else if (selected < Capacity) Drop(selected);
             }
+            EquipKeys();
         }
 
         /// <summary>
@@ -855,23 +971,25 @@ namespace Punchy.Items
                 if (shown.ContainsKey(uid))
                     continue;
                 var it = world[uid];
-                var go = GameObject.CreatePrimitive(it.Item == 2 || it.Item == 6 ? PrimitiveType.Sphere : PrimitiveType.Cube);
-                Destroy(go.GetComponent<Collider>());
-                go.name = "Item " + uid;
-                go.hideFlags = HideFlags.HideInHierarchy;
-                var size = it.Item == 0 ? new Vector3(0.08f, 0.08f, 0.6f) : it.Item == 5 ? new Vector3(0.15f, 0.12f, 0.45f) : Vector3.one * 0.2f;
-                go.transform.localScale = size;
-                go.transform.position = (Vector3)it.Pos + Vector3.up * (size.y * 0.5f + 0.02f);
+                var go = new GameObject("Item " + uid) { hideFlags = HideFlags.HideInHierarchy };
+                var mesh = ItemMeshes.Of(it.Item);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var r = go.AddComponent<MeshRenderer>();
+                go.transform.position = (Vector3)it.Pos + Vector3.up * 0.02f;
                 go.transform.rotation = Quaternion.Euler(0f, uid * 37 % 360, 0f);
                 // (Items/Resources/ItemMaterial: the pipeline's own lit material. A primitive's default material has no URP
                 // shader in a player build, and drew magenta.)
-                var r = go.GetComponent<Renderer>();
                 if (itemMaterial == null) itemMaterial = Resources.Load<Material>("ItemMaterial");   // (not ??=: it misses a destroyed Unity object)
                 if (itemMaterial != null)
-                    r.sharedMaterial = itemMaterial;
+                    r.sharedMaterials = mesh.subMeshCount > 1 ? new[] { itemMaterial, itemMaterial } : new[] { itemMaterial };
                 block ??= new MaterialPropertyBlock();
                 block.SetColor(BaseColorId, ItemTable.Items[it.Item].Colour);
-                r.SetPropertyBlock(block);
+                r.SetPropertyBlock(block, 0);
+                if (mesh.subMeshCount > 1)
+                {
+                    block.SetColor(BaseColorId, ItemTable.Items[it.Item].Accent);
+                    r.SetPropertyBlock(block, 1);
+                }
                 shown[uid] = go;
             }
         }
@@ -901,13 +1019,14 @@ namespace Punchy.Items
             slotStyle ??= new GUIStyle(GUI.skin.button) { fontSize = 13, alignment = TextAnchor.LowerCenter, wordWrap = true };
             const float cell = 74f, gap = 6f;
             var w = 4 * cell + 5 * gap;
-            var area = new Rect(Screen.width - w - 20f, Screen.height * 0.25f - 28f, w, 4 * (cell + gap) + gap + 28f);
+            var rows = Capacity / 4;
+            var area = new Rect(Screen.width - w - 20f, Mathf.Max(8f, Screen.height * 0.25f - 28f - (rows - 4) * cell), w, rows * (cell + gap) + gap + 28f);
             // (P-20: the button for the device in use: the Use key, or A on a pad.)
             GUI.Box(area, $"Inventory   ({(InputGlyphs.Gamepad ? InputGlyphs.Path("<Gamepad>/buttonSouth") ?? "A" : UseKey.Current.ToString())}: drop one)");
             var colour = GUI.color;
             nav.Begin();
             GUILayout.BeginArea(new Rect(area.x + gap, area.y + 28f, w - 2 * gap, area.height - 28f));
-            for (int row = 0; row < 4; row++)
+            for (int row = 0; row < rows; row++)
             {
                 GUILayout.BeginHorizontal();
                 for (int col = 0; col < 4; col++)
@@ -920,11 +1039,12 @@ namespace Punchy.Items
                         if (openContainer >= 0) Put(i);
                         else Drop(i);
                     }
+                    RightClickEquip(GUILayoutUtility.GetLastRect(), i);
                     if (s.item != 255 && Event.current.type == EventType.Repaint)
                     {
                         var rect = GUILayoutUtility.GetLastRect();
-                        GUI.color = ItemTable.Items[s.item].Colour;
-                        GUI.DrawTexture(new Rect(rect.x + cell * 0.3f, rect.y + 8f, cell * 0.4f, cell * 0.35f), Texture2D.whiteTexture);
+                        GUI.color = Color.white;
+                        GUI.DrawTexture(new Rect(rect.x + cell * 0.2f, rect.y + 2f, cell * 0.6f, cell * 0.6f), ItemMeshes.Icon(s.item), ScaleMode.ScaleToFit);
                         GUI.color = colour;
                     }
                     GUILayout.Space(gap);
@@ -934,6 +1054,7 @@ namespace Punchy.Items
             }
             GUILayout.EndArea();
             DrawContainerPane(cell, gap, area);
+            DrawWorn(area, cell, gap);
             DrawQuestLog(area);
             nav.End();
             GUI.color = colour;

@@ -59,17 +59,28 @@ namespace Punchy.Items
             var c = new Container { Name = name, Pos = pos, IsChest = isChest };
             for (int i = 0; i < ContainerSlots; i++)
                 c.Slots[i] = (255, 0);
+            RollContents(c, seed, isChest);
+            instance.containers[id] = c;
+        }
+
+        /// <summary>A container's seeded contents; a chest now and then holds a piece of gear (P-23 row 3).</summary>
+        static void RollContents(Container c, uint seed, bool isChest)
+        {
             var rng = Unity.Mathematics.Random.CreateFromIndex(math.max(seed, 1u));
             var n = isChest ? rng.NextInt(1, 4) : rng.NextInt(0, 4);
             for (int k = 0; k < n; k++)
             {
                 // (Coins and finds; a key or a purse of coins now and then: the surprise.)
                 var roll = rng.NextInt(0, 20);
+                if (isChest && roll == 19)
+                {
+                    c.Slots[k] = ((byte)rng.NextInt(ItemTable.Torch, ItemTable.Items.Length), 1);
+                    continue;
+                }
                 byte item = roll == 0 ? ItemTable.Key : roll < 6 ? (byte)6 : (byte)rng.NextInt(0, 6);
                 var count = item == 6 ? (roll == 1 ? 25 : rng.NextInt(2, 9)) : rng.NextInt(1, 3);
                 c.Slots[k] = (item, count);
             }
-            instance.containers[id] = c;
         }
 
         /// <summary>A container's contents as text ("Coin x4, Stick x1", "empty"), or "?" if there's none by that id.</summary>
@@ -118,7 +129,7 @@ namespace Punchy.Items
         /// <summary>One of the player's slot into the open container (the host decides where it goes).</summary>
         void Put(int slot)
         {
-            if (openContainer < 0 || slot < 0 || slot >= slots.Length || slots[slot].item == 255)
+            if (openContainer < 0 || slot < 0 || slot >= Capacity || slots[slot].item == 255)
                 return;
             var item = slots[slot].item;
             if (--slots[slot].count <= 0)
@@ -299,8 +310,8 @@ namespace Punchy.Items
                     if (s.item != 255 && Event.current.type == EventType.Repaint)
                     {
                         var rect = GUILayoutUtility.GetLastRect();
-                        GUI.color = ItemTable.Items[s.item].Colour;
-                        GUI.DrawTexture(new Rect(rect.x + cell * 0.3f, rect.y + 8f, cell * 0.4f, cell * 0.35f), Texture2D.whiteTexture);
+                        GUI.color = Color.white;
+                        GUI.DrawTexture(new Rect(rect.x + cell * 0.2f, rect.y + 2f, cell * 0.6f, cell * 0.6f), ItemMeshes.Icon(s.item), ScaleMode.ScaleToFit);
                         GUI.color = colour;
                     }
                     GUILayout.Space(gap);

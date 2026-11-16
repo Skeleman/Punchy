@@ -121,7 +121,7 @@ namespace Punchy.UI
         }
 
         /// <summary>The player's own action map, off while the menu is open (so A doesn't jump, nor the stick walk).</summary>
-        static void SetPlayerActions(bool on)
+        public static void SetPlayerActions(bool on)
         {
             var map = InputSystem.actions?.FindActionMap("Player");
             if (map == null || map.enabled == on)
@@ -140,7 +140,8 @@ namespace Punchy.UI
             var start = pad != null && pad.startButton.wasPressedThisFrame;
             if (!Open)
             {
-                if (start || keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+                // (Esc or B during a talk ends the talk: FolkTalk.)
+                if (!Overlay.Talking && (start || keyboard != null && keyboard.escapeKey.wasPressedThisFrame))
                     SetOpen(true);
                 return;
             }

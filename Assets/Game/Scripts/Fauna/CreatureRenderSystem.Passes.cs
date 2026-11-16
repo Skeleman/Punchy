@@ -164,7 +164,11 @@ namespace Punchy.Fauna
                 }
                 else
                     centre = part.Position + math.mul(part.Rotation, new float3(0f, 0f, part.Length * 0.5f));
-                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, torch ? TorchLight : LanternLight);
+                var carried = torch ? TorchLight : LanternLight;
+                // (A player's torch: its reach is the item's, ItemDef.Light.)
+                if (torch && states[i].Mode == CreatureMode.Puppet)
+                    carried.w = Punchy.Items.ItemTable.Items[Punchy.Items.ItemTable.Torch].Light;
+                Punchy.Settings.LightBudget.Add(Punchy.Settings.LightKind.Carried, entities[i].Index, centre, carried);
             }
             litTorches.Clear();
             litTorches.UnionWith(litNow);
@@ -335,7 +339,7 @@ namespace Punchy.Fauna
             var fur = Punchy.Settings.DetailPolicy.Tier(
                 Punchy.Settings.DetailPolicy.ScreenSize(Punchy.Settings.DetailPolicy.CreatureFurSize, distance, view.PixelsPerMetre),
                 Punchy.Settings.DetailPolicy.CreatureFur.Scaled(quality), first ? -1 : previous.Fur);
-            if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held)
+            if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held || state.Mode == CreatureMode.Ride)
                 return Punchy.Settings.DetailPolicy.Decision.Of(0, 0, true).With(fur, true);
             var size = CreatureMotion.ApparentSize(state, ref body.Blob.Value);
             var activity = math.max(math.saturate(state.Speed / math.max(size, 0.3f) / 3f), state.Fly > 0.5f ? 0.5f : 0f);
@@ -424,6 +428,9 @@ namespace Punchy.Fauna
         {
             [ReadOnly] public NativeArray<CreatureState> States;
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
+            [ReadOnly] public NativeArray<Entity> Entities;
+            /// <summary>P-25: the player's own body in first person (Entity.Null otherwise).</summary>
+            public Entity HideBody;
             public TerrainSource Terrain;
             public float3 CameraPosition, CameraForward;
             public float BehindCos;
@@ -440,6 +447,11 @@ namespace Punchy.Fauna
             public void Execute(int i)
             {
                 var state = States[i];
+                if (Entities[i] == HideBody)
+                {
+                    Keep[i] = false;
+                    return;
+                }
                 if (state.Mode == CreatureMode.Puppet)
                 {
                     Keep[i] = true;
@@ -491,6 +503,15 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<byte> PrevDecisions;
             public NativeArray<byte> Decisions;
             public NativeArray<int> GroupStarts;
+            /// <summary>A-114: this frame's time and number, and the items each body last held and those being put
+            /// away or taken out (TrackPocket).</summary>
+            public float Time;
+            public int Frame;
+            /// <summary>PocketScrub, and the count of moves started this frame (one slot, read after).</summary>
+            public float PocketScrub;
+            public NativeArray<int> PocketStarted;
+            public NativeParallelHashMap<Entity, PocketSeen> SeenHeld;
+            public NativeParallelHashMap<Entity, PocketMove> PocketMoves;
 
             public void Execute()
             {
@@ -513,7 +534,13 @@ namespace Punchy.Fauna
                         if (Keep[i] && DrawGroup(new Punchy.Settings.DetailPolicy.Decision { Packed = decided[i] }) == group)
                         {
                             Bodies[keep] = AllBodies[i];
-                            States[keep] = AllStates[i];
+                            var kept = AllStates[i];
+                            var keptBody = AllBodies[i];
+                            var started = PocketStarted[0];
+                            TrackPocket(ref kept, ref keptBody.Blob.Value, AllEntities[i], Time, PocketScrub, Frame, SeenHeld,
+                                        PocketMoves, ref started);
+                            PocketStarted[0] = started;
+                            States[keep] = kept;
                             Entities[keep] = AllEntities[i];
                             Decisions[keep] = decided[i];
                             keep++;
@@ -530,7 +557,7 @@ namespace Punchy.Fauna
                         GroupStarts[nextGroup++] = total;
                     Offsets[i] = total;
                     total += body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0) + LairCount(ref body.Blob.Value) +
-                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task);
+                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state) + HairCount(state);
                     if (state.Mode == CreatureMode.Roost && state.Stage == 200)
                         Hanging.Add(state.Position);
                     // (Bodies of players emoting: their gestures scatter colonies.)

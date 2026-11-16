@@ -218,9 +218,12 @@ namespace Punchy.Fauna
 
         // ------------------------------------------------------------------------------- cave fish
 
-        /// <summary>How near the camera the caves' pools have their fish drawn (m), and the parts of each fish.</summary>
-        static float CaveFishRange => Punchy.Settings.GraphicsSettings.DetailRange(35f);
+        /// <summary>How near the camera the caves' pools have their fish drawn, past the rim (m: W-135 row 3, a fish's size
+        /// by DetailPolicy.CaveFishPixels, x Detail; 35 m at the reference view and Detail 1), and the parts of each fish.</summary>
+        static float CaveFishRange => Punchy.Settings.DetailPolicy.ExtraReach(Punchy.Settings.DetailPolicy.CaveFishSize, Punchy.Settings.DetailPolicy.CaveFishPixels);
         const int FishParts = 3;
+        /// <summary>The pools whose fish were drawn at the last gather (DetailPolicy.Within holds them).</summary>
+        readonly System.Collections.Generic.HashSet<int> fishPoolsOn = new System.Collections.Generic.HashSet<int>();
 
         /// <summary>The water pools in range this frame: centre (surface), radius, depth; and how many fish each holds.</summary>
         readonly System.Collections.Generic.List<(float3 centre, float radius, float depth, int index, int fish)> fishPools = new System.Collections.Generic.List<(float3, float, float, int, int)>();
@@ -236,11 +239,19 @@ namespace Punchy.Fauna
                 return 0;
             ref var set = ref terrain.Caves.Value;
             var count = 0;
+            var range = CaveFishRange;
             for (int i = 0; i < set.Pools.Length; i++)
             {
                 ref var pool = ref set.Pools[i];
-                if (pool.Lava > 0.5f || pool.Radius < 0.6f || pool.Depth < 0.3f || math.distance(pool.Centre, camera) > CaveFishRange + pool.Radius)
+                if (pool.Lava > 0.5f || pool.Radius < 0.6f || pool.Depth < 0.3f)
                     continue;
+                var on = Punchy.Settings.DetailPolicy.Within(math.distance(pool.Centre, camera) - pool.Radius, range, fishPoolsOn.Contains(i));
+                if (!on)
+                {
+                    fishPoolsOn.Remove(i);
+                    continue;
+                }
+                fishPoolsOn.Add(i);
                 var fish = math.clamp((int)math.round(pool.Radius * 1.2f), 1, 4);
                 fishPools.Add((pool.Centre, pool.Radius, pool.Depth, i, fish));
                 count += fish;

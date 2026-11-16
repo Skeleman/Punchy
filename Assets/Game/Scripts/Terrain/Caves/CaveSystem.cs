@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Punchy.Settings;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -44,13 +45,13 @@ namespace Punchy.Terrain
         public static float Underground { get; private set; }
 
         /// <summary>
-        /// How completely the surface world is out of sight, 0..1: Underground, faded out near any cave mouth (0 within
-        /// SurfaceFadeNear of a mouth, 1 past SurfaceFadeFar), so a view out of a mouth still shows the outside. Systems
-        /// drawing things on the surface (flora, terrain beyond the camera's own neighbourhood, creatures) skip them at
-        /// 1. The one rule everyone keys on.
+        /// How completely the surface world is out of sight, 0..1: Underground, faded out near any cave mouth (0 while
+        /// the nearest mouth looks bigger than DetailPolicy.SurfaceShownPixels, 1 once smaller than SurfaceHiddenPixels:
+        /// 25 m and 45 m at the reference view), so a view out of a mouth still shows the outside. Systems drawing things
+        /// on the surface (flora, terrain beyond the camera's own neighbourhood, creatures) skip them at 1. The one rule
+        /// everyone keys on.
         /// </summary>
         public static float SurfaceHidden { get; private set; }
-        const float SurfaceFadeNear = 25f, SurfaceFadeFar = 45f;
 
         /// <summary>
         /// Whether every cave chunk in range of the camera is built and nothing is queued or building: what tools that
@@ -63,7 +64,7 @@ namespace Punchy.Terrain
                 if (wanted.Count > 0 || dying.Count > 0)
                     return false;
                 foreach (var b in chunks.Values)
-                    if (b.Pending)
+                    if (b.Pending || b.Next != null)
                         return false;
                 return true;
             }
@@ -83,13 +84,51 @@ namespace Punchy.Terrain
             public bool CastsShadows;
             /// <summary>Wholly under the ground and well away from every mouth: nothing outside a cave can see it.</summary>
             public bool Buried;
+            /// <summary>On a road tunnel's straight run from a portal (InPortalSight) or a cave's run in from its mouth
+            /// (W-145, mouthSight): seen from outside however deep it lies, so it's never buried and the surface skip
+            /// leaves it to the screen test.</summary>
+            public bool InSight;
             /// <summary>Which caves' walls reach it, as bits (cave index mod 64; a shared bit only ever draws more).</summary>
             public ulong Caves;
             public int Triangles;
+            /// <summary>W-135: the box round its walls that lie open to the sky (where the terrain is cut for a mouth),
+            /// [0] min and [1] max; min above max when it has none. Written by MeshJob.</summary>
+            public NativeArray<float3> Opening;
+            /// <summary>Its opening box (copied out of Opening on upload), and whether it has one.</summary>
+            public Bounds OpeningBounds;
+            public bool Opens;
+            /// <summary>Whether its opening counted as in view last frame (the surface-side skip's hysteresis).</summary>
+            public bool OpeningSeen;
+            /// <summary>W-135 row 2: its wall level (0: Voxel, 1: twice it, 2: four times), and the rebuild at another
+            /// level in flight, swapped in once uploaded so the old walls draw until then.</summary>
+            public int Level;
+            public Built Next;
+            /// <summary>W-135 row 4: the contacts its walls are darkened round (its build's own copy), and the hash of the
+            /// chunk's contact list it was built with, so a chunk whose list has changed since is rebuilt.</summary>
+            public NativeArray<ContactShade.Contact> Contacts;
+            public uint ContactHash;
+            /// <summary>W-135 row 6: what the surface skip made of it last frame (0 hidden, 1 shadow only, 2 drawn; -1 not yet),
+            /// to count flips.</summary>
+            public int LastSeen = -1;
+            /// <summary>W-145: whether it was drawn on screen last frame (seen through an opening or from inside, in the
+            /// frustum), and whether it ever was: counted only while CountReveals is on.</summary>
+            public bool Drawn, EverDrawn;
+            /// <summary>W-135 row 6: the least cave distance among its field's points (written by MeshJob), and whether
+            /// it came out empty with the cave too far off for a finer grid to find a wall either (never rebuilt finer).</summary>
+            public NativeArray<float> Gap;
+            public bool Clear;
 
             public void Dispose()
             {
+                if (Next != null)
+                {
+                    Next.Dispose();
+                    Next = null;
+                }
                 Job.Complete();
+                if (Opening.IsCreated) Opening.Dispose();
+                if (Gap.IsCreated) Gap.Dispose();
+                if (Contacts.IsCreated) Contacts.Dispose();
                 if (Field.IsCreated) Field.Dispose();
                 if (CaveField.IsCreated) CaveField.Dispose();
                 if (Surface.IsCreated) Surface.Dispose();
@@ -111,6 +150,11 @@ namespace Punchy.Terrain
         [Tooltip("Cave chunks building at once at most. Each holds a few MB of fields while it builds, and too many " +
                  "crowd the terrain's own jobs off the workers.")]
         [Min(1)] public int MaxBuilding = 4;
+        [Tooltip("W-135 row 6: chunks rebuilt (at another wall level, or for a changed contact list) started per frame at " +
+                 "most, and in flight at once. A finer rebuild is a new chunk's whole cost (a level-0 field is about 300k " +
+                 "points), so walking up to a mouth they're spread out, not started two a frame.")]
+        [Min(1)] public int RebuildsPerFrame = 1;
+        [Min(1)] public int MaxRebuilding = 2;
         [Tooltip("Above this camera speed (m/s: gliding, riding) caves build only within Fast Radius, one chunk at a " +
                  "time: cave walls can't be seen from the air, and their jobs would land on the frames the terrain is " +
                  "meshing in.")]
@@ -157,6 +201,7 @@ namespace Punchy.Terrain
         static readonly int DetailReadyId = Shader.PropertyToID("_PunchyCaveDetailReady");
         static readonly int FloraInCaveId = Shader.PropertyToID("_FloraInCave");
         static readonly int UnderRockId = Shader.PropertyToID("_UnderRock");
+        static readonly int LatticeFieldId = Shader.PropertyToID("_LatticeField");
         static Texture2D detail;
 
         void OnEnable()
@@ -283,8 +328,11 @@ namespace Punchy.Terrain
             foreach (var c in dying)
                 c.Dispose();
             dying.Clear();
+            ReleaseContacts();
             columns.Clear();
             chunkCaves.Clear();
+            mouthSight.Clear();
+            mouthRuns.Clear();
             DisposeIndex();
             indexed = false;
             ReleaseLandmarkPools();
@@ -300,9 +348,7 @@ namespace Punchy.Terrain
                 if (l.Light != null) Destroy(l.Light.gameObject);
             otherLanterns.Clear();
             Punchy.Settings.LightBudget.ClearSlots();
-            foreach (var m in streamMeshes)
-                if (m != null) Destroy(m);
-            streamMeshes.Clear();
+            ReleaseCaveWater();
             ReleasePlants();
             if (floraMaterial != null)
                 Destroy(floraMaterial);
@@ -310,6 +356,9 @@ namespace Punchy.Terrain
             if (caveWater != null)
                 Destroy(caveWater);
             caveWater = null;
+            if (landmarkWater != null)
+                Destroy(landmarkWater);
+            landmarkWater = null;
             ReleaseBatFolk();
             ReleaseRooms();
             Shader.SetGlobalVector(LanternId, Vector4.zero);
@@ -394,7 +443,11 @@ namespace Punchy.Terrain
         // Comparers made once: List.Sort(Comparison) wraps the delegate in a new comparer on every call, every frame.
         static readonly Comparer<(float distance, int pool)> PoolsByDistance =
             Comparer<(float distance, int pool)>.Create((a, b) => a.distance.CompareTo(b.distance));
-        static Mesh lavaPoolMesh, waterPoolMesh, whitePoolMesh;
+        /// <summary>
+        /// Lava pools' look (rgb, murk): the water shader's lava path (glow y = 1) makes it glow and creep. W-148 row 4:
+        /// on the cave water lattice like any pool, fitted to its basin (it was a shared disc mesh).
+        /// </summary>
+        static readonly float4 LavaPoolLook = new float4(1f, 0.33f, 0.05f, 0.2f);
         /// <summary>Cave water's look in the water vertex layout: dark, clear and cold (rgb, murk).</summary>
         static readonly float4 CaveWater = new float4(0.1f, 0.28f, 0.3f, 0.1f);
         /// <summary>
@@ -402,120 +455,77 @@ namespace Punchy.Terrain
         /// the shader's opacity turns the pool into a hard-edged slab that reads as snow), so the rim still fades into the
         /// bed and it lies still, well under the thick-and-oily threshold (0.55); the whiteness comes from the colour and a
         /// self-glow, which also shows it where nobody carries a light. The glow's hue swirl only trades blue for green, which stays near white.
-        /// W-17: toned down (the pool read as a milky blob); the shader also darkens and thins the middle (_SoftRim).
+        /// W-17: toned down (the pool read as a milky blob).
         /// W-61: milkier again (#35: a milky-white look): a warm bone white instead of the blue-grey, murk 0.24 (still under 0.3).
+        /// W-148: drawn as ordinary cave water with this look (no soft-rim draw): it swims, wades and splashes like water.
         /// </summary>
         static readonly float4 WhitePoolWater = new float4(0.88f, 0.88f, 0.84f, 0.24f);
         const float WhitePoolGlow = 0.12f;
-        /// <summary>_SoftRim = 1 for white pool draws (the water shader fades them out towards the disc's rim).</summary>
-        static MaterialPropertyBlock softRimProps;
-        static MaterialPropertyBlock SoftRimProps
-        {
-            get
-            {
-                if (softRimProps == null)
-                {
-                    softRimProps = new MaterialPropertyBlock();
-                    softRimProps.SetFloat("_SoftRim", 1f);
-                }
-                return softRimProps;
-            }
-        }
         /// <summary>
         /// "-whitepools": every cave water pool is drawn as white pool water (a debug override: W-18 bat folk chambers
         /// carry their own white pools in TerrainSource.BatFolk). Drawing only, so it changes nothing that is baked.
         /// </summary>
         public static bool WhitePools = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-whitepools") >= 0;
-        /// <summary>Switches the white pool look at runtime (editor previews): the pool meshes rebuild on the next draw.</summary>
+        /// <summary>Switches the white pool look at runtime (editor previews): baked cave water rebuilds on the next draw.</summary>
         public static void SetWhitePools(bool on)
         {
             WhitePools = on;
-            lavaPoolMesh = null;
-            waterPoolMesh = null;
-            whitePoolMesh = null;
+            waterLooks++;
         }
         // Streams run shallow over dark rock: darker and greener than the pools, a little murkier.
         static readonly float4 CaveStreamWater = new float4(0.04f, 0.13f, 0.12f, 0.15f);
-        /// <summary>One mesh per stream, built when the world's caves are first drawn (streams are few and fixed).</summary>
-        readonly List<Mesh> streamMeshes = new List<Mesh>();
+        /// <summary>Per pool: its glow handed on last frame (DetailPolicy.Within holds it; only lava pools glow).</summary>
+        bool[] poolDrawn = System.Array.Empty<bool>();
         EntityQuery configQuery;
 
         /// <summary>
-        /// Draws every pool and stream within LoadRadius with the terrain's own water material (lava is its lava path):
-        /// pools with one shared disc mesh each for water and lava, streams with a ribbon mesh each. Uploads the nearest
-        /// lava pools so the cave shader can light the walls round them warmly without real lights.
+        /// Draws cave water with the terrain's own water material: pools and streams baked like chunk water
+        /// (CaveSystem.Water, W-134; each tile drawn only while big enough on screen), lava pools among them in the lava
+        /// look (W-148 row 4). Hands the lava pools' glow, while within LoadRadius and a couple of pixels wide
+        /// (DetailPolicy.CaveWaterPixels, held by DetailPolicy.Within, W-135), to LightBudget so the cave shader can light
+        /// the walls round them warmly without real lights.
         /// </summary>
         void DrawPools(in TerrainSource source, float3 camPos)
         {
             ref var set = ref source.Caves.Value;
             nearPools.Clear();
+            if (poolDrawn.Length != set.Pools.Length)
+                poolDrawn = new bool[set.Pools.Length];
             for (int i = 0; i < set.Pools.Length; i++)
             {
                 var d = math.distance(set.Pools[i].Centre, camPos);
-                if (d < LoadRadius)
+                if (set.Pools[i].Lava <= 0.5f)
+                {
+                    poolDrawn[i] = false;
+                    continue;
+                }
+                var reach = math.min(DetailPolicy.ViewReach(set.Pools[i].Radius * 2f, DetailPolicy.CaveWaterPixels), LoadRadius);
+                poolDrawn[i] = DetailPolicy.Within(d, reach, poolDrawn[i]);
+                if (poolDrawn[i])
                     nearPools.Add((d, i));
             }
             var water = UnderRockWater(configQuery.IsEmpty ? null : configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value);
-            // W-18: bat folk chambers' pools are white (per pool, from the bat folk stage); -whitepools turns them all white.
-            var batFolk = source.BatFolk.IsCreated && source.BatFolk.Value.WhitePools.Length == set.Pools.Length;
-            if (nearPools.Count > 0)
-            {
-                if (lavaPoolMesh == null)
-                {
-                    lavaPoolMesh = MakePoolMesh(new float4(1f, 0.33f, 0.05f, 0.2f), 1f);
-                    waterPoolMesh = MakePoolMesh(CaveWater, 0f);
-                    whitePoolMesh = MakePoolMesh(WhitePoolWater, new float2(WhitePoolGlow, 0f));
-                }
-                nearPools.Sort(PoolsByDistance);
-                foreach (var (_, i) in nearPools)
-                {
-                    ref var pool = ref set.Pools[i];
-                    if (water != null)
-                    {
-                        var rp = new RenderParams(water)
-                        {
-                            worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
-                            shadowCastingMode = ShadowCastingMode.Off,
-                            receiveShadows = false
-                        };
-                        // White pools fade out towards their rim (W-16: the edge read as a hard glowing disc).
-                        var white = pool.Lava <= 0.5f && (WhitePools || (batFolk && source.BatFolk.Value.WhitePools[i] != 0));
-                        if (white)
-                            rp.matProps = SoftRimProps;
-                        var mesh = pool.Lava > 0.5f ? lavaPoolMesh : white ? whitePoolMesh : waterPoolMesh;
-                        Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
-                    }
-                    if (pool.Lava > 0.5f)
-                    {
-                        var reach = LavaLight;
-                        reach.w = pool.Radius * 5f + 4f;
-                        // (LightBudget decides by its on-screen reach whether it takes a glow slot: refactor 3.1.)
-                        Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, (Vector3)pool.Centre + Vector3.up * 0.3f, reach);
-                    }
-                }
-            }
-
-            if (set.Streams.Length == 0 || water == null)
+            DrawCaveWater(source, camPos, water);
+            if (nearPools.Count == 0)
                 return;
-            if (streamMeshes.Count == 0)
-                for (int s = 0; s < set.Streams.Length; s++)
-                    streamMeshes.Add(MakeStreamMesh(ref set, s));
-            for (int s = 0; s < streamMeshes.Count; s++)
+            nearPools.Sort(PoolsByDistance);
+            foreach (var (_, i) in nearPools)
             {
-                var bounds = streamMeshes[s].bounds;
-                if (math.distance((float3)bounds.ClosestPoint(camPos), camPos) > LoadRadius)
-                    continue;
-                var rp = new RenderParams(water) { worldBounds = bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false };
-                Graphics.RenderMesh(rp, streamMeshes[s], 0, Matrix4x4.identity);
+                ref var pool = ref set.Pools[i];
+                var reach = LavaLight;
+                reach.w = pool.Radius * 5f + 4f;
+                // (LightBudget decides by its on-screen reach whether it takes a glow slot: refactor 3.1.)
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, (Vector3)pool.Centre + Vector3.up * 0.3f, reach);
             }
         }
 
         // ------------------------------------------------------------------------------------------- plants
 
-        [Tooltip("Cave plants within this distance of the camera are drawn.")]
-        public float PlantRadius = 60f;
-        /// <summary>PlantRadius at the graphics settings' Detail distance.</summary>
-        float PlantRange => Punchy.Settings.GraphicsSettings.DetailRange(PlantRadius);
+        /// <summary>W-135 row 3: how far a cave plant is drawn (DetailPolicy.CavePlantPixels, x Detail: 60 m at the
+        /// reference view and Detail 1).</summary>
+        static float PlantRange => DetailPolicy.ExtraReach(DetailPolicy.CavePlantSize, DetailPolicy.CavePlantPixels);
+        /// <summary>Per plant (index into the cave set's Plants): drawn, and drawn at its finest, at the last gather.</summary>
+        bool[] plantShown = System.Array.Empty<bool>(), plantFine = System.Array.Empty<bool>();
         float nextFloraLookup;
         /// <summary>
         /// Variants grown per species, and the stride between species' models. It must cover every variant baking
@@ -523,8 +533,9 @@ namespace Punchy.Terrain
         /// drew the next species' models instead, a frame-sized wall torch standing mid-passage (W-100).
         /// </summary>
         public static readonly int PlantVariants = math.max(3, Punchy.Flora.FloraGenerator.MineFrameHeights.Length);
-        /// <summary>Cave plants nearer than this use the finest mesh, the rest the middle one.</summary>
-        const float PlantLod0 = 20f;
+        /// <summary>Cave plants that look bigger than DetailPolicy.CavePlantFinestPixels (20 m at the reference view, no
+        /// Detail) use the finest mesh, the rest the middle one.</summary>
+        static float PlantFinestRange => DetailPolicy.ViewReach(DetailPolicy.CavePlantSize, DetailPolicy.CavePlantFinestPixels);
 
         readonly List<Punchy.Flora.FloraModel> plantModels = new List<Punchy.Flora.FloraModel>();
         BiomePalette plantsFrom;
@@ -556,6 +567,7 @@ namespace Punchy.Terrain
             else
                 caveWater.CopyPropertiesFromMaterial(water);
             caveWater.SetFloat(UnderRockId, 1f);
+            caveWater.SetFloat(LatticeFieldId, 1f);
             return caveWater;
         }
         /// <summary>One draw per run of the same model and LOD: its mesh, and its index in plantArgs.</summary>
@@ -569,8 +581,22 @@ namespace Punchy.Terrain
         readonly List<(float3 position, Vector4 light)> nearGlowPlants = new List<(float3, Vector4)>();
         /// <summary>Per species: the height of its torch's head (1 at scale 1), or 0 if it isn't a torch.</summary>
         readonly List<float> speciesTorch = new List<float>();
+        readonly List<bool> speciesShrine = new List<bool>();
+        /// <summary>Per species: whether it's a rune-cut standing stone (Spire with rune patterns: a road tunnel's
+        /// marker, W-138), whose runes give a faint cold light underground.</summary>
+        readonly List<bool> speciesMarker = new List<bool>();
+        /// <summary>
+        /// W-138 row 4c: per species, a lamp fixture's light (rgb strength, w reach; zero if it isn't one) and where it
+        /// comes from (model space, from the fixture's foot), both from its Fixture Style (StructureKit.FixtureLight).
+        /// Underground a fixture is lit day and night.
+        /// </summary>
+        readonly List<(Vector4 light, Vector3 at)> speciesLamp = new List<(Vector4, Vector3)>();
         /// <summary>Torches near the camera: where the flame sits and the plant's index (its seed).</summary>
         readonly List<(float3 flame, int plant)> nearTorches = new List<(float3, int)>();
+        /// <summary>W-138 row 4c: lamp fixtures near the camera: where the light comes from, and its light.</summary>
+        readonly List<(float3 position, Vector4 light)> nearLamps = new List<(float3, Vector4)>();
+        /// <summary>The faint cold light a rune-cut marker stone's runes give the stone and the floor round it.</summary>
+        static readonly Vector4 MarkerGlow = new Vector4(0.3f, 0.45f, 0.85f, 3f);
         /// <summary>How far a glowing plant lights the floor and walls round it (m).</summary>
         const float PlantGlowReach = 5f;
         float3 plantsAround = new float3(float.MaxValue);
@@ -638,6 +664,11 @@ namespace Punchy.Terrain
                         // The same light the plant casts on the surface (colour and reach by how much of it glows).
                         speciesGlow.Add(Punchy.Flora.FloraPlacement.GlowLight(species));
                         speciesTorch.Add(species.Form == Punchy.Flora.FloraForm.Torch ? species.Height.y : 0f);
+                        speciesShrine.Add(species.Form == Punchy.Flora.FloraForm.Shrine);
+                        speciesMarker.Add(species.Form == Punchy.Flora.FloraForm.Spire && species.RunePatterns > 0);
+                        var fixture = species.Form == Punchy.Flora.FloraForm.KitBuilding && species.KitShape == Punchy.Terrain.KitShape.Fixture;
+                        speciesLamp.Add(fixture ? (Punchy.Terrain.StructureKit.FixtureLight(species.FixtureStyle), Punchy.Terrain.StructureKit.FixtureLightAt(species.FixtureStyle))
+                                                : (Vector4.zero, Vector3.zero));
                     }
                 }
                 if (plantModels.Count < plantSpecies.Count * PlantVariants)
@@ -653,11 +684,26 @@ namespace Punchy.Terrain
                 plantKeys.Clear();
                 nearGlowPlants.Clear();
                 nearTorches.Clear();
+                nearLamps.Clear();
+                if (plantShown.Length != set.Plants.Length)
+                {
+                    plantShown = new bool[set.Plants.Length];
+                    plantFine = new bool[set.Plants.Length];
+                }
+                float plantRange = PlantRange, finestRange = PlantFinestRange;
                 for (int i = 0; i < set.Plants.Length; i++)
                 {
                     ref var p = ref set.Plants[i];
                     var d = math.distance(p.Position, camPos);
-                    if (d > PlantRange)
+                    var wasShown = plantShown[i];
+                    var wasFine = plantFine[i];
+                    plantShown[i] = DetailPolicy.Within(d, plantRange, plantShown[i]);
+                    plantFine[i] = DetailPolicy.Within(d, finestRange, plantFine[i]);
+                    if (plantShown[i] && !wasShown)
+                        Counts.PlantsShown++;
+                    if (plantFine[i] != wasFine)
+                        Counts.PlantsFine++;
+                    if (!plantShown[i])
                         continue;
                     var model = p.Species * PlantVariants + p.Variant;
                     if (model < 0 || model >= plantModels.Count)
@@ -666,9 +712,16 @@ namespace Punchy.Terrain
                     // pygmies are blind). Dropped here, not at bake, so the cave plants and their hashes stay as they are.
                     if (speciesGlow[p.Species].w > 0f && InBatFolkChamber(source, p.Position))
                         continue;
-                    plantKeys.Add((model * 2 + (d < PlantLod0 ? 0 : 1), i));
+                    plantKeys.Add((model * 2 + (plantFine[i] ? 0 : 1), i));
                     if (speciesGlow[p.Species].w > 0f)
-                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), speciesGlow[p.Species]));
+                    {
+                        // W-138 row 4: a shrine (a road tunnel's, set small in its niche) glows as big as it's set, not
+                        // as its species' full height: at full strength and reach it flooded the niche blue-white.
+                        var glow = speciesGlow[p.Species];
+                        if (speciesShrine[p.Species])
+                            glow *= math.min(1f, p.Scale);
+                        nearGlowPlants.Add((p.Position + new float3(0f, 0.3f * p.Scale, 0f), glow));
+                    }
                     if (speciesTorch[p.Species] > 0f)
                     {
                         // The head: up the stick and out from the wall (the model leans out along its +Z by ~20°).
@@ -676,6 +729,15 @@ namespace Punchy.Terrain
                         var outward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw));
                         nearTorches.Add((p.Position + new float3(0f, head * 0.94f, 0f) + outward * head * 0.34f, i));
                     }
+                    var (lampLight, lampAt) = speciesLamp[p.Species];
+                    if (lampLight.w > 0f)
+                    {
+                        // Model +Z turns to (-sin yaw, cos yaw) as for the torches above; +X to (cos yaw, sin yaw).
+                        float3 forward = new float3(-math.sin(p.Yaw), 0f, math.cos(p.Yaw)), right = new float3(math.cos(p.Yaw), 0f, math.sin(p.Yaw));
+                        nearLamps.Add((p.Position + (right * lampAt.x + new float3(0f, lampAt.y, 0f) + forward * lampAt.z) * p.Scale, lampLight));
+                    }
+                    if (speciesMarker[p.Species])
+                        nearGlowPlants.Add((p.Position + new float3(0f, 1f, 0f), MarkerGlow));
                 }
                 plantKeys.Sort((a, b) => a.key.CompareTo(b.key));
                 var count = plantKeys.Count;
@@ -742,11 +804,15 @@ namespace Punchy.Terrain
             foreach (var (flame, plant) in nearTorches)
             {
                 Punchy.Ambience.FireSystem.AddFlame(flame, 0.3f, plant, Punchy.Ambience.FireSystem.Wood);
-                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f,
-                                                     Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood));
+                var light = Punchy.Ambience.FireSystem.Light(Punchy.Ambience.FireSystem.Wood);
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, (Vector3)flame + Vector3.up * 0.15f, light);
             }
+            // Lamp fixtures (a road tunnel's wall lanterns): the light their Fixture Style gives.
+            foreach (var (position, light) in nearLamps)
+                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, light);
 
-            var bounds = new Bounds(camPos, new Vector3(PlantRange * 2f, PlantRange * 2f, PlantRange * 2f));
+            var plantBox = PlantRange / (1f - DetailPolicy.Hysteresis) * 2f;
+            var bounds = new Bounds(camPos, new Vector3(plantBox, plantBox, plantBox));
             for (int d = 0; d < plantDraws.Count; d++)
             {
                 var rp = new RenderParams(floraMaterial)
@@ -766,6 +832,9 @@ namespace Punchy.Terrain
             plantModels.Clear();
             speciesGlow.Clear();
             speciesTorch.Clear();
+            speciesShrine.Clear();
+            speciesMarker.Clear();
+            speciesLamp.Clear();
             nearGlowPlants.Clear();
             nearTorches.Clear();
             plantDraws.Clear();
@@ -778,199 +847,38 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// A stream's water surface: a ribbon along its points, in world space, flowing from first to last. Shallow at
-        /// the banks; rapids where the surface drops quickly, so the water shader's river look carries over.
+        /// A basin's water (a fountain's or a well's, FloraSystem): a flat polygon of the given sides and radius in the
+        /// terrain's water vertex layout, corner s where an upright FloraMeshBuilder.Tube's ring vertex s lies, so it fills
+        /// the basin's wall ring for ring (W-148: it was a disc). Still, one depth throughout, in the given look.
         /// </summary>
-        static Mesh MakeStreamMesh(ref CaveSetBlob set, int index)
+        internal static Mesh MakeBasinMesh(float radius, int sides, float depth, float4 look)
         {
-            ref var stream = ref set.Streams[index];
-            var vertices = new List<WaterVertex>();
-            var indices = new List<int>();
-            var points = new List<CaveStreamPoint>();
-            for (int k = 0; k < stream.PointCount; k++)
-                points.Add(set.StreamPoints[stream.FirstPoint + k]);
-            // A stream that ends in a pool (CaveBaking puts one on its last point) stops at the pool's rim, full width,
-            // where the rim is wide enough to take it, instead of running on into the middle as a lighter tongue drawn
-            // over the pool's water (Z-34).
-            var intoPool = false;
-            var end = points[points.Count - 1].Position;
-            for (int i = 0; i < set.Pools.Length && !intoPool && points.Count >= 3; i++)
+            sides = math.max(sides, 3);
+            var vertices = new List<WaterVertex>(sides + 1) { Vertex(float2.zero) };
+            for (int k = 0; k < sides; k++)
             {
-                ref var pool = ref set.Pools[i];
-                if (pool.Lava > 0f || math.distance(pool.Centre, end) > 0.05f)
-                    continue;
-                // Far enough in that the ribbon's square end lies inside the disc across its whole width, and at most
-                // half way out: the disc's outer ring tucks under the floor that holds it, so the open water is smaller.
-                var half = points[points.Count - 1].Width * 0.58f;
-                var stop = math.min(math.sqrt(math.max(pool.Radius * pool.Radius * 0.98f - half * half, 0f)), pool.Radius * 0.5f);
-                var last = points.Count - 1;
-                while (last > 1 && math.distance(points[last - 1].Position.xz, pool.Centre.xz) < stop)
-                    last--;
-                // The crossing on the segment from the last point outside the rim to the next one in.
-                var outside = points[last - 1];
-                var inside = points[last];
-                var a = math.distance(outside.Position.xz, pool.Centre.xz);
-                var b = math.distance(inside.Position.xz, pool.Centre.xz);
-                if (a < stop)
-                    break;
-                var cross = inside;
-                cross.Position = math.lerp(outside.Position, inside.Position, math.saturate((a - stop) / math.max(a - b, 1e-3f)));
-                cross.Position.y = pool.Centre.y;
-                points.RemoveRange(last, points.Count - last);
-                points.Add(cross);
-                intoPool = true;
+                var a = k * math.PI * 2f / sides;
+                vertices.Add(Vertex(new float2(-math.sin(a), -math.cos(a)) * radius));
             }
-            var count = points.Count;
-            for (int k = 0; k < count; k++)
+            var indices = new List<int>(sides * 3);
+            for (int k = 0; k < sides; k++)
             {
-                var p = points[k];
-                var prev = points[math.max(k - 1, 0)].Position;
-                var next = points[math.min(k + 1, count - 1)].Position;
-                var along = math.normalizesafe((next - prev).xz, new float2(1f, 0f));
-                // Narrowing to a trickle at both ends, rather than stopping square (but full width into a pool).
-                var fromEnd = intoPool ? 2 : count - 1 - k;
-                var taper = math.lerp(0.15f, 1f, math.saturate(math.min(k, fromEnd) / 2f));
-                // A little past where the banks rise out of the water (the edges tuck under them), so it fills the channel.
-                var side = new float2(-along.y, along.x) * p.Width * 0.58f * taper;
-                // The drop is measured over five points (about 6 m), not one step either side, so the water quickens into
-                // a steep step and slows after it rather than switching to white at one point (W-98).
-                var k0 = math.max(k - 2, 0);
-                var k1 = math.min(k + 2, count - 1);
-                var run = 0f;
-                for (int j = k0; j < k1; j++)
-                    run += math.distance(points[j].Position.xz, points[j + 1].Position.xz);
-                var drop = (points[k0].Position.y - points[k1].Position.y) / math.max(run, 0.1f);
-                // Cave streams run steep all the way, so only the steepest steps churn white; but a brook is never still.
-                var rapids = math.max(math.saturate(drop * 1.5f - 0.15f), 0.2f);
-                foreach (var edge in new[] { -1f, 0f, 1f })
-                    vertices.Add(new WaterVertex
-                    {
-                        Position = p.Position + new float3(side.x, 0f, side.y) * edge,
-                        // White water breaks against the banks more than mid-channel (G-28).
-                        Data = new float4(along, edge == 0f ? p.Depth : 0.05f, edge == 0f ? rapids * 0.6f : math.min(rapids + 0.15f, 1f)),
-                        Look = CaveStreamWater,
-                        Glow = float2.zero
-                    });
-                if (k == 0)
-                    continue;
-                var a = (k - 1) * 3;
-                var b = k * 3;
-                for (int e = 0; e < 2; e++)
-                {
-                    indices.Add(a + e); indices.Add(b + e); indices.Add(a + e + 1);
-                    indices.Add(a + e + 1); indices.Add(b + e); indices.Add(b + e + 1);
-                }
+                indices.Add(0); indices.Add(1 + k); indices.Add(1 + (k + 1) % sides);
             }
-            var mesh = new Mesh { name = "Cave stream" };
+            var mesh = new Mesh { name = "Basin water" };
             mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
             mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
             mesh.SetIndices(indices, MeshTopology.Triangles, 0);
-            mesh.RecalculateBounds();
-            return mesh;
-        }
-
-        /// <summary>
-        /// A unit disc in the terrain's water vertex layout: no flow, deepest at the middle (lava cools and crusts
-        /// towards the rim), in the given look and lava amount.
-        /// </summary>
-        internal static Mesh MakePoolMesh(float4 look, float lava) => MakePoolMesh(look, new float2(0f, lava));
-
-        /// <summary>The same disc with a self-glow too (toxic pools): glow x, lava y.</summary>
-        static Mesh MakePoolMesh(float4 look, float2 glow)
-        {
-            const int rings = 6, spokes = 32;
-            var vertices = new List<WaterVertex> { Vertex(float2.zero) };
-            for (int r = 1; r <= rings; r++)
-                for (int s = 0; s < spokes; s++)
-                {
-                    var a = s / (float)spokes * math.PI * 2f;
-                    vertices.Add(Vertex(new float2(math.cos(a), math.sin(a)) * r / rings));
-                }
-            var indices = new List<int>();
-            for (int s = 0; s < spokes; s++)
-            {
-                indices.Add(0); indices.Add(1 + (s + 1) % spokes); indices.Add(1 + s);
-            }
-            for (int r = 1; r < rings; r++)
-                for (int s = 0; s < spokes; s++)
-                {
-                    int a = 1 + (r - 1) * spokes + s, b = 1 + (r - 1) * spokes + (s + 1) % spokes;
-                    int c = a + spokes, d = b + spokes;
-                    indices.Add(a); indices.Add(b); indices.Add(c);
-                    indices.Add(b); indices.Add(d); indices.Add(c);
-                }
-            var mesh = new Mesh { name = "Cave pool" };
-            mesh.SetVertexBufferParams(vertices.Count, WaterVertex.Layout);
-            mesh.SetVertexBufferData(vertices, 0, 0, vertices.Count);
-            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
-            mesh.bounds = new Bounds(Vector3.zero, new Vector3(2f, 1f, 2f));
+            mesh.bounds = new Bounds(Vector3.zero, new Vector3(radius * 2f, 1f, radius * 2f));
             return mesh;
 
             WaterVertex Vertex(float2 xz) => new WaterVertex
             {
                 Position = new float3(xz.x, 0f, xz.y),
-                Data = new float4(0f, 0f, 1f - math.lengthsq(xz), 0f),
+                Data = new float4(0f, 0f, depth, 0f),
                 Look = look,
-                Glow = glow
+                Glow = float2.zero
             };
-        }
-
-        // ------------------------------------------------------------------------------------------- landmark pools
-
-        /// <summary>A landmark's pool, drawn as a smooth disc (the terrain's water grid leaves it out).</summary>
-        struct LandmarkPool
-        {
-            public float3 Centre;
-            public float Radius;
-            public Mesh Mesh;
-        }
-
-        readonly List<LandmarkPool> landmarkPools = new List<LandmarkPool>();
-        BlobAssetReference<LandmarkSetBlob> landmarkPoolsFrom;
-
-        /// <summary>
-        /// Draws every landmark pool (oases, hot springs, toxic pools, crater lava) within LoadRadius with the terrain's
-        /// water material: a disc a tenth wider than the pool, so its rim tucks under the gentle bank, in the water look
-        /// the terrain would give it there. A small pool spanned only a few quads of the terrain's water grid, which
-        /// left a ragged edge. One mesh per pool, built when the landmarks change.
-        /// </summary>
-        void DrawLandmarkPools(in TerrainSource source, float3 camPos)
-        {
-            if (!source.Landmarks.IsCreated || configQuery.IsEmpty)
-                return;
-            var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
-            if (water == null)
-                return;
-            if (landmarkPoolsFrom != source.Landmarks)
-            {
-                ReleaseLandmarkPools();
-                landmarkPoolsFrom = source.Landmarks;
-                ref var set = ref source.Landmarks.Value;
-                for (int i = 0; i < set.Instances.Length; i++)
-                {
-                    ref var type = ref set.Types[set.Instances[i].Type];
-                    for (int p = 0; p < type.PoolCount; p++)
-                    {
-                        LandmarkSampling.Pool(ref set, i, p, out var centre, out var radius);
-                        var look = source.WaterLook(centre.xz, source.SampleGround(centre.xz).Biomes, out var glow);
-                        var mesh = MakePoolMesh(look, glow);
-                        mesh.name = "Landmark pool";
-                        landmarkPools.Add(new LandmarkPool { Centre = centre, Radius = radius * 1.1f, Mesh = mesh });
-                    }
-                }
-            }
-            foreach (var pool in landmarkPools)
-            {
-                if (math.distance(pool.Centre, camPos) > LoadRadius + pool.Radius)
-                    continue;
-                var rp = new RenderParams(water)
-                {
-                    worldBounds = new Bounds(pool.Centre, new Vector3(pool.Radius * 2f, 1f, pool.Radius * 2f)),
-                    shadowCastingMode = ShadowCastingMode.Off,
-                    receiveShadows = true
-                };
-                Graphics.RenderMesh(rp, pool.Mesh, 0, Matrix4x4.TRS(pool.Centre, Quaternion.identity, new Vector3(pool.Radius, 1f, pool.Radius)));
-            }
         }
 
         // ------------------------------------------------------------------------------------------- drips
@@ -983,9 +891,11 @@ namespace Punchy.Terrain
         }
 
         const int MaxDrips = 48;
-        const float DripRadius = 25f;
-        /// <summary>DripRadius at the graphics settings' Detail distance.</summary>
-        float DripRange => Punchy.Settings.GraphicsSettings.DetailRange(DripRadius);
+        /// <summary>W-135 row 3: how far a drip is drawn (DetailPolicy.CaveDripPixels, x Detail: 25 m at the reference
+        /// view and Detail 1).</summary>
+        static float DripRange => DetailPolicy.ExtraReach(DetailPolicy.CaveDripSize, DetailPolicy.CaveDripPixels);
+        /// <summary>Per drip (index into allDrips): near at the last gather.</summary>
+        bool[] dripNear = System.Array.Empty<bool>();
         readonly List<Drip> allDrips = new List<Drip>();
         readonly List<(float distance, Drip drip)> nearDrips = new List<(float, Drip)>();
         static readonly Comparer<(float distance, Drip drip)> DripsByDistance =
@@ -1089,10 +999,15 @@ namespace Punchy.Terrain
             {
                 dripsAround = camPos;
                 nearDrips.Clear();
-                foreach (var d in allDrips)
+                if (dripNear.Length != allDrips.Count)
+                    dripNear = new bool[allDrips.Count];
+                var dripRange = DripRange;
+                for (int k = 0; k < allDrips.Count; k++)
                 {
+                    var d = allDrips[k];
                     var dist = math.distance(d.Tip.xyz, camPos);
-                    if (dist < DripRange)
+                    dripNear[k] = DetailPolicy.Within(dist, dripRange, dripNear[k]);
+                    if (dripNear[k])
                         nearDrips.Add((dist, d));
                 }
                 nearDrips.Sort(DripsByDistance);
@@ -1109,7 +1024,7 @@ namespace Punchy.Terrain
             dripProps.SetBuffer(DripsId, dripBuffer);
             var rp = new RenderParams(dripMaterial)
             {
-                worldBounds = new Bounds(camPos, new Vector3(DripRange * 2f, DripRange * 2f, DripRange * 2f)),
+                worldBounds = new Bounds(camPos, Vector3.one * (DripRange / (1f - DetailPolicy.Hysteresis) * 2f)),
                 matProps = dripProps,
                 shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false
@@ -1199,118 +1114,6 @@ namespace Punchy.Terrain
             dripsFrom = default;
         }
 
-        // ------------------------------------------------------------------------------------------- surface glow
-
-        readonly SurfaceGlow surfaceGlow = new SurfaceGlow();
-
-        /// <summary>
-        /// Glowing plants on the surface near the camera join the glow list (the nearest 16 lights of any kind win), so
-        /// their light falls on the ground, plants and creatures round them as cave plants' does in caves.
-        /// </summary>
-        void GatherSurfaceGlow(in TerrainSource source, float3 camPos)
-        {
-            Shader.SetGlobalVector(GlowMapParamsId, Vector4.zero);
-            Shader.SetGlobalVector(GlowWorldParamsId, Vector4.zero);
-            if (paletteQuery.IsEmpty || Underground > 0.9f)
-                return;
-            var palette = queryWorld.EntityManager.GetComponentObject<BiomePalette>(paletteQuery.GetSingletonEntity());
-            if (flora == null && Time.unscaledTime >= nextFloraLookup)
-            {
-                nextFloraLookup = Time.unscaledTime + 1f;
-                flora = FindAnyObjectByType<Punchy.Flora.FloraSystem>();
-            }
-            surfaceGlow.Update(source, palette, flora, camPos);
-            var night = Shader.GetGlobalFloat(NightId);
-            var windowsOn = night < 0.25f ? 0f : math.smoothstep(0.25f, 0.55f, night);
-            surfaceGlow.DrawSpill(windowsOn * (1f - Underground), camPos);   // W-127: lit windows' pools outside
-            // The whole island's static glow (R-2, Glow.hlsl), past the far map and fading into it.
-            if (surfaceGlow.WorldReady)
-            {
-                Shader.SetGlobalTexture(GlowWorldId, surfaceGlow.WorldMap);
-                Shader.SetGlobalVector(GlowWorldRectId, new Vector4(surfaceGlow.WorldCorner.x, surfaceGlow.WorldCorner.y, 1f / surfaceGlow.WorldExtent, 0f));
-                Shader.SetGlobalVector(GlowWorldParamsId, new Vector4((1f - Underground) * WorldGlowStrength, night, WorldGlowFadeFrom, WorldGlowFadeTo));
-            }
-            // The far tier (Glow.hlsl): every glowing plant and lit window within about 300 m, baked into a light map,
-            // fading in where LightBudget hands a typical glow from its slots to the far tier (refactor 3.1).
-            var handOff = Punchy.Settings.LightBudget.GlowHandOff(Punchy.Settings.LightKind.AmbientGlow, TypicalGlowReach);
-            if (surfaceGlow.MapReady && (GlowTiers & 2) != 0)
-            {
-                Shader.SetGlobalTexture(GlowMapId, surfaceGlow.MapPlants);
-                Shader.SetGlobalTexture(GlowMapNightId, surfaceGlow.MapWindows);
-                Shader.SetGlobalVector(GlowMapRectId, new Vector4(surfaceGlow.MapCorner.x, surfaceGlow.MapCorner.y,
-                                                                  1f / (SurfaceGlow.MapSize * SurfaceGlow.MapTexel), 0f));
-                // (y: the night map, street lights only (W-127). Lit windows' light is indoor (P-21, item 31), so
-                // SurfaceGlow leaves them out of it: see the near tier below.)
-                Shader.SetGlobalVector(GlowMapParamsId, new Vector4((1f - Underground) * FarGlowStrength, windowsOn * (1f - Underground), handOff.x * 0.7f, handOff.y));
-            }
-            if ((GlowTiers & 1) == 0)
-                return;
-            // The near tier: each a request; LightBudget fades them out by on-screen size as the far map takes over.
-            foreach (var (position, light) in surfaceGlow.Found)
-            {
-                var l = light;
-                if (Punchy.Flora.FloraPlacement.IsFixtureGlow(l.w))
-                {
-                    // W-127: a street light (lantern, brazier, pier lamp), lit after dark like a window, but outdoors.
-                    // Past the hand-off the night map lights it in full, so it asks for no slot there.
-                    if (night < 0.25f || Vector3.Distance(position, camPos) > handOff.y)
-                        continue;
-                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
-                    l.w = Punchy.Flora.FloraPlacement.GlowReach(light.w);
-                    Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fixture, position, l);
-                    continue;
-                }
-                if (l.w < 0f)
-                {
-                    // Lit windows (only after dark) are the light inside a house: an indoor fixture (P-21, playtest 11-08
-                    // item 31), which lights only its building's inside. It used to go out as a glow from the house's
-                    // middle and lit its outer walls and the ground all round through the walls. The panes keep their
-                    // own night glow (Flora shader).
-                    if (night < 0.25f)
-                        continue;
-                    l = new Vector4(l.x, l.y, l.z, 0f) * windowsOn;
-                    l.w = -light.w;
-                    Punchy.Settings.LightBudget.AddIndoor(Punchy.Settings.LightKind.Fixture, position, l);
-                    continue;
-                }
-                Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, position, l);
-            }
-        }
-
-        static readonly int NightId = Shader.PropertyToID("_PunchyNight");
-        static readonly int GlowMapId = Shader.PropertyToID("_PunchyGlowMap");
-        static readonly int GlowMapNightId = Shader.PropertyToID("_PunchyGlowMapNight");
-        static readonly int GlowMapRectId = Shader.PropertyToID("_PunchyGlowMapRect");
-        static readonly int GlowMapParamsId = Shader.PropertyToID("_PunchyGlowMapParams");
-        static readonly int GlowWorldId = Shader.PropertyToID("_PunchyGlowWorld");
-        static readonly int GlowWorldRectId = Shader.PropertyToID("_PunchyGlowWorldRect");
-        static readonly int GlowWorldParamsId = Shader.PropertyToID("_PunchyGlowWorldParams");
-        /// <summary>The world glow's brightness, and the camera distance (m) its plants and lava fade in over: where the
-        /// 640 m far map fades out towards its edge.</summary>
-        public static float WorldGlowStrength = 1f;
-        const float WorldGlowFadeFrom = 240f, WorldGlowFadeTo = 320f;
-        /// <summary>A typical surface glow's reach (m), for where the far map takes over (LightBudget.GlowHandOff): the
-        /// far map fades in from 70% of where the near lights start fading to where they're gone, so the hand-over adds
-        /// up to about the same light.</summary>
-        const float TypicalGlowReach = 8f;
-        /// <summary>Which surface glow tiers are on (1 near lights, 2 far map): both, bar a frame-cost measurement.</summary>
-        public static int GlowTiers = 3;
-        /// <summary>The far map's brightness: a little under the near lights', so a cluster reads as a soft wash from
-        /// afar rather than a floodlit floor.</summary>
-        public static float FarGlowStrength = 1f;
-        /// <summary>The far map's last scan time (ms, start to pick-up), for the frame-cost report.</summary>
-        public float FarGlowScanMs => surfaceGlow.FarScanMs;
-
-        Punchy.Flora.FloraSystem flora;
-
-        void ReleaseLandmarkPools()
-        {
-            foreach (var pool in landmarkPools)
-                Destroy(pool.Mesh);
-            landmarkPools.Clear();
-            landmarkPoolsFrom = default;
-        }
-
         // The frame timer and its section marks, reused so Update allocates nothing (W-117 GC).
         readonly System.Diagnostics.Stopwatch frameClock = new System.Diagnostics.Stopwatch();
         readonly double[] frameMarks = new double[8];
@@ -1359,9 +1162,7 @@ namespace Punchy.Terrain
             marks[6] = clock.Elapsed.TotalMilliseconds;
             UploadGlowing(cam);
             marks[7] = clock.Elapsed.TotalMilliseconds;
-            // Startup hitch hunting (#102): name the slow parts of any frame over a quarter second.
-            if (marks[7] > 250)
-                Debug.Log($"[caves] slow frame {marks[7]:F0} ms: pools+glow {marks[0]:F0}, styles {marks[1] - marks[0]:F0}, stream {marks[2] - marks[1]:F0}, draw+pools {marks[3] - marks[2]:F0}, bat folk {marks[4] - marks[3]:F0}, plants {marks[5] - marks[4]:F0}, drips {marks[6] - marks[5]:F0}, glowing {marks[7] - marks[6]:F0}");
+            NoteFrame(marks);
 
             // Underground: the camera in a cave's air, a couple of metres below the surface.
             var deep = source.CaveDistance(camPos) < 0f ? math.saturate((source.SampleHeight(camPos.xz) - camPos.y - 1f) / 3f) : 0f;
@@ -1371,8 +1172,13 @@ namespace Punchy.Terrain
             var nearestMouth = float.MaxValue;
             ref var caveSet = ref source.Caves.Value;
             for (int c = 0; c < caveSet.Caves.Length; c++)
+            {
                 nearestMouth = math.min(nearestMouth, math.distance(camPos, caveSet.Caves[c].Mouth));
-            SurfaceHidden = Underground * math.smoothstep(SurfaceFadeNear, SurfaceFadeFar, nearestMouth);
+                if (caveSet.Caves[c].Tunnel != 0)
+                    nearestMouth = math.min(nearestMouth, math.distance(camPos, FarPortal(ref caveSet, caveSet.Caves[c])));
+            }
+            var surfaceFade = DetailPolicy.FadeReach(DetailPolicy.CaveMouthSize, DetailPolicy.SurfaceShownPixels, DetailPolicy.SurfaceHiddenPixels, LoadRadius);
+            SurfaceHidden = Underground * math.smoothstep(surfaceFade.x, surfaceFade.y, nearestMouth);
             UpdateLantern(source);
             UpdateOtherLanterns(source, cam.transform.position);
         }
@@ -1446,11 +1252,17 @@ namespace Punchy.Terrain
                 chunkVoxel = Voxel;
                 chunkCells = math.max(4, (int)math.round(ChunkMetres / chunkVoxel));
                 chunkSize = chunkCells * chunkVoxel;
+                // A coarser level halves the cells across a chunk, so it needs a whole, not too small, number of them.
+                maxLevel = 0;
+                while (maxLevel < 2 && chunkCells % (2 << maxLevel) == 0 && chunkCells >> (maxLevel + 1) >= 4)
+                    maxLevel++;
                 indexSeen = new NativeHashMap<int3, ulong>(1024, Allocator.Persistent);
                 indexKeys = new NativeList<int3>(1024, Allocator.Persistent);
+                indexSight = new NativeHashMap<int3, int>(256, Allocator.Persistent);
                 indexJob = new IndexJob
                 {
-                    Source = source, ChunkSize = chunkSize, ChunkVoxel = chunkVoxel, Seen = indexSeen, Keys = indexKeys
+                    Source = source, ChunkSize = chunkSize, ChunkVoxel = chunkVoxel, Seen = indexSeen, Keys = indexKeys,
+                    Sight = indexSight
                 }.Schedule();
                 indexing = true;
                 return false;
@@ -1465,6 +1277,7 @@ namespace Punchy.Terrain
                 ys.Add(key.y);
                 chunkCaves[key] = indexSeen[key];
             }
+            FindMouthRuns(source);
             DisposeIndex();
             indexed = true;
             return true;
@@ -1477,6 +1290,7 @@ namespace Punchy.Terrain
             indexJob.Complete();
             indexSeen.Dispose();
             indexKeys.Dispose();
+            indexSight.Dispose();
             indexing = false;
         }
 
@@ -1484,6 +1298,7 @@ namespace Punchy.Terrain
         JobHandle indexJob;
         NativeHashMap<int3, ulong> indexSeen;
         NativeList<int3> indexKeys;
+        NativeHashMap<int3, int> indexSight;
         /// <summary>Each indexed chunk's cave bits (Built.Caves).</summary>
         readonly Dictionary<int3, ulong> chunkCaves = new Dictionary<int3, ulong>();
 
@@ -1499,8 +1314,16 @@ namespace Punchy.Terrain
             public float ChunkSize, ChunkVoxel;
             public NativeHashMap<int3, ulong> Seen;
             public NativeList<int3> Keys;
+            /// <summary>W-145: indexed chunk -> the natural cave whose mouth sees into it (FindSight).</summary>
+            public NativeHashMap<int3, int> Sight;
 
             public void Execute()
+            {
+                Index();
+                FindSight();
+            }
+
+            void Index()
             {
                 ref var set = ref Source.Caves.Value;
                 for (int i = 0; i < set.Segments.Length; i++)
@@ -1532,6 +1355,96 @@ namespace Punchy.Terrain
                     }
                 }
             }
+
+            /// <summary>
+            /// W-145 row 2: which of a natural cave's passages can be seen through its mouth from outside. A node is
+            /// seen if a line from one of a few eyes across the mouth reaches it through the air (FieldClear); a segment
+            /// with a seen node lists the indexed chunks its seen part's walls reach. A straight passage or a hall opening
+            /// behind the mouth is seen deep; a winding one stops at its first bend, as BuriedReach assumed for all.
+            /// </summary>
+            void FindSight()
+            {
+                ref var set = ref Source.Caves.Value;
+                // 0 untested, 1 hidden, 2 seen.
+                var seen = new NativeArray<byte>(set.Nodes.Length, Allocator.Temp);
+                for (int i = 0; i < set.Segments.Length; i++)
+                {
+                    ref var seg = ref set.Segments[i];
+                    ref var cave = ref set.Caves[seg.Cave];
+                    if (cave.Tunnel != 0 || cave.NodeCount < 2)
+                        continue;
+                    var seenA = NodeSeen(ref set, ref seen, cave, seg.A);
+                    var seenB = NodeSeen(ref set, ref seen, cave, seg.B);
+                    if (!seenA && !seenB)
+                        continue;
+                    var a = set.Nodes[seg.A];
+                    var b = set.Nodes[seg.B];
+                    var from = seenA ? a.Position : b.Position;
+                    var to = seenB ? b.Position : a.Position;
+                    var reach = math.max(seenA ? a.Radius : 0f, seenB ? b.Radius : 0f) * math.cmax(cave.Profile) + MouthSightPad;
+                    var c0 = (int3)math.floor((math.min(from, to) - reach) / ChunkSize);
+                    var c1 = (int3)math.floor((math.max(from, to) + reach) / ChunkSize);
+                    for (int z = c0.z; z <= c1.z; z++)
+                    for (int y = c0.y; y <= c1.y; y++)
+                    for (int x = c0.x; x <= c1.x; x++)
+                    {
+                        var key = new int3(x, y, z);
+                        if (Sight.ContainsKey(key) || !Seen.ContainsKey(key))
+                            continue;
+                        var min = (float3)key * ChunkSize;
+                        if (BoxToSegment(min, min + ChunkSize, from, to) < reach)
+                            Sight.Add(key, seg.Cave);
+                    }
+                }
+                seen.Dispose();
+            }
+
+            /// <summary>Whether a node of this cave is seen from outside its mouth: from the mouth's middle or one of
+            /// four eyes half way to its walls (a camera outside looks in at every angle the mouth allows).</summary>
+            bool NodeSeen(ref CaveSetBlob set, ref NativeArray<byte> seen, in CaveData cave, int node)
+            {
+                if (seen[node] != 0)
+                    return seen[node] == 2;
+                var mouth = set.Nodes[cave.FirstNode];
+                var axis = math.normalizesafe(set.Nodes[cave.FirstNode + 1].Position - mouth.Position, new float3(0f, 0f, 1f));
+                var side = math.normalizesafe(math.cross(axis, new float3(0f, 1f, 0f)), new float3(1f, 0f, 0f));
+                var up = math.cross(side, axis);
+                var across = side * (mouth.Radius * cave.Profile.x * MouthEyeSpread);
+                var high = up * (mouth.Radius * cave.Profile.y * MouthEyeSpread);
+                var target = set.Nodes[node].Position;
+                var clear = false;
+                for (int e = 0; e < 5 && !clear; e++)
+                {
+                    var eye = mouth.Position + (e == 1 ? across : e == 2 ? -across : e == 3 ? high : e == 4 ? -high : float3.zero);
+                    clear = SightClear(ref set, cave, eye, target);
+                }
+                seen[node] = (byte)(clear ? 2 : 1);
+                return clear;
+            }
+
+            /// <summary>Whether a line stays in the air all the way: the cave's (the field at most SightSlack into the
+            /// rock) or the open air over the ground (the mouth's throat is outside the field). Marched by the field's own
+            /// distance to the walls, scaled down by its steepest slope so it never steps past one.</summary>
+            bool SightClear(ref CaveSetBlob set, in CaveData cave, float3 from, float3 to)
+            {
+                var length = math.distance(from, to);
+                if (length < 1e-3f)
+                    return true;
+                var dir = (to - from) / length;
+                var slope = CaveSampling.SlopeLimit(cave);
+                var t = 0f;
+                for (int i = 0; i < MaxSightSteps; i++)
+                {
+                    if (t >= length)
+                        return true;
+                    var p = from + dir * t;
+                    var d = CaveSampling.Distance(ref set, p, out _);
+                    if (d > SightSlack && p.y < Source.SampleHeight(p.xz))
+                        return false;
+                    t += math.max(-d / slope, SightStep);
+                }
+                return false;
+            }
         }
 
         float ChunkDistance(int3 key, float3 camPos)
@@ -1542,8 +1455,10 @@ namespace Punchy.Terrain
 
         void Stream(in TerrainSource source, float3 camPos)
         {
+            BeginFrameCounts();
             if (!IndexChunks(source))
                 return;
+            RefreshContacts(source, camPos);
 
             // Which chunks are in range only changes when the camera crosses into another chunk.
             var cameraChunk = (int3)math.floor(camPos / chunkSize);
@@ -1576,10 +1491,16 @@ namespace Punchy.Terrain
                 foreach (var key in scratch)
                 {
                     // One still building is parked until its jobs finish rather than waited on here.
-                    if (chunks[key].Pending)
-                        dying.Add(chunks[key]);
+                    var gone = chunks[key];
+                    if (gone.Next != null)
+                    {
+                        dying.Add(gone.Next);
+                        gone.Next = null;
+                    }
+                    if (gone.Pending)
+                        dying.Add(gone);
                     else
-                        chunks[key].Dispose();
+                        gone.Dispose();
                     chunks.Remove(key);
                 }
             }
@@ -1598,10 +1519,21 @@ namespace Punchy.Terrain
             var fast = cameraSpeed > FastSpeed;
 
             var building = dying.Count;
+            var rebuilding = 0;
             foreach (var b in chunks.Values)
+            {
                 if (b.Pending)
                     building++;
-            for (int n = 0; n < BuildsPerFrame && building < (fast ? 1 : MaxBuilding) && wanted.Count > 0; n++, building++)
+                if (b.Next != null)
+                {
+                    building++;
+                    rebuilding++;
+                }
+            }
+            UpdateMouthRuns(camPos);
+            var budget = fast ? 1 : MaxBuilding;
+            var started = 0;
+            for (; started < BuildsPerFrame && building < budget && wanted.Count > 0; started++, building++)
             {
                 var key = wanted[wanted.Count - 1];
                 // Moving fast: only the near ones (the list is nearest last, so the rest wait).
@@ -1609,60 +1541,200 @@ namespace Punchy.Terrain
                     break;
                 wanted.RemoveAt(wanted.Count - 1);
                 if (!chunks.ContainsKey(key))
-                    chunks[key] = StartBuild(source, key);
+                {
+                    chunks[key] = StartBuild(source, key, WallLevel(key, camPos, -1));
+                    Counts.NewBuilds++;
+                }
+            }
+            // W-135 row 2: then, with what's left of the budget, rebuild the nearest chunks whose wall level should
+            // change. An empty chunk is only rebuilt finer (a coarse grid can miss a sliver of wall a fine one finds),
+            // and not even that once it's Clear (row 6).
+            // W-135 row 6: at most RebuildsPerFrame a frame and MaxRebuilding at once, so walking up to a mouth they
+            // don't crowd the terrain's jobs off the workers. The nearest going finer (or with a changed contact list)
+            // goes first; one going coarser waits until nothing else is building. Its finer walls draw on until then:
+            // a few more triangles for a while, never a pop.
+            for (var rebuilds = 0; rebuilds < RebuildsPerFrame && started < BuildsPerFrame && building < budget && rebuilding < MaxRebuilding;
+                 rebuilds++, started++, building++, rebuilding++)
+            {
+                var best = new int3(int.MinValue);
+                var bestDistance = float.MaxValue;
+                var bestLevel = 0;
+                var coarse = new int3(int.MinValue);
+                var coarseDistance = float.MaxValue;
+                var coarseLevel = 0;
+                foreach (var kv in chunks)
+                {
+                    var b = kv.Value;
+                    if (b.Pending || b.Next != null)
+                        continue;
+                    var level = WallLevel(kv.Key, camPos, b.Level);
+                    // W-135 row 4: or whose contact list changed since it was built (rebuilt at its level).
+                    var stale = b.Mesh != null && b.ContactHash != ChunkContactHash(kv.Key);
+                    if (!stale && (level == b.Level || b.Mesh == null && (level > b.Level || b.Clear)))
+                        continue;
+                    var distance = LevelDistance(kv.Key, camPos);
+                    if (!stale && level > b.Level)
+                    {
+                        if (distance < coarseDistance)
+                        {
+                            coarse = kv.Key;
+                            coarseDistance = distance;
+                            coarseLevel = level;
+                        }
+                    }
+                    else if (distance < bestDistance)
+                    {
+                        best = kv.Key;
+                        bestDistance = distance;
+                        bestLevel = level;
+                    }
+                }
+                if (bestDistance == float.MaxValue && building == 0)
+                {
+                    best = coarse;
+                    bestDistance = coarseDistance;
+                    bestLevel = coarseLevel;
+                }
+                if (bestDistance == float.MaxValue || fast && bestDistance > FastRadius)
+                    break;
+                var rebuilt = chunks[best];
+                if (bestLevel != rebuilt.Level)
+                {
+                    Counts.LevelBuilds++;
+                    if (bestLevel < rebuilt.Level) Counts.Finer++; else Counts.Coarser++;
+                    if (rebuilt.Mesh == null) Counts.EmptyRebuilds++;
+                }
+                else
+                    Counts.ContactBuilds++;
+                rebuilt.Next = StartBuild(source, best, bestLevel);
             }
 
             var uploads = 0;
+            swapped.Clear();
             foreach (var kv in chunks)
             {
                 var b = kv.Value;
-                if (!b.Pending || !b.Job.IsCompleted)
-                    continue;
-                b.Job.Complete();   // already done: cheap
-                // Empty ones cost nothing to finish; those with a mesh wait their turn.
-                if (b.Indices.Length > 0 && uploads >= UploadsPerFrame)
-                    continue;
-                b.Pending = false;
-                // Chunks the cave only grazes come out empty: keep the record (so they aren't rebuilt), not a mesh.
-                if (b.Indices.Length > 0)
-                {
-                    uploads++;
-                    var mesh = new Mesh { name = "Cave chunk", indexFormat = IndexFormat.UInt32 };
-                    mesh.SetVertices(b.Positions.AsArray());
-                    mesh.SetNormals(b.Normals.AsArray());
-                    mesh.SetColors(b.Colors.AsArray());
-                    if (ShardProbe)
-                        LogShards(b);
-                    mesh.SetUVs(0, b.Data.AsArray());
-                    mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
-                    var min = (float3)kv.Key * chunkSize;
-                    mesh.bounds = new Bounds(min + chunkSize * 0.5f, new float3(chunkSize + chunkVoxel * 4f));
-                    // Drawn only: let the CPU copy go.
-                    mesh.UploadMeshData(true);
-                    b.Mesh = mesh;
-                    b.Triangles = b.Indices.Length / 3;
-                    b.Caves = chunkCaves.TryGetValue(kv.Key, out var caveBits) ? caveBits : ~0ul;
-                    // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
-                    // reaches, so it stays out of the shadow cascades (the column heights are already sampled) -
-                    // unless it's near a mouth, where daylight comes in sideways under the hill.
-                    var lowestGround = float.MaxValue;
-                    for (int i = 0; i < b.Surface.Length; i++)
-                        lowestGround = math.min(lowestGround, b.Surface[i]);
-                    b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize, MouthLight);
-                    // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
-                    // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
-                    b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach);
-                }
-                b.Field.Dispose();
-                b.CaveField.Dispose();
-                b.Surface.Dispose();
-                b.SurfaceScale.Dispose();
-                b.Positions.Dispose();
-                b.Normals.Dispose();
-                b.Colors.Dispose();
-                b.Data.Dispose();
-                b.Indices.Dispose();
+                if (b.Pending)
+                    Finish(source, kv.Key, b, ref uploads);
+                else if (b.Next != null && Finish(source, kv.Key, b.Next, ref uploads))
+                    swapped.Add(kv.Key);
             }
+            // A finished rebuild takes the old one's place (its hysteresis carried over).
+            foreach (var key in swapped)
+            {
+                var old = chunks[key];
+                var next = old.Next;
+                old.Next = null;
+                next.OpeningSeen = old.OpeningSeen;
+                next.LastSeen = old.LastSeen;
+                // W-145: a wall level swapped in on screen is a pop.
+                if (old.Drawn)
+                    Counts.VisibleSwaps++;
+                next.Drawn = old.Drawn;
+                next.EverDrawn = old.EverDrawn;
+                old.Dispose();
+                chunks[key] = next;
+                Counts.Swaps++;
+            }
+            Counts.Building = building;
+            foreach (var b in chunks.Values)
+                if (b.Next != null)
+                    Counts.Rebuilding++;
+            Counts.Wanted = wanted.Count;
+        }
+
+        readonly List<int3> swapped = new List<int3>();
+
+        /// <summary>The coarsest wall level the chunk size allows (IndexChunks).</summary>
+        int maxLevel;
+        /// <summary>Testing (-cavelevel n): every chunk built at this wall level (-1: by screen size).</summary>
+        public static int ForceLevel = -1;
+
+        /// <summary>
+        /// W-135 row 2: the wall level a chunk should have, from how big a metre looks at its nearest point
+        /// (DetailPolicy.CaveWall, held by Hysteresis from the level it has; -1 when it has none yet).
+        /// </summary>
+        int WallLevel(int3 key, float3 camPos, int previous)
+        {
+            if (ForceLevel >= 0)
+                return math.min(ForceLevel, maxLevel);
+            var view = DetailPolicy.Current.Data;
+            var ppm = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(DetailPolicy.ReferenceFov);
+            var pixels = DetailPolicy.ScreenSize(DetailPolicy.CaveWallSize, LevelDistance(key, camPos), ppm);
+            var tiers = view.Detail > 0f ? DetailPolicy.CaveWall.Scaled(view.Detail) : DetailPolicy.CaveWall;
+            return math.min(DetailPolicy.Tier(pixels, tiers, previous), maxLevel);
+        }
+
+        /// <summary>
+        /// Turns a finished build into its mesh (on the main thread, at most UploadsPerFrame with walls a frame) and lets
+        /// its build data go. False while it's still building or waiting its turn.
+        /// </summary>
+        bool Finish(in TerrainSource source, int3 key, Built b, ref int uploads)
+        {
+            if (!b.Pending || !b.Job.IsCompleted)
+                return false;
+            b.Job.Complete();   // already done: cheap
+            // Empty ones cost nothing to finish; those with a mesh wait their turn.
+            if (b.Indices.Length > 0 && uploads >= UploadsPerFrame)
+                return false;
+            b.Pending = false;
+            // W-135 row 6: walls only come where a cell corner is within WallReach of the cave, and every point a finer
+            // grid samples is within a coarse voxel's half-diagonal (0.87 voxel) of one this grid sampled. With the
+            // least sampled distance two voxels past WallReach, a finer grid can't find a wall here either. (A point
+            // no segment box holds reads as far: those boxes reach Blend + 4 m past the walls, more than a level-2
+            // voxel's half-diagonal past any point within WallReach, so the nearest sample to such a point is held.)
+            b.Clear = b.Indices.Length == 0 && b.Gap[0] >= WallReach + 2f * LevelVoxel(b.Level);
+            // Chunks the cave only grazes come out empty: keep the record (so they aren't rebuilt), not a mesh.
+            if (b.Indices.Length > 0)
+            {
+                uploads++;
+                Counts.Uploads++;
+                Counts.UploadVertices += b.Positions.Length;
+                var mesh = new Mesh { name = "Cave chunk", indexFormat = IndexFormat.UInt32 };
+                mesh.SetVertices(b.Positions.AsArray());
+                mesh.SetNormals(b.Normals.AsArray());
+                mesh.SetColors(b.Colors.AsArray());
+                if (ShardProbe)
+                    LogShards(b);
+                mesh.SetUVs(0, b.Data.AsArray());
+                mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
+                var min = (float3)key * chunkSize;
+                // Room for the apron and the skirts (each within two of its voxels outside the chunk).
+                mesh.bounds = new Bounds(min + chunkSize * 0.5f, new float3(chunkSize + LevelVoxel(b.Level) * 4f));
+                // Drawn only: let the CPU copy go.
+                mesh.UploadMeshData(true);
+                b.Mesh = mesh;
+                b.Triangles = b.Indices.Length / 3;
+                b.Caves = chunkCaves.TryGetValue(key, out var caveBits) ? caveBits : ~0ul;
+                // A chunk whose top is a few metres under the lowest ground above it can't shade anything the sun
+                // reaches, so it stays out of the shadow cascades (the column heights are already sampled) -
+                // unless it's near a mouth, where daylight comes in sideways under the hill.
+                var lowestGround = float.MaxValue;
+                for (int i = 0; i < b.Surface.Length; i++)
+                    lowestGround = math.min(lowestGround, b.Surface[i]);
+                b.CastsShadows = min.y + chunkSize + chunkVoxel > lowestGround - 4f || NearMouth(source, min, min + chunkSize, MouthLight);
+                // Buried: wholly a few metres under the ground and out of sight of every mouth (a view in through a
+                // mouth reaches a winding passage only so far), so it's skipped while the camera is outside caves.
+                b.InSight = InPortalSight(source, min, min + chunkSize) || mouthSight.ContainsKey(key);
+                b.Buried = min.y + chunkSize + chunkVoxel < lowestGround - 4f && !NearMouth(source, min, min + chunkSize, BuriedReach) && !b.InSight;
+                b.Opens = math.all(b.Opening[0] <= b.Opening[1]);
+                if (b.Opens)
+                    b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
+                b.OpeningSeen = false;
+            }
+            b.Field.Dispose();
+            b.CaveField.Dispose();
+            b.Surface.Dispose();
+            b.SurfaceScale.Dispose();
+            b.Positions.Dispose();
+            b.Normals.Dispose();
+            b.Colors.Dispose();
+            b.Data.Dispose();
+            b.Indices.Dispose();
+            b.Opening.Dispose();
+            b.Gap.Dispose();
+            b.Contacts.Dispose();
+            return true;
         }
 
         /// <summary>Daylight from a mouth lights walls up to about 17 m in (Look's fromMouth), so walls within 20 m shade.</summary>
@@ -1678,20 +1750,192 @@ namespace Punchy.Terrain
                 var mouth = set.Caves[c].Mouth;
                 if (math.distance(math.clamp(mouth, min, max), mouth) < reach)
                     return true;
+                // A road tunnel's far portal is a mouth too (W-138 merge): without it the chunks there counted as buried
+                // and stayed hidden from outside until the camera went in.
+                if (set.Caves[c].Tunnel != 0)
+                {
+                    var far = FarPortal(ref set, set.Caves[c]);
+                    if (math.distance(math.clamp(far, min, max), far) < reach)
+                        return true;
+                }
             }
             return false;
         }
 
-        Built StartBuild(in TerrainSource source, int3 key)
+        /// <summary>How far a road tunnel's node may stray from its portal's axis and still be seen from outside it: about
+        /// the bore's half width, so the view down a straight bore stops where the bore bends out of it.</summary>
+        const float PortalSightStray = 3f;
+        /// <summary>How near a chunk must come to a portal's sight run to hold part of the bore seen down it.</summary>
+        const float PortalSightPad = 6f;
+
+        /// <summary>
+        /// W-138 merge: a road tunnel is a straight bore, so from outside a portal it's seen far deeper than BuriedReach
+        /// (a winding cave's passage turns out of sight sooner). From each portal this follows the nodes while they stay
+        /// within PortalSightStray of the portal's axis, and tells whether the chunk box touches that run. Without it the
+        /// bore past BuriedReach counted as buried and the view in showed sky through it, then popped in on entry.
+        /// </summary>
+        static bool InPortalSight(in TerrainSource source, float3 min, float3 max)
         {
-            // Points run from one voxel before the chunk to one after its far side; cells from -1 to chunkCells. The
+            ref var set = ref source.Caves.Value;
+            for (int c = 0; c < set.Caves.Length; c++)
+            {
+                var cv = set.Caves[c];
+                if (cv.Tunnel == 0 || cv.NodeCount < 2)
+                    continue;
+                for (int end = 0; end < 2; end++)
+                {
+                    int Node(int k) => cv.FirstNode + (end == 0 ? k : cv.NodeCount - 1 - k);
+                    var portal = set.Nodes[Node(0)].Position;
+                    var axis = math.normalizesafe(set.Nodes[Node(math.min(3, cv.NodeCount - 1))].Position - portal);
+                    var reach = portal;
+                    for (int k = 1; k < cv.NodeCount; k++)
+                    {
+                        var to = set.Nodes[Node(k)].Position - portal;
+                        if (math.length(to - axis * math.dot(to, axis)) > PortalSightStray)
+                            break;
+                        reach = portal + to;
+                    }
+                    // The box's nearest point to the run, refined twice (exact enough for a pad of metres).
+                    var t = 0.5f;
+                    var span = reach - portal;
+                    var lengthSq = math.max(math.lengthsq(span), 1e-4f);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var q = math.clamp(portal + span * t, min, max);
+                        t = math.saturate(math.dot(q - portal, span) / lengthSq);
+                    }
+                    var p = portal + span * t;
+                    if (math.distance(math.clamp(p, min, max), p) < PortalSightPad)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>W-145: how far under the ground a camera outside every cave's air must be to count as in the rock (m,
+        /// collision-like: it only stops a trailing camera's dip into a hillside reading as outside).</summary>
+        const float CameraInRock = 0.5f;
+        /// <summary>How far past a seen node's wall a chunk may lie and still hold some of its walls (wall noise, the
+        /// apron, a voxel or two).</summary>
+        const float MouthSightPad = 3f;
+        /// <summary>How far across the mouth (of its half width and height) the side eyes of the sight test sit.</summary>
+        const float MouthEyeSpread = 0.5f;
+        /// <summary>How far into the rock (field units, m) a line of sight may graze and still count as clear: wall noise
+        /// and speleothem tips (visibility test, not a detail range).</summary>
+        const float SightSlack = 1f;
+        /// <summary>The sight march's shortest step (m) and most steps: a 1 km line in a tight passage still ends.</summary>
+        const float SightStep = 0.5f;
+        const int MaxSightSteps = 2048;
+
+        /// <summary>W-145: a cave's run in from its mouth (FindMouthRuns): the chunks on it are in mouthSight.</summary>
+        struct MouthRun
+        {
+            public float3 Mouth;
+            public bool Near;
+        }
+        readonly List<MouthRun> mouthRuns = new List<MouthRun>();
+        /// <summary>W-145: chunk -> its mouth run (index into mouthRuns).</summary>
+        readonly Dictionary<int3, int> mouthSight = new Dictionary<int3, int>();
+
+        /// <summary>
+        /// W-145 row 2: a natural cave's mouth is seen into much further than BuriedReach when its passage runs straight
+        /// in or opens into a hall (row 1: 18 chunks of the c5 hall counted as buried, were skipped from outside, and
+        /// drew in one frame as the camera went in). IndexJob.FindSight lists the chunks seen through each mouth; this
+        /// makes one run per cave of them. Once per baked world.
+        /// </summary>
+        void FindMouthRuns(in TerrainSource source)
+        {
+            mouthSight.Clear();
+            mouthRuns.Clear();
+            if (!source.Caves.IsCreated || !indexSight.IsCreated)
+                return;
+            ref var set = ref source.Caves.Value;
+            var runOf = new Dictionary<int, int>();
+            foreach (var kv in indexSight)
+            {
+                if (!runOf.TryGetValue(kv.Value, out var run))
+                {
+                    runOf[kv.Value] = run = mouthRuns.Count;
+                    mouthRuns.Add(new MouthRun { Mouth = set.Nodes[set.Caves[kv.Value].FirstNode].Position });
+                }
+                mouthSight[kv.Key] = run;
+            }
+        }
+
+        /// <summary>
+        /// W-145 row 2: a run is Near while its mouth, seen from the camera, already wants walls at 1 m or finer
+        /// (DetailPolicy.CaveWall's Mid, held by Hysteresis). Then its chunks are built at the level they need from the
+        /// mouth (LevelDistance), so walking in finds them finished: the work starts earlier, under the same caps.
+        /// </summary>
+        void UpdateMouthRuns(float3 camPos)
+        {
+            if (mouthRuns.Count == 0)
+                return;
+            var view = DetailPolicy.Current.Data;
+            var ppm = view.PixelsPerMetre > 0f ? view.PixelsPerMetre : DetailPolicy.PixelsPerMetreAt(DetailPolicy.ReferenceFov);
+            var tiers = view.Detail > 0f ? DetailPolicy.CaveWall.Scaled(view.Detail) : DetailPolicy.CaveWall;
+            for (int i = 0; i < mouthRuns.Count; i++)
+            {
+                var r = mouthRuns[i];
+                var pixels = DetailPolicy.ScreenSize(DetailPolicy.CaveWallSize, math.distance(r.Mouth, camPos), ppm);
+                r.Near = ForceLevel < 0 && DetailPolicy.Holds(pixels, tiers.Mid, r.Near);
+                mouthRuns[i] = r;
+            }
+        }
+
+        /// <summary>The distance a chunk's wall level is picked by: from the camera, or from its mouth while the camera is
+        /// near that mouth (W-145 row 2), whichever is nearer.</summary>
+        float LevelDistance(int3 key, float3 camPos)
+        {
+            var distance = ChunkDistance(key, camPos);
+            if (mouthSight.TryGetValue(key, out var run) && mouthRuns[run].Near)
+                distance = math.min(distance, ChunkDistance(key, mouthRuns[run].Mouth));
+            return distance;
+        }
+
+        /// <summary>A box's distance to a segment: the box's nearest point to it, refined a few times (exact enough for
+        /// a reach of metres).</summary>
+        static float BoxToSegment(float3 min, float3 max, float3 a, float3 b)
+        {
+            var ab = b - a;
+            var lengthSq = math.max(math.lengthsq(ab), 1e-4f);
+            var t = 0.5f;
+            for (int i = 0; i < 4; i++)
+            {
+                var q = math.clamp(a + ab * t, min, max);
+                t = math.saturate(math.dot(q - a, ab) / lengthSq);
+            }
+            var p = a + ab * t;
+            return math.distance(math.clamp(p, min, max), p);
+        }
+
+        /// <summary>A road tunnel's (W-110) second portal: its last node (Mouth is the first).</summary>
+        static float3 FarPortal(ref CaveSetBlob set, in CaveData c) => set.Nodes[c.FirstNode + c.NodeCount - 1].Position;
+
+        /// <summary>The voxel of a wall level: Voxel doubled per level.</summary>
+        float LevelVoxel(int level) => chunkVoxel * (1 << level);
+
+        /// <summary>
+        /// W-135 row 2: a chunk at a coarser level is built on a grid of LevelVoxel(level) (half the cells across per
+        /// level), so it costs a quarter of the triangles per level. Each chunk hangs a skirt into the rock from its
+        /// edge (MeshJob), which covers the crack where it meets a neighbour at another level.
+        /// </summary>
+        const float SkirtVoxels = 1.5f;
+
+        Built StartBuild(in TerrainSource source, int3 key, int level)
+        {
+            // Points run from one voxel before the chunk to one after its far side; cells from -1 to its cells. The
             // origin is a global grid index, so neighbouring chunks sample their shared apron at bit-identical points
             // (a float origin plus an offset rounds differently in each, and a value near zero can flip sign).
-            var origin = key * chunkCells - 1;
-            var cells = new int3(chunkCells + 2);
+            var levelCells = chunkCells >> level;
+            var voxel = LevelVoxel(level);
+            var origin = key * levelCells - 1;
+            var cells = new int3(levelCells + 2);
             var points = cells + 1;
+            Counts.BuildPoints += points.x * points.y * points.z;
             var b = new Built
             {
+                Level = level,
                 Field = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 CaveField = new NativeArray<float>(points.x * points.y * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
                 Surface = new NativeArray<float>(points.x * points.z, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
@@ -1701,19 +1945,25 @@ namespace Punchy.Terrain
                 Normals = new NativeList<float3>(Allocator.Persistent),
                 Colors = new NativeList<float4>(Allocator.Persistent),
                 Indices = new NativeList<int>(Allocator.Persistent),
+                Opening = new NativeArray<float3>(2, Allocator.Persistent),
+                Gap = new NativeArray<float>(1, Allocator.Persistent),
+                Contacts = ChunkContacts(key),
+                ContactHash = ChunkContactHash(key),
                 Pending = true
             };
             // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
             var gridStep = configQuery.IsEmpty ? 0f : configQuery.GetSingleton<TerrainConfig>().ChunkSize / configQuery.GetSingleton<TerrainConfig>().Lod0Quads;
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.x * points.z, 64);
-            var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = chunkVoxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
+            var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = voxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
             b.Job = new MeshJob
             {
-                Source = source, Origin = origin, Cells = cells, Voxel = chunkVoxel,
+                Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
-                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices
+                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
+                Opening = b.Opening, Gap = b.Gap, Contacts = b.Contacts,
+                ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
             return b;
@@ -1822,15 +2072,55 @@ namespace Punchy.Terrain
             public NativeList<int> Indices;
             /// <summary>"-caveshards": walls no cave owns drawn magenta (the grey shards at cave mouths, style 0).</summary>
             public bool ShardProbe;
+            /// <summary>W-135: the box round the walls open to the sky ([0] min, [1] max).</summary>
+            public NativeArray<float3> Opening;
+            /// <summary>W-135 row 2: how far the skirt round the chunk's edge reaches into the rock (0: none).</summary>
+            public float Skirt;
+            /// <summary>W-135 row 4: the things standing on this chunk's rock, its walls darkened round them.</summary>
+            [ReadOnly] public NativeArray<ContactShade.Contact> Contacts;
+            /// <summary>W-135 row 6: [0] the least CaveField value (Built.Gap).</summary>
+            public NativeArray<float> Gap;
+            /// <summary>W-136 row 3: the shared per-kind tunables (ContactShade.Strength, ReachScale) when scheduled.</summary>
+            public float4 ContactStrength, ContactReach;
+
+            /// <summary>
+            /// W-135 row 4: the seam darkening at a wall vertex (ContactShade: darkest at a contact, back to 1 within its
+            /// reach). A coarse level's vertices sit up to about half a voxel off the true wall, so the contact is grown
+            /// by that much, and its reach is at least half a voxel so the darkening still spans a cell; a seam much
+            /// narrower than that is faded in proportion rather than smeared over a whole cell (ContactShade.Contact.ShadeAt).
+            /// </summary>
+            float SeamShade(float3 p)
+            {
+                var pad = math.max(0f, Voxel - 0.5f) * 0.5f;
+                var minReach = Voxel * 0.5f;
+                var shade = 1f;
+                for (int i = 0; i < Contacts.Length; i++)
+                {
+                    var c = Contacts[i];
+                    var far = c.Extent + pad + minReach;
+                    if (math.distancesq(p, c.Base) > far * far)
+                        continue;
+                    shade = math.min(shade, c.ShadeAt(p, minReach, pad, ContactStrength, ContactReach));
+                }
+                return shade;
+            }
 
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
             int Cell(int x, int y, int z) => (z * Cells.y + y) * Cells.x + x;
 
             public void Execute()
             {
+                var gap = float.MaxValue;
+                for (int i = 0; i < CaveField.Length; i++)
+                    gap = math.min(gap, CaveField[i]);
+                Gap[0] = gap;
                 var cellVertex = new NativeArray<int>(Cells.x * Cells.y * Cells.z, Allocator.Temp);
                 for (int i = 0; i < cellVertex.Length; i++)
                     cellVertex[i] = -1;
+                // Which vertices lie in the outermost cells the quads use (0 and Cells - 2 on any axis): the chunk's edge.
+                var edge = new NativeList<bool>(Allocator.Temp);
+                Opening[0] = new float3(float.MaxValue);
+                Opening[1] = new float3(float.MinValue);
 
                 // A vertex in every cell the boundary crosses (near the cave): the average of the crossing points
                 // on the cell's edges.
@@ -1870,10 +2160,22 @@ namespace Punchy.Terrain
                     // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
                     p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
                     cellVertex[Cell(x, y, z)] = Positions.Length;
+                    edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
                     Normals.Add(Gradient(p));
-                    Colors.Add(Look(p, out var data));
+                    var color = Look(p, out var data, out var open);
+                    // W-135 row 4: darkened round the things standing here (through the rib shade; openness left alone).
+                    if (Contacts.Length > 0 && !ShardProbe)
+                        data.w = SeamRib(data.w, SeamShade(p));
+                    Colors.Add(color);
                     Data.Add(data);
+                    // Walls the sky can see (the terrain cut away above them, generously): only through these can
+                    // anyone outside see into the cave.
+                    if (open > 0f)
+                    {
+                        Opening[0] = math.min(Opening[0], p);
+                        Opening[1] = math.max(Opening[1], p);
+                    }
                 }
 
                 // A quad across every grid edge the boundary crosses, joining the four cells round it. Only edges that
@@ -1893,6 +2195,54 @@ namespace Punchy.Terrain
                         Quad(cellVertex, Cell(x - 1, y - 1, z), Cell(x, y - 1, z), Cell(x, y, z), Cell(x - 1, y, z), a);
                 }
                 cellVertex.Dispose();
+                if (Skirt > 0f)
+                    Skirts(edge);
+                edge.Dispose();
+            }
+
+            /// <summary>
+            /// W-135 row 2: a strip hung from every open edge on the chunk's border, straight back into the rock (along
+            /// the wall's inward normal) by Skirt. Where the neighbour is built at the same level its walls hide the strip;
+            /// where it's at another level the two edges don't meet, and the strip fills the crack between them with the
+            /// same rock (it takes its edge vertex's colour and normal).
+            /// </summary>
+            void Skirts(NativeList<bool> edge)
+            {
+                var triangles = Indices.Length;
+                var halfEdges = new NativeHashSet<int2>(triangles, Allocator.Temp);
+                for (int t = 0; t < triangles; t += 3)
+                for (int k = 0; k < 3; k++)
+                    halfEdges.Add(new int2(Indices[t + k], Indices[t + (k + 1) % 3]));
+                var skirtOf = new NativeArray<int>(Positions.Length, Allocator.Temp);
+                for (int i = 0; i < skirtOf.Length; i++)
+                    skirtOf[i] = -1;
+                for (int t = 0; t < triangles; t += 3)
+                for (int k = 0; k < 3; k++)
+                {
+                    int a = Indices[t + k], b = Indices[t + (k + 1) % 3];
+                    // Open: no triangle runs back along it. Only on the border (a cell left out deep in the rock leaves
+                    // a hole no one sees).
+                    if (!edge[a] || !edge[b] || halfEdges.Contains(new int2(b, a)))
+                        continue;
+                    int a2 = SkirtVertex(skirtOf, a), b2 = SkirtVertex(skirtOf, b);
+                    Indices.Add(b); Indices.Add(a); Indices.Add(a2);
+                    Indices.Add(b); Indices.Add(a2); Indices.Add(b2);
+                }
+                skirtOf.Dispose();
+                halfEdges.Dispose();
+            }
+
+            int SkirtVertex(NativeArray<int> skirtOf, int v)
+            {
+                if (skirtOf[v] < 0)
+                {
+                    skirtOf[v] = Positions.Length;
+                    Positions.Add(Positions[v] - Normals[v] * Skirt);
+                    Normals.Add(Normals[v]);
+                    Colors.Add(Colors[v]);
+                    Data.Add(Data[v]);
+                }
+                return skirtOf[v];
             }
 
             void Quad(NativeArray<int> cellVertex, int c0, int c1, int c2, int c3, bool flip)
@@ -1925,16 +2275,14 @@ namespace Punchy.Terrain
             }
 
             /// <summary>
-            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
-            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
-            /// (negative: lighter) ribs make it here.
+            /// A road tunnel's floor (its road's level) under p: along the nearest of its passages; axis is the point
+            /// on that passage's centre line (xz) nearest p.
             /// </summary>
-            /// <summary>A road tunnel's floor (its road's level) under p: along the nearest of its passages.</summary>
-            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p)
+            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p, out float2 axis)
             {
                 var best = 1e9f;
                 var floor = p.y;
+                axis = p.xz;
                 for (int s = c.FirstSegment; s < c.FirstSegment + c.SegmentCount; s++)
                 {
                     var a = set.Nodes[set.Segments[s].A];
@@ -1946,12 +2294,20 @@ namespace Punchy.Terrain
                     {
                         best = d;
                         floor = math.lerp(a.Position.y, b.Position.y, t) - math.lerp(a.Radius, b.Radius, t) * c.Profile.y * 0.45f;
+                        axis = a.Position.xz + ab * t;
                     }
                 }
                 return floor;
             }
 
-            float4 Look(float3 p, out float4 data)
+            /// <summary>
+            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
+            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
+            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
+            /// (negative: lighter) ribs make it here. In a road tunnel z also carries 32 x a tunnel code (1 + paved +
+            /// 2 if built, see Cave.shader) and w the road's share of the floor here (negative: a fallen stone's share).
+            /// </summary>
+            float4 Look(float3 p, out float4 data, out float open)
             {
                 var surface = Source.SampleHeight(p.xz);
                 // Daylight from the mouth of whichever cave this wall belongs to.
@@ -1961,7 +2317,7 @@ namespace Punchy.Terrain
                 // A road tunnel (W-110) has a portal at each end: daylight comes in at both.
                 if (cave >= 0 && set.Caves[cave].Tunnel != 0)
                 {
-                    var far = set.Nodes[set.Caves[cave].FirstNode + set.Caves[cave].NodeCount - 1].Position;
+                    var far = FarPortal(ref set, set.Caves[cave]);
                     fromMouth = math.max(fromMouth, math.saturate(1f - (math.distance(p, far) - 3f) / 14f));
                 }
                 var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
@@ -1969,17 +2325,37 @@ namespace Punchy.Terrain
                 // so it takes the land's look and daylight however far below the uncut surface height it lies. Generous
                 // (up to 2 m of clearance): the terrain's cut is interpolated between its vertices, and wherever the
                 // terrain stays it hides this skin anyway.
-                var open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
+                open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
                 var ground = Source.SampleGround(p.xz);
                 var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                // A road tunnel's floor carries its road through (W-110): the road's own surface, painted as outside,
-                // and taken as the terrain look so it reads as the same road from portal to portal.
-                var road = 0f;
-                if (cave >= 0 && set.Caves[cave].Tunnel != 0 && p.y < TunnelFloor(ref set, set.Caves[cave], p) + 0.35f)
+                // A road tunnel's floor carries its road through (W-110): the road's own colour, as painted on the
+                // centre line outside, so it reads as the same road from portal to portal. W-138 row 4b: no longer
+                // taken as the terrain look (that shaded it as daylit ground, a pale smear deep inside); the shader
+                // draws it as its own surface (cobbles or packed grit) in the cave's light, and fallen stones in their
+                // own pale grey.
+                var tunnelCode = 0;
+                var tunnelFloor = 0f;
+                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
                 {
-                    var props = new SurfaceProps { Albedo = albedo };
-                    road = Source.TunnelRoadSurface(p.xz, ref props);
-                    albedo = props.Albedo;
+                    var floorY = TunnelFloor(ref set, set.Caves[cave], p, out var axis);
+                    if (p.y < floorY + 1.2f)
+                    {
+                        var props = new SurfaceProps { Albedo = albedo };
+                        if (Source.TunnelRoadSurface(axis, ref props) > 0f)
+                        {
+                            // Never brighter than worn stone: a pale road paint would glare under a lamp.
+                            var lum = math.dot(props.Albedo, new float3(0.3f, 0.59f, 0.11f));
+                            albedo = props.Albedo * math.min(1f, 0.32f / math.max(lum, 1e-3f));
+                            tunnelFloor = 1f - math.smoothstep(floorY + 0.35f, floorY + 0.8f, p.y);
+                        }
+                        tunnelCode = 1 + (props.Paving > 0.4f ? 1 : 0);
+                    }
+                    else
+                        tunnelCode = 1;
+                    if (set.Caves[cave].Tunnel >= 2)
+                        tunnelCode += 2;
+                    var stone = 1f - math.smoothstep(0.05f, 0.25f, CaveSampling.StoneDistance(ref set, p));
+                    tunnelFloor = tunnelFloor * (1f - stone) - stone;
                 }
                 // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
                 // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
@@ -1990,8 +2366,9 @@ namespace Punchy.Terrain
                     var rib = CaveSampling.Rib(set.Caves[cave], p);
                     ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
                 }
-                data = new float4(math.max(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open), road),
-                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f), cave >= 0 ? set.Caves[cave].Style : 0, ribShade);
+                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
+                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
+                                  (cave >= 0 ? set.Caves[cave].Style : 0) + 32 * tunnelCode, tunnelCode > 0 ? tunnelFloor : ribShade);
                 if (ShardProbe && cave < 0)
                 {
                     data.x = 1f;
@@ -2007,8 +2384,126 @@ namespace Punchy.Terrain
         public static bool NoWalls;
         /// <summary>Testing (-perflog): count chunks each frame (the frustum test only runs when set).</summary>
         public static bool CountStats;
+        /// <summary>Testing (-nocaveskip): from the surface, draw every unburied chunk as before W-135 row 1.</summary>
+        public static bool NoSurfaceSkip;
         public static int StatLoaded, StatSubmitted, StatInView, StatShadows, StatTriangles;
         Plane[] statPlanes = new Plane[6];
+        Plane[] viewPlanes = new Plane[6];
+        readonly List<Bounds> openingsInView = new List<Bounds>();
+        readonly List<float4> openingRects = new List<float4>();
+        readonly Vector3[] corners = new Vector3[8];
+
+        /// <summary>
+        /// W-135 row 1: from the surface a cave's walls show only through its openings (the vertices open to the sky,
+        /// where the terrain is cut away). This lists the openings in view, each grown by BuriedReach: a chunk outside
+        /// all of them is hidden by the ground. The frustum test is padded (more for an opening seen last frame) so a
+        /// turn of the camera after this frame's Update never shows a missing wall, and an opening counts only while it
+        /// looks bigger than DetailPolicy.CaveOpeningPixels (held by Hysteresis), so nothing pops as it comes in.
+        /// Each opening also keeps the part of the screen it covers (padded): a chunk near one but outside all those
+        /// parts can't be seen through any, so it only casts its shadow (the light through a sinkhole stays the same).
+        /// </summary>
+        void GatherOpenings(float3 camPos, Camera cam)
+        {
+            openingsInView.Clear();
+            openingRects.Clear();
+            GeometryUtility.CalculateFrustumPlanes(cam, viewPlanes);
+            var ppm = DetailPolicy.Current.Data.PixelsPerMetre > 0f ? DetailPolicy.Current.Data.PixelsPerMetre
+                : DetailPolicy.PixelsPerMetreAt(cam.fieldOfView);
+            foreach (var b in chunks.Values)
+            {
+                if (b.Mesh == null || !b.Opens)
+                {
+                    if (b.Mesh != null) b.OpeningSeen = false;
+                    continue;
+                }
+                var box = b.OpeningBounds;
+                var distance = math.distance((float3)box.ClosestPoint(camPos), camPos);
+                var size = math.cmax((float3)box.size);
+                var seen = DetailPolicy.Holds(DetailPolicy.ScreenSize(math.max(size, 1f), distance, ppm), DetailPolicy.CaveOpeningPixels, b.OpeningSeen);
+                if (seen)
+                {
+                    var padded = box;
+                    padded.Expand(2f * (4f + distance * (b.OpeningSeen ? 0.35f : 0.25f)));
+                    seen = GeometryUtility.TestPlanesAABB(viewPlanes, padded);
+                }
+                b.OpeningSeen = seen;
+                if (seen)
+                {
+                    var reach = box;
+                    reach.Expand(2f * BuriedReach);
+                    openingsInView.Add(reach);
+                    var rect = ScreenRect(cam, box);
+                    openingRects.Add(rect + new float4(-OpeningRectPad, -OpeningRectPad, OpeningRectPad, OpeningRectPad));
+                }
+            }
+        }
+
+        /// <summary>How far (in viewport units) an opening's part of the screen is padded: what parallax can move a wall
+        /// behind it in the frame between this test and the render. Rotation moves both alike.</summary>
+        const float OpeningRectPad = 0.08f;
+
+        /// <summary>The viewport rectangle (min x, min y, max x, max y) a box covers; the whole plane if it reaches
+        /// behind the camera's near plane.</summary>
+        float4 ScreenRect(Camera cam, Bounds box)
+        {
+            var min = box.min;
+            var max = box.max;
+            for (int i = 0; i < 8; i++)
+                corners[i] = new Vector3((i & 1) != 0 ? max.x : min.x, (i & 2) != 0 ? max.y : min.y, (i & 4) != 0 ? max.z : min.z);
+            var rect = new float4(float.MaxValue, float.MaxValue, float.MinValue, float.MinValue);
+            for (int i = 0; i < 8; i++)
+            {
+                var v = cam.WorldToViewportPoint(corners[i]);
+                if (v.z <= cam.nearClipPlane)
+                    return new float4(float.MinValue, float.MinValue, float.MaxValue, float.MaxValue);
+                rect = new float4(math.min(rect.xy, new float2(v.x, v.y)), math.max(rect.zw, new float2(v.x, v.y)));
+            }
+            return rect;
+        }
+
+        /// <summary>0: no opening in view reaches the chunk (hidden); 1: one reaches it but it's outside every
+        /// opening's part of the screen (shadow only); 2: seen through one. A chunk on a portal's sight run (InSight) is
+        /// reached however far down the bore it lies, so only the screen test decides it.</summary>
+        int SeenThroughOpening(Bounds chunk, bool inSight, Camera cam)
+        {
+            var near = inSight;
+            for (int i = 0; i < openingsInView.Count && !near; i++)
+                if (openingsInView[i].Intersects(chunk))
+                {
+                    near = true;
+                    break;
+                }
+            if (!near)
+                return 0;
+            var rect = ScreenRect(cam, chunk);
+            for (int i = 0; i < openingRects.Count; i++)
+            {
+                var o = openingRects[i];
+                if (rect.x <= o.z && rect.z >= o.x && rect.y <= o.w && rect.w >= o.y)
+                    return 2;
+            }
+            return 1;
+        }
+
+        /// <summary>W-145: count what comes onto the screen each frame (chunks revealed, first drawn, swapped in view).
+        /// Testing only: a frustum test per chunk a frame.</summary>
+        public static bool CountReveals;
+        readonly Plane[] revealPlanes = new Plane[6];
+
+        /// <summary>W-145: a chunk drawn in the frustum this frame that wasn't last frame is a pop: Revealed if it had
+        /// been drawn before (the surface skip let it through again), FirstDraws if its walls are new.</summary>
+        static void CountReveal(Built b, bool onScreen)
+        {
+            if (onScreen && !b.Drawn)
+            {
+                if (b.EverDrawn)
+                    Counts.Revealed++;
+                else
+                    Counts.FirstDraws++;
+                b.EverDrawn = true;
+            }
+            b.Drawn = onScreen;
+        }
 
         /// <summary>
         /// Draws the loaded chunks. Deep in a cave, out of sight of every mouth (SurfaceHidden), only chunks that
@@ -2017,7 +2512,9 @@ namespace Punchy.Terrain
         /// </summary>
         void Draw(TerrainSource source, float3 camPos, Camera cam)
         {
-            var outside = source.CaveDistance(camPos) >= 0f;
+            // W-145: a camera pushed into the rock over a passage (it trails the player) is not outside: before, that
+            // read as outside for a frame or two and the buried chunks round it blinked out and back.
+            var outside = source.CaveDistance(camPos) >= 0f && camPos.y > source.SampleHeight(camPos.xz) - CameraInRock;
             // The caves around the camera: those whose air box holds it, then any whose box touches one of those.
             var rooms = ~0ul;
             if (!outside && !NoRoomCull && SurfaceHidden >= 0.99f)
@@ -2053,6 +2550,11 @@ namespace Punchy.Terrain
                 StatLoaded = StatSubmitted = StatInView = StatShadows = StatTriangles = 0;
                 GeometryUtility.CalculateFrustumPlanes(cam, statPlanes);
             }
+            var skip = outside && !NoSurfaceSkip && !NoRoomCull && cam != null;
+            if (skip)
+                GatherOpenings(camPos, cam);
+            if (CountReveals && cam != null)
+                GeometryUtility.CalculateFrustumPlanes(cam, revealPlanes);
             foreach (var b in chunks.Values)
             {
                 if (b.Mesh == null)
@@ -2060,11 +2562,24 @@ namespace Punchy.Terrain
                 if (CountStats)
                     StatLoaded++;
                 if (NoWalls || outside && b.Buried || (b.Caves & rooms) == 0ul)
+                {
+                    b.Drawn = false;
+                    continue;
+                }
+                // From the surface, a chunk no opening in view reaches is behind the ground, and one that no opening
+                // shows only casts its shadow (W-135 row 1).
+                var seen = skip ? SeenThroughOpening(b.Mesh.bounds, b.InSight, cam) : 2;
+                if (b.LastSeen >= 0 && b.LastSeen != seen)
+                    Counts.SkipFlips++;
+                b.LastSeen = seen;
+                if (CountReveals)
+                    CountReveal(b, seen == 2 && cam != null && GeometryUtility.TestPlanesAABB(revealPlanes, b.Mesh.bounds));
+                if (seen == 0 || seen == 1 && !b.CastsShadows)
                     continue;
                 if (CountStats)
                 {
                     StatSubmitted++;
-                    if (GeometryUtility.TestPlanesAABB(statPlanes, b.Mesh.bounds))
+                    if (seen == 2 && GeometryUtility.TestPlanesAABB(statPlanes, b.Mesh.bounds))
                     {
                         StatInView++;
                         StatTriangles += b.Triangles;
@@ -2075,7 +2590,7 @@ namespace Punchy.Terrain
                 var rp = new RenderParams(Material)
                 {
                     worldBounds = b.Mesh.bounds,
-                    shadowCastingMode = b.CastsShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
+                    shadowCastingMode = seen == 1 ? ShadowCastingMode.ShadowsOnly : b.CastsShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
                     receiveShadows = true
                 };
                 Graphics.RenderMesh(rp, b.Mesh, 0, Matrix4x4.identity);
@@ -2109,7 +2624,9 @@ namespace Punchy.Terrain
         {
             source.FloorUnder(feet, out var inCave);
             var depth = source.SampleHeight(feet.xz) - feet.y;
-            return inCave ? math.saturate((depth - 1f) / 3f) : 0f;
+            if (!inCave)
+                return 0f;
+            return math.saturate((depth - 1f) / 3f);
         }
 
         Light CreateLantern(string name)

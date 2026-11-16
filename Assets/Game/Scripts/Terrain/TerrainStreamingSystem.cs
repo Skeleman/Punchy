@@ -88,7 +88,10 @@ namespace Punchy.Terrain
         // The batch being built in the background.
         readonly List<BuildItem> building = new List<BuildItem>();
         JobHandle buildHandle;
+        /// <summary>W-136: the GroundContacts.Version + ContactShade.Version the loaded chunks were built with.</summary>
+        int contactVersion;
         int buildFrames;
+        double buildStartedAt;   // W-168: when the batch in flight started (seconds since start)
 
         /// <summary>True while a batch of chunks is meshing in the background, so other background work (the weather
         /// maps) can hold off rather than crowd it out.</summary>
@@ -154,6 +157,8 @@ namespace Punchy.Terrain
             if (materialId == BatchMaterialID.Null)
                 return;
 
+            if (Loading)
+                StartLedger.Tick();
             // Pick up the batch being built once it's done (or it has had long enough).
             if (building.Count > 0)
             {
@@ -163,6 +168,20 @@ namespace Punchy.Terrain
             }
 
             config = ApplyViewDistance(config);
+
+            // W-136: placed plants (re)published their ground contacts, so every loaded chunk re-meshes once with them.
+            if (GroundContacts.Version + ContactShade.Version != contactVersion)
+            {
+                contactVersion = GroundContacts.Version + ContactShade.Version;
+                scratchCoords.Clear();
+                scratchCoords.AddRange(loaded.Keys);
+                foreach (var coord in scratchCoords)
+                {
+                    var chunk = loaded[coord];
+                    chunk.Lod = -1;
+                    loaded[coord] = chunk;
+                }
+            }
 
             // Deep in a cave (CaveSystem.SurfaceHidden) the surface is out of sight: chunks beyond the camera's own
             // neighbourhood stop drawing, and nothing new streams in until the surface comes back into view.
@@ -202,20 +221,25 @@ namespace Punchy.Terrain
             var budget = fast ? VertexBudget / 4 : VertexBudget;
             // A new island (IslandV2 resets its version while it bakes) loads in large batches again.
             if (Punchy.Terrain.IslandV2.ActiveVersion == 0)
+            {
                 Loading = true;
+                viewReady = false;
+            }
             // The first batch stays small so the island's first frame isn't held up (#102); the boost starts once
-            // the nearest chunks are in.
-            var boost = Loading && LoadBoostOn && (loaded.Count > 0 || !SmallFirstBatch) ? LoadBoost : 1;
+            // the nearest chunks are in, and shrinks once the first view is (W-168: the player is looking).
+            var boost = Loading && LoadBoostOn && (loaded.Count > 0 || !SmallFirstBatch) ? (viewReady ? LoadBoostBehind : LoadBoost) : 1;
             budget *= boost;
 
             UnloadDistantChunks(config, focus);
             CollectWantedChunks(config, focus);
+            TakeView(focus, config.ChunkSize);
+            CheckFirstView(config, focus);
             if (wanted.Count == 0)
             {
-                if (Loading && Punchy.Terrain.IslandV2.ActiveVersion != 0 && building.Count == 0)
+                if (Loading && viewReady && building.Count == 0)
                 {
                     Loading = false;
-                    UnityEngine.Debug.Log($"[stream] world ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start, {loaded.Count} chunks (load boost {(LoadBoostOn ? LoadBoost : 1)}x, {World.Name})");
+                    UnityEngine.Debug.Log($"[stream] all chunks in at {UnityEngine.Time.realtimeSinceStartup:F1} s since start, {loaded.Count} chunks ({World.Name})");
                 }
                 return;
             }
@@ -231,6 +255,8 @@ namespace Punchy.Terrain
                     w.Distance *= 1f - 0.4f * ahead;
                     wanted[i] = w;
                 }
+            if (Loading)
+                FirstViewFirst(config, focus);
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
             var count = 0;
             var vertices = 0;
@@ -366,6 +392,7 @@ namespace Punchy.Terrain
         /// <summary>Starts building the first <paramref name="count"/> wanted chunks in the background.</summary>
         void StartBuild(in TerrainConfig config, in TerrainSource source, int count)
         {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             // Terrain meshes at [0, count), water meshes at [count, 2·count).
             buildData = Mesh.AllocateWritableMeshData(count * 2);
             buildRequests = new NativeArray<ChunkBuildRequest>(count, Allocator.Persistent);
@@ -387,7 +414,9 @@ namespace Punchy.Terrain
                     Quads = quads,
                     Lod = item.Lod,
                     CanMorph = item.Lod < config.LodLevels - 1 && quads > 1,
-                    MorphRange = config.MorphRange(item.Lod)
+                    MorphRange = config.MorphRange(item.Lod),
+                    // The LOD band's start, less a chunk (LODs go by the chunk's centre): its nearest approach.
+                    Near = item.Lod == 0 ? 0f : math.max(0f, config.Lod0Distance * (1 << (item.Lod - 1)) - config.ChunkSize)
                 };
 
                 var data = buildData[i];
@@ -407,12 +436,21 @@ namespace Punchy.Terrain
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
                 SkirtDepth = config.SkirtDepth,
                 HeightRanges = buildRanges,
-                WaterRanges = buildWaterRanges
+                WaterRanges = buildWaterRanges,
+                Flora = GroundContacts.Flora,
+                Contacts = GroundContacts.Contacts,
+                ContactStrength = ContactShade.Strength,
+                ContactReach = ContactShade.ReachScale,
+                ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail,
+                Clay = ScarpClay.On
             };
             buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
+            GroundContacts.Readers = buildHandle;   // freed only once this build is done reading them
             buildFrames = 0;
             Meshing = true;
             JobHandle.ScheduleBatchedJobs();
+            buildStartedAt = UnityEngine.Time.realtimeSinceStartupAsDouble;
+            StartLedger.Add("chunks start", clock.Elapsed.TotalMilliseconds, count);
         }
 
         const MeshUpdateFlags MeshFlags = MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices;
@@ -425,6 +463,10 @@ namespace Punchy.Terrain
             buildHandle.Complete();
             Meshing = false;
             var count = building.Count;
+            // W-168: the wait above is forced when the batch hit MaxBuildFrames, otherwise it is near 0.
+            var waited = clock.Elapsed.TotalMilliseconds;
+            StartLedger.Add(buildFrames >= MaxBuildFrames ? "chunks wait (forced)" : "chunks wait", waited);
+            StartLedger.Flight("chunks start", (UnityEngine.Time.realtimeSinceStartupAsDouble - buildStartedAt) * 1000.0);
 
             // Rebuilt chunks reuse their own meshes; new chunks take them from the pool.
             buildMeshes.Clear();
@@ -502,6 +544,7 @@ namespace Punchy.Terrain
                 loaded[item.Coord] = chunk;
             }
             DisposeBuild();
+            StartLedger.Add("chunks apply", clock.Elapsed.TotalMilliseconds - waited, count);
             if (first || clock.Elapsed.TotalMilliseconds > 250)
                 UnityEngine.Debug.Log($"[stream] batch of {count} chunks applied in {clock.Elapsed.TotalMilliseconds:F0} ms{(first ? " (first)" : "")}");
         }

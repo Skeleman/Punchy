@@ -224,7 +224,8 @@ namespace Punchy.Terrain
                     before.Dispose();
                 }
                 // #37: the sea folk settlement in the largest deep lake and its landing, after the turtles.
-                var lake = SeaFolkBaking.Place(source, landmarkTypes);
+                // W-138: at the spots SettlementBaking found for the landing spur.
+                var lake = SeaFolkBaking.Place(source, landmarkTypes, SettlementBaking.LastSeaFolk);
                 Stage("seafolk");
                 if (lake.Count > 0)
                 {

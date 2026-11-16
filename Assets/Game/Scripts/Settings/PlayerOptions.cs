@@ -22,6 +22,8 @@ namespace Punchy.Settings
         public static float Mouse { get; private set; } = DefaultMouse;
         public static float Pad { get; private set; } = DefaultPad;
         public static bool InvertY { get; private set; }
+        /// <summary>P-25: first person whenever in a room.</summary>
+        public static bool FirstPersonIndoors { get; private set; }
         public static float Distance { get; private set; } = DefaultDistance;
         public static float Fov { get; private set; } = DefaultFov;
 
@@ -37,6 +39,7 @@ namespace Punchy.Settings
             Mouse = Get("Look.Mouse", DefaultMouse);
             Pad = Get("Look.Pad", DefaultPad);
             InvertY = Get("Look.InvertY", 0f) > 0.5f;
+            FirstPersonIndoors = Get("Look.FirstPersonIndoors", 0f) > 0.5f;
             Distance = Get("Look.Distance", DefaultDistance);
             Fov = Get("Look.Fov", DefaultFov);
             var fromArgs = ReadCommandLine(Punchy.Debugging.DebugControls.LaunchArgs);
@@ -64,7 +67,7 @@ namespace Punchy.Settings
             Effects = Mathf.Clamp01(Effects);
             Mouse = Mathf.Clamp(Mouse, 0.03f, 0.5f);
             Pad = Mathf.Clamp(Pad, 60f, 400f);
-            Distance = Mathf.Clamp(Distance, 3f, 20f);
+            Distance = Mathf.Clamp(Distance, Punchy.CameraRig.ThirdPersonCamera.ClosestDistance, 20f);
             Fov = Mathf.Clamp(Fov, 50f, 100f);
         }
 
@@ -114,6 +117,7 @@ namespace Punchy.Settings
             PlayerPrefs.SetFloat(Prefix + "Look.Mouse", Mouse);
             PlayerPrefs.SetFloat(Prefix + "Look.Pad", Pad);
             PlayerPrefs.SetFloat(Prefix + "Look.InvertY", InvertY ? 1f : 0f);
+            PlayerPrefs.SetFloat(Prefix + "Look.FirstPersonIndoors", FirstPersonIndoors ? 1f : 0f);
             PlayerPrefs.SetFloat(Prefix + "Look.Distance", Distance);
             PlayerPrefs.SetFloat(Prefix + "Look.Fov", Fov);
             PlayerPrefs.Save();
@@ -142,9 +146,10 @@ namespace Punchy.Settings
             if (rig == null)
                 return;
             rig.MouseSensitivity = Mouse;
+            Punchy.CameraRig.ThirdPersonCamera.FirstPersonIndoors = FirstPersonIndoors;
             rig.StickSensitivity = Pad;
             if (distanceToo)
-                rig.Distance = Mathf.Clamp(Distance, rig.MinDistance, rig.MaxDistance);
+                rig.Distance = Mathf.Clamp(Distance, Punchy.CameraRig.ThirdPersonCamera.ClosestDistance, rig.MaxDistance);
             var cam = rig.GetComponent<Camera>();
             if (cam != null)
                 cam.fieldOfView = Fov;
@@ -189,13 +194,19 @@ namespace Punchy.Settings
             GUI.changed = false;
             var mouse = Slider(nav, "Mouse sensitivity", Mouse.ToString("0.00", CultureInfo.InvariantCulture), Mouse, 0.03f, 0.5f, 0.01f);
             var pad = Slider(nav, "Pad sensitivity", Pad.ToString("0", CultureInfo.InvariantCulture), Pad, 60f, 400f, 10f);
-            var distance = Slider(nav, "Camera distance", $"{Distance.ToString("0.0", CultureInfo.InvariantCulture)} m", Distance, 3f, 20f, 0.5f);
+            var distance = Slider(nav, "Camera distance", Distance < Punchy.CameraRig.ThirdPersonCamera.FirstPersonBelow ? "first person" : $"{Distance.ToString("0.0", CultureInfo.InvariantCulture)} m",
+                                  Distance, Punchy.CameraRig.ThirdPersonCamera.ClosestDistance, 20f, 0.5f);
             var fov = Slider(nav, "Field of view", $"{Fov:0} deg", Fov, 50f, 100f, 1f);
             var changed = GUI.changed;
             var distanceChanged = !Mathf.Approximately(distance, Distance);
             if (nav.Button($"Invert Y: {(InvertY ? "on" : "off")}"))
             {
                 InvertY = !InvertY;
+                changed = true;
+            }
+            if (nav.Button($"First person indoors: {(FirstPersonIndoors ? "on" : "off")}"))
+            {
+                FirstPersonIndoors = !FirstPersonIndoors;
                 changed = true;
             }
             if (changed)
@@ -209,6 +220,7 @@ namespace Punchy.Settings
             if (nav.Button("Reset look"))
             {
                 (Mouse, Pad, InvertY, Distance, Fov) = (DefaultMouse, DefaultPad, false, DefaultDistance, DefaultFov);
+                FirstPersonIndoors = false;
                 ApplyLook(true);
                 Save();
             }

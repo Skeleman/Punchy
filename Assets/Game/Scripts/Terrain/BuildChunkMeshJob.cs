@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -19,7 +20,7 @@ namespace Punchy.Terrain
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
         public float4 Morph;    // geomorph start / complete distance from the focus; z surface bumpiness; w distance to cave air
         public half4 Strata;    // rock strata amount, cobble paving amount, hollow depth (m, for puddles), flagstones (W-108)
-        public half2 Soak;      // porosity (how much rain soaks in, item 22), unused
+        public half2 Soak;      // porosity (how much rain soaks in, item 22), the next-coarser LOD's hollow depth (W-169)
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
@@ -69,6 +70,8 @@ namespace Punchy.Terrain
         /// <summary>Whether a coarser LOD exists to morph towards.</summary>
         public bool CanMorph;
         public float2 MorphRange;
+        /// <summary>W-136: the nearest a chunk of this LOD gets to the camera (m), for the ground contacts' screen gate.</summary>
+        public float Near;
     }
 
     /// <summary>
@@ -87,6 +90,13 @@ namespace Punchy.Terrain
         public float ChunkSize;
         public float NormalEpsilon;
         public float SkirtDepth;
+        /// <summary>W-136: placed plants and their feet, darkening the ground where they meet it (unset: no darkening).</summary>
+        public BlobAssetReference<Punchy.Flora.FloraBlob> Flora;
+        public BlobAssetReference<GroundContacts.Table> Contacts;
+        public float4 ContactStrength, ContactReach;
+        public float ContactPixelsPerMetre;
+        /// <summary>W-155: clay view (launch flag -clay): every vertex takes one flat grey surface.</summary>
+        public bool Clay;
         /// <summary>Output: (min, max) local Y of the terrain mesh, for bounds.</summary>
         public NativeArray<float2> HeightRanges;
         /// <summary>Output: (min, max) Y of the water mesh; x &gt; y when the chunk has no water.</summary>
@@ -114,6 +124,16 @@ namespace Punchy.Terrain
             // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
             // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
             var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
+            // W-136: darkening where trunks, rocks, walls and props meet the ground, multiplied into the albedo.
+            var shaded = Flora.IsCreated && Contacts.IsCreated;
+            var shade = new NativeArray<float>(shaded ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            if (shaded)
+            {
+                for (int i = 0; i < shade.Length; i++)
+                    shade[i] = 1f;
+                GroundContacts.Rasterise(ref Flora.Value, ref Contacts.Value, Source, request.Origin, v, step, request.Near,
+                                         ContactPixelsPerMetre, ContactStrength, ContactReach, shade);
+            }
 
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
@@ -129,6 +149,10 @@ namespace Punchy.Terrain
 
                 var vertex = new TerrainVertex { Position = new float3(local.x, h, local.y), Normal = normal };
                 var surface = Source.SampleSurface(world, ground, normal);
+                if (shaded)
+                    surface.Albedo *= shade[z * v + x];
+                if (Clay)
+                    surface = ScarpClay.Surface();
                 vertex.SetSurface(surface);
                 // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
                 if (ground.HasWater)
@@ -139,13 +163,25 @@ namespace Punchy.Terrain
                 // W-56: the sunken temple's entrance cut, widened a step so no terrain hangs over it (its coping covers the edge).
                 if (request.Lod <= 1 && Source.Landmarks.IsCreated)
                     cave = math.min(cave, Source.TempleCut(world) - step);
+                // W-155: a scarp's stepped strip is left to its skin mesh. The strip is cut away like a cave mouth, and
+                // the vertices in it carry the level run-on of the rim or the foot, so the cut edges land on both.
+                if (request.Lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, world, step, h, out var strip, out var stripY))
+                {
+                    cave = math.min(cave, strip);
+                    if (strip < 0f)
+                    {
+                        vertex.Position.y = stripY;
+                        minY = math.min(minY, stripY);
+                        maxY = math.max(maxY, stripY);
+                    }
+                }
                 vertex.Morph = new float4(request.MorphRange, surface.Bump, cave);
                 // W-98: how far this point sits below the ground round it (rings at 2.5 m and 6 m), so rain puddles
                 // gather in the dips (TerrainSurface.shader) rather than anywhere flat. Only near (puddles fade far off).
                 // Item 22: only a true hollow, with the ground rising on every side: the depth is capped by the lowest
                 // rise (twice it), so a gully running downhill, or anywhere on a slope, has a side that falls away
                 // and gets none, however far it sits below its banks on average.
-                if (request.Lod <= 1)
+                if (request.Lod <= HollowMaxLod)
                 {
                     float ring = 0f, lowest = float.MaxValue;
                     for (int k = 0; k < 8; k++)
@@ -157,9 +193,10 @@ namespace Punchy.Terrain
                     }
                     vertex.Strata.z = (half)math.clamp(math.min(ring / 8f - h, 2f * (lowest - h)), -1f, 1f);
                 }
+                vertex.Soak.y = vertex.Strata.z;   // (an unmorphed chunk keeps its own; WriteMorphOffsets sets the rest)
                 verts[z * v + x] = vertex;
-                // Landmark pools are left out of the sheet: CaveSystem draws each as a smooth disc (a small pool spans
-                // only a few quads of this grid, which gave it a ragged edge).
+                // Landmark pools are left out of the sheet: CaveSystem bakes each on the finer 0.5 m water lattice, fitted
+                // to its basin (W-148; a small pool spans only a few quads of this grid, which gave it a ragged edge).
                 var sheet = ground.WaterSurface;
                 if (Source.Landmarks.IsCreated)
                 {
@@ -179,7 +216,7 @@ namespace Punchy.Terrain
             pooled.Dispose();
 
             if (request.CanMorph)
-                WriteMorphOffsets(verts, q);
+                WriteMorphOffsets(verts, q, request.Lod + 1 <= HollowMaxLod);
 
             var depth = SkirtDepth * (request.Lod + 1);
             int skirtBase = v * v;
@@ -236,31 +273,36 @@ namespace Punchy.Terrain
         /// the coarse grid; odd ones sit on a coarse edge or on the coarse quad's diagonal (the same anti-diagonal
         /// split the triangles use), so a fully morphed mesh matches the coarse mesh exactly.
         /// </summary>
-        static void WriteMorphOffsets(NativeArray<TerrainVertex> verts, int q)
+        static void WriteMorphOffsets(NativeArray<TerrainVertex> verts, int q, bool coarseHollow)
         {
             int v = q + 1;
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
             {
                 bool oddX = (x & 1) == 1, oddZ = (z & 1) == 1;
-                if (!oddX && !oddZ)
-                    continue;
-
-                float coarse;
-                if (oddX && oddZ)
-                    coarse = 0.5f * (H(verts, v, x + 1, z - 1) + H(verts, v, x - 1, z + 1));
-                else if (oddX)
-                    coarse = 0.5f * (H(verts, v, x - 1, z) + H(verts, v, x + 1, z));
-                else
-                    coarse = 0.5f * (H(verts, v, x, z - 1) + H(verts, v, x, z + 1));
-
                 var vertex = verts[z * v + x];
-                vertex.Emission.w = (half)(coarse - vertex.Position.y);
+                // W-169: the hollow depth morphs with the height, onto what the next-coarser LOD carries (none past
+                // HollowMaxLod), so puddles shrink away across the morph band instead of stopping at the chunk edge.
+                if (!coarseHollow)
+                    vertex.Soak.y = (half)0f;
+                if (oddX || oddZ)
+                {
+                    int2 a, b;
+                    if (oddX && oddZ) { a = new int2(x + 1, z - 1); b = new int2(x - 1, z + 1); }
+                    else if (oddX) { a = new int2(x - 1, z); b = new int2(x + 1, z); }
+                    else { a = new int2(x, z - 1); b = new int2(x, z + 1); }
+                    var va = verts[a.y * v + a.x];
+                    var vb = verts[b.y * v + b.x];
+                    vertex.Emission.w = (half)(0.5f * (va.Position.y + vb.Position.y) - vertex.Position.y);
+                    if (coarseHollow)
+                        vertex.Soak.y = (half)(0.5f * ((float)va.Strata.z + (float)vb.Strata.z));
+                }
                 verts[z * v + x] = vertex;
             }
         }
 
-        static float H(NativeArray<TerrainVertex> verts, int v, int x, int z) => verts[z * v + x].Position.y;
+        /// <summary>The coarsest LOD that carries the hollow depth (puddles): its 2.5 m and 6 m rings need about 2 m vertices.</summary>
+        const int HollowMaxLod = 1;
 
         /// <summary>How far (metres) still water reaches out over dry vertices below its level, and wets the shore.</summary>
         const float StillReach = 8f;

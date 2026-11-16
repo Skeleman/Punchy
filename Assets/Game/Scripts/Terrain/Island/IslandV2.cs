@@ -493,7 +493,9 @@ namespace Punchy.Terrain
             var types = new List<LandmarkType>(palette.Landmarks);
             LandmarkBaking.AddLooks(types);
             foreach (var extra in new[] { FishingVillageBaking.LoadType(), TurtleVillageBaking.LoadType(), SeaFolkBaking.LoadVillage(), SeaFolkBaking.LoadLanding(), RibcageBaking.LoadType(), MarshFolkBaking.LoadType() })
-                if (extra != null && !types.Contains(extra))
+                // W-140 row 4: matched by name, not object. In a player build Resources.Load returns other objects than
+                // the subscene palette's for the same asset, which appended all six again (72 types, not 66).
+                if (extra != null && !types.Exists(t => t != null && t.name == extra.name))
                 {
                     types.Add(extra);
                     if (palette.Landmarks.Length == types.Count - 1)
@@ -547,6 +549,67 @@ namespace Punchy.Terrain
             // #102: the plants depend on the palette, not the island, so they grow on worker threads beside the bake.
             var types = LandmarkTypes(palette);
             var pregrown = Punchy.Flora.FloraSystem.Pregrow(palette);
+            StartLedger.Stamp("island start");
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            // W-140: the island cache. A key match loads the saved island instead of baking; anything else (no file,
+            // a changed key, an unreadable file) bakes fresh and rewrites the file. The key is made from the source
+            // as the subscene gave it, before the bake changes it.
+            IslandCache.LastInputs = source;
+            string key = IslandCache.Key(ref source, palette, types, version, out string reason);
+            bool hit = key != null && IslandCache.TryLoad(ref source, version, key, out reason);
+            string bakeText;
+            if (hit)
+                bakeText = $"v{version} loaded from the island cache in {watch.ElapsedMilliseconds} ms";
+            else
+            {
+                bool burst = BakeBurst.Check();
+                var baked = Bake(ref source, palette, types, version);
+                bakeText = $"{baked.Report}; baked in {baked.TotalMs} ms (generate {baked.GenerateMs}, places {baked.TotalMs - baked.GenerateMs}: grand falls {baked.FallsMs}, archipelago {baked.ArchipelagoMs}, cave sockets {baked.SocketsMs})";
+                // A managed bake differs from a Burst one: never save it for later launches.
+                if (key != null && burst) IslandCache.Save(ref source, version, key);
+            }
+            Debug.Log($"[island] cache {(hit ? "hit" : "miss")} {reason} {watch.ElapsedMilliseconds} ms");
+            StartLedger.Add(hit ? "island cache load" : "island bake", watch.Elapsed.TotalMilliseconds);
+            EntityManager.SetComponentData(entity, source);
+            Shared.Keep(source, version);
+            shares = true; Shared.Users++;
+            IslandV2.ActiveVersion = version;
+
+            string hashText = LandmarkHash(ref source, types) + $"; {pregrown} plant variants pregrown";
+            Debug.Log($"[island] {bakeText}; {hashText}");
+            var report = System.Diagnostics.Stopwatch.StartNew();
+            // W-140: each island blob's serialised size (the island cache's file size).
+            Debug.Log(IslandCache.SizeReport(ref source));
+            // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
+            if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
+            // W-68: v3 ends the bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
+            // W-74: only when asked (-islandaudit / PUNCHY_ISLANDAUDIT=1); they cost ~17 s against a ~6 s bake.
+            // W-140: the audits read the bake's own tables (V3Ranges), which a cache hit doesn't build: -freshisland runs them.
+            if (version == IslandV3.Version && IslandV2.AuditRequested())
+            {
+                if (hit) Debug.Log("[island] audits skipped on a cache hit (-freshisland or PUNCHY_FRESHISLAND=1 runs them)");
+                else { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
+            }
+            StartLedger.Add("island reports", report.Elapsed.TotalMilliseconds);
+            StartLedger.Stamp("island ready");
+            Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
+        }
+
+        /// <summary>What <see cref="Bake"/> did, for the "[island]" line.</summary>
+        public struct BakeResult
+        {
+            public string Report;
+            public long TotalMs, GenerateMs, FallsMs, ArchipelagoMs, SocketsMs;
+        }
+
+        /// <summary>
+        /// W-140: the island bake (v2 or v3) on its own, from the source as the subscene gave it, the palette and its
+        /// landmark types (<see cref="LandmarkTypes"/>). Writes every blob in <see cref="IslandCache.Each{V}"/> and the
+        /// island scalars into the source (all Persistent). Used by the system on a cache miss, by the build step and
+        /// by the cache's loaded == fresh test.
+        /// </summary>
+        public static BakeResult Bake(ref TerrainSource source, BiomePalette palette, List<LandmarkType> types, int version)
+        {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var biomes = new List<BiomeDefinition>(palette.Biomes);
             bool hasOcean = source.Biomes.Value.OceanIndex >= 0;
@@ -558,7 +621,7 @@ namespace Punchy.Terrain
             source.V3Ground = gen.V3Ground;
             source.BiomeCells = default;
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Anchors = default; source.PondMask = default;
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.CliffKit = default; source.Anchors = default; source.PondMask = default; source.CaveSockets = default; source.Herds = default;
             TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
             // #72 (W-87): "-campsitetest <look>" adds one test campsite (debug only; nothing without the flag).
             CampsiteTest.Add(ref source, biomes, types, Allocator.Persistent);
@@ -571,21 +634,20 @@ namespace Punchy.Terrain
             source.Archipelago = Archipelago.Build(source, BiomeTags.First(biomes, BiomeTags.ArchipelagoCoast), Allocator.Persistent);
             Debug.Log(Archipelago.LastLog);
             long archMs = watch.ElapsedMilliseconds - fallsAt - fallsMs;
-            EntityManager.SetComponentData(entity, source);
-            Shared.Keep(source, version);
-            shares = true; Shared.Users++;
-            IslandV2.ActiveVersion = version;
-            long placesMs = watch.ElapsedMilliseconds - genMs;
-
-            string hashText = LandmarkHash(ref source, types) + $"; {pregrown} plant variants pregrown";
-            Debug.Log($"[island] {gen.Report}; baked in {watch.ElapsedMilliseconds} ms (generate {genMs}, places {placesMs}: grand falls {fallsMs}, archipelago {archMs}); {hashText}");
-            var report = System.Diagnostics.Stopwatch.StartNew();
-            // (Ponds: the "[ponds]" line from BuildPlaces; W-14 dropped the second count here, ~2.8 s.)
-            if (source.Rivers.IsCreated) Debug.Log("[island] " + RiverReport(ref source.Rivers.Value));
-            // W-68: v3 ends the bake with the water audit (V3Audit; on v2 run it from the editor for a baseline).
-            // W-74: only when asked (-islandaudit / PUNCHY_ISLANDAUDIT=1); they cost ~17 s against a ~6 s bake.
-            if (version == IslandV3.Version && IslandV2.AuditRequested()) { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
-            Debug.Log($"[island] reports {report.ElapsedMilliseconds} ms; v{version} ready at {UnityEngine.Time.realtimeSinceStartup:F1} s since start ({World.Name})");
+            // W-155: scarps last of all, cut into the finished ground, so no place, river or cave is laid out on them.
+            source.Scarps = ScarpBake.Build(source, Allocator.Persistent);
+            Debug.Log(ScarpBake.LastLog);
+            // W-150: the cliff kit after the scarps, on the finished ground; its own stream, so no place sees it.
+            source.CliffKit = CliffKitBaking.Build(source, biomes, Allocator.Persistent);
+            Debug.Log(CliffKitBaking.LastLog);
+            // W-168: the caves' dungeon sockets, last (after the scarps; they read the finished caves and ground), so the island file keeps them.
+            long socketsAt = watch.ElapsedMilliseconds;
+            source.CaveSockets = CaveSocketSetBlob.Build(source, Allocator.Persistent);
+            long socketsMs = watch.ElapsedMilliseconds - socketsAt;
+            // A-108: the herds last, on the finished ground; nothing above reads them.
+            source.Herds = Punchy.Fauna.HerdBaking.Build(source, biomes, Allocator.Persistent);
+            Debug.Log(Punchy.Fauna.HerdBaking.LastLog);
+            return new BakeResult { Report = gen.Report, TotalMs = watch.ElapsedMilliseconds, GenerateMs = genMs, FallsMs = fallsMs, ArchipelagoMs = archMs, SocketsMs = socketsMs };
         }
 
         /// <summary>
@@ -642,8 +704,8 @@ namespace Punchy.Terrain
                     var baked = kv.Value;
                     Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
                     Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
-                    Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago);
-                    Free(ref baked.Anchors); Free(ref baked.PondMask);
+                    Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago); Free(ref baked.Scarps);
+                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit); Free(ref baked.CaveSockets); Free(ref baked.Herds);
                 }
                 bakes.Clear();
             }
@@ -671,10 +733,14 @@ namespace Punchy.Terrain
                 source.Icebergs = baked.Icebergs;
                 source.GrandFalls = baked.GrandFalls;
                 source.Archipelago = baked.Archipelago;
+                source.Scarps = baked.Scarps;
                 source.Anchors = baked.Anchors;
                 source.PondsOn = baked.PondsOn;
                 source.RiverRoughOn = baked.RiverRoughOn;
                 source.PondMask = baked.PondMask;
+                source.CliffKit = baked.CliffKit;
+                source.CaveSockets = baked.CaveSockets;
+                source.Herds = baked.Herds;
             }
         }
     }

@@ -179,6 +179,8 @@ namespace Punchy.Debugging
             data.requiresDepthTexture = mainData.requiresDepthTexture;
             data.requiresColorTexture = mainData.requiresColorTexture;
             data.antialiasing = AntialiasingMode.None;
+            // R-18: the probe reads the raw frame; Stop NaN (on for the main camera) would hide what it counts.
+            data.stopNaN = false;
         }
 
         // One render of the probe camera this frame: with the creature shader's markers, or the normal picture.
