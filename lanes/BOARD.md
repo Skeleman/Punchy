@@ -28,7 +28,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-38 | #372 | player | blocked | player/take-items 487dd137 | option (a) sized at about 15-19 h (over a day), stopped; eyewear needs rule 11 (net look); go/no-go in REPORTS-player |
 | P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
-| P-39 | #397 #398 | player | next | - | Menus d-pad/stick, Start/Select, facing prompts |
+| P-39 | #397 #398 | player-2 (supervisor agent) | active | player/menus (tree Punchy-docs, on take-items 487dd137) | Row 1 d-pad menus; design note in REPORTS-player |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
