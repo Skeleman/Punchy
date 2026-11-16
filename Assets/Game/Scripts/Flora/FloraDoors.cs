@@ -55,6 +55,22 @@ namespace Punchy.Flora
             open.Add(new Vector4(doorPosition.x, doorPosition.y, doorPosition.z, amount));
         }
 
+        /// <summary>
+        /// P-37 r3 (#369): doors held shut (walk-in houses' shut doors near the player, from Doors every frame): entries
+        /// with w = -1, replacing the last frame's. They never push out an opened door: only free entries are used, at
+        /// most <see cref="MaxHeld"/>. Flora.hlsl takes the largest matching w, so for now they only keep the slot; with
+        /// the render lane's change (a matching w below 0 forces 0) they also stop the daytime ajar rhythm on that leaf.
+        /// </summary>
+        public static void HoldShut(List<float3> doorPositions)
+        {
+            open.RemoveAll(d => d.w < 0f);
+            var room = math.min(MaxHeld, Max - open.Count);
+            for (int i = 0; i < doorPositions.Count && i < room; i++)
+                open.Add(new Vector4(doorPositions[i].x, doorPositions[i].y, doorPositions[i].z, -1f));
+        }
+
+        public const int MaxHeld = 6;
+
         /// <summary>P-37 r3 (#369): whether a door within this distance of a point is open (half way or more).</summary>
         public static bool IsOpen(float3 near, float within)
         {
