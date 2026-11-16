@@ -1803,3 +1803,15 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Shots: D:/Unity/PunchyMilestones/P-37/row2/ (1-before-cave-glow, 2-after-no-torch, 3-torch-equipped). The before shot is from the row-1 build, in the bat folk cave, a similar view.
 - Risk: the cold shader cache made the first build take 56 min. The torch's own flame light (CreatureRenderSystem) is unchanged, so with a torch in a cave both lights add up, as before.
 - Shares: gear sync (gearOf) and ItemDef.Light, the shared item definitions. No new held-item channel. Parallel not folded in: CreatureRenderSystem's torch light also reads the held item, and the two could share one helper later.
+
+## P-35 row 2 (#26): item catalog, done (verified) - player/item-catalog@837691c6, draft PR #493
+- Added: ItemAsset (one asset per ItemDef, including P-49 r3's Quest/Base), the ItemIds registry in Resources (append-only, id 0 = `none`, id n+1 = ItemTable row n, stable keys), and ItemCatalog (Defs, KeyOf/IdOf, ItemBlob, Fingerprint, Check). Menu: Punchy/Items/Generate catalog. Running it again appends new ItemTable rows.
+- Nothing changes in play: the game still reads ItemTable. The only runtime addition is one start-log check beside ItemTable.Check.
+- Numbers: 88 items; keys hash 315ce320. The fingerprint is 4748dd7258fec391 for both the catalog and ItemTable, rechecked after a forced reimport and a reload from disk.
+- Tests:
+  - ItemCatalogTests 4/4: same as the table row by row; unique keys with 0 = none; ItemAsset has every ItemDef field; the fingerprint sees a change.
+  - EditMode 21/21.
+  - Play-mode start log: "Items: catalog matches ItemTable (88 items...)".
+- No shot: this is data only, so the check is the numbers above.
+- Risk: a new ItemTable row needs the generator run again, or the start check and CatalogIsTheItemTable fail. That is the intent until row 3 makes the catalog the source.
+- Shares: ItemDef/ItemTable, the shared item definitions. The catalog mirrors them; nothing is copied by hand. Row 3 (network table, ItemStack, kit moves, join check) needs a rule 11 ask.
