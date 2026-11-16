@@ -21,7 +21,7 @@ namespace Punchy.Debugging
     /// float[], string, Vector3) so the tests need no game types. Editor only: nothing here reaches a player build.
     /// Mid-session changes (weather, time, place, spawns) go through DebugControls.RunOptions, the same test flags as PlayArgs.
     /// </summary>
-    public static class TestHooks
+    public static partial class TestHooks
     {
         static EntityManager EM => World.DefaultGameObjectInjectionWorld.EntityManager;
 

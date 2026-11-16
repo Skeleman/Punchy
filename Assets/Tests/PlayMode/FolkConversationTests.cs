@@ -260,6 +260,81 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// A-131 row 1, target: a line's replies read from JSON, and each bad one is named (not a list, five replies, no
+        /// say, an unknown do, a gesture that isn't one, accept with no offer to take, a then with no lines, an unknown
+        /// key) while a good one reads clean.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_ParseAndNameBadOnes()
+        {
+            const string good = @"{ ""Any"": { ""work"": [ { ""text"": ""Bees."", ""offer"": ""quest"", ""options"": [
+                { ""say"": ""Sure."", ""do"": ""accept"", ""then"": ""more"" }, { ""say"": ""Wave."", ""do"": ""gesture:Wave"", ""stance"": ""Warm"" },
+                { ""say"": ""Bye."", ""do"": ""end"" } ] } ], ""more"": [ ""More bees."" ] } }";
+            var clean = Game.Hook<string[]>("OptionProblems", good);
+            Assert.IsEmpty(clean, "a good options list read with problems:\n" + string.Join("\n", clean));
+            var bad = new (string Json, string Named)[]
+            {
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": ""yes"" } ] } }", "should be a list"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ {""say"":""1""},{""say"":""2""},{""say"":""3""},{""say"":""4""},{""say"":""5""} ] } ] } }", "5 replies"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""then"": ""work"" } ] } ] } }", "no \"say\""),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""do"": ""pay"" } ] } ] } }", "isn't accept, decline, end"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""do"": ""gesture:Juggle"" } ] } ] } }", "no gesture called"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""do"": ""accept"" } ] } ] } }", "needs the line to offer"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""then"": ""nowhere"" } ] } ] } }", "no lines for topic \"nowhere\""),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""text"": ""y"" } ] } ] } }", "unknown key \"text\""),
+            };
+            foreach (var (json, named) in bad)
+            {
+                var problems = Game.Hook<string[]>("OptionProblems", json);
+                LogWatch.Measure($"options problem ({named}): {string.Join(" / ", problems)}");
+                Assert.IsTrue(System.Array.Exists(problems, p => p.Contains(named)), $"expected a problem naming '{named}', got: {string.Join(" / ", problems)}");
+            }
+            yield return null;
+        }
+
+        /// <summary>
+        /// A-131 row 1, target: Choose follows a reply's then to the next answer, one deeper, three deep at most; accept
+        /// carries the offer; a gesture or no then goes back to the topic list; end ends; a filtered reply isn't shown.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_ChooseChain()
+        {
+            var bad = Game.Hook<string[]>("OptionChain");
+            LogWatch.Measure("options chain:\n" + Game.HookField<string>("OptionsTrail"));
+            Assert.IsEmpty(bad, string.Join("\n", bad));
+            yield return null;
+        }
+
+        /// <summary>
+        /// A-131 row 1, target: a quest or item offer with no replies of its own still gets Accept then Decline (the
+        /// talk window's old pair, now the first options list); other answers get none.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_DefaultAcceptDeclineUnchanged()
+        {
+            var bad = Game.Hook<string[]>("OptionDefaults");
+            LogWatch.Measure("options defaults:\n" + Game.HookField<string>("OptionsTrail"));
+            Assert.IsEmpty(bad, string.Join("\n", bad));
+            yield return null;
+        }
+
+        /// <summary>
+        /// A-131 row 2, target: the shipped hermit, guard and innkeeper each answer with a branching exchange (dialogue.json
+        /// conversation, reply-only topics), and every reply walked to the depth cap is answered with filled words.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_SampleBranchesWalk()
+        {
+            foreach (var job in new[] { "Hermit", "Guard", "Innkeeper" })
+            {
+                var bad = Game.Hook<string[]>("OptionWalk", job);
+                LogWatch.Measure($"options walk, {job}:\n" + Game.HookField<string>("OptionsTrail"));
+                Assert.IsEmpty(bad, $"{job}: " + string.Join("\n", bad));
+            }
+            yield return null;
+        }
+
+        /// <summary>
         /// Target: live village folk answer every topic through the entity path (persona, condition, town, stance).
         /// A-96 row 0: folk answer a beast differently (no "[who]" line for a crow), and every tree shares the editor's
         /// PlayerPrefs, so the saved body (Punchy.Character.Body) may be anything: the test plays a human itself and puts
