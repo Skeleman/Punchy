@@ -154,3 +154,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #454 merged, R-23 row 2 (#298): one surface lighting path for terrain and built pieces (job 82 pass).
 - 11-16: #455 merged, R-15 rows 1-3 (#269): shader audit fixes incl. WaterPatchSystem; row 4 waits on bench job 62.
 - 11-16: #456 merged, W-166 row 4 part (#336): sunken temple walls and flagstones use the shared cut stone.
+- 11-16: #458 A-124 r2 (#358 closed): each person walks in their own style (even, heavy, brisk, ambling, a few limp).
+- 11-16: #459 M-06 r4 (#413 closed): Model Lab sets a material kind per creature segment (Body, Cloth, Leather, Metal, Wood, Bone); game looks unchanged until an asset uses it.
