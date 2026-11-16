@@ -933,3 +933,14 @@ with main d95e7ff1); compiles, no suite run yet.
 - **Shots.** PunchyMilestones/R-25/plume-reach/after/ (contact sheet there); A/B sheet against lava-recheck/walk1 at PunchyMilestones/R-25/plume-reach/ab-plume-before-after.jpg.
 - **Not done.** Sparkle probe (rule 24) not run: free RAM was 6.3 GB by the end, too low for a second play session. No NaN lines in the log. The fade is a plain alpha multiply, so a NaN is unlikely, but I asked for the probe in BENCH job 108. The UI Toolkit exception lines in the log are editor UI stack traces, not game code.
 - Editor closed with EditorApplication.Exit (clean, about 30 s). No placement touched, so fingerprints are unchanged.
+
+## 2026-11-16 R-22 r3 far forest: editor-free prep done, render/far-forest @ 5f37a001 (not compiled yet)
+- **Bake.** It steps by the tree cell size from the placement data (the size Place uses), not one recomputed from settings.
+- **Thinning.** The stand-in for thinned-out trees follows the cull's own ramp, from ThinFrom x radius (about 375 m at High) to the radius, through `_PunchyCanopyThinFrom`. So the canopy pass now runs on terrain pixels from about 375 m, not 1275 m.
+- **Clearing shade.** Closes the 9 m gap: an empty texel takes the nearest forest's means from up to 4 texels (36 m) off, with cover still 0. The terrain shades the ground beside a forest on the side away from the sun, only past the trees' end (nearer, they cast their own shadows).
+- Editor run waits for render-2's handoff. It needs about 12 GB free at the start.
+- **BENCH draft** (to queue after the editor run; the supervisor sets the number):
+  - Arms: (A) render/far-forest with `-farforest 0`; (B) the same build as is. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames per arm.
+  - Views: (a) a ground walk through open forest with clearings (forest cover inside 375-1500 m); (b) summit view `-goto -3460,2425` at noon, clear, with the far forest in view; (c) a 1000 m flight over forest toward the coast; (d) a coast or meadow walk with no forest in view as a control.
+  - Record: terrain pass GPU ms (the canopy adds 2 to 5 texture taps per pixel past about 375 m, where forest or a forest edge is near) and whole-frame GPU/CPU ms. Also the bake time at load from the `[flora] far forest map baked in N ms` line, and whether start-up waits on it (it runs on workers; it should not).
+  - Pass: B within 0.3 ms GPU of A at (a) and (d), within 0.8 ms at (b) and (c); bake under 3 s on workers with no main-thread hitch over 2x median. Report the numbers otherwise.
