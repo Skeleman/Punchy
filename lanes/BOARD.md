@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r7 | #262 | world | active | world/cave-walls | W-172 r7 pushed @ a476d9f3 (rebased on main, ready for PR; BENCH request in REPORTS-profiler). Now #400 (world/chunk-mesh-budget), then W-174 r4-5 |
+| #400 | #400 | world | active | world/chunk-mesh-budget | #400 pushed @ e32e1a4b (main merged, ready for PR; BENCH request in REPORTS-profiler). Now W-174 r4-5 (world/ground-edits), then W-175 #415, fungi-cap brightness |
 | W-174 | #406 | world | in flight (r3) | world/ground-edits | Rows 1-2 merged (#440, #481). Next: row 3 river carves and pools, row 4 seams (#405), row 5 guard |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |

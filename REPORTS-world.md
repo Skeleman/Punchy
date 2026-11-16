@@ -8445,3 +8445,10 @@ Plan:
 - A "unit" part nests a whole unit by id (UnitPart.Unit, max depth 4). UnitLibrary finds units by id (coded, species JSON, and editor blueprints). Lab: Snap joins button (12 cm join, 5 cm grid) and a Unit id field.
 - FloraSpecies.UnitJson: a species grows a saved blueprint wherever it is placed. Additive line in shared FloraGenerator.cs (owner please note).
 - Checks: Smithy/Stall/Tent/FirePit hashes same; EditMode 19/19; Landmarks_V3 pass. No look change, so no shots. Settlement placement of JSON units is left to world.
+
+## #400 chunk-mesh budget (world/chunk-mesh-budget @ e32e1a4b, origin/main merged), 2026-11-16
+
+- TerrainStreamingSystem: outside loading, a chunk-mesh batch takes at most half the job workers (JobsUtility.JobWorkerCount), so the creature cull and other jobs are not queued behind meshing. Loading still uses every worker.
+- A LOD 0-1 chunk over a cave (its vertices sample the mouth cut five times each) is charged 5x its vertices against the batch budget, so cave-mouth chunks go alone or with small ones. New CaveSampling.NearRect (cell-grid box test).
+- Order stays nearest first: every chunk is the same size on the ground, so that is largest on screen first (rule 20; comment added).
+- Checks: compile clean; WorldTests 17/17 (merged tree); walk along Job 96's q137b route (20 m outside the mouth at -2061,691, yaw 326, 140 m at 6 m/s): 3004 frames, 0 with ground missing within 40 m. Generation untouched, so fingerprints unchanged. No timing (rule 21); BENCH draft in REPORTS-profiler. Creature side left to fauna (c400 draft).

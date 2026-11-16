@@ -4089,3 +4089,7 @@ Zach's question: do behaviours, animation and the other creature logic run as la
 ## world: BENCH request for W-172 r7 (2026-11-16)
 
 Branch world/cave-walls @ a476d9f3 vs main @ 7b7dd49d. Route: walk into cave 2 (-2580,217,300, crystal, moss/fungi/glow) and tunnel 23 (-2207,110,-43). Measure main-thread ms for CaveSystem.DrawRooms (wall builds step 2 placements a frame) and draw calls/frame inside a cave; flag any frame > 2 ms from CaveWallBuild.Step.
+
+## world: BENCH request for #400 (2026-11-16)
+
+Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unchanged (3 timed runs + a Profiler run). Report frames over 33 ms, worst frame, BuildChunkMeshJob worker ms per frame, and main-thread JobHandle.Complete ms in CreatureRenderSystem. Expect fewer stalls; the fauna c400 cull change is separate, so a combined run after both land is also useful.
