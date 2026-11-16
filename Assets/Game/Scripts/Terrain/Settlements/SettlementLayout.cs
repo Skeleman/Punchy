@@ -65,6 +65,10 @@ namespace Punchy.Terrain
         [Tooltip("If set, a house of this named style (W-95, #69): never picked by weight. A settlement seeded into the " +
                  "style (the layout's House Style Chance) puts the style's houses on all its house plots instead.")]
         public string Style = "";
+        [Tooltip("A-117, Stable role only: the fewest building plots a settlement needs for this one. Each settlement " +
+                 "takes the Stable entry with the biggest Min Plots it reaches (a stable in towns, a hitching rail in " +
+                 "villages) on one green (or, for a stable, house) plot out at the edge, after the layout (no rng drawn).")]
+        [Min(0)] public int MinPlots;
     }
 
     /// <summary>W-127: where a settlement's street light stands.</summary>

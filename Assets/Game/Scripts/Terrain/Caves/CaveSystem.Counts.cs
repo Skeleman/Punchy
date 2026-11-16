@@ -26,6 +26,10 @@ namespace Punchy.Terrain
             public int Building, Wanted;
             /// <summary>Rebuilds (another level or contact list) in flight at the end of streaming.</summary>
             public int Rebuilding;
+            /// <summary>W-145, what came onto the screen (the chunk ones only while CountReveals is on): chunks drawn in
+            /// the frustum again after being skipped, chunks drawn for the first time there, wall levels swapped in view;
+            /// cave plants coming into range and switching their finest model; cave water bakes finished and tiles shown; room kit flames lit.</summary>
+            public int Revealed, FirstDraws, VisibleSwaps, PlantsShown, PlantsFine, WaterBakes, WaterShown, FlamesShown;
         }
 
         /// <summary>This frame's counts so far.</summary>
@@ -37,6 +41,22 @@ namespace Punchy.Terrain
         {
             FrameCounted?.Invoke(Counts);
             Counts = new FrameCounts { Frame = Time.frameCount };
+        }
+
+        /// <summary>
+        /// The end of Update, with the running clock at each step: names the slow parts of any frame over a quarter
+        /// second (startup hitch hunting, #102), and while the world loads adds the streaming and the whole frame to
+        /// the start ledger (W-168).
+        /// </summary>
+        static void NoteFrame(double[] marks)
+        {
+            if (marks[7] > 250)
+                Debug.Log($"[caves] slow frame {marks[7]:F0} ms: pools+glow {marks[0]:F0}, styles {marks[1] - marks[0]:F0}, stream {marks[2] - marks[1]:F0}, draw+pools {marks[3] - marks[2]:F0}, bat folk {marks[4] - marks[3]:F0}, plants {marks[5] - marks[4]:F0}, drips {marks[6] - marks[5]:F0}, glowing {marks[7] - marks[6]:F0}");
+            if (!TerrainStreamingSystem.Loading || !StartLedger.Open)
+                return;
+            StartLedger.Add("caves stream", marks[2] - marks[1], Counts.NewBuilds + Counts.LevelBuilds + Counts.ContactBuilds);
+            StartLedger.Add("caves uploads (in stream)", 0, Counts.Uploads);
+            StartLedger.Add("caves rest of frame", marks[7] - (marks[2] - marks[1]), Counts.RoomKits);
         }
     }
 }

@@ -1,6 +1,9 @@
 #ifndef PUNCHY_WATER_FIELD_INCLUDED
 #define PUNCHY_WATER_FIELD_INCLUDED
 
+// (R-21: the river curtains' boxes, whose faces the water leaves out.)
+#include "RiverCurtains.hlsl"
+
 // R-9: the water deforms under what swims, wades or lands in it. Near the player, WaterPatchSystem.cs draws the water
 // again as a fine sheet (quads down to 12.5 cm, by screen size, a few metres round them in a 32 m square) and steps a wave field over the same square
 // (WaterField.compute): the fine sheet's vertices rise and fall by it, and its normals follow. The chunk water clips
@@ -32,6 +35,13 @@ float4 _PunchyWaterFallLip;
 float4 _PunchyWaterFallAxis;
 float4 _PunchyWaterFallSpan;
 
+// W-148 row 6: how thick a liquid is (0 water .. 1 lava) from its glow (x self-glow, y lava): lava 1, a glowing liquid
+// (toxic, the bat folk's white pools) 0.3, plain water exactly 0. The same as WaterPatchSystem.Viscosity.
+float PunchyLiquidViscosity(float2 glow)
+{
+    return max(saturate(glow.y), 0.3 * smoothstep(0, 0.1, glow.x));
+}
+
 // Whether a point (its place before the swell moved it) is under the fine sheet, so the chunk water leaves it out.
 bool PunchyWaterInPatch(float2 restXZ)
 {
@@ -53,6 +63,15 @@ float PunchyWaterFieldWeight(float2 restXZ)
     float row = _PunchyWaterPatchRect.z - _PunchyWaterPatchRect.x + 1;
     float2 uv = (restXZ - _PunchyWaterPatchRect.xy + 0.5) / row;
     return SAMPLE_TEXTURE2D_LOD(_PunchyWaterPatchWeight, sampler_PunchyWaterPatchWeight, uv, 0).r;
+}
+
+// W-148 row 5: how much the field shows on lattice water (cave water, landmark pools) here: 1 inside the player's
+// square, easing to 0 over its outer metres (where the field soaks its waves up), 0 outside it or with the field off.
+float PunchyWaterLatticeFieldWeight(float2 restXZ)
+{
+    float2 lo = restXZ - _PunchyWaterPatchRect.xy, hi = _PunchyWaterPatchRect.zw - restXZ;
+    float edge = min(min(lo.x, lo.y), min(hi.x, hi.y));
+    return smoothstep(1.5, 4.0, edge);
 }
 
 float2 PunchyWaterFieldUV(float2 xz)
@@ -118,19 +137,18 @@ float3 PunchyWaterFallOffset(float3 restWS, float t, out float churn, out float 
     float ph = c * 0.9 + sin(c * 0.37) * 2.1 + sin(c * 1.3 + 1.7) * 0.6;
     float3 outward = float3(o.x, 0, o.y);
     float3 offset = 0;
-    // The lip: the run-in bulges up as it reaches the edge, then curls out over it.
-    offset.y += 0.12 * smoothstep(-4, -0.8, s) * (1 - smoothstep(0, 0.8, down));
+    // The lip: the water curls out over the edge (its run-in's dip and turbulence are every fall's, PunchyFallWater).
     offset += outward * 0.35 * exp(-((down - 0.9) / 0.7) * ((down - 0.9) / 0.7));
     // The curtain: ripples running down it, uneven across.
     float face = smoothstep(0.5, 1.5, down) * (1 - smoothstep(drop - 1.5, drop - 0.3, down));
     offset += outward * 0.11 * face * (0.6 + 0.4 * sin(c * 0.71 + ph)) *
         (0.65 * sin(down * 3.6 - t * 7 + ph) + 0.35 * sin(down * 7.3 - t * 12 + 1.7 * ph));
     curtain = smoothstep(0.3, 1.0, down) * (1 - smoothstep(drop - 0.6, drop, down)) * w;
-    // The foot: the pool heaves where the curtain lands, dying away downstream.
+    // The foot: the pool is churned where the curtain lands, dying away downstream (its mound and rings are every
+    // fall's, PunchyFallWater).
     float foot = _PunchyWaterFallSpan.y;
     float pool = smoothstep(drop - 1.2, drop - 0.2, down);
     float band = smoothstep(foot - 1.5, foot, s) * (1 - smoothstep(foot + 1, foot + 7, s));
-    offset.y += 0.14 * pool * band * (0.6 * sin(t * 5.3 + c * 1.7 + s * 2.3) + 0.4 * sin(t * 8.1 - c * 2.9 + s * 1.1 + ph));
     churn = pool * band * w;
     return offset * w;
 }
@@ -178,6 +196,11 @@ float3 PunchyWaterPatchPoint(float3 restWS, float4 data, float t, out float swel
     positionWS.y += PunchyWaterFieldHeight(restWS.xz) * PunchyWaterFieldWeight(restWS.xz);
     float churn, curtain;
     positionWS += PunchyWaterFallOffset(restWS, t, churn, curtain);
+    // R-21 row 4: the water's moves round every fall (above its lip, at its foot); the short waves only where the
+    // sheet is fine enough to carry them.
+    float fallChurn;
+    float2 fallSlope;
+    positionWS.y += PunchyFallWater(restWS, t, PunchyWaterSheetWeight(restWS.xz), fallChurn, fallSlope);
     float flowAmount = saturate(length(data.xy));
     float rapids = PunchyRapidsAmount(data.w, flowAmount) * (1 - curtain);
     [branch] if (rapids > 0)

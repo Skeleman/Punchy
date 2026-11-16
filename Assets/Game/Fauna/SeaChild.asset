@@ -17,6 +17,12 @@ MonoBehaviour:
   VariantHead: 1.5
   VariantThickness: 1.2
   VariantLegs: 0.85
+  BuildRange:
+    Height: 0.025
+    Girth: 0.06
+    Limbs: 0.03
+    Head: 0.03
+    Shoulders: 0.05
   Coats:
   - Name: Shallows scales, coral fins
     Base: {r: 0.4, g: 0.66, b: 0.7, a: 1}

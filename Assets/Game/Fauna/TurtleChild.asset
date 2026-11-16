@@ -17,6 +17,12 @@ MonoBehaviour:
   VariantHead: 1.45
   VariantThickness: 1.2
   VariantLegs: 0.85
+  BuildRange:
+    Height: 0.025
+    Girth: 0.06
+    Limbs: 0.03
+    Head: 0.03
+    Shoulders: 0.05
   Coats:
   - Name: Sky-blue robe, olive skin
     Base: {r: 0.56, g: 0.72, b: 0.86, a: 1}

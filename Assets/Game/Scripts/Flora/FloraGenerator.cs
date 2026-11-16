@@ -17,6 +17,20 @@ namespace Punchy.Flora
         public float Reach, Error;
     }
 
+    /// <summary>
+    /// A basin of open water a plant holds (a fountain's or a well's), before the plant's own rotation and scale: its
+    /// surface's middle and radius, the sides of the basin wall round it (the water is that polygon, ring for ring with
+    /// the wall's tube, W-148), how deep it looks and its colour (rgb, murk).
+    /// </summary>
+    public struct FloraPool
+    {
+        public Vector3 Centre;
+        public float Radius;
+        public int Sides;
+        public float Depth;
+        public Vector4 Look;
+    }
+
     public class FloraModel
     {
         /// <summary>Its walkable tops, for forms people can climb and stand on (rocks, buildings, rims), else null.</summary>
@@ -50,10 +64,10 @@ namespace Punchy.Flora
         /// </summary>
         public readonly List<float> ColliderBase = new List<float>();
         /// <summary>
-        /// Basins of open water it holds (a fountain's): centre (x, y, z) and radius (w), before the plant's own rotation
-        /// and scale. FloraSystem draws them with the terrain's own water (Z-12).
+        /// Basins of open water it holds (a fountain's, a well's), from its finest level of detail. FloraSystem draws them
+        /// with the terrain's own water (Z-12), shaped as the basin is (W-148).
         /// </summary>
-        public readonly List<Vector4> Pools = new List<Vector4>();
+        public readonly List<FloraPool> Pools = new List<FloraPool>();
         /// <summary>
         /// Places a bird can sit on its top (a roof's peak or ridge ends, a chimney, a post), before the plant's own
         /// rotation and scale. Empty for most plants (see FloraPlacement.NearPerches).
@@ -88,7 +102,7 @@ namespace Punchy.Flora
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
             form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
-                 or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence;
+                 or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence or FloraForm.HitchRail;
 
         /// <summary>
         /// Refactor 3.5c: its detail rule's class (DetailPolicy.FloraRule). By form, then for growing things by whether it
@@ -103,7 +117,7 @@ namespace Punchy.Flora
                 case FloraForm.Well: case FloraForm.Hall: case FloraForm.Shrine: case FloraForm.Garden: case FloraForm.Lodge:
                 case FloraForm.Signpost: case FloraForm.Bridge: case FloraForm.Palisade: case FloraForm.RailFence:
                 case FloraForm.MineFrame: case FloraForm.HazardShelter: case FloraForm.KitBuilding: case FloraForm.KitRuin:
-                case FloraForm.Ruin:
+                case FloraForm.Ruin: case FloraForm.Stable: case FloraForm.HitchRail:
                     return Punchy.Settings.DetailPolicy.FloraClass.Structure;
                 case FloraForm.Boulder: case FloraForm.Spire: case FloraForm.Crystal: case FloraForm.Den: case FloraForm.Columns:
                 case FloraForm.IceArch: case FloraForm.Fulgurite: case FloraForm.ArcSpire: case FloraForm.FloatingRock:
@@ -298,6 +312,8 @@ namespace Punchy.Flora
                     case FloraForm.Stall: Stall(g); break;
                     case FloraForm.Inn: Inn(g); break;
                     case FloraForm.Smithy: Smithy(g); break;
+                    case FloraForm.Stable: Stable(g); break;
+                    case FloraForm.HitchRail: HitchRail(g); break;
                     case FloraForm.Forum: Forum(g); break;
                     case FloraForm.Fountain: Fountain(g); break;
                     case FloraForm.Woodpile: Woodpile(g); break;
@@ -436,7 +452,7 @@ namespace Punchy.Flora
             public readonly List<Punchy.Terrain.ClimbLadder> Ladders = new List<Punchy.Terrain.ClimbLadder>();
             public readonly List<Vector3> Boats = new List<Vector3>();
             public readonly List<Vector4> Windows = new List<Vector4>();
-            public readonly List<Vector4> Pools = new List<Vector4>();
+            public readonly List<FloraPool> Pools = new List<FloraPool>();
 
             /// <summary>
             /// Adds upright cylinders covering a rotated ellipsoid's footprint: a row of circles along its longer

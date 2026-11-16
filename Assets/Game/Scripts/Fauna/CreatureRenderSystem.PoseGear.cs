@@ -97,13 +97,13 @@ namespace Punchy.Fauna
                 }
             }
 
-            void Gear(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
+            internal void Gear(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded)
             {
                 for (int i = 0; i < GearParts; i++)
                     Output[at + i] = default;
                 if (!b.Upright || !b.Hands)
                     return;
-                int hand = -1, offHand = -1, head = -1, chest = -1;
+                int hand = -1, offHand = -1, head = -1, chest = -1, thigh = -1;
                 for (int i = 0; i < b.Parts.Length; i++)
                 {
                     ref var part = ref b.Parts[i];
@@ -115,6 +115,8 @@ namespace Punchy.Fauna
                         head = part.FirstSegment + part.SegmentCount - 1;
                     else if (part.Parent < 0 && part.Role != LimbRole.Leg && part.Role != LimbRole.Arm && chest < 0)
                         chest = part.FirstSegment + part.SegmentCount - 1;
+                    else if (part.Parent < 0 && part.Role == LimbRole.Leg && thigh < 0)
+                        thigh = part.FirstSegment;
                 }
                 var k = 0;
                 var scale = Unity.Mathematics.math.max(state.Scale, 0.3f);
@@ -274,10 +276,23 @@ namespace Punchy.Fauna
                     var colour = smith ? new Unity.Mathematics.float4(0.14f, 0.085f, 0.05f, 0f) : baker ? cloth : new Unity.Mathematics.float4(0.62f, 0.58f, 0.5f, 0f);
                     var topAt = c.Position + axis * c.Length * 0.55f + front * r * 0.72f;
                     var length = c.Length * 0.6f + r * 1.2f;
-                    Output[at + k++] = Piece(topAt, -axis, front, length, r * 0.62f, r * 0.7f, 0.035f, colour, faded, smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth);
+                    // (A-128: a smith's heavy leather one reaches down to the knee, over the thighs.)
+                    if (smith && thigh >= 0)
+                    {
+                        var t = Output[offset + thigh];
+                        length = Unity.Mathematics.math.max(length, Unity.Mathematics.math.dot(topAt - t.Position, axis) + t.Length * 0.85f);
+                    }
+                    // In two pieces, bib and skirt, each kept out in front of the chest, belly and thighs (Drape), so a
+                    // stride pushes the skirt forward with the thigh rather than the knee coming through it.
+                    var material = smith ? SegmentMaterial.Leather : SegmentMaterial.Cloth;
+                    var bib = Drape(ref b, offset, ref topAt, -axis, length * 0.5f, r * 0.62f, r * 0.62f * 0.035f, front, true);
+                    Output[at + k++] = Piece(topAt, bib, front, length * 0.5f, r * 0.62f, r * 0.66f, 0.035f, colour, faded, material);
+                    var waist = topAt + bib * length * 0.5f;
+                    var skirt = Drape(ref b, offset, ref waist, -axis, length * 0.5f, r * 0.66f, r * 0.66f * 0.035f, front, false);
+                    Output[at + k++] = Piece(waist, skirt, front, length * 0.5f, r * 0.66f, r * 0.7f, 0.035f, colour, faded, material);
                 }
                 else
-                    k++;
+                    k += 2;
 
                 // A hat: a straw hat, wide-brimmed, for outdoor work; a fisher's floppy one. (Under it, the hair stays.)
                 // (A-77: never on cave folk, pygmies and bat folk, who go bareheaded.)
@@ -319,7 +334,7 @@ namespace Punchy.Fauna
                     Output[at + k++] = Piece(crown - ax * r * 0.3f, face, ax, 0f, brim, brim, 0.07f, colour, faded, material);
                     Output[at + k++] = Piece(crown - ax * r * 0.4f, ax, face, r * (fisher ? 0.55f : 0.7f), r * 1.05f, r * 0.85f, 1f, colour, faded, material);
                 }
-                k = 5;
+                k = 6;
 
                 // Extras at the post (A-33).
                 var ground = state.Position;
@@ -517,6 +532,22 @@ namespace Punchy.Fauna
                 var upward = new Unity.Mathematics.float3(0f, 1f, 0f);
                 var h = Output[offset + hand];
                 var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.5f));
+                // (A-115: a lamplighter's is its lamp pole: longer and thinner, a brass hook at the top, no pack. Up at
+                // a lamp it leans in toward it.)
+                if (state.Task == CreatureTask.Tend && state.Mode == CreatureMode.Work &&
+                    (state.Stage == FolkJobs.RoundWalk || state.Stage == FolkJobs.RoundReach))
+                {
+                    var lean = state.Stage == FolkJobs.RoundReach ? 0.42f : 0.12f;
+                    var pole = Unity.Mathematics.math.normalize(upward + forward * lean);
+                    var poleLength = 2.4f * scale;
+                    var foot = grip - pole * poleLength * 0.4f;
+                    Output[at] = Piece(foot, pole, forward, poleLength, 0.014f * scale, 0.011f * scale, 1f,
+                                       new Unity.Mathematics.float4(0.3f, 0.21f, 0.11f, 0f), faded, SegmentMaterial.Wood);
+                    var hook = Unity.Mathematics.math.normalize(forward - pole * 0.3f);
+                    Output[at + 1] = Piece(foot + pole * poleLength, hook, upward, 0.16f * scale, 0.012f * scale, 0.008f * scale, 1f,
+                                           new Unity.Mathematics.float4(0.62f, 0.46f, 0.2f, 0f), faded, SegmentMaterial.Metal);
+                    return;
+                }
                 var dir = Unity.Mathematics.math.normalize(upward + forward * 0.18f);
                 var length = 1.7f * scale;
                 Output[at] = Piece(grip - dir * length * 0.65f, dir, forward, length, 0.02f * scale, 0.016f * scale, 1f,

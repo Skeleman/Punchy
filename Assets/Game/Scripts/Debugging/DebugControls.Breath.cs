@@ -107,7 +107,7 @@ namespace Punchy.Debugging
                 var mind = em.GetComponentData<CreatureMind>(e);
                 ref var b = ref em.GetComponentData<CreatureBody>(e).Blob.Value;
                 var g = source.SampleGround(c.Position.xz);
-                var head = Breath.Head(c, ref b);
+                var head = Breath.Head(c, ref b, g.WaterSurface - g.Height);
                 var mark = breathMarks[i];
                 mark.x = math.max(mark.x, mind.BreathUsed);
                 if (mind.Gasping)

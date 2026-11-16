@@ -70,10 +70,17 @@ namespace Punchy.Fauna
         {
             var em = state.EntityManager;
             var player = SystemAPI.GetSingletonEntity<PlayerTag>();
-            // (Nothing to do alone and on foot: no wait on the creatures' jobs then.)
-            var others = SystemAPI.QueryBuilder().WithAll<RemoteAvatar>().Build();
-            if (!em.HasComponent<PlayerRideAsk>(player) && !em.HasComponent<PlayerRide>(player) && others.IsEmpty)
-                return;
+            // (Nothing to do while we're on foot and no other player rides: no wait on the creatures' jobs then. A-112:
+            // this was "while no other player is near", so with anyone else in the game it waited every frame. A look
+            // naming a mount is all SeatOthers acts on, and reading the looks waits on nothing but their own writers.)
+            if (!em.HasComponent<PlayerRideAsk>(player) && !em.HasComponent<PlayerRide>(player))
+            {
+                var othersRide = false;
+                foreach (var look in SystemAPI.Query<RefRO<NetPlayerLook>>())
+                    othersRide |= look.ValueRO.Mount != 0;
+                if (!othersRide)
+                    return;
+            }
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             SystemAPI.TryGetSingletonEntity<PlayerAvatar>(out var avatar);
             if (avatar != Entity.Null && (!em.HasComponent<CreatureState>(avatar) || !em.HasComponent<CreatureBody>(avatar)))

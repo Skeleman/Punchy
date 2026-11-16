@@ -34,6 +34,16 @@
         "temple_kind": ["Sunken Temple", "Drowned Shrine"]
       },
       "lines": [
+        { "text": "\"Lost: one grey goat, answers to Biscuit.\" Again?", "trade": "Board" },
+        { "text": "Look here, someone wants wolves seen to.", "trade": "Board" },
+        { "text": "\"Help wanted at the mill.\" Not me, I've a bad back.", "trade": "Board" },
+        { "text": "Says here the road north's washed out.", "trade": "Board" },
+        { "text": "Who keeps pinning these up crooked?", "trade": "Board" },
+        { "text": "\"Found: a boot.\" Just the one?", "trade": "Board" },
+        { "text": "There's a notice for you, if you're after work.", "trade": "Board" },
+        { "text": "Read that one out, my eyes aren't what they were.", "trade": "Board" },
+        { "text": "\"Market moved to the fifth day.\" Since when?", "trade": "Board" },
+        { "text": "Somebody's lost a ring down the well. Again.", "trade": "Board" },
         "Mind how you go.",
         "{time_of_day}'s a {weather_word} one.",
         { "text": "Is that a {player}? Odd company.", "weight": 0.5 },
@@ -178,7 +188,16 @@
         { "text": "Three today, plump ones!", "trade": "PoolFisher", "mood": "Cheerful" },
         { "text": "The drips scare them off.", "trade": "PoolFisher", "mood": "Grumpy" },
         { "text": "Feel the ripples, not the light.", "trade": "PoolFisher" },
-        { "text": "The pool gives what it gives.", "trade": "PoolFisher" }
+        { "text": "The pool gives what it gives.", "trade": "PoolFisher" },
+        { "text": "Every lamp in town, every night. My knees know each one.", "trade": "Lamplighter" },
+        { "text": "Long way round tonight. It's always the long way round.", "trade": "Lamplighter", "when": "evening" },
+        { "text": "Cold creeps in through the gloves by the last lamp.", "trade": "Lamplighter" },
+        { "text": "Wind off the hills bites at this hour.", "trade": "Lamplighter", "when": "night" },
+        { "text": "That one by the well never stays lit. Never.", "trade": "Lamplighter", "mood": "Grumpy" },
+        { "text": "Lit it twice already. If it goes out again, it can stay dark.", "trade": "Lamplighter", "mood": "Grumpy" },
+        { "text": "Watch them come on, street by street. Never gets old.", "trade": "Lamplighter", "mood": "Cheerful" },
+        { "text": "Out they go at first light, one by one.", "trade": "Lamplighter", "when": "dawn" },
+        { "text": "Rain's the worst. Wet wicks and wet feet.", "trade": "Lamplighter" }
       ]
     },
     "Human": {
@@ -465,6 +484,14 @@
       "gesture: an emote it makes (Wave, Bow, Cheer, Dance, Pet, LookAround...) or a word the talk window shows. offer: quest, item:<item name>, directions, rumour:<what about>, discount:<percent>, refuses. ends: true closes the talk. weight: default 1.",
       "family (A-105): kin is the household member a line is about, by what it is to the speaker: partner, child, parent, grandparent, grandchild, sibling, inlaw (one or a list), or none for a folk with nobody else at home. {kin_name} and {kin_word} name that member and what the speaker calls it (daughter, husband, grandmother). gone: true for a member who has died (the line misses them), false or left out for the living. A line with a kin slot and no kin key is about anyone living in the house."
     ],
+    "quests": {
+      "_readme": "A quest put in a few words, for {quest} in a line (when quests.json gives the quest no \"talk\" of its own). find: a lost thing; clear: beasts to drive off; bring / bringMany: things to fetch (one, or {count}); other: anything else. Slots: {item}, {items} (plural), {creature}, {creatures}, {count}.",
+      "find": "find the {item} I lost",
+      "clear": "drive off the {creatures}",
+      "bring": "bring me a {item}",
+      "bringMany": "bring me {count} {items}",
+      "other": "a little job"
+    },
     "topics": {
       "who": "Who are you?",
       "how": "How are you?",
@@ -499,6 +526,7 @@
         { "text": "Well enough. My {kin_word} {kin_name} had us up half the night, mind.", "kin": "child", "weight": 0.4 },
         { "text": "Can't complain. {kin_name}, my {kin_word}, does the complaining for both of us.", "kin": "partner", "weight": 0.4 },
         { "text": "Not so good. I keep thinking of my {kin_word} {kin_name}.", "gone": true, "weight": 0.6 },
+        { "text": "Fine. {pet_name}, our {pet_kind}, kept me up chasing something in the dark.", "pet": true, "weight": 0.4 },
         "Can't complain.",
         { "text": "Very well, thank you!", "mood": "Cheerful", "gesture": "Cheer" },
         { "text": "Never better. Lovely day for it.", "mood": "Cheerful", "when": "day" },
@@ -645,6 +673,9 @@
         { "text": "My {kin_word} {kin_name} and I get on. Mostly. On good days.", "kin": "inlaw" },
         { "text": "My {kin_word} {kin_name} borrowed my boots. That was a year ago.", "kin": "sibling" },
         { "text": "Seen my {kin_word} {kin_name} about? Tell them supper's on.", "kin": "partner" },
+        { "text": "Our {pet_kind} {pet_name} rules the house, really. We just live in it.", "pet": true },
+        { "text": "There's us, and there's {pet_name}, our {pet_kind}. Don't tell the others, but {pet_name}'s my favourite.", "pet": true, "warmth": ["mid", "high"] },
+        { "text": "If you see a {pet_kind} answering to {pet_name}, send it home. It knows the way, it just won't.", "pet": true },
         { "text": "We lost my {kin_word} {kin_name}. The house is too quiet now.", "gone": true, "weight": 2 },
         { "text": "I still set a place for my {kin_word} {kin_name}. Silly, I know.", "gone": true, "weight": 2, "warmth": ["mid", "high"] },
         { "text": "My {kin_word} {kin_name} is gone. Don't ask me more than that.", "gone": true, "weight": 2, "mood": "Grumpy" }
@@ -783,6 +814,11 @@
       "predator": ["GilaMonster", "SwampSerpent", "BoneHound"],
       "awe": ["Roc", "SkySerpent", "SandWorm", "SnowWorm", "BoneStag", "CrystalHare", "Dolphin", "StaticRam"],
       "pet": ["Cat", "Puppy", "Dog"]
+    },
+    "topics": {
+      "_readme": "What an animal player can do in the talk window: go up to the folk (meet), or leave (bye).",
+      "meet": "(go up to them)",
+      "bye": "(wander off)"
     },
     "Any": {
       "pet": [

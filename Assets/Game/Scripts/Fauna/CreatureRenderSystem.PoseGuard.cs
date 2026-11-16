@@ -51,7 +51,7 @@ namespace Punchy.Fauna
                                    new Unity.Mathematics.float4(0.16f, 0.1f, 0.05f, 0f), faded, SegmentMaterial.Wood);
             }
 
-            void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
+            internal void Guard(in CreatureState state, ref CreatureBlob b, int offset, int at, float faded, int id)
             {
                 for (int i = 0; i < GuardParts; i++)
                     Output[at + i] = default;
@@ -217,7 +217,7 @@ namespace Punchy.Fauna
                     Output[at + k++] = Piece(over, Unity.Mathematics.math.normalize(to - over), front, Unity.Mathematics.math.distance(over, to), band, band, 0.25f, b.GuardSash, faded, SegmentMaterial.Cloth);
                     // The sash's knot at the hip, its tail hanging loose: two lengths of cloth, blown in the wind and
                     // swinging back as the guard runs.
-                    k = Hanging(to, front, band * 1.1f, band * 0.8f, 0.16f * scale, in state, forward, b.GuardSash, faded, SegmentMaterial.Cloth, at, k);
+                    k = Hanging(ref b, offset, to, front, band * 1.1f, band * 0.8f, 0.16f * scale, in state, forward, b.GuardSash, faded, SegmentMaterial.Cloth, at, k);
                     // An elf's bow across its back: an arc from low on one side to high on the other, and its string.
                     if (b.GuardKit == GuardKit.Elf)
                     {
@@ -247,7 +247,7 @@ namespace Punchy.Fauna
                     if (b.GuardKit == GuardKit.Ogre)
                     {
                         var nape = top - front * deep * 0.9f;
-                        k = Hanging(nape + axis * r * 0.15f, -front, wide * 0.85f, wide * 1.1f, c.Length * 1.1f + r, in state, forward,
+                        k = Hanging(ref b, offset, nape + axis * r * 0.15f, -front, wide * 0.85f, wide * 1.1f, c.Length * 1.1f + r, in state, forward,
                                     new Unity.Mathematics.float4(0.36f, 0.27f, 0.18f, 0f), faded, SegmentMaterial.Leather, at, k, 0.5f);
                     }
                 }
@@ -326,9 +326,11 @@ namespace Punchy.Fauna
             /// <summary>
             /// A loose length of cloth or hide hanging from a point in two pieces: down, pushed by the wind's rolling
             /// gusts (the trees' and hair's, CreatureAnimator.Wind) and swung back by the wearer's speed, the lower piece
-            /// more than the upper. Stiff (0..1) holds it closer to hanging straight. Returns the next free slot.
+            /// more than the upper. Stiff (0..1) holds it closer to hanging straight. Each piece is kept outside the
+            /// wearer's legs and trunk (Drape, A-128), so a stride swings it out rather than walking through it.
+            /// Returns the next free slot.
             /// </summary>
-            int Hanging(Unity.Mathematics.float3 from, Unity.Mathematics.float3 face, float width, float widthEnd, float length,
+            int Hanging(ref CreatureBlob b, int offset, Unity.Mathematics.float3 from, Unity.Mathematics.float3 face, float width, float widthEnd, float length,
                         in CreatureState state, Unity.Mathematics.float3 forward, Unity.Mathematics.float4 color, float faded,
                         SegmentMaterial material, int at, int k, float stiff = 0f)
             {
@@ -342,10 +344,10 @@ namespace Punchy.Fauna
                 var down = new Unity.Mathematics.float3(0f, -1f, 0f);
                 var push = new Unity.Mathematics.float3(dir.x, 0f, dir.y) * (gust * 0.9f + flutter) - forward * Unity.Mathematics.math.min(state.Speed * 0.12f, 0.8f);
                 push *= 1f - stiff;
-                var upper = Unity.Mathematics.math.normalize(down + push * 0.6f);
-                var lower = Unity.Mathematics.math.normalize(down + push * 1.2f);
-                var mid = from + upper * length * 0.5f;
                 var widthMid = (width + widthEnd) * 0.5f;
+                var upper = Drape(ref b, offset, ref from, Unity.Mathematics.math.normalize(down + push * 0.6f), length * 0.5f, width, width * 0.12f, face, true);
+                var mid = from + upper * length * 0.5f;
+                var lower = Drape(ref b, offset, ref mid, Unity.Mathematics.math.normalize(down + push * 1.2f), length * 0.5f, widthMid, widthMid * 0.12f, face, false);
                 Output[at + k++] = Piece(from, upper, face, length * 0.5f, width, widthMid, 0.12f, color, faded, material);
                 Output[at + k++] = Piece(mid, lower, face, length * 0.5f, widthMid, widthEnd, 0.12f, color, faded, material);
                 return k;
