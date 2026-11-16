@@ -78,12 +78,13 @@ namespace Punchy.Tests
         /// </summary>
         public static IEnumerator Spawn(string species, float x, float z, int count = 1, float radius = 0f)
         {
-            var before = LogWatch.Last("DebugControls: spawned");
+            // A line count, not the last line's text: a second run in the same editor session logs the same text.
+            var mark = LogWatch.Mark();
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             var near = radius > 0f ? $" -spawnradius {radius.ToString(inv)}" : "";
             Game.RunOptions($"-goto {x.ToString(inv)},{z.ToString(inv)}{near} -spawn {species}:{count}");
             var start = Time.realtimeSinceStartup;
-            while (LogWatch.Last("DebugControls: spawned") == before || !LogWatch.Last("DebugControls: spawned").Contains(species))
+            while (LogWatch.After(mark, "DebugControls: spawned", species) == null)
             {
                 if (Time.realtimeSinceStartup - start > 30f)
                     Assert.Fail($"{species} not spawned within 30 s");

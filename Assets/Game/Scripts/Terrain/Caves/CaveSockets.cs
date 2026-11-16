@@ -426,7 +426,8 @@ namespace Punchy.Terrain
     /// <summary>
     /// Makes one dungeon entity per cave once the island is baked (W-115): DungeonInfo (Id the cave's Key, type Cave)
     /// plus its DungeonSocket buffer, for the animal lane's spawner to fill. Runs in every world, so solo, host and
-    /// client get the same.
+    /// client get the same. W-168: the sockets come from the island's <see cref="CaveSocketSetBlob"/> (baked or loaded
+    /// with the island file), all caves in one frame; without it (v1) they are built here, a few caves a frame.
     /// </summary>
     public partial class CaveSocketSystem : SystemBase
     {
@@ -437,6 +438,8 @@ namespace Punchy.Terrain
         int total;
         readonly int[] totals = new int[5];
         double ms;
+        int frames;
+        bool baked;
 
         protected override void OnCreate() => RequireForUpdate<TerrainSource>();
 
@@ -451,36 +454,53 @@ namespace Punchy.Terrain
             ref var set = ref source.Caves.Value;
             if (next < 0)
                 next = 0;
-            var end = math.min(set.Caves.Length, next + CavesPerFrame);
+            // (A set from another cave blob is never used: its ranges must be one per cave.)
+            baked = source.CaveSockets.IsCreated && source.CaveSockets.Value.Caves.Length == set.Caves.Length;
+            var end = baked ? set.Caves.Length : math.min(set.Caves.Length, next + CavesPerFrame);
+            var built = new List<DungeonSocket>();
             for (int cave = next; cave < end; cave++)
             {
                 // A road tunnel is a passage, not a dungeon: nothing waits in it.
                 if (set.Caves[cave].Tunnel != 0)
                     continue;
-                var sockets = CaveSockets.Build(source, cave, source.World.Seed, out var chambers, out var deadEnds);
-                var hash = TempleSockets.Hash(sockets);
+                int count, chambers, deadEnds;
+                uint hash;
+                if (baked)
+                {
+                    var range = source.CaveSockets.Value.Caves[cave];
+                    count = range.Count; chambers = range.Chambers; deadEnds = range.DeadEnds; hash = range.Hash;
+                }
+                else
+                {
+                    built = CaveSockets.Build(source, cave, source.World.Seed, out chambers, out deadEnds);
+                    count = built.Count;
+                    hash = TempleSockets.Hash(built);
+                }
                 var key = set.Caves[cave].Key;
                 var entity = EntityManager.CreateEntity();
                 EntityManager.SetName(entity, $"Dungeon (cave {cave})");
-                EntityManager.AddComponentData(entity, new DungeonInfo { Id = key, Type = DungeonTypes.Cave, Sockets = sockets.Count, Hash = hash });
+                EntityManager.AddComponentData(entity, new DungeonInfo { Id = key, Type = DungeonTypes.Cave, Sockets = count, Hash = hash });
                 var buffer = EntityManager.AddBuffer<DungeonSocket>(entity);
+                buffer.ResizeUninitialized(count);
                 var counts = new int[5];
-                foreach (var s in sockets)
+                for (int j = 0; j < count; j++)
                 {
-                    buffer.Add(s);
+                    var s = baked ? source.CaveSockets.Value.Sockets[source.CaveSockets.Value.Caves[cave].First + j] : built[j];
+                    buffer[j] = s;
                     counts[(int)s.Kind]++;
                     totals[(int)s.Kind]++;
                 }
-                total += sockets.Count;
+                total += count;
                 all = (all ^ hash) * 16777619u;
-                Debug.Log($"[dungeon] cave {cave} (key {key:X8}): {sockets.Count} sockets from {chambers} chambers ({deadEnds} dead ends): creature {counts[0]}, chest {counts[1]}, wall decor {counts[2]}, interactable {counts[3]}, clutter {counts[4]}; hash {hash:X8} ({World.Name})");
+                Debug.Log($"[dungeon] cave {cave} (key {key:X8}): {count} sockets from {chambers} chambers ({deadEnds} dead ends): creature {counts[0]}, chest {counts[1]}, wall decor {counts[2]}, interactable {counts[3]}, clutter {counts[4]}; hash {hash:X8} ({World.Name})");
             }
             next = end;
+            frames++;
             ms += watch.Elapsed.TotalMilliseconds;
             if (next < set.Caves.Length)
                 return;
             next = int.MaxValue;
-            Debug.Log($"[dungeon] caves: {set.Caves.Length} dungeons, {total} sockets: creature {totals[0]}, chest {totals[1]}, wall decor {totals[2]}, interactable {totals[3]}, clutter {totals[4]}; cave socket hash {all:X8} in {ms:F0} ms over {(set.Caves.Length + CavesPerFrame - 1) / CavesPerFrame} frames ({World.Name})");
+            Debug.Log($"[dungeon] caves: {set.Caves.Length} dungeons, {total} sockets: creature {totals[0]}, chest {totals[1]}, wall decor {totals[2]}, interactable {totals[3]}, clutter {totals[4]}; cave socket hash {all:X8} in {ms:F0} ms over {frames} frames, {(baked ? "from the island" : "built here")} ({World.Name})");
         }
     }
 }

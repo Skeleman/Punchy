@@ -439,6 +439,7 @@ namespace Punchy.Fauna
                 Bodies = bodies,
                 Lookup = lookup,
                 Grid = grid,
+                Ghosts = SystemAPI.GetComponentLookup<Unity.NetCode.GhostInstance>(true),
                 Hunters = hunters.AsArray(),
                 Thinking = thinking,
                 StateRW = SystemAPI.GetComponentLookup<CreatureState>(false),
@@ -548,6 +549,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
             [ReadOnly] public NativeHashMap<Entity, int> Lookup;
             [ReadOnly] public NativeParallelMultiHashMap<int2, int> Grid;
+            /// <summary>A-120: ghost ids (a server's creatures), for the Holder key of one of the folk petting or carrying.</summary>
+            [ReadOnly] public ComponentLookup<Unity.NetCode.GhostInstance> Ghosts;
             /// <summary>Snapshot indices of the hunters out after game now (FolkHunting stages).</summary>
             [ReadOnly] public NativeArray<int> Hunters;
 
@@ -680,7 +683,7 @@ namespace Punchy.Fauna
                     return;
                 }
                 var g = Terrain.SampleGround(s.Position.xz);
-                var head = Breath.Head(s, ref b);
+                var head = Breath.Head(s, ref b, g.WaterSurface - g.Height);
                 var water = g.HasWater && g.WaterSurface > g.Height && head > g.Height - 0.5f;
                 // First where it may be (the think doesn't know its breath, so a walker is back on the bottom each
                 // tick), then whether that puts its head under. (Where it is when its head is just out: surfaced.)
@@ -1345,6 +1348,17 @@ namespace Punchy.Fauna
                     desiredLook = 0f;
                     return;
                 }
+                // A-120 rows 2-3: going over to an animal, petting it, shooing it off, or fetching it to carry (Petting.cs).
+                if (s.Stage >= CreatureAnimator.PetGo && s.Stage <= CreatureAnimator.PetFetch)
+                {
+                    if (Petting(self, ref s, ref b, ref rng, dt))
+                    {
+                        targetSpeed = walk;
+                        moving = true;
+                    }
+                    desiredLook = 0f;
+                    return;
+                }
                 if (s.Stage >= MessageWait)
                 {
                     Receiving(ref s, ref b, ref rng, dt);
@@ -1354,7 +1368,7 @@ namespace Punchy.Fauna
                 if (s.Action == IdleAction.None)
                     s.Timer -= dt;
                 desiredLook = idleLook;
-                if (s.Timer <= 0f)
+                if (s.Timer <= 0f && !NoticePlayerAnimal(ref s, ref b, ref rng))
                     Decide(self, ref s, ref b, species, ref rng, perched, player);
             }
 

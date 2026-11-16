@@ -1370,6 +1370,8 @@ namespace Punchy.Flora
             // W-96 (#35): the blind pygmies' wall niches in the bat folk chambers are solid too.
             BatFolkHomes.AddKitBoxes(lastSource, centres, kitBoxes);
             CaveRoomKit.AddKitBoxes(lastSource, centres, kitBoxes);
+            // W-150: the cliff kit's pieces are stood on and bumped into like any kit.
+            CliffKit.AddKitBoxes(lastSource, centres, kitBoxes);
         }
 
         // ------------------------------------------------------------------------------------------- bolts
