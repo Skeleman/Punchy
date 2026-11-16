@@ -8268,3 +8268,17 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Branch:** world/parts-units off origin/main 7f7866a4, not pushed yet. It adds UnitDef.cs (a unit as data: parts placed by share of the frame plus metres), FloraGenerator.Parts.cs (a part library of 9 parts, each naming its own MaterialFamily) and FloraGenerator.Units.cs (StallUnit, SmithyUnit). Stall() and Smithy() are now one-line `BuildUnit` calls. It also adds UnitLibraryTests (3 reflection tests), parts-and-units.md section 6, and a line in flora.md. No shared files are touched.
 - **No look change:** I hashed meshes, colliders, perches and chimneys for 15 variants (Stall, Smithy, Dwarf/Elf/TownRamada) before and after. All 15 match. The first run had 2 TownRamada mismatches: the wares used a different float order (lerp in metres, not in shares). I fixed that and reran.
 - Next: tests (UnitLibrary, MaterialLibrary, Landmarks_V3), then a town pixel diff, a push, and "ready for PR" on the BOARD.
+
+## W-175 row 2 (#415): stall and smithy as units. Ready for PR
+- **Branch:** world/parts-units@6807a252, off origin/main 7f7866a4. It adds three files:
+  - UnitDef.cs: a unit as data, with parts placed by share of the frame plus metres. It round-trips through JSON, ready for Model Lab blueprints (M-06 r5).
+  - FloraGenerator.Parts.cs: a library of 9 parts (pole, post, counter, wares, awning, pyramid roof, forge hearth, chimney stack, anvil). Each part names its own MaterialFamily.
+  - FloraGenerator.Units.cs: StallUnit and SmithyUnit.
+
+  Stall() and Smithy() are now one-line `BuildUnit` calls. Docs: parts-and-units.md section 6 covers how to move a family over and what's still open; flora.md gets one line. No shared files are touched.
+- **No look change:**
+  - **Mesh hashes:** identical for all 15 variants of Stall, Smithy and Dwarf/Elf/TownRamada. The hash covers all LOD meshes, including uv0, which carries the family mark, plus colliders, perches and chimneys.
+  - **Pixel diff (same session, old builders swapped back in for the "before" shots):** 1-32k px changed of 518k at HumanVillage and DwarfHold, 3/15/60 m. The changes are spread across the frame, which fits wind and animation noise. NaN 0. Sheets: PunchyMilestones/W-175/W175_town_*.jpg.
+- **Tests:** UnitLibraryTests 3/3, MaterialLibraryTests 4/4, Landmarks_V3 passes (pin kept).
+- **Still open (in the doc):** per-part seed salts (parts share the unit's RNG today, so part order is fixed), sink adapters, crate/barrel/bucket parts, optional parts, MinScreen, Use anchors.
+- Next: W-166 row 4 sweep (items, colossi), or the next W-175 family (camps, docks), whichever the supervisor wants.
