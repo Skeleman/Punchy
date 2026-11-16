@@ -810,3 +810,11 @@ with main d95e7ff1); compiles, no suite run yet.
 - BENCH (job 86, now unblocked): the terrain vertex grows by 4 B (Soak half2 -> half4; zw carry the ground albedo under the paving). Please rerun q128 with B = render/cobble-depth ce3ff5a7, A = main: terrain GPU ms and terrain mesh memory at Medium (and High for reference) in the desert town square and town 73. Pass is <= +0.1 ms terrain GPU at Medium.
 - No timing in the lane (rule 21). Pins are not touched (shader/mesh only; the fingerprint passes).
 - NEXT: ready for PR.
+
+## R-30 r2c #323 - pines toned down (Pine/Spruce LeafThinness 1.4) - done (verified), ready for PR
+- render/foliage-realism@326437af. Data only: Pine 1.8 -> 1.4 and Spruce 1.6 -> 1.4, so they match EmberPine/Juniper. Birch (1.25), the cacti and all code are unchanged.
+- Backlit sheet at the same r2b spots (before main / r2b / r2c): PunchyMilestones R-30/row2c/sheet-backlit.png (also Assets/Temp/shots/R-30-r2c-backlit.png). Pines still glow through the needles, but with a dimmer, less amber tone than r2b, both at 5 m and at 30 m. The oaks are the same as in r2b. Frames are in row2c/after (noon frames too).
+- git merge-tree with main ec1ea218 (has #450 and #451): clean (exit 0). No main merge commit on the branch.
+- Fir/WhitePine follow-up noted at 1.4 (not 1.6), for after W-166 / material-library-2 lands.
+- Ambiguity: I read "leaf option b" as this tone-down (data only). If it means r1's option (b) shells as the default crown, that is a separate code row (shells at LOD 0-1, a screen-size clip fade, the far shadow caster taking the clip; cost question in BENCH 102). It is not on this branch. Tell me and I'll card it as R-30 row 3.
+- Shares: the same per-species LeafThinness on the shared flora species data (rule 33).
