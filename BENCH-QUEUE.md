@@ -1073,3 +1073,9 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
 - Record: GPU ms per arm and view; cloud share = arm minus clouds-off; main vs branch base, to confirm E is within noise at fov 60.
 - Expect A, B and D within noise. C is the one to price (one extra density sample per lit step). Report only.
+
+## Job 112 (2026-11-16, QUEUED after 107 and once #482 is on main; render lane, R-22 r3 #298, branch render/far-forest 864cbb46): far forest canopy cost
+- Arms: (A) render/far-forest with `-farforest 0`; (B) the same build as is. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames per arm.
+- Views: (a) a ground walk through open forest with clearings (forest cover inside 375-1500 m); (b) summit `-goto -3460,2425` at noon, clear, far forest in view; (c) a 1000 m flight over forest toward the coast; (d) a coast or meadow walk with no forest in view (control).
+- Record: terrain pass GPU ms and whole-frame GPU/CPU ms; bake time from the `[flora] far forest map baked in N ms` line, and whether start-up waits on it (it should not; it runs on workers).
+- Pass: B within 0.3 ms GPU of A at (a) and (d), within 0.8 ms at (b) and (c); bake under 3 s on workers with no main-thread hitch over 2x median. Report the numbers otherwise.
