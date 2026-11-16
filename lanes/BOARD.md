@@ -34,4 +34,4 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
-| M-07 r1 | #260 | lab | r1 done; waits on Zach's OK + W-174 API answer | lab/map-editor 0dea2a94 | docs/agents/map-editor.md: sparse delta before BuildPlaces, empty file keeps pins |
+| M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); r2b bake hook waits on Zach + W-174 | lab/map-editor d286fbfa | Check PASS; no game code, pins unchanged |

@@ -5317,6 +5317,17 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Zach: refit (hashes move) vs places fixed; brush set raise/lower/smooth/flatten.
 - NEXT: stop for Zach's OK and the W-174 answer.
 
+### Row 2a - editor-only map editor (lab, 11-15)
+- Commit: lab/map-editor d286fbfa (#260). Editor-only files under Assets/Game/Scripts/Editor/MapEditor/, no game code touched.
+- Punchy > Map Editor: loads island v3 through the same IslandCache key and load-or-bake as IslandV2System (a miss bakes and saves, so play mode then hits), in an untitled scene so the world scene is never dirtied.
+- Preview: a grid mesh up to 2049 verts across (default 1024 m at 4 m) plus a sea plane, hidden and never saved; a dab rewrites only the vertices it reached. Ground comes from TerrainSource.SampleHeight in Burst jobs.
+- Brushes are MapBrush assets in MapEditor/Brushes (Raise, Lower, Smooth, Flatten; radius, strength, falloff curve), so Zach's changes are asset edits. Shift inverts, Ctrl-click sets the flatten height, Ctrl+Z undoes a stroke (32 deep).
+- Edits file: binary .bytes (PIED header, 32x32 tiles at 2 m, half floats, SHA-256 trailer = content hash). Empty file has a stable hash. Default folder Assets/Game/WorldEdits, not committed until the bake hook reads it.
+- Check (MapEditorWindow.Check): PASS. Raise 1.5 s +6.00 m, lower -4.00 m, smooth peak 6.00 -> 5.21, flatten back to within 0.08 m, save/load worst error 4e-4, damaged file refused, undo back to the ground. Cold cache bake 28 s.
+- Shots (not reviewed by Zach yet): PunchyMilestones/M-07/row2a-before.png, row2a-after.png (a painted ridge), row2a-top.png.
+- Pins: unchanged (no game code).
+- NEXT: row 2b (bake hook + edits hash in cache key/WorldSync) waits on Zach (refit vs fixed places) and the W-174 answer.
+
 ## A-131 (#25) folk dialogue options [folk]
 
 ### Row 1 - options data + Choose (no UI), done (verified)
