@@ -19,7 +19,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
-| M-06 r3-4 | #412-414 | fauna (lab agent gone) | r3 done; r4 (colour + material per segment) now, W-166 r3 merged #452 | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
+| M-06 r3-4 | #412-414 | fauna (lab agent gone) | r3 done; r4 ready for PR 11-16 | fauna/lab-colour b47844c0 | material kind per segment via the looks table; Fauna_Fingerprint E764AAEC, no shader change |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
 | W-175 r1-2 | #415 | materials | r1 done (audit doc); Zach 11-15 OK'd the proposal: row 2 (stalls + smithy) now, W-166 r3 merged #452 | world/material-library 14429012 (docs/agents/parts-and-units.md) | Row 2 pixel-diff shows no look change; Landmarks_V3 kept or re-pinned |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |

@@ -5519,3 +5519,16 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
   - Stale docs in files I may not touch: the CreatureSpecies FromHomes comment ("skipped by the herd bake") and the FaunaDirector.Build MergeHomes comment ("the herd bake and the world signature skip them"). Both are now wrong for the herd bake.
   - Builds/Windows in the fauna tree still holds the 11-15 build; the cancelled build didn't overwrite it.
 - Still waiting: item 7 (creature Interact prompt into UseTarget) waits on #434.
+
+## 11-16 M-06 row 4 (colour + material per segment, #414) - ready for PR
+
+- Branch fauna/lab-colour b47844c0 (off main 7f7866a4). 9 files, +95/-11.
+- What: each limb segment (LimbSegment.Material) and the trunk (CreatureSpecies.BodyMaterial) take a SegmentMaterial kind from the W-166 library (Body, Cloth, Leather, Metal, Wood, Bone). CreatureBlobBuilder.Materials lists them in look order; they ride in CreatureLookBlob.Materials beside the look codes, off the creature blob. CreatureRenderSystem.Rest writes the kind into Material.x unless the animator already chose (golden ones). Colour per segment stays the row 3 controls; no Lab palette.
+- Creature.shader: no change needed. It already shades those kinds through the library includes, so no rule 11 ask and no Shares entry.
+- Lab: Body material and per-segment Material popups in the builder; the preview tints each kind as a rough hint (not the shader's look). EditSegment hook takes "Material" as its number.
+- Comment fixes: CreatureSpecies.FromHomes and FaunaDirector.Build MergeHomes now say the world signature skips Lab species and the herd bake keeps them (#412).
+- Fauna_Fingerprint: passes at E764AAEC, no re-pin (first run hit the 3-minute timeout right after editor load; the rerun passed). Every shipped species defaults to Body, so the game looks the same until an asset sets a kind.
+- Check: Deer in the Lab with Leather trunk, Metal hooves, Bone head. The Lab list and the built look table agree entry for entry (25 entries, same count as the look codes). Shots in PunchyMilestones/M-06: r4-deer-before.png, r4-deer-after.png (head paler, trunk warmer; hooves have a fixed black colour, so Metal barely shows there). In-memory only, reverted; no assets saved.
+- Not run: in-game play check and host + joiner. It is cosmetic and local (seed + shipped assets, nothing sent), and the render path matches the Lab check above.
+- Gap (already told to Zach): no fur, feather, scale, horn or shell kinds; fur, feathers and scales stay the coat or Surface look, horn and shell use Bone. No library kinds added.
+- Still waiting: item 7 (creature Interact prompt into UseTarget) waits on #434.
