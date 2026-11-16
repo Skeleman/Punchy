@@ -5374,3 +5374,13 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Not compiled or verified: free RAM was 0.5 GB on resume, so I closed my editor (PID killed, by PID); it then stayed at 3.4-9.9 GB for about 8 min while other editors held it.
 - Shares: Model Lab only. Temple pieces still skipped (private mesher).
 - NEXT: when >= 12 GB free, reopen, compile, loop all set pieces x 2 variants for errors, shoot to M-08, hand off, then r3.
+
+## 11-15 A-125 row 2 (#360): dolphins and fish throw droplets and foam - done (verified)
+- Branch fauna/swimmer-droplets@dc69aba8 (from main 5e59c652), ready for PR. One file: Fauna/TraceSystem.cs (CRLF kept).
+- TraceSystem.Splash now calls SplashAt (drops, lift, spread, foam ring on/off, mist count). Sky serpents and worms pass the same sizes and draw order as before, so their splash is unchanged by construction (no new serpent shot).
+- Swimmers (Habitat Swims, not lava, not breachers) in trace range get a ground sample and a splash when they cross the surface (half-body margin so one cruising awash does not splash every frame). Droplets = half the on-screen pixels across (DetailPolicy.ScreenSize, rule 20), max 60, none under 3; foam ring only at 20 px or more; no mist. Cap: MaxSwimmerSplashes 4 running per 2 s.
+- Verified in play (open sea at 779,450, Clear, forced leaps by eval): SwimmerSplashCount rose with each leap. Dolphin at about 5-10 m shows droplets and a thin ring; at 30 m a few drops, no ring. Trout school (13 forced to leap at once at 3 m): 4 thrown, 20 turned away by the cap.
+- Shots: D:/Unity/PunchyMilestones/A-125/row2 (Dolphin-in-4, Dolphin-out-3 best for 5 m), row2/30m, row2/trout (two viewed as contact sheets).
+- Seen, not this row: the existing CreatureWakeSystem ripple trail reads as heavy white rings behind fast dolphins in clear noon light; worth a look if Zach notices.
+- BENCH request (rule 21): new per-frame cost is one ground sample per swimmer inside trace range (trout a few metres, dolphins about 50 m), plus up to 4 splashes of traces. Suggest a job at a dolphin pod near the sea shore, main vs branch.
+- Shares: one splash kit (TraceSystem.SplashAt) for serpent, worm and swimmer. Parallel not folded in: WaterPatchSystem's swimmer ring (row 1) detects the same surface crossing on its own.
