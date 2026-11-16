@@ -836,7 +836,12 @@ namespace Punchy.Items
         int rodsLaid;
 
         /// <summary>The start pack (P-41): every player begins with a rod in the inventory, an item like any other.</summary>
-        void StartPack() => slots[0] = (ItemTable.Rod, 1);
+        void StartPack()
+        {
+            slots[0] = (ItemTable.Rod, 1);
+            // P-37 row 2 (Zach 11-14): characters don't light the dark themselves; every new one starts with a torch.
+            slots[1] = (ItemTable.Torch, 1);
+        }
 
         /// <summary>
         /// Once per world, on the host or solo: a rod on the deck of two fishing villages' wharves in three (the Nets spot,
