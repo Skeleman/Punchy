@@ -8432,3 +8432,11 @@ Plan:
 - 11 parts (wall, floor, door, window, gabled roof, beam, stair, rail, sign, lantern, crate) in FloraGenerator.Parts.Build.cs, drawn via DrawKitPart: W-166 families from MaterialLibrary.FamilyOf, boxes for non-decor/solid pieces (lantern walk-through).
 - Stair/lantern/crate reuse StructureKit builders; KitDecor shared with KitStructure (same rule, no look change).
 - Verified: W175Probe hashes same as main, EditMode 15/15, Landmarks_V3 pass. No shots (no look change to existing builds).
+
+## [world] W-172 r7 (#262) DONE - a476d9f3 on world/cave-walls (rebased on main @7b7dd49d)
+
+- 13 wall detail kinds, up to 4 per cave, chosen by climate over the mouth, style RockKind (new field on 6 CaveStyles), ruin/mine/stream/tunnel camp, nearest folk; seeded from the cave key (visual only, same on every peer). CaveWallDetails.cs + CaveSystem.WallDetails.cs.
+- Table: Moss=damp/wet, not cold/hot/volcanic; Fungi=damp natural; GlowFungi=damp natural deep (45 m+); Carving=tunnel/ruin/mine; Fossil=sedimentary or badlands natural; Ossuary=ruin room; Bones=badlands/sedimentary/ruin; Frost+Icicles=cold or Ice rock; Salt=hot dry; Flowstone=Limestone natural; TideLine=per stream; Soot=per tunnel camp.
+- Counts (31 caves, current seed): Moss 43/10 caves, Fungi 19/6, GlowFungi 17/6, Carving 6/5, Fossil 2/2, Ossuary 0, Bones 5/2, Frost 54/12, Icicles 31/12, Salt 9/3, Flowstone 0, TideLine 4/4, Soot 3/2. Ossuary/Flowstone 0 by seed: no Limestone cave, the one ruin cave rolled others. Volcanic caves take none (follow-up idea: ash/scorch kind).
+- Shots: 11 kinds in PunchyMilestones/W-172/r7-*.png (Bones/Frost also -lifted: those caves are dark). Fungi caps read very dark in the crystal cave (follow-up). Checks: compile clean after rebase, WorldTests 17/17 (fingerprints pinned there).
+- BENCH: counts rise (up to 4 meshes per nearby cave, built 2 placements a frame); request below in REPORTS-profiler.

@@ -4085,3 +4085,7 @@ Zach's question: do behaviours, animation and the other creature logic run as la
 ## world: W-174 r3 (#406) note (2026-11-16)
 
 - Ground change only, no timing done: river carve, falls and pool lips now share GroundEdits.Band/Apply (one EdgeNoise per sample inside the band). Landmark/fauna/temple pins unchanged. Expect sample cost about equal; worth a glance on the next terrain-stream bench, no dedicated job needed.
+
+## world: BENCH request for W-172 r7 (2026-11-16)
+
+Branch world/cave-walls @ a476d9f3 vs main @ 7b7dd49d. Route: walk into cave 2 (-2580,217,300, crystal, moss/fungi/glow) and tunnel 23 (-2207,110,-43). Measure main-thread ms for CaveSystem.DrawRooms (wall builds step 2 placements a frame) and draw calls/frame inside a cave; flag any frame > 2 ms from CaveWallBuild.Step.
