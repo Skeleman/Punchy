@@ -26,6 +26,8 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | player/menus | P-39 (#397) | player-2 | In flight. |
 | player/talk-replies | P-42 | player-2 | In flight. |
 | world/ashlands-lava | W-172 lava | world | Rebase on main after #451, re-pin. |
+| fauna/lab-herds | M-06 r3b herds | fauna | In flight. |
+| b/fix-maxqueued-clamp | render review | render | FrameRateCap clamp; hand off for PR. |
 | folk/gait | A-124 r2 (#358) | folk | In flight. |
 | render/audit-fixes-wip | R-15 | render-2 | WIP; lands with render/audit-fixes. |
 | world/material-library-2 | W-166 gear (+A-133) | materials | In flight. |
