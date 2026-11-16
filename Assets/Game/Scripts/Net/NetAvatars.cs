@@ -79,7 +79,7 @@ namespace Punchy.Net
             }
             var code = individual != 0 ? LocalBuildCode : -1;
             if (code != Fauna.PlayerBuild && code >= 0 && buildSpecies != null)
-                Debug.Log($"[look] own {buildSpecies.name} build {BodyBuilds.PlayerBuild((byte)code)} height step {BodyBuilds.PlayerHeightStep((byte)code)}");
+                Debug.Log($"[look] own {buildSpecies.name} build {BodyBuilds.PlayerBuild((byte)code)} height step {BodyBuilds.PlayerHeightStep((byte)code)} gait {GaitStyle.Of(individual, buildSpecies.Upright, buildSpecies.Child).Kind}");
             Fauna.PlayerBuild = code;
         }
 
@@ -293,7 +293,7 @@ namespace Punchy.Net
             });
             em.SetComponentData(e, new RemoteAvatar { Ghost = ghost, Species = Fauna != null ? Fauna.SpeciesIndex(PlayableSpecies[look.Species]) : -1 });
             // (One line per puppet made: host and joined client logs show the same build for the same player.)
-            Debug.Log($"[look] remote player {kind.name} build {build} height step {BodyBuilds.PlayerHeightStep(look.Build)} scale {BodyBuilds.PlayerScale(b.Size, look.Build):F3}");
+            Debug.Log($"[look] remote player {kind.name} build {build} height step {BodyBuilds.PlayerHeightStep(look.Build)} scale {BodyBuilds.PlayerScale(b.Size, look.Build):F3} gait {GaitStyle.Of(ref b, look.Individual).Kind}");
             return e;
         }
     }

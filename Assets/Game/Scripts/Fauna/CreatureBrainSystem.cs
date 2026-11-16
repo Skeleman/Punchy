@@ -816,10 +816,12 @@ namespace Punchy.Fauna
                 // Climbing, flying and hanging in a web move the animal themselves.
                 var custom = false;
                 float lie = 0f, headDown = 0f, bow = 0f, curl = 0f, sit = 0f, vertical = 0f;
-                // Each individual walks a little faster or slower than the next.
+                // Each individual walks a little faster or slower than the next (A-124 row 2: and in their own gait
+                // style, brisk or ambling; running, half as much).
                 var pace = 1f + CreatureBlob.Trait(s.Individual, 5) * 0.08f;
-                var walk = b.WalkSpeed * s.Scale * pace;
-                var run = b.RunSpeed * s.Scale * pace;
+                var stylePace = GaitStyle.Of(ref b, s.Individual).Pace;
+                var walk = b.WalkSpeed * s.Scale * pace * stylePace;
+                var run = b.RunSpeed * s.Scale * pace * (1f + (stylePace - 1f) * 0.5f);
                 // A-103 row 2b: a sea folk out of the water trudges (slower, stooped in CreatureAnimator).
                 if (FolkState.OutOfWater(s.Position, b.WalksBed, Terrain))
                 {
