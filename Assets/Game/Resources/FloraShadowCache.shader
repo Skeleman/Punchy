@@ -114,14 +114,15 @@ Shader "Punchy/FloraShadowCache"
                 // that comes straight from the sun, as the real-time and the wide shadows do, so all three tiers keep
                 // the sky's blue in them instead of going brown. Where the real-time or the wide shadow already dims
                 // this point the darker one wins (they never stack). The real-time term fades out as URP fades its own
-                // shadows near their distance, or the band where both had let go was left lit.
-                float realtime = MainLightRealtimeShadow(TransformWorldToShadowCoord(positionWS));
-                realtime = lerp(realtime, 1, GetMainLightShadowFade(positionWS));
+                // shadows near their distance, or the band where both had let go was left lit. R-40: the two hand
+                // over as on every surface (PunchyShadowHandOff), one shadow per point.
+                float handOff = PunchyWideShadowFade(positionWS);
+                half realShade = (1 - MainLightRealtimeShadow(TransformWorldToShadowCoord(positionWS))) * (1 - handOff);
                 half wide = PunchyWideShadow(positionWS, normalWS);
                 half cached = shade * fade * _FloraCacheParams.w;
                 half sunlit = Luminance(_MainLightColor.rgb) * saturate(facing);
                 half ambient = Luminance(SampleSH(normalWS));
-                half kept = min(realtime, 1 - wide);
+                half kept = PunchyShadowHandOff(realShade, wide, handOff);
                 half before = ambient + sunlit * kept;
                 half after = ambient + sunlit * min(kept, 1 - cached);
                 return half4((after / max(before, 1e-3)).xxx, 1);
