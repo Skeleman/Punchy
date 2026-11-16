@@ -5703,3 +5703,24 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - No timing (rule 21).
 - Shares (rule 33): uses the one material library (MaterialFamily ids through uv3) and the one DungeonLoot table; nothing sent.
 - NEXT: r3 DungeonExceptionsRpc (approved, 5 conditions).
+
+## [folk] A-134 (#460) rows 1-2 re-verified on main, and row 3: a seen theft angers the owners and sends a guard (2026-11-16) - DONE (verified), ready for PR
+- Branch folk/ownership d40bec61, pushed. It has two merges of main (cf1f1686 with 1e60485c, bb6b4dd6 with 2d7abae9) and then the row 3 commit. Rows 1-2 can still go as their own PR from bb6b4dd6, as asked; d40bec61 adds row 3 on top.
+- **Rows 1-2 re-verified after the merges.** The batch build timed out while compiling shaders (1500 s, exit 124). It left two import workers from the folk tree; I did not kill them by PID. So I built inside the open editor, and that build also had the additive row 3 code. r2C: 397 home at their own door, 0 at a wrong door. Joined take on 7984 (mp3): the host logs "[ownership] player 2 took Mushroom x1 from chest 100052 from household 46". Main reshuffled the households, so door 13 is now Edda's house (46); owners are still derived, nothing sent or saved. There was no Interiors.Cull exception this time, in any probe log (the earlier mp2fj NRE may be fixed on main). PlayMode 57/57 passed (Fauna_Fingerprint and Landmarks_V3 unchanged). EditMode TheftSaveTests 2/2.
+- **Row 3 files:** Fauna/Thefts.cs (new: TheftRpc, TheftRecordRpc, SavedTheft, the record, FadeDays=3, MaxHeld=32), Fauna/FaunaDirector.Thefts.cs (new partial: judging, guard, catch-up, lines), FaunaDirector.cs (1 line), Ownership.cs (Took hands owned takes on), FolkConversation.cs (Willing is false while the household holds a record), dialogue.json (wronged, theftOwner, theftGuard), Items/QuestSave.cs (additive thefts field plus its load and save lines, CRLF kept), Tests/EditMode/TheftSaveTests.cs, docs/agents/multiplayer.md. No brain edit: the guard is sent by Wander, and Wander held.
+- **Witnesses (host or solo):** the theft is seen if one of the household is home (HomeSign Home > 0), or a guard on its rounds is within 12 m of the door, facing it, with no wall between. The nearest guard within 40 m walks to the door and speaks within 3 m. **An unseen theft is only logged: it is not kept, not sent, and not held against the player.** I found and fixed this in this row: the first build put unseen thefts on the record too.
+- **Probes (build, port 7984):**
+  - mp4, joined with a guard: the host's -theftguard put guard Yara 6 m out from door 13. "seen by the guard Yara 5 m from the door; guard Yara sent", then on the host "Yara (the guard): Thieves in my streets? Not on my watch." On the joiner (the thief): "this player's record: took Mushroom from Edda's house, seen; 1 thefts held".
+  - s1, solo at 22:00: seen by one of the household at home, record 1.
+  - s4, solo at 09:00 with no guard: "unseen (0 at home...)"; no record and no save written.
+  - Save and load: s3 re-read s1's save, "save read: 1", not dropped. In mp6 the joiner re-read its save and told the host ("told the host 1"); the host logged "kept 1, dropped 0 (most 32...)".
+  - No exceptions in any log.
+- **Known limits:**
+  - (1) Members at home are not spawned creatures, so the owner's line waits until the thief meets one of the household (up to 600 s). No probe ran long enough to see it said; the refusal of favours applies at once.
+  - (2) Guards exist only near a player. With every player inside rooms (rooms are off the island), no guard can see; only someone at home can. In mp4 the host stood outside.
+  - (3) On the joiner, the guard's line went unsaid because the joiner was still inside the room, away from the guard's ghost. It shows once they are near.
+  - (4) There is no paying back, trust or bag-marking yet (P-35). DESIGN-npc-ownership "As built" says so, with FadeDays 3.
+- **For player-2:** QuestSave.cs now has an additive `thefts` array in QuestSaveFile. Three lines read and write it: Thefts.Load after the read, TakeDirty in the dirty check, and `thefts = Thefts.Save()` in WriteSave. An old save reads as none (EditMode test). P-49's save edit should stay additive beside it.
+- **For the supervisor:** the batch build timeout probably counts as a forced editor stop. The next editor start showed "Recovering Scene Backups", which I closed with its window's close button. No timing (rule 21).
+- Shares (rule 33): it uses the one owner lookup (Ownership), HomeSign, FolkTalkSystem.Shown/Walled and the one quest save. No new spawner, and nothing in the guard brain. Parallel not folded in: town exceptions could carry a "guard sent" mode one day, instead of a Wander with a timer.
+- NEXT: the supervisor's review and PR. The editor is closed.
