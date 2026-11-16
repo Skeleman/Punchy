@@ -21,7 +21,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
-| W-175 r1 | #415 | materials | done: audit doc, waiting for Zach's OK | world/material-library 14429012 (docs/agents/parts-and-units.md) | Stop: Zach OKs the parts/units proposal before row 2 |
+| W-175 r1-2 | #415 | materials | r1 done (audit doc); Zach 11-15 OK'd the proposal: row 2 (stalls + smithy) after W-166 r3 handoff | world/material-library 14429012 (docs/agents/parts-and-units.md) | Row 2 pixel-diff shows no look change; Landmarks_V3 kept or re-pinned |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1-r2b | #323 | render | Zach 11-15: option b, tone trees down (Pine/Spruce 1.4; Fir/WhitePine follow-up 1.4); retake sheet, then PR | render/foliage-realism@b80b9cf8 | r2b: FloraSpecies.LeafThinness per species (pines lift), sheets R-30/row2b. Merges clean with material-library-2. BENCH 102 queued. Next: Zach's leaf pick, then build it (shells per note) |
 | R-39 | #401 #402 #302 #269 | render-2 | merged #432 | render/playtest-1115 | #401 #402 closed; #302 and #269 stay open for R-25 r4-6 and R-15. Next: R-25 r4-6 (R-30 r1 stays with render) |
@@ -40,6 +40,6 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
-| M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); r2b bake hook waits on Zach + W-174 | merged #425 | r2b blocked; lab takes M-08 meanwhile |
+| M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); Zach 11-15: towns and roads may be rebuilt/refit around edits; r2b bake hook waits only on W-174 | merged #425 | r2b blocked on W-174; world takes r2b after W-174 r2 (lab agent gone) |
 | M-08 | #414 | lab | merged #435 | lab/set-piece-view | rows 1-3 shipped; #414 stays open for M-06 row 5 blueprints |
 | M-06 r3b | #413 | lab | merged #442 (Lab species herds moved to fauna, who own Herds.cs; lab blocked on W-166 / Zach) | lab/new-species 3c1ee5f1 | Homes merge, Lab species index group (after 124 built-ins), Save as new panel, KitParts field; Frostdeer (Tundra) verified solo + host; Fauna_Fingerprint 0206544F; temple Ruin ctor dropped (public static offered) |
