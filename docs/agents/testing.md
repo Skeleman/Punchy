@@ -67,6 +67,8 @@ in an eval, or a screen capture.
   that path.
 - The hour on a joined client: `WorldSync.ApplyHostState` copies the host's hour into the `DayNightCycle` every frame,
   so `-time` or a direct `TimeOfDay` set on a joined client snaps back. Set the time on the host (solo or hosting).
+- Frozen comparison shots: take them on the host, or with `WorldSync` off for the shot. On a joined client `_PunchyClock`
+  follows the server tick, so `Time.timeScale = 0` doesn't stop shader animation (glow pulse, breath, ripples).
 
 Every shot logs one line: `[shot] 'name' ready after ... check: mean 0.56, near-black 0.00, near-white 0.00, sky 0.00,
 target on-screen and clear; good`. A shot that is black, blown out, taken from under the ground, all sky (framed
