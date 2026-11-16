@@ -32,6 +32,9 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-42 | #25 | player-2 | active (branch on player/menus) | - | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
 | P-43 | #396 | player-2 | done, ready for PR (player/ride-fit a980ae54; pair run not done, RAM) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
+| A-124 r2 | #358 | folk | active | folk/gait (new) | Per-person gait styles; no new wire field |
+| b/fix-audio-doors | #352 | fauna | next | - | GameAudioOcclusion.cs:206 reads released anchors; WorldTests fail every run |
+| R-28 r2, R-15 land | - | render-2 | active | render/cobble-depth, render/audit-fixes | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
