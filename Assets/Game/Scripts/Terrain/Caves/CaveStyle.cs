@@ -61,6 +61,9 @@ namespace Punchy.Terrain
         [Tooltip("W-147: the ladder pieces (a Ladder kit species, its variants by height) dug caves stand up their shafts " +
                  "and down drops in their passages. None = no ladders.")]
         public Punchy.Flora.FloraSpecies Ladder;
+        [Tooltip("W-172 row 5: the bench set against the wall of road tunnels' side chambers (those not left as camp " +
+                 "sockets). None = no benches.")]
+        public Punchy.Flora.FloraSpecies Bench;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
@@ -247,6 +250,10 @@ namespace Punchy.Terrain
             foreach (var style in CaveStyleTable.Collect(types))
                 if (style.Ladder != null && !species.Contains(style.Ladder))
                     species.Add(style.Ladder);
+            // W-172 row 5: tunnel benches after those, for the same reason.
+            foreach (var style in CaveStyleTable.Collect(types))
+                if (style.Bench != null && !species.Contains(style.Bench))
+                    species.Add(style.Bench);
             return species;
         }
     }

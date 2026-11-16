@@ -36,6 +36,25 @@ namespace Punchy.Items
         /// <summary>P-28 row 2: armour's protection (a number only, for now), and how the body draws it (CreatureArmour).</summary>
         public float Armour;
         public byte Look;
+        /// <summary>Zach 11-12, one item system: its length (m, at a body's scale 1), and where it goes when put away (a
+        /// weapon or tool sheathed: on the back if long for its bearer, else at the hip, as a guard's). Dyed: drawn in
+        /// its wearer's colour (a sash in its town's), not its own.</summary>
+        public float Length;
+        public ItemSheath Sheath;
+        public bool Dyed;
+    }
+
+    /// <summary>Where an item goes when sheathed (Zach 11-12): nowhere (it can't be: back into the pack), on the back or
+    /// at the hip by its length for its bearer (ItemSheaths.OnBack), always on the back, always at the hip.</summary>
+    public enum ItemSheath : byte { None, Auto, Back, Hip }
+
+    /// <summary>Where a sheathed item is worn on a body: the guards' rule (GuardWeapons.OnBack), for every item.</summary>
+    public static class ItemSheaths
+    {
+        /// <summary>On the back if it's long for its bearer (over 0.6 of its height, about twice its hip height), else
+        /// at the hip: the same on every machine, from the item and the bearer's size alone.</summary>
+        public static bool OnBack(in ItemDef item, float standHeight) =>
+            item.Sheath == ItemSheath.Back || item.Sheath == ItemSheath.Auto && item.Length > 0.6f * 2f * standHeight;
     }
 
     /// <summary>The item table (#26, P-11). An item's id is its index here; never reorder, only append.</summary>
@@ -43,8 +62,8 @@ namespace Punchy.Items
     {
         public static readonly ItemDef[] Items =
         {
-            new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f },
-            new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f },
+            new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stick, Length = 0.6f },
+            new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stone },
             new ItemDef { Name = "Berry", Colour = new Color(0.75f, 0.1f, 0.3f), Accent = new Color(0.25f, 0.5f, 0.2f), Stack = 30, Weight = 0.02f },
             new ItemDef { Name = "Mushroom", Colour = new Color(0.72f, 0.32f, 0.2f), Accent = new Color(0.9f, 0.85f, 0.72f), Stack = 20, Weight = 0.05f },
             new ItemDef { Name = "Shell", Colour = new Color(0.95f, 0.85f, 0.8f), Stack = 20, Weight = 0.05f },
@@ -52,13 +71,13 @@ namespace Punchy.Items
             new ItemDef { Name = "Coin", Colour = new Color(1f, 0.8f, 0.2f), Stack = 99, Weight = 0.01f },
             new ItemDef { Name = "Key", Colour = new Color(0.8f, 0.7f, 0.3f), Stack = 5, Weight = 0.05f },
             new ItemDef { Name = "Torch", Colour = new Color(0.42f, 0.28f, 0.15f), Accent = new Color(1f, 0.55f, 0.15f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Hand, Light = 11f },
-            new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f },
+            new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f, Length = 1.6f },
             new ItemDef { Name = "Hat", Colour = new Color(0.62f, 0.5f, 0.3f), Accent = new Color(0.36f, 0.24f, 0.16f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.3f },
             new ItemDef { Name = "Pack", Colour = new Color(0.42f, 0.33f, 0.2f), Accent = new Color(0.25f, 0.18f, 0.12f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Back, Slots = 8 },
-            new ItemDef { Name = "Club", Colour = new Color(0.45f, 0.3f, 0.17f), Accent = new Color(0.3f, 0.2f, 0.12f), Stack = 1, Weight = 1.4f, Slot = GearSlot.Hand, Damage = 6f, Reach = 0.9f, Speed = 1.1f, Weapon = Punchy.Fauna.CreatureWeapon.Club },
-            new ItemDef { Name = "Spear", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1.9f, Speed = 0.8f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Spear },
-            new ItemDef { Name = "Sword", Colour = new Color(0.7f, 0.72f, 0.75f), Accent = new Color(0.4f, 0.26f, 0.14f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 9f, Reach = 1.1f, Speed = 1.4f, Weapon = Punchy.Fauna.CreatureWeapon.Sword },
-            new ItemDef { Name = "Bow", Colour = new Color(0.55f, 0.38f, 0.2f), Accent = new Color(0.88f, 0.85f, 0.75f), Stack = 1, Weight = 0.9f, Slot = GearSlot.Hand, Damage = 7f, Reach = 25f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bow },
+            new ItemDef { Name = "Club", Colour = new Color(0.45f, 0.3f, 0.17f), Accent = new Color(0.3f, 0.2f, 0.12f), Stack = 1, Weight = 1.4f, Slot = GearSlot.Hand, Damage = 6f, Reach = 0.9f, Speed = 1.1f, Weapon = Punchy.Fauna.CreatureWeapon.Club, Length = 0.8f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Spear", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1.9f, Speed = 0.8f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Spear, Length = 2.1f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Sword", Colour = new Color(0.7f, 0.72f, 0.75f), Accent = new Color(0.4f, 0.26f, 0.14f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 9f, Reach = 1.1f, Speed = 1.4f, Weapon = Punchy.Fauna.CreatureWeapon.Sword, Length = 0.95f, Sheath = ItemSheath.Hip },
+            new ItemDef { Name = "Bow", Colour = new Color(0.55f, 0.38f, 0.2f), Accent = new Color(0.88f, 0.85f, 0.75f), Stack = 1, Weight = 0.9f, Slot = GearSlot.Hand, Damage = 7f, Reach = 25f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bow, Length = 1.1f, Sheath = ItemSheath.Back },
             new ItemDef { Name = "Arrow", Colour = new Color(0.6f, 0.45f, 0.28f), Accent = new Color(0.9f, 0.9f, 0.88f), Stack = 30, Weight = 0.03f },
             new ItemDef { Name = "Cap", Colour = new Color(0.45f, 0.3f, 0.18f), Accent = new Color(0.32f, 0.2f, 0.12f), Stack = 1, Weight = 0.5f, Slot = GearSlot.Head, Armour = 1f, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Cap },
             new ItemDef { Name = "Helm", Colour = new Color(0.55f, 0.57f, 0.6f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.Helm },
@@ -74,14 +93,113 @@ namespace Punchy.Items
             new ItemDef { Name = "Woolcap", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Cover = 0.15f, Look = Punchy.Fauna.CreatureArmour.Woolcap },
             new ItemDef { Name = "Brimhat", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.3f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.Brimhat },
             // Item rows (Zach 11-10: never idle, more weapons and wear in small rows).
-            new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe },
-            new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer },
+            new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe, Length = 0.75f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer, Length = 0.7f, Sheath = ItemSheath.Auto },
             // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
-            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, Weapon = Punchy.Fauna.CreatureWeapon.Rod },
+            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Rod, Length = 1.8f, Sheath = ItemSheath.Back },
+            new ItemDef { Name = "Pickaxe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 7f, Reach = 1.1f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Pickaxe, Length = 0.75f, Sheath = ItemSheath.Auto },
+            // (Held, it is the folk's lit lantern, HeldItem.Lantern: its light is theirs, 9 m.)
+            new ItemDef { Name = "Lantern", Colour = new Color(0.22f, 0.2f, 0.18f), Accent = new Color(1f, 0.78f, 0.4f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Light = 9f },
+            new ItemDef { Name = "Shovel", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 5f, Reach = 1.3f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Shovel, Length = 1.05f, Sheath = ItemSheath.Auto },
+            // Zach 11-12, one item system: everything folk carry, wear and work with, as items (ids from 36).
+            // What guards carry: an ogre's great club, a goblin's scrap shield.
+            new ItemDef { Name = "Great club", Colour = new Color(0.36f, 0.24f, 0.14f), Accent = new Color(0.25f, 0.17f, 0.1f), Stack = 1, Weight = 4f, Slot = GearSlot.Hand, Damage = 11f, Reach = 1.3f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.GreatClub, Length = 1.15f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Shield", Colour = new Color(0.36f, 0.3f, 0.24f), Accent = new Color(0.25f, 0.22f, 0.2f), Stack = 1, Weight = 3f, Slot = GearSlot.Hand, Armour = 3f, Weapon = Punchy.Fauna.CreatureWeapon.Shield, Length = 0.34f, Sheath = ItemSheath.Back },
+            // What travellers and miners carry: a letter, ore and a sack of it.
+            new ItemDef { Name = "Letter", Colour = new Color(0.9f, 0.86f, 0.74f), Accent = new Color(0.6f, 0.12f, 0.1f), Stack = 5, Weight = 0.02f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Letter },
+            new ItemDef { Name = "Ore", Colour = new Color(0.42f, 0.36f, 0.32f), Accent = new Color(0.55f, 0.3f, 0.15f), Stack = 20, Weight = 2f },
+            new ItemDef { Name = "Ore sack", Colour = new Color(0.55f, 0.45f, 0.3f), Accent = new Color(0.42f, 0.36f, 0.32f), Stack = 1, Weight = 12f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.OreSack },
+            // Workers' tools.
+            new ItemDef { Name = "Hoe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 4f, Reach = 1.2f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Hoe, Length = 1.1f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Broom", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.76f, 0.62f, 0.33f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Damage = 1f, Reach = 1.3f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Broom, Length = 1.25f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Smith's hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Damage = 5f, Reach = 0.7f, Speed = 1.2f, Weapon = Punchy.Fauna.CreatureWeapon.SmithHammer, Length = 0.4f, Sheath = ItemSheath.Hip },
+            new ItemDef { Name = "Tongs", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Tongs, Length = 0.35f, Sheath = ItemSheath.Hip },
+            new ItemDef { Name = "Bucket", Colour = new Color(0.42f, 0.3f, 0.18f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Bucket },
+            // What healers, traders and bakers have in hand, and food.
+            new ItemDef { Name = "Bowl", Colour = new Color(0.5f, 0.36f, 0.22f), Accent = new Color(0.32f, 0.42f, 0.2f), Stack = 5, Weight = 0.4f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bowl },
+            new ItemDef { Name = "Jar", Colour = new Color(0.55f, 0.32f, 0.2f), Accent = new Color(0.7f, 0.6f, 0.45f), Stack = 5, Weight = 0.6f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Jar },
+            new ItemDef { Name = "Apple", Colour = new Color(0.78f, 0.18f, 0.12f), Accent = new Color(0.3f, 0.5f, 0.2f), Stack = 20, Weight = 0.15f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Fruit },
+            new ItemDef { Name = "Bread", Colour = new Color(0.62f, 0.38f, 0.16f), Accent = new Color(0.8f, 0.6f, 0.35f), Stack = 10, Weight = 0.4f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Loaf },
+            new ItemDef { Name = "Dough", Colour = new Color(0.9f, 0.82f, 0.62f), Stack = 5, Weight = 0.5f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Dough },
+            // Props at a worker's post (placed there; heavy).
+            new ItemDef { Name = "Kneading table", Colour = new Color(0.6f, 0.48f, 0.32f), Accent = new Color(0.9f, 0.88f, 0.82f), Stack = 1, Weight = 25f },
+            new ItemDef { Name = "Chopping block", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 1, Weight = 30f },
+            new ItemDef { Name = "Log", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 10, Weight = 4f },
+            new ItemDef { Name = "Rope", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 5, Weight = 0.5f },
+            new ItemDef { Name = "Hot iron", Colour = new Color(1f, 0.42f, 0.08f), Accent = new Color(0.3f, 0.31f, 0.33f), Stack = 1, Weight = 1f },
+            new ItemDef { Name = "Creel", Colour = new Color(0.55f, 0.42f, 0.25f), Accent = new Color(0.2f, 0.15f, 0.1f), Stack = 1, Weight = 1f },
+            new ItemDef { Name = "Honeycomb", Colour = new Color(0.85f, 0.6f, 0.15f), Accent = new Color(0.95f, 0.8f, 0.3f), Stack = 5, Weight = 0.3f },
+            // What guards and workers wear.
+            new ItemDef { Name = "Goggles", Colour = new Color(0.1f, 0.1f, 0.12f), Accent = new Color(0.36f, 0.22f, 0.12f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Goggles },
+            new ItemDef { Name = "Kettle hat", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.3f, Look = Punchy.Fauna.CreatureArmour.KettleHat },
+            new ItemDef { Name = "Horned helm", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.78f, 0.74f, 0.62f), Stack = 1, Weight = 2.6f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.HornedHelm },
+            new ItemDef { Name = "Crested helm", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.04f, 0.2f, 0.16f), Stack = 1, Weight = 2f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.CrestedHelm, Dyed = true },
+            new ItemDef { Name = "Pot helm", Colour = new Color(0.3f, 0.29f, 0.27f), Accent = new Color(0.22f, 0.21f, 0.2f), Stack = 1, Weight = 2f, Slot = GearSlot.Head, Armour = 2f, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.PotHelm },
+            new ItemDef { Name = "Skull helm", Colour = new Color(0.78f, 0.74f, 0.62f), Accent = new Color(0.6f, 0.56f, 0.46f), Stack = 1, Weight = 3f, Slot = GearSlot.Head, Armour = 2f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.SkullHelm },
+            new ItemDef { Name = "Breastplate", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 7f, Slot = GearSlot.Body, Armour = 5f, Look = Punchy.Fauna.CreatureArmour.Breastplate },
+            new ItemDef { Name = "Leather cuirass", Colour = new Color(0.36f, 0.22f, 0.12f), Accent = new Color(0.25f, 0.15f, 0.08f), Stack = 1, Weight = 4f, Slot = GearSlot.Body, Armour = 3f, Look = Punchy.Fauna.CreatureArmour.Cuirass },
+            new ItemDef { Name = "Sash", Colour = new Color(0.32f, 0.06f, 0.04f), Accent = new Color(0.55f, 0.42f, 0.18f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Neck, Look = Punchy.Fauna.CreatureArmour.Sash, Dyed = true },
+            new ItemDef { Name = "Hide cape", Colour = new Color(0.36f, 0.27f, 0.18f), Accent = new Color(0.25f, 0.19f, 0.12f), Stack = 1, Weight = 3f, Slot = GearSlot.Back, Cover = 0.3f, Look = Punchy.Fauna.CreatureArmour.HideCape },
+            new ItemDef { Name = "Apron", Colour = new Color(0.62f, 0.58f, 0.5f), Accent = new Color(0.45f, 0.42f, 0.36f), Stack = 1, Weight = 0.4f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.Apron },
+            new ItemDef { Name = "Leather apron", Colour = new Color(0.36f, 0.22f, 0.12f), Accent = new Color(0.25f, 0.15f, 0.08f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Body, Armour = 1f, Look = Punchy.Fauna.CreatureArmour.LeatherApron },
+            new ItemDef { Name = "Baker's apron", Colour = new Color(0.86f, 0.84f, 0.78f), Accent = new Color(0.7f, 0.68f, 0.62f), Stack = 1, Weight = 0.4f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.BakerApron },
+            new ItemDef { Name = "Baker's cap", Colour = new Color(0.86f, 0.84f, 0.78f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.BakerCap },
+            new ItemDef { Name = "Straw hat", Colour = new Color(0.82f, 0.7f, 0.42f), Accent = new Color(0.5f, 0.38f, 0.2f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.StrawHat },
+            new ItemDef { Name = "Fisher's hat", Colour = new Color(0.34f, 0.38f, 0.3f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.FisherHat },
+            new ItemDef { Name = "Satchel", Colour = new Color(0.4f, 0.25f, 0.13f), Accent = new Color(0.3f, 0.18f, 0.09f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Back, Slots = 4, Look = Punchy.Fauna.CreatureArmour.Satchel },
+            // A-106 + A-103 job gear at a worker's post, as items (P-38, rule 33): a roofer's guy rope and coil, a mender's
+            // trestle and the dented helm on it, a fire tender's spirit flame, what a sweeper or shoveller has cleared, an
+            // ice cutter's snow block and the ice block on it.
+            new ItemDef { Name = "Guy rope", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1.5f },
+            new ItemDef { Name = "Rope coil", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1f },
+            new ItemDef { Name = "Trestle", Colour = new Color(0.5f, 0.38f, 0.24f), Accent = new Color(0.36f, 0.24f, 0.13f), Stack = 1, Weight = 12f },
+            new ItemDef { Name = "Dented helm", Colour = new Color(0.3f, 0.31f, 0.33f), Stack = 1, Weight = 2f },
+            new ItemDef { Name = "Spirit flame", Colour = new Color(0.55f, 0.95f, 0.86f), Accent = new Color(0.45f, 0.85f, 0.78f), Stack = 1, Weight = 0f },
+            new ItemDef { Name = "Heap", Colour = new Color(0.6f, 0.58f, 0.55f), Stack = 1, Weight = 20f },
+            new ItemDef { Name = "Snow block", Colour = new Color(0.86f, 0.9f, 0.94f), Stack = 5, Weight = 15f },
+            new ItemDef { Name = "Ice block", Colour = new Color(0.62f, 0.8f, 0.9f), Stack = 5, Weight = 15f },
+            // P-38 row 3: eyewear as head items (A-103 row 5), put on with G or from the inventory.
+            new ItemDef { Name = "Glasses", Colour = new Color(0.04f, 0.04f, 0.05f), Stack = 1, Weight = 0.05f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Glasses },
+            new ItemDef { Name = "Glow goggles", Colour = new Color(0.32f, 0.85f, 0.45f), Accent = new Color(0.2f, 0.17f, 0.14f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.GlowGoggles },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
-        /// <summary>The fishing rod (P-41: in every player's start pack).</summary>
-        public static readonly byte Rod = (byte)System.Array.FindIndex(Items, d => d.Name == "Rod");
+        /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>
+        public const byte Lantern = 34;
+        /// <summary>Zach 11-12, one item system: the ids folk kits are filled with (FolkKits). Checked against the names
+        /// at start (Check).</summary>
+        public const byte Stick = 0, Stone = 1, Club = 12, Spear = 13, Sword = 14, Bow = 15, Axe = 30, Hammer = 31, Rod = 32, Pickaxe = 33, Shovel = 35,
+                          GreatClub = 36, Shield = 37, Letter = 38, Ore = 39, OreSack = 40, Hoe = 41, Broom = 42, SmithHammer = 43, Tongs = 44,
+                          Bucket = 45, Bowl = 46, Jar = 47, Apple = 48, Bread = 49, Dough = 50, KneadingTable = 51, ChoppingBlock = 52, Log = 53,
+                          Rope = 54, HotIron = 55, Creel = 56, Honeycomb = 57, Goggles = 58, KettleHat = 59, HornedHelm = 60, CrestedHelm = 61,
+                          PotHelm = 62, SkullHelm = 63, Breastplate = 64, Cuirass = 65, Sash = 66, HideCape = 67, Apron = 68, LeatherApron = 69,
+                          BakerApron = 70, BakerCap = 71, StrawHat = 72, FisherHat = 73, Satchel = 74,
+                          GuyRope = 75, RopeCoil = 76, Trestle = 77, DentedHelm = 78, SpiritFlame = 79, Heap = 80, SnowBlock = 81, IceBlock = 82,
+                          Glasses = 83, GlowGoggles = 84;
+        /// <summary>A snow shoveller's knit cap (A-106), from the outfit rows.</summary>
+        public const byte Woolcap = 28;
+
+        /// <summary>Whether each id above is still the item it names (an id is its index: one appended in the wrong place
+        /// would shift them). Logged as an error if not.</summary>
+        public static void Check()
+        {
+            (byte id, string name)[] named =
+            {
+                (Stick, "Stick"), (Stone, "Stone"), (Fish, "Fish"), (Torch, "Torch"), (Staff, "Staff"), (Pack, "Pack"), (Club, "Club"), (Spear, "Spear"),
+                (Sword, "Sword"), (Bow, "Bow"), (Axe, "Axe"), (Rod, "Rod"), (Pickaxe, "Pickaxe"), (Lantern, "Lantern"), (Shovel, "Shovel"),
+                (GreatClub, "Great club"), (Shield, "Shield"), (Letter, "Letter"), (OreSack, "Ore sack"), (Hoe, "Hoe"), (Broom, "Broom"),
+                (SmithHammer, "Smith's hammer"), (Tongs, "Tongs"), (Bucket, "Bucket"), (Bowl, "Bowl"), (Jar, "Jar"), (Apple, "Apple"), (Dough, "Dough"),
+                (Creel, "Creel"), (Goggles, "Goggles"), (KettleHat, "Kettle hat"), (HornedHelm, "Horned helm"), (CrestedHelm, "Crested helm"),
+                (PotHelm, "Pot helm"), (SkullHelm, "Skull helm"), (Breastplate, "Breastplate"), (Cuirass, "Leather cuirass"), (Sash, "Sash"),
+                (HideCape, "Hide cape"), (Apron, "Apron"), (LeatherApron, "Leather apron"), (BakerApron, "Baker's apron"), (BakerCap, "Baker's cap"),
+                (StrawHat, "Straw hat"), (FisherHat, "Fisher's hat"), (Satchel, "Satchel"),
+                (GuyRope, "Guy rope"), (RopeCoil, "Rope coil"), (Trestle, "Trestle"), (DentedHelm, "Dented helm"), (SpiritFlame, "Spirit flame"),
+                (Heap, "Heap"), (SnowBlock, "Snow block"), (IceBlock, "Ice block"), (Woolcap, "Woolcap"),
+                (Glasses, "Glasses"), (GlowGoggles, "Glow goggles"),
+            };
+            foreach (var (id, name) in named)
+                if (id >= Items.Length || Items[id].Name != name)
+                    Debug.LogError($"Items: item {id} should be the {name}, is the {(id < Items.Length ? Items[id].Name : "end of the table")}");
+        }
     }
 
     /// <summary>Client → host: pick up world item Uid.</summary>
@@ -119,7 +237,8 @@ namespace Punchy.Items
     public partial class Items : MonoBehaviour
     {
         public const float Reach = 2f, DrawRange = 60f;
-        /// <summary>Uids: seeded door items are door*4+k; chest items ChestBase + socket*4+k; drops DropBase upwards.</summary>
+        /// <summary>Uids: seeded door items are door*4+k; chest items ChestBase + socket*4+k; drops DropBase upwards; spares
+        /// at the folk's posts SpareBase upwards (Spares.cs).</summary>
         const int ChestBase = 1_000_000, DropBase = 2_000_000;
 
         struct WorldItem { public byte Item, Count; public float3 Pos; }
@@ -169,6 +288,8 @@ namespace Punchy.Items
             for (int i = 0; i < ItemTable.Items.Length; i++)
                 names.Add($"{i} {ItemTable.Items[i].Name} (stack {ItemTable.Items[i].Stack}, {ItemTable.Items[i].Weight} kg)");
             Debug.Log("Items: table of " + ItemTable.Items.Length + ": " + string.Join(", ", names));
+            ItemTable.Check();
+            FolkKits.CheckLooks();
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
             instance.StartPack();
@@ -176,11 +297,18 @@ namespace Punchy.Items
             var at = System.Array.IndexOf(args, "-pickup");
             if (at >= 0 && at + 1 < args.Length)
                 int.TryParse(args[at + 1], out instance.pickupArg);
+            // ("-pickupspares N": the same, the N nearest spares at the folk's posts only; Spares.cs.)
+            at = System.Array.IndexOf(args, "-pickupspares");
+            if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out instance.pickupArg))
+                instance.spareOnlyArg = true;
             instance.dropArg = System.Array.IndexOf(args, "-drop") >= 0;
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
             instance.panel = System.Array.IndexOf(args, "-inventory") >= 0;
             instance.padTest = System.Array.IndexOf(args, "-invpad") >= 0;
             instance.itemRowArg = System.Array.IndexOf(args, "-itemrow") >= 0;
+            var rowAt = System.Array.IndexOf(args, "-itemrow");
+            if (rowAt >= 0 && rowAt + 1 < args.Length && int.TryParse(args[rowAt + 1], out var rowFrom))
+                instance.itemRowFrom = math.max(rowFrom, 0);
             var ca = System.Array.IndexOf(args, "-container");
             if (ca >= 0 && ca + 1 < args.Length)
                 int.TryParse(args[ca + 1], out instance.containerArg);
@@ -242,6 +370,7 @@ namespace Punchy.Items
             if (!TryTerrain(out var terrain))
                 return;
             RegisterChests();
+            StockPosts();
             LayRods(terrain);
             if (Hosting)
                 Serve();
@@ -263,6 +392,7 @@ namespace Punchy.Items
             UpdateQuests(terrain);
             Tests(terrain);
             GearTest();
+            EyewearKey();
             GearLootTest();
             SwingKeys();
             FishKeys(terrain);
@@ -364,6 +494,8 @@ namespace Punchy.Items
                 targetContainer = -1;
             if (TargetDistance > Doors.FacingDistance || TargetDistance > FolkTalk.TargetDistance)
                 return;
+            if (target >= 0 || targetChest >= 0 || targetContainer >= 0)
+                UseKey.Offer();
             var key = UseKey.Name;
             var item = target >= 0 ? world[target] : default;
             var promptKey = (key, targetContainer, target, targetChest, item.Item, item.Count);
@@ -546,7 +678,7 @@ namespace Punchy.Items
             var w = new WorldItem { Item = item, Count = (byte)math.clamp(count, 1, 255), Pos = pos };
             world[uid] = w;
             added[uid] = w;
-            if (uid >= DropBase)
+            if (uid >= DropBase && uid < SpareBase)
                 NoteDrop(uid);
             Debug.Log($"Items: item {uid} ({ItemTable.Items[item].Name} x{w.Count}) on the ground at ({pos.x:F1}, {pos.y:F1}, {pos.z:F1})");
             if (Hosting)
@@ -561,6 +693,8 @@ namespace Punchy.Items
             if (!added.Remove(uid))
                 gone.Add(uid);
             Debug.Log($"Items: item {uid} ({ItemTable.Items[it.Item].Name}) taken{(Hosting ? " (host)" : "")}");
+            if (!Joined)
+                NoteSpareTaken(uid);
             if (Hosting)
                 Broadcast(new ItemGoneRpc { Uid = uid });
             return true;
@@ -662,6 +796,7 @@ namespace Punchy.Items
             Each(em, joined, onArmourState ??= OnArmourState);
             Each(em, joined, onSlotState ??= OnSlotState);
             Each(em, joined, onSwing ??= OnSwing);
+            Each(em, joined, onLeftSwing ??= OnLeftSwing);
             Each(em, joined, onFish ??= OnFish);
         }
 
@@ -675,6 +810,7 @@ namespace Punchy.Items
         System.Action<ArmourStateRpc> onArmourState;
         System.Action<SlotStateRpc> onSlotState;
         System.Action<SwingRpc> onSwing;
+        System.Action<LeftSwingRpc> onLeftSwing;
         System.Action<FishRpc> onFish;
 
         /// <summary>Each RPC of type T that has come in: handled (on a joined client only) and used up.</summary>
@@ -715,8 +851,10 @@ namespace Punchy.Items
         // ------------------------------------------------------------------ tests, keys, drawing
 
         bool itemRowArg;
+        int itemRowFrom;
 
-        /// <summary>"-itemrow" (P-23): one of every item in a row 1.8 m in front of the player and in the inventory, the camera close.</summary>
+        /// <summary>"-itemrow" (P-23): one of every item in rows of eight from 1.8 m in front of the player, and in the
+        /// inventory, the camera close; "-itemrow 36" only those from id 36 on (Zach 11-12: the folk's items).</summary>
         void ItemRow(in TerrainSource terrain)
         {
             if (!itemRowArg || Time.realtimeSinceStartup < 20f || !TryPlayer(out var player))
@@ -725,17 +863,19 @@ namespace Punchy.Items
             var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
             var right = new float2(forward.y, -forward.x);
             var count = ItemTable.Items.Length;
-            for (int i = 0; i < count; i++)
+            const int across = 8;
+            for (int i = math.min(itemRowFrom, count - 1); i < count; i++)
             {
-                var xz = player.Position.xz + forward * 1.8f + right * ((i - (count - 1) * 0.5f) * 0.5f);
+                var n = i - math.min(itemRowFrom, count - 1);
+                var xz = player.Position.xz + forward * (1.8f + n / across * 0.7f) + right * ((n % across - (across - 1) * 0.5f) * 0.6f);
                 Spawn((byte)i, 1, new float3(xz.x, terrain.SampleHeight(xz), xz.y));
                 Grant((byte)i, 1);
             }
             var cam = FindAnyObjectByType<Punchy.CameraRig.ThirdPersonCamera>();
             if (cam != null)
             {
-                cam.Distance = 3.5f;
-                cam.SetView(math.degrees(math.atan2(forward.x, forward.y)), 34f);
+                cam.Distance = 4.5f;
+                cam.SetView(math.degrees(math.atan2(forward.x, forward.y)), 45f);
             }
             Debug.Log($"Items: -itemrow: {count} items spawned; inventory: {DescribeInventory()}");
         }
@@ -743,6 +883,7 @@ namespace Punchy.Items
         void Tests(in TerrainSource terrain)
         {
             ItemRow(terrain);
+            KitLog();
             if (pickupArg <= 0 && !dropArg && !openChestArg)
                 return;
             testAt = testAt == 0f ? Time.realtimeSinceStartup + 30f : testAt;
@@ -775,6 +916,8 @@ namespace Punchy.Items
                 var bestD = float.MaxValue;
                 foreach (var kv in world)
                 {
+                    if (spareOnlyArg && kv.Key < SpareBase)
+                        continue;
                     var d = math.distance(kv.Value.Pos, player.Position);
                     if (d < bestD) (bestD, best) = (d, kv.Key);
                 }
@@ -792,7 +935,7 @@ namespace Punchy.Items
         }
 
         /// <summary>
-        /// The panel: Tab or I, or LB on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
+        /// The panel: Tab or I, or View on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
         /// (arrows, d-pad, left stick) and Submit (Enter, A) or the Use key drops one of the focused slot's items.
         /// </summary>
         void UpdateInventoryKeys()
@@ -801,11 +944,12 @@ namespace Punchy.Items
                 return;
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
-            // (Any pad's LB / B, not only Gamepad.current: P-16's virtual pad wasn't current on its first press.)
+            // (Any pad's View / B, not only Gamepad.current: P-16's virtual pad wasn't current on its first press. View
+            // since Zach 11-12: LB is the left hand's block.)
             bool padLB = false, padB = false;
             foreach (var g in Gamepad.all)
             {
-                padLB |= g.leftShoulder.wasPressedThisFrame;
+                padLB |= g.selectButton.wasPressedThisFrame;
                 padB |= g.buttonEast.wasPressedThisFrame;
             }
             var toggle = keyboard != null && (keyboard.tabKey.wasPressedThisFrame || keyboard.iKey.wasPressedThisFrame) || padLB;
@@ -829,7 +973,9 @@ namespace Punchy.Items
                 Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
             }
             selected = nav.Focus;
-            if (target < 0 && targetChest < 0 && targetContainer < 0 && UseKey.WasPressed())
+            // (In the panel the pad's A is its own Submit; the Use key, or RB, as before.)
+            var padRB = Gamepad.current != null && Gamepad.current.rightShoulder.wasPressedThisFrame;
+            if (target < 0 && targetChest < 0 && targetContainer < 0 && (UseKey.KeyWasPressed() || padRB))
             {
                 if (openContainer >= 0 && selected >= Capacity) TakeFromContainer(openContainer, selected - Capacity);
                 else if (openContainer >= 0) Put(selected);
@@ -839,7 +985,7 @@ namespace Punchy.Items
         }
 
         /// <summary>
-        /// "-invpad": drives the panel with a virtual gamepad through the Input System (the real input path): LB opens it,
+        /// "-invpad": drives the panel with a virtual gamepad through the Input System (the real input path): View opens it,
         /// d-pad right three times, A drops one, B closes it. Starts 45 s in (after any -pickup).
         /// </summary>
         void PadTest()
@@ -859,7 +1005,7 @@ namespace Punchy.Items
                 InputSystem.EnableDevice(testPad);
             }
             testPad.MakeCurrent();
-            GamepadButton[] script = { GamepadButton.LeftShoulder, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
+            GamepadButton[] script = { GamepadButton.Select, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
             var press = padStep % 2 == 0;
             var button = script[padStep / 2];
             InputSystem.QueueStateEvent(testPad, press ? new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(button) : new UnityEngine.InputSystem.LowLevel.GamepadState());
@@ -990,8 +1136,11 @@ namespace Punchy.Items
                     block.SetColor(BaseColorId, ItemTable.Items[it.Item].Accent);
                     r.SetPropertyBlock(block, 1);
                 }
+                if (uid >= SpareBase)
+                    StandSpare(uid, it, go, mesh);
                 shown[uid] = go;
             }
+            DrawStands(cam.transform.position);
         }
 
         // P-20 (profiler finding 11): drawn through a GuiHook, on only while there is something to draw, so this
