@@ -5801,3 +5801,10 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Verified:** LiveFolk_InnkeeperAtCounter alone twice, passed both (keeper 0.7 m / 0.5 m from counter, 34 members remade each run); full FolkConversationTests 14/14. Editor closed with EditorApplication.Exit.
 - **Note:** my first launch had a compile error and showed Unity's Safe Mode prompt on Zach's screen; closed it via WM_CLOSE (editor quit cleanly), fixed, relaunched.
 - NEXT: folk/members-follow-clock per the approved design (editor-free build, then slot request).
+
+## 2026-11-16 fauna: #24 p2 r4 + r5, P-37 r3 row 2 verified; paused (budget)
+- **r4** (fauna/dungeon-props-r4 e62982b2): props drawn by screen size; host + joiner on 7985 PASS (dead mask reaches the client, 9/10 at posts after a kill).
+- **r5** (fauna/dungeon-r5 74f295d0): Roost was 0 because no cave Ceiling socket drew a bat; added a Bat row only Ceiling sockets fit (cave+temple, NeedTags Ceiling), other picks unchanged. Posts: Roost 5, Patrol 16, Guard 40, Sleep 53. FaunaTests 5/5, Fauna_Fingerprint, socket pins pass; -guardtest -dungeonlife PASS. Nothing sent.
+- **Row 2** (fauna/walkin-walls dbbb352e, then fauna/walkin-walls-doors 29d4328e = DoorsOf reads model.DoorBoxes, merge after seamless-2): on a local merge with seamless-2, FaunaTests 4/4 and a 5 min herd test with walk-ins on near 11 houses (83-111 creatures within 40 m): 0 inside in 20 samples. Nothing sent.
+- **PRs:** not opened. My brief forbids opening PRs, so they're left to the supervisor.
+- **Paused (budget):** #400 cull-no-stall not started (a draft is in my scratchpad). Editor closed with EditorApplication.Exit.
