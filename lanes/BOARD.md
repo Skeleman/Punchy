@@ -42,6 +42,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | b/fix-lake-ring-hash | #298 | fauna | merged #447, #449 | | lake ring and sky-bird seeds scrambled |
 | fauna/lab-herds | #412 | fauna | merged #453 11-16; host+join check in next playtest build | fauna/lab-herds | stale comments: CreatureSpecies.FromHomes, FaunaDirector.Build MergeHomes |
 | R-28 r2 | #312 | render-2 | merged #454 (R-23 r2), #455 (R-15 r1-3); cobble-depth held for job 86 | render/cobble-depth@ce3ff5a7 ready for PR (BC1091 fixed, job 86 unblocked); render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); render/one-surface@5c25c3fd ready for PR (R-23 r2, job 82 pass) | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
+| R-23 r3 | #298 | render-2 | resumable: Sky.hlsl split WIP (no code change), editor checks pending (RAM) | render/one-surface-3@9795d6a3 | Refresh + ShaderHasError + pixel-diff vs main (expect 0), then Surface.hlsl moves per design note; compile time/variants to BENCH | Design note in render-2 handoff 11-16 |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-45 | #24 | player (fishing agent) | now: row 0 joiner runs, then set pieces | player/dungeon-pieces | Rows 0-2 per batches/P-45.md; stop after row 3 note |
