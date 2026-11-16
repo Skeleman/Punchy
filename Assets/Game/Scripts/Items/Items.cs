@@ -48,6 +48,10 @@ namespace Punchy.Items
         /// 16 x the grain's axis when it isn't up (48: along z, as a haft lies).</summary>
         public MaterialFamily Family, AccentFamily;
         public byte Kind, AccentKind;
+        /// <summary>P-49 r3 (#27): a quest-only item's quest id (null: an ordinary item). Only that quest counts it, no
+        /// other quest's item check does, and no random fill (ItemTable.IsRandomLoot) hands it out. Base: the ordinary
+        /// item whose mesh it borrows.</summary>
+        public string Quest, Base;
     }
 
     /// <summary>Where an item goes when sheathed (Zach 11-12): nowhere (it can't be: back into the pack), on the back or
@@ -167,6 +171,10 @@ namespace Punchy.Items
             // P-38 row 3: eyewear as head items (A-103 row 5), put on with G or from the inventory.
             new ItemDef { Name = "Glasses", Colour = new Color(0.04f, 0.04f, 0.05f), Stack = 1, Weight = 0.05f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Glasses },
             new ItemDef { Name = "Glow goggles", Colour = new Color(0.32f, 0.85f, 0.45f), Accent = new Color(0.2f, 0.17f, 0.14f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.GlowGoggles, AccentFamily = MaterialFamily.Leather },
+            // P-49 r3 (#27): quest-only items, each counted by its own quest alone (Quest), drawn as their Base.
+            new ItemDef { Name = "Heirloom key", Colour = new Color(0.85f, 0.62f, 0.25f), Stack = 1, Weight = 0.05f, Family = MaterialFamily.Metal, Quest = "heirloom", Base = "Key" },
+            new ItemDef { Name = "Elder staff", Colour = new Color(0.42f, 0.3f, 0.18f), Accent = new Color(0.8f, 0.74f, 0.55f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f, Length = 1.6f, Family = MaterialFamily.Wood, Kind = 48, Quest = "elder-staff", Base = "Staff" },
+            new ItemDef { Name = "Lost key", Colour = new Color(0.72f, 0.7f, 0.66f), Stack = 1, Weight = 0.05f, Family = MaterialFamily.Metal, Quest = "lost-key", Base = "Key" },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
         /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>
@@ -181,6 +189,8 @@ namespace Punchy.Items
                           BakerApron = 70, BakerCap = 71, StrawHat = 72, FisherHat = 73, Satchel = 74,
                           GuyRope = 75, RopeCoil = 76, Trestle = 77, DentedHelm = 78, SpiritFlame = 79, Heap = 80, SnowBlock = 81, IceBlock = 82,
                           Glasses = 83, GlowGoggles = 84;
+        /// <summary>P-49 r3: the quest-only items.</summary>
+        public const byte HeirloomKey = 85, ElderStaff = 86, LostKey = 87;
         /// <summary>A snow shoveller's knit cap (A-106), from the outfit rows.</summary>
         public const byte Woolcap = 28;
 
@@ -200,11 +210,35 @@ namespace Punchy.Items
                 (StrawHat, "Straw hat"), (FisherHat, "Fisher's hat"), (Satchel, "Satchel"),
                 (GuyRope, "Guy rope"), (RopeCoil, "Rope coil"), (Trestle, "Trestle"), (DentedHelm, "Dented helm"), (SpiritFlame, "Spirit flame"),
                 (Heap, "Heap"), (SnowBlock, "Snow block"), (IceBlock, "Ice block"), (Woolcap, "Woolcap"),
-                (Glasses, "Glasses"), (GlowGoggles, "Glow goggles"),
+                (Glasses, "Glasses"), (GlowGoggles, "Glow goggles"), (HeirloomKey, "Heirloom key"), (ElderStaff, "Elder staff"), (LostKey, "Lost key"),
             };
             foreach (var (id, name) in named)
                 if (id >= Items.Length || Items[id].Name != name)
                     Debug.LogError($"Items: item {id} should be the {name}, is the {(id < Items.Length ? Items[id].Name : "end of the table")}");
+        }
+
+        /// <summary>P-49 r3: whether a random fill may hand this item out (a quest-only item: never).</summary>
+        public static bool IsRandomLoot(int item) => item >= 0 && item < Items.Length && Items[item].Quest == null;
+
+        /// <summary>One random item from id <paramref name="from"/> on, never a quest-only one: a single draw over the
+        /// items that may be loot, so the same roll gives the same item on every machine.</summary>
+        public static byte RandomLoot(ref Unity.Mathematics.Random rng, int from)
+        {
+            var n = 0;
+            for (int i = from; i < Items.Length; i++)
+                if (IsRandomLoot(i)) n++;
+            var pick = rng.NextInt(0, n);
+            for (int i = from; i < Items.Length; i++)
+                if (IsRandomLoot(i) && pick-- == 0)
+                    return (byte)i;
+            return (byte)from;
+        }
+
+        /// <summary>The name an item's mesh is built from: its Base's for a quest-only item, else its own.</summary>
+        public static string MeshName(string name)
+        {
+            var i = System.Array.FindIndex(Items, d => d.Name == name);
+            return i >= 0 && Items[i].Base != null ? Items[i].Base : name;
         }
     }
 
