@@ -5400,3 +5400,17 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Risks: new Counter anchors may move an anchor count or fingerprint pin; WorldTests not run (no timing done, rule 21). Seen, not this row: the generic job line says "I'm a innkeeper." (a/an).
 - Shares: extends FolkJobs.VillagePosts and the AddWorkSpots work-anchor bake (rule 33). No parallel found.
 - NEXT: row 2, a wipe-counter / stack-mugs Tend pose in CreatureAnimator (code written, being verified).
+
+### Row 2 (#414) - done (verified)
+- RAM reached 16 GB at 20:27; editor reopened, no code change since 5b5d9b8c (verified marker 1e1de503).
+- Check (edit-mode eval): 83 set pieces x variants 0 and 1 = 166 builds, 0 failures; 7 single-variant species clamp v1 to v0. KitHouse v0 944 tris 9.9 x 8.7 x 9.4 m, v1 3248 tris 9.0 x 15.5 x 9.7 m (3 storeys); Grotto seed 0 24836 tris, seed 1 19744 tris; Ruin seed 1 83182 tris 15.7 x 5.5 x 19.3 m.
+- Shots: D:/Unity/PunchyMilestones/M-08/row2-kithouse-v0.png, row2-kithouse-v1.png, row2-grotto-seed0.png, row2-grotto-seed1.png, row2-window.png (Variant field with < > Random).
+- Temple pieces still skipped. Rule 11 ask (world-owned Terrain/Landmarks/SunkenTempleSystem.cs): make the nested Ruin and Builder classes internal and give Ruin a second constructor taking the RuinRoom/RuinBox/RuinDrift/RuinSconce arrays plus a ground function (Func<float, float, float>) instead of the LandmarkSetBlob + TerrainSource. The Lab could then mesh RuinKit.Temple(seed) on flat ground. No change to the game's own output or pins.
+- Shares: Model Lab only.
+
+### M-06 row 3b (#413) - blocked, hook needed (no code written)
+- Spawning by biome is per biome today: BiomeDefinition.Fauna (BiomeFauna: species + density) is what FaunaDirector.Build reads. There is no per-species biome list for the tables to read.
+- Smallest hook (fauna): a CreatureSpecies field `Homes` (biome + density, BiomeFauna-shaped) that FaunaDirector.Build merges into each biome's Fauna list at build time; built-in species stay on the biome lists until moved (one field, rule 33). The no-code alternative is the Lab writing BiomeFauna entries into world-owned biome assets, which risks a re-bake.
+- Append-at-end doesn't hold: the species index is all species sorted by asset name (FaunaDirector.Build.cs, the species.Sort with CompareOrdinal), so a new species renumbers every species whose name sorts after it. That is network-visible renumbering, not pre-approved. Fix options for fauna: index new (Lab-made) species after the built-ins (two sorted groups), or a stable id stored on the species.
+- NEXT: M-08 row 3 (cheaper side list: cave rooms by part group from CaveRoomKit Parts; kit buildings need a flora hook exposing KitStructure's KitPart list, rule 11 ask).
+
