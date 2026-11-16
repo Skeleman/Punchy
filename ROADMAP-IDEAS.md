@@ -52,7 +52,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   elf towns without wood (#326, W-161), wood grain and strangler roots (#330, W-163).** Next, world lane.
 - **Castle walls (#254).** Later. Modular walls, towers, a gatehouse with a working, synced portcullis.
 - **Port town (#255).** Later. A big pier, a boardable galleon and a busy main road.
-  Zach 11-16: worth the effort, start simple. Next: P-44 row 1 design note (reuse the colossus carry first; small boats share it).
+  Zach 11-16: worth the effort, start simple; later the same day: colossi should be dynamically rideable too, so P-44 is one walk-on-moving-bodies system for colossi, the galleon and boats. Later (can wait).
 
 ## Folk and races
 - **Playable races (#291).** Shipped (A-103): sea, bat and turtle folk; bat eyes see brighter.
@@ -68,7 +68,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 ## Creatures
 - **Riding (#278, A-104).** Shipped: any creature rides one at least 50% heavier, players ride players, folk ride
   horses out of town stables (A-117) Shipped: dismount when you no longer fit the mount (P-40, PR #422). Shipped: rides keep up when either body changes mid-ride (P-43, PR #441).
-- **Climbable colossi (#276, A-107).** Shipped: graded climbable sections, carried as the colossus walks.
+- **Climbable colossi (#276, A-107).** Shipped: graded climbable sections, carried as the colossus walks. Later: walk freely on a moving colossus, shared with the galleon deck (P-44, Zach 11-16).
 - **Sand and snow worms.** Shipped: breaching snow worm and sand worm colossi (A-84, Z-28).
 - **Climbing (A-101).** Shipped: one climbing model, ladders, marked walls, ledge hang. Shipped: brisk ladders
   (A-126 row 1, PR #383). Shipped: A-126 rows 2-4 (ledge hands, shimmy prompt, steering ridden animals; PR #429). Next: cave routes
