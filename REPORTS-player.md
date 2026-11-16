@@ -1684,3 +1684,4 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - P-42 rebased onto it: its 4 own commits are now player/talk-replies 769a3e0d (force-pushed; the old take-items merge was dropped, since main has it). Compiles. Solo `-talktest 1 replies`: PASS, 0 exceptions.
 - Dev build of 769a3e0d (main + P-39 + P-42) is done. Joined-client runs held up: UDP 7979 is held by another tree's dev build (Punchy-world Builds/Dev, PID 108972), so my editor host can't bind. Waiting for it to free.
 - Shares: MenuNav stays the one focus path for every menu (rule 33).
+- Port 7979 clash (01:43): my editor host bound 7979 in the gap between other lanes' runs, and the world lane's #259 joiner (Punchy-world, rj259 join3) joined it (host showed players 2). I stopped my host at once, so join3/host3 from about 01:43 aren't clean. The joined-client runs (P-42 replies, P-43 ride) still need a turn on the port. The build is ready at Punchy-docs Builds/Dev.
