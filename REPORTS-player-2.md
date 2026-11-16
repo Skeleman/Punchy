@@ -158,3 +158,13 @@ Stale against main:
 - -teleportrooms is a client-local flag. A host and a client on different settings would disagree on where the player is. Proposal: the host's setting wins and is sent once in the join handshake (one field). Flagged for rule 11. The alternative is no flag in multiplayer builds.
 
 Needs from world (send via supervisor first, card row 3): row 1 shell changes (FloraGenerator.Kit.cs, FloraGenerator.cs DoorBoxes, FloraSystem.cs leaf box, FloraDoors.IsOpen overload, StructureKit partial).
+
+### P-37 r3 row 1: resumable WIP (uncompiled), player/seamless-2@66a6fa0a
+- Supervisor approved: the rule 11 items (old room containers moved to the door container; `-teleportrooms` decided by the host in one additive handshake field, off for old clients), and these world files for row 1 only.
+- Built editor-free, behind `-seamless` (StructureKit.Seamless, a settable static in a new partial, StructureKit.WalkIn.cs):
+  - StormHouse ground door leaf is hinged and drawn with its W-166 family from MaterialLibrary, at the kit's own DoorBay door part.
+  - DoorBoxes are added in FloraSystem only while FloraDoors.IsOpen(centre, 2.5 m) is false.
+  - FloraDoors.Version bumps when a door crosses half open, so the boxes re-gather at once instead of at the 0.5 s refresh.
+  - No wall circles, centre cylinder or trunk circle. The plinth and step are solid, and the step is 0.25 m (WalkInStep).
+- Next: an editor slot (a cold import, after render's 12 GB slot). Then compile, run the suite, and check on -seamless that you walk through an open door, are blocked by a shut one, and see brick/stone walls in a shot.
+- Open for row 3: the shader's own door rhythm (some doors ajar by day) may show a leaf ajar while its box is shut. Interiors should drive walk-in doors explicitly.
