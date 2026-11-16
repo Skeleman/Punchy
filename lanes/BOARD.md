@@ -13,7 +13,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r3-4 | #336 | materials | r3 merged #452; r4 part pushed (temple on Stone.hlsl, towns walked NaN 0); sweep (items, colossi) queued after W-175 r2 | world/material-library-2 9d04c2d3 | render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder
+| W-166 r3-4 | #336 | materials | r3 merged #452; r4 part merged #456 (temple on Stone.hlsl); sweep (items, colossi) queued after W-175 r2 | world/material-library-2 9d04c2d3 | render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
