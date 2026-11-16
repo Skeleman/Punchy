@@ -3,8 +3,8 @@ using UnityEngine;
 namespace Punchy.Flora
 {
     // FloraGenerator, the units (W-175, #415): placed things made of library parts (FloraGenerator.Parts), written as
-    // data (UnitDef). The market stall and the smithy moved here from their coded builders in row 2 with no change in
-    // look; camps and docks follow. See docs/agents/parts-and-units.md.
+    // data (UnitDef). The market stall and the smithy moved here from their coded builders in row 2, the tent and the fire pit
+    // in row 3, with no change in look; docks follow. See docs/agents/parts-and-units.md.
     public static partial class FloraGenerator
     {
         /// <summary>
@@ -61,7 +61,33 @@ namespace Punchy.Flora
             To = new Vector3(x, 0.58f, z), SpanMetres = new Vector3(0.12f, 0.11f, 0f),
         };
 
+        /// <summary>A hide tent (goblin and ogre camps): the shell, and a door mat before its open +Z panel.</summary>
+        public static readonly UnitDef TentUnit = new UnitDef
+        {
+            Id = "tent",
+            Parts = new[]
+            {
+                new UnitPart { Part = "hide tent" },
+                new UnitPart { Part = "door mat", At = new Vector3(0f, 0f, 0.5f), Span = new Vector3(0.35f, 0f, 0f) },
+            },
+        };
+
+        /// <summary>
+        /// A camp's fire pit, its frame height the fire's radius: a ring of stones round an ash bed, charred logs leaning
+        /// over it and embers in the ash.
+        /// </summary>
+        public static readonly UnitDef FirePitUnit = new UnitDef
+        {
+            Id = "fire pit",
+            Parts = new[]
+            {
+                new UnitPart { Part = "fire ring", Span = new Vector3(0f, 1f, 0f) },
+                new UnitPart { Part = "log tepee", Span = new Vector3(0f, 1f, 0f) },
+                new UnitPart { Part = "embers", Span = new Vector3(0f, 1f, 0f) },
+            },
+        };
+
         /// <summary>Every unit (for the unit tests and, later, the Model Lab's list).</summary>
-        public static UnitDef[] Units => new[] { StallUnit, SmithyUnit };
+        public static UnitDef[] Units => new[] { StallUnit, SmithyUnit, TentUnit, FirePitUnit };
     }
 }
