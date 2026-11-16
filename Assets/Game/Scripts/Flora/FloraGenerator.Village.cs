@@ -50,7 +50,9 @@ namespace Punchy.Flora
                 radii.Add(radius * 0.035f);
                 path.Add(through);
                 radii.Add(radius * 0.025f);
+                b.Family = Timber(g);   // W-166: the poles are wood, the hides the form's cloth
                 b.Tube(path, radii, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+                b.Family = b.BaseFamily;
             }
 
             // Hide panels between neighbouring poles, each a slightly different hide, sagging inwards.
@@ -504,10 +506,12 @@ namespace Punchy.Flora
             var floor = 0.5f;
             var eave = floor + height * 0.55f;
             // Posts and the roof.
+            b.Family = Timber(g);   // W-166: timber posts on the stone
             foreach (var x in new[] { -1f, 1f })
             foreach (var z in new[] { -1f, 1f })
                 b.Tube(new List<Vector3> { new Vector3(x * half * 0.82f, floor, z * half * 0.82f), new Vector3(x * half * 0.82f, eave, z * half * 0.82f) },
                        new List<float> { 0.12f, 0.1f }, g.Sides(6, 4, 3), timber, FloraPart.Bark);
+            b.Family = b.BaseFamily;
             var roof = b.VertexCount;
             RoofTube(b, eave - 0.22f, half * 1.45f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);
             RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
@@ -541,6 +545,7 @@ namespace Punchy.Flora
             foreach (var x in new[] { -1f, 1f })
             foreach (var z in new[] { -1f, 1f })
                 g.Perches.Add(new Vector3(x * half, fence * 0.925f, z * half));
+            b.Family = Timber(g);   // W-166: the fence is wood
             if (g.Lod < 2)
             {
                 var posts = Mathf.Max(3, Mathf.RoundToInt(half / 0.9f));
@@ -575,6 +580,8 @@ namespace Punchy.Flora
                     }
                 }
             }
+
+            b.Family = b.BaseFamily;
 
             // Rows of vegetables, running front to back, with a path down the middle from the gate.
             var rows = Mathf.Max(2, Mathf.RoundToInt(half / 0.7f));

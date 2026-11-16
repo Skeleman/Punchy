@@ -60,6 +60,7 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
             var r = Mathf.Max(s.Thickness, 0.02f);
             var sides = g.Sides(6, 4, 4);
+            b.Family = Timber(g);   // W-166: pit-props, pine by its form
             for (int side = -1; side <= 1; side += 2)
             {
                 var foot = new Vector3(side, -0.05f, 0f);
@@ -71,6 +72,7 @@ namespace Punchy.Flora
             }
             b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f * tall + r, 0f), new Vector3(1.12f, 1.02f * tall + r, 0f) },
                    new List<float> { r * 1.1f, r * 1.1f }, sides, g.Bark * 0.95f, FloraPart.Bark);
+            b.Family = b.BaseFamily;
         }
 
         /// <summary>A wall torch: a stick leaning out from its bracket with a charred head (the flame is FireSystem's).</summary>
@@ -85,7 +87,9 @@ namespace Punchy.Flora
             var r = Mathf.Max(length * s.Thickness, 0.015f);
             // Leaning out (+Z, away from the wall it's on) by about 20°.
             var top = new Vector3(0f, length * 0.94f, length * 0.34f);
+            b.Family = Timber(g);   // W-166: the stick is wood, the bracket iron, the head a pitch-soaked rag
             b.Tube(new List<Vector3> { Vector3.zero, top }, new List<float> { r * 0.8f, r }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
+            b.Family = Punchy.Terrain.MaterialFamily.Metal;
             // The bracket: a band round the stick a third of the way up, and its arm back to the wall.
             if (g.Lod < 2)
             {
@@ -93,9 +97,11 @@ namespace Punchy.Flora
                 b.Tube(new List<Vector3> { band + new Vector3(0f, 0f, -r * 3f), band }, new List<float> { r * 0.5f, r * 0.5f }, 4, g.Accent, FloraPart.Bark);
                 b.Blob(band, new Vector3(r * 1.4f, r * 0.9f, r * 1.4f), Quaternion.identity, 0, 0f, 0f, g.Accent, FloraPart.Bark);
             }
+            b.Family = Punchy.Terrain.MaterialFamily.Cloth;
             var head = b.Blob(top, new Vector3(r * 1.6f, r * 2.4f, r * 1.6f), Quaternion.FromToRotation(Vector3.up, top.normalized),
                               g.Lod == 0 ? 1 : 0, 0.2f, g.R() * 100f, g.FoliageColor(), FloraPart.Bark);
             b.Occlude(head, (p, n) => 0.7f);
+            b.Family = b.BaseFamily;
         }
 
         // Seats: fixed sizes (a sitter's hips go at the seat's height, and towns' Sit anchors expect it), scaled by the
