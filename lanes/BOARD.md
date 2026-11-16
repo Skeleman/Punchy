@@ -20,7 +20,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
-| A-133 | #336 | fauna | next | - | Creature.shader includes Materials/Metal.hlsl (then delete the Shaders/Metal.hlsl forwarder) and draws wood through Materials/Wood.hlsl; no look change, pixel-diff |
+| A-133 | #336 | fauna | done, ready for PR | fauna/material-library@def7b902 | creature wood + metal via Materials/*.hlsl, forwarder deleted; diff only on spear shaft; tests 2/2, sparkle 0 |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
 | R-25 r4-6 | #302 | render-2 | active | render/far-lights-2@2769270d | row 5 handed off (lava kind; no surface lava on island); next row 6 town far points | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1 | #323 | render | active | render/foliage-realism 9cec43a5 | -leaftrial a/b/c built; next: run trial.txt per option (waiting on 6 GB RAM), sheet + note. Rule 11 merges pushed: cobble-depth 589ceeb6, one-surface 1a3b0f12, audit-fixes fa29fc64 (compile check pending) |

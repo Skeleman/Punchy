@@ -5432,3 +5432,13 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Shares: Model Lab only; the part list ask lines up with W-175's unit format (parts with offsets).
 - Lab editor closed (by PID).
 
+
+## 11-15 A-133 (#336) creature gear on the one material library [fauna] - done (verified), branch ready for PR
+- Branch fauna/material-library@def7b902. Files: Creature.shader (CRLF kept), Shaders/Metal.hlsl + .meta deleted (the forwarder), MaterialLibraryTests.cs.
+- Creature.shader now includes Materials/Metal.hlsl and Materials/Wood.hlsl. The wooden haft draws PunchyWoodGrain (oak), with the screen footprint taken from fwidth(positionWS) outside any branch, so it fades by on-screen size (rule 20). Metal is unchanged.
+- Pixel-diff in play (guard holding a spear and helmet, clear noon, frozen, camera pinned, 2560x1600): 5,946 of 4,096,000 px changed by more than 8 (max 176, mean 0.066), all along the spear shaft. Helmet and pauldrons are pixel-identical. Shots: D:/Unity/PunchyMilestones/A-133/play-before.png, play-after.png, play-diff.png, play-after-close.png.
+- Not "no look change" for wood: the shaft gains real grain, which is the point of the move. Metal has no look change.
+- Checks: shader 0 messages; -sparkleprobe a133 shows 360 frames, creature marked 0, other bad 0. EditMode MaterialLibraryTests 2/2 pass (Creature.shader added to the wood and metal users, Pending now empty).
+- Lab FYI (M-06 r3b): no collision. A-133 never touched CreatureSpecies, FaunaDirector.Build or FloraGenerator.Kit, and A-108 r4 stays in the render partials (SkyBirds/Herds plus a new drawn-only fish ring).
+- Queued last: once #434 is on main, the creature Interact prompt bids into UseTarget.
+- NEXT: A-108 row 4 (eagle, dune dust, dawn fish rings).
