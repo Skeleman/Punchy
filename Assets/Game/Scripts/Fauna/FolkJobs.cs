@@ -33,6 +33,8 @@ namespace Punchy.Fauna
         // A town's lamplighter (A-115): lights the street lights on its round at dusk, puts them out at dawn
         // (LampRoutes). Works at its own stages (8 walking the round, 9 reaching up), which clients read the job from.
         Lamplighter,
+        // A town's innkeeper (A-132): serves from the inn's Counter by day, home at dusk like the other posts.
+        Innkeeper,
     }
 
     /// <summary>A folk's temper, for flavouring its lines: from its Individual hash, so every machine agrees.</summary>
@@ -117,6 +119,7 @@ namespace Punchy.Fauna
             (AnchorKind.Yard, FolkJob.Herder, CreatureTask.Tend, 2, 0f),
             (AnchorKind.Altar, FolkJob.Healer, CreatureTask.Tend, 3, 0f),
             (AnchorKind.Bench, FolkJob.Healer, CreatureTask.Tend, 3, 0f),
+            (AnchorKind.Counter, FolkJob.Innkeeper, CreatureTask.Tend, 3, 0f),
             (AnchorKind.Pool, FolkJob.Fisher, CreatureTask.Fish, 3, 60f),
             (AnchorKind.Yard, FolkJob.Farmer, CreatureTask.Chop, 4, 0f),
             (AnchorKind.Stall, FolkJob.Trader, CreatureTask.Gesture, 4, 0f),

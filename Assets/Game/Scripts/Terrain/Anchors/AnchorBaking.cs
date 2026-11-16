@@ -146,6 +146,16 @@ namespace Punchy.Terrain
                             var front = species != null ? Punchy.Flora.FloraGenerator.DoorFront(species) : -1f;
                             var at = front > 0f ? plot.Centre + plot.Facing * (front * set.Layouts[town.Layout].BuildingScale + 0.6f) : door;
                             Add(AnchorKind.Door, at, plot.Facing, 0.6f, 1, t);
+                            // A-132: an inn's Counter on its porch (StructureKit.Inn: 2.4 m deep, barrels at the left of
+                            // the door), its edge 1.9 m out and a fifth of the half-width left, facing back in.
+                            if (plot.Role == PlotRole.Inn && species != null && species.Form == Punchy.Flora.FloraForm.Inn && front > 0f)
+                            {
+                                var scale = set.Layouts[town.Layout].BuildingScale;
+                                var left = new float2(-plot.Facing.y, plot.Facing.x);
+                                var half = (front - 0.02f) / 0.8f;
+                                Add(AnchorKind.Counter, plot.Centre + plot.Facing * ((front + 1.9f) * scale) + left * (half * 0.2f * scale),
+                                    -plot.Facing, 0.6f, 1, t);
+                            }
                             break;
                         }
                     }

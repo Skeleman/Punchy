@@ -363,5 +363,44 @@ namespace Punchy.Tests
                 Game.Hook<object>("PutBodyPref", pref);
             }
         }
+
+        /// <summary>
+        /// A-132 row 1, target: a town's inn has a Counter, a live innkeeper works it by day (within a few metres of it,
+        /// at its post), FolkConversation takes it as a talker and its "work" answer is the innkeeper's line.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator LiveFolk_InnkeeperAtCounter()
+        {
+            yield return TestSceneSetup.Place("HumanVillage", 10f);
+            yield return TestSceneSetup.TimeOfDay(11f);
+            yield return TestSceneSetup.Seconds(10f);
+            var r = Game.Hook<float[]>("InnkeeperAtCounter");
+            LogWatch.Measure($"innkeeper: counter {r[0]} keeper {r[1]} {r[10]:F1} m from it, mode {r[11]}
+{Game.HookField<string>("InnTrail")}");
+            Assert.AreEqual(1f, r[0], "no inn Counter anchor near the village");
+            Assert.AreEqual(1f, r[1], "no live innkeeper");
+            Assert.Less(r[10], 4f, "the innkeeper isn't at its counter by day");
+            Assert.AreEqual(1f, r[12], "the innkeeper isn't a talker");
+            Assert.AreEqual(1f, r[13], "the innkeeper's work answer isn't its own line");
+        }
+
+        /// <summary>A-132 row 1 shot: the innkeeper at its counter on the inn's porch, seen from the street.</summary>
+        [UnityTest, Explicit("shots, run on demand"), Timeout(600000)]
+        public IEnumerator Innkeeper_Shot()
+        {
+            yield return TestSceneSetup.Place("HumanVillage", 10f);
+            yield return TestSceneSetup.TimeOfDay(11f);
+            yield return TestSceneSetup.Seconds(10f);
+            var r = Game.Hook<float[]>("InnkeeperAtCounter");
+            Assert.AreEqual(1f, r[1], "no live innkeeper");
+            var keeper = new Vector3(r[7], r[8] + 1f, r[9]);
+            var street = new Vector3(-r[5], 0f, -r[6]);
+            var side = new Vector3(street.z, 0f, -street.x);
+            var from = keeper + street * 5.5f + side * 2f + Vector3.up * 0.8f;
+            Game.RunOptions(string.Format(System.Globalization.CultureInfo.InvariantCulture, "-shotcam {0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}", from.x, from.y, from.z, keeper.x, keeper.y, keeper.z));
+            try { yield return Shots.Settled("a132-innkeeper", 1280, 720); }
+            finally { Game.RunOptions("-shotcam off"); }
+            LogWatch.Measure("innkeeper shot: " + Game.HookField<string>("InnTrail"));
+        }
     }
 }
