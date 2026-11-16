@@ -100,7 +100,7 @@ namespace Punchy.Terrain
         void UpdateFarIsland(in TerrainConfig config, in TerrainSource source, float2 focus)
         {
             if (!islandOn)
-                return 0f;
+                return ;
             if (islandBuilding)
             {
                 if (!islandHandle.IsCompleted)
