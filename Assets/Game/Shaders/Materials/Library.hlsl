@@ -4,7 +4,7 @@
 // W-166 row 4: one call into the material library for shaders that carry a family per vertex instead of their own
 // decode (Colossus.shader: colossi, the salt tower; later the items on the ground). The family numbers are
 // MaterialFamily's (MaterialLibrary.cs); the kind is the family's own row (WoodKind for wood; for stone 0 natural rock,
-// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide). Each family's look comes from its include, so an upgrade there
+// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide; for wood, plus 16 x the grain's axis when it isn't up). Each family's look comes from its include, so an upgrade there
 // reaches these callers too (rule 33). Every family fades its detail by its own on-screen size (rules 20, 25).
 // Needs Sky.hlsl (the noise) first, and _PunchyCaveDetail / sampler_PunchyCaveDetail declared (stone reads them).
 // p, n and v are in the caller's pattern frame: for a body that moves, its own scaled object space, so the pattern
@@ -46,7 +46,8 @@ half3 PunchyLibraryAlbedo(int family, int kind, float3 p, inout half3 n, float3 
     [branch] switch (family)
     {
         case PUNCHY_FAMILY_WOOD:
-            result = PunchyWoodAlongAxis(albedo, p, 0.5, footprint, kind);
+            // The kind's high bits pick the grain's axis (0 up, 1 x, 3 z: an item's haft lies along z), the low four the WoodKind.
+            result = PunchyWoodAlongAxis(albedo, p, (kind >= 16 ? kind / 16 : 2) * 0.25, footprint, kind % 16);
             break;
         case PUNCHY_FAMILY_BRICK:
             result = albedo * PunchyBrick(p, n, v, footprint, r);
@@ -59,7 +60,8 @@ half3 PunchyLibraryAlbedo(int family, int kind, float3 p, inout half3 n, float3 
             else
             {
                 half crevice;
-                PunchyStoneSurface(p, footprint, 0, 0, result, n, crevice);
+                // (No pale specks on near-black rock: on the salt tower's basalt they read as stars.)
+                PunchyStoneSurface(p, footprint, 0, 0, result, n, crevice, smoothstep(0.1, 0.3, dot(albedo, half3(0.3, 0.59, 0.11))));
             }
             break;
         case PUNCHY_FAMILY_THATCH:
