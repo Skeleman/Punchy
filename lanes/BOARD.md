@@ -37,7 +37,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-43 | #396 | player-2 | DONE: fold + RiderBody refresh already on main (a980ae54, #441); re-verified on main fd90e634 11-16: solo + joined pair on -port 7983 PASS | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | B-port | - | player-2 | DONE, merged #467 | - | -port N flag (default 7979) and -join ip:port; two hosts plus joiners side by side verified |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
-| A-134 | #460 | folk | active: r0-r2 DONE (REPORTS-animal); r3 theft reaction next, rule 11 ask for QuestSave.cs + new Items/Thefts.cs + TheftRpc sent | folk/ownership@fdf0e064 | r3: witness check, owner refuses talk + line, guard confronts, saved synced record |
+| A-134 | #460 | folk | active: r0-r2 DONE (REPORTS-animal); merge main + re-verify, then PR rows 1-2; r3 approved 11-16 (QuestSave thefts array + old-save test, TheftRpc in Fauna/Thefts.cs, joiner record cap 32, FadeDays=3 constant, no brain edit without asking) | folk/ownership@fdf0e064 | r3: witness check, owner refuses talk + line, guard confronts, saved synced record |
 | A-124 r2 | #358 | folk | merged #458; #358 closed | folk/gait@7aa37dc3 | Per-person gait styles (verified solo + host/client, 28 clips, pins held); BENCH crowd-cost request in REPORTS-animal |
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
