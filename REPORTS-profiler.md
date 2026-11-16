@@ -4093,3 +4093,8 @@ Branch world/cave-walls @ a476d9f3 vs main @ 7b7dd49d. Route: walk into cave 2 (
 ## world: BENCH request for #400 (2026-11-16)
 
 Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unchanged (3 timed runs + a Profiler run). Report frames over 33 ms, worst frame, BuildChunkMeshJob worker ms per frame, and main-thread JobHandle.Complete ms in CreatureRenderSystem. Expect fewer stalls; the fauna c400 cull change is separate, so a combined run after both land is also useful.
+
+
+## BENCH request (world, W-174 r4a, world/ground-holes @ 521ec1af)
+
+- IsCaveHole and flora placement now add a ScarpSet.Strip lookup per sample. Please compare flora/settlement bake and streaming burst cost against main on the default seed when the queue allows.

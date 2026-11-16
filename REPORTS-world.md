@@ -8452,3 +8452,12 @@ Plan:
 - A LOD 0-1 chunk over a cave (its vertices sample the mouth cut five times each) is charged 5x its vertices against the batch budget, so cave-mouth chunks go alone or with small ones. New CaveSampling.NearRect (cell-grid box test).
 - Order stays nearest first: every chunk is the same size on the ground, so that is largest on screen first (rule 20; comment added).
 - Checks: compile clean; WorldTests 17/17 (merged tree); walk along Job 96's q137b route (20 m outside the mouth at -2061,691, yaw 326, 140 m at 6 m/s): 3004 frames, 0 with ground missing within 40 m. Generation untouched, so fingerprints unchanged. No timing (rule 21); BENCH draft in REPORTS-profiler. Creature side left to fauna (c400 draft).
+
+
+## W-174 r4a (#405, #406): one hole mask - world/ground-holes @ 521ec1af
+
+- New GroundHoles.Removed (cave mouth cut, temple cut, scarp skin strip) is the one hole mask; TerrainSource.IsCaveHole routes through it, so roads, roadside, settlements, spawns and the creature brain also avoid scarp strips. GroundHoles.Blocked adds cliff kit cover; flora uses it, so it now also skips temple cuts (#405) and scarp strips.
+- StartBuild summary moved back above StartBuild (coordinator fold-in).
+- Checks: compile clean; WorldTests 17/17. Probe: temple 80 m box at 0.5 m has 120 removed points before and after (TempleCut was already in the old test); the 2 scarps newly remove 5123 m2 at 1 m spacing. Tests did not need re-pins.
+- Branch is new (world/ground-holes): the old world/ground-edits still holds the merged r1-r3 commits, and a force push was refused. Old branch can be deleted.
+- BENCH note: IsCaveHole and flora placement now also run a scarp strip lookup (request in REPORTS-profiler).
