@@ -8493,3 +8493,9 @@ Plan:
 - Fingerprints unchanged, collision unchanged, no re-pin. WorldTests 19/19.
 - Known gaps (the guard would report them): two corners claiming one vertex; corridors narrower than one step.
 - Shots (unviewed, the guard is the check): D:/Unity/PunchyMilestones/W-174r6 r6-temple20, r6-temple150, r6-walk60, r6-walk40.
+
+## Fungi-cap brightness: DONE, branch world/fungi-caps (7138621a), PR for the coordinator
+- Cause: fungi only place more than 8 m into a cave, where openness is about 0 and the light is only _Darkness ambient, while crystal or glowing walls beside them light themselves. A colour change alone left the caps near black (checked live).
+- Fix: paler cap colours (CaveWallDetails.Colours), and a new Cave.shader _OwnLight that feeds the slot-0 glow term (default 0, so the cave and room-kit materials are unchanged). The fungi material gets a soft warm (0.34, 0.27, 0.17) through CaveWallDetails.OwnLight.
+- Rendering only: no fingerprint or collision change. WorldTests 19/19.
+- Shots: PunchyMilestones/W-172-fungi fungi-before-c2 and fungi-after-c2. The second placement (cave 4) never loaded in a probe shot, so it was dropped.
