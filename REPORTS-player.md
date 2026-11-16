@@ -1981,3 +1981,12 @@ Branch player/item-ids@6975ead4, off kit-wire. Written without an editor. It com
 - Solo play mode (editor): starting kit in slots 0:Rod x1, 1:Torch x1; Grant(Stone,2) then Grant(Stone,3) merged into one slot "Stone x5" (owner 0), carried weight 6.4. No exceptions or errors during play (the only captured error is a Water shader FXC crash from the 10:31 build, not this branch).
 - No shot (card asks for compile/tests/solo). Risk: network and container storage still carry byte rows until row 4, as planned.
 - Shares: ItemStack is the one slot shape for inventory, worn places, containers and lying items (rule 33); only the inventory uses it in this row.
+
+## P-35 r3 row 4 (#26): kit sent over the network - DONE (verified) 11-16
+- Branch player/kit-wire@ca6283df (full ca6283df368e4400bfbb65ae66e82d4215482f91): row 4 work plus one fix commit (old-build joiner message). Dev build from this sha (Builds/Dev-player).
+- Compile: 0 errors, 0 new warnings. EditMode 26/26.
+- Pair, matching builds (port 7991, host -equip Torch,Hat, joiner -equip Club,Hat): joiner sees the host body "held Torch, worn 1"; host sees the joiner body "worn 1, weapon 1" (club + hat); the joiner's own body shows weapon 1 / worn 1 through the host's ghost. 0 exceptions, 0 "id clash" both sides. Rerun on the final build: same result.
+- Old builds: the host drops the join at once with InvalidRpc. Old joiners show their old text "Couldn't reach ... Check the address" (cannot be changed in shipped builds). Fix: ConnectionLogSystem flags a client disconnect with BadProtocolVersion/InvalidRpc, and NetMenu now says "Can't join: the host runs a different version of the game. Both need the same build." and returns to solo. Verified with an old host + new joiner: the notice shows, and the server logs InvalidRpc.
+- No timing done (snapshot bytes stay a BENCH-QUEUE note). No shot (log checks).
+- Risk: builds before this one still show the misleading "couldn't reach" text against a newer host.
+- Shares: NetMenu join notices, same pattern as catalog-check's WorldSync refusal notice (row 2); the two can merge together.
