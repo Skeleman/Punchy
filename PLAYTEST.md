@@ -179,3 +179,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #481 W-174 r2 (#406, closes #403): one natural ground-edit profile for pass gullies, beds, pads and paddies; landmarks 114 9786243F (campsites moved, the small fungal grotto at -1796,-201 is gone).
 - 11-16: #483 R-23 r3 (#298): one lighting path; cloud and wide shadows dim only direct sun, so sunlit colossus faces under cloud are about 25% darker even in Clear (shots PunchyMilestones/R-23/row3).
 - 11-16: #484 P-37 r1 (#369): no loading screen; the camera holds on the sky until the world is in, then tilts down (`-loadveil` brings the old veil back).
+- 11-16: #485 P-49 (#24, #27): dungeon quests; a notice board names a cave or ruin-room chest (heirloom Key, elder Staff) and you bring back what it holds.
