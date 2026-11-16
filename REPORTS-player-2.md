@@ -168,3 +168,14 @@ Needs from world (send via supervisor first, card row 3): row 1 shell changes (F
   - No wall circles, centre cylinder or trunk circle. The plinth and step are solid, and the step is 0.25 m (WalkInStep).
 - Next: an editor slot (a cold import, after render's 12 GB slot). Then compile, run the suite, and check on -seamless that you walk through an open door, are blocked by a shut one, and see brick/stone walls in a shot.
 - Open for row 3: the shader's own door rhythm (some doors ajar by day) may show a leaf ajar while its box is shut. Interiors should drive walk-in doors explicitly.
+
+### P-37 r3 row 3 (player side): resumable WIP (uncompiled), player/seamless-2@2ca96053
+- Four commits on top of row 1, all behind `-seamless` (off by default; `-teleportrooms` wins):
+  - 3a e5407ae8: Interiors.WalkIn.cs (new partial). A walk-in house keeps its type's room index and seeds, but its door no longer teleports. Lookup by a 32 m grid plus depth past the doorway drives the indoor ambient light and the camera pull-in (IndoorArm). `-walkin N` test port.
+  - 3b ee18e0bf: Doors gets a pick from inside a walk-in house (the anchor mirrored through the opening), so a shut leaf can't trap you. The Use pick opens and shuts walk-in doors through the existing door state. FloraDoors.HoldShut writes w = -1 entries for shut walk-in doors within 30 m (at most 6, free slots only).
+  - 3c f65f5970: IslandVersionRpc gains `byte Seamless`. A joined client takes the host's choice before its bake, and the value resets to the launch flag on a world change.
+  - 3d 2ca96053: room stores become the door's chest just inside the doorway. Store k = 0 moves there and k >= 1 stacks merge into it, with leftovers kept at the same spot. Containers aren't saved and every machine seeds them alike, so this runs at registration with nothing sent. Items gains HasContainer, MergeContainer and MoveContainer.
+- For render (Flora.hlsl 93-106): the shader takes max(day rhythm, entry w), so C# can't force a leaf shut. Proposed 2-line change: a matching entry with w < 0 forces open = 0. Until then a shut walk-in door may still show ajar by day, though its box is solid.
+- Outside the lane: WorldSync.cs (one additive RPC field), FloraDoors.cs (HoldShut, additive), StructureKit.WalkIn.cs (LaunchSeamless). QuestSave is untouched.
+- Caveat: any new RPC field changes the NetCode RPC hash, so an older build can't join a newer one either way. "Old clients default off" only holds within the same build.
+- Next: the editor slot to compile rows 1 and 3 together, run the suite, then host + client on 7983 with `-seamless`: walk in and out, door from inside, chest contents equal on both machines, ambient and camera inside.
