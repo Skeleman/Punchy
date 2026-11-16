@@ -262,8 +262,11 @@ namespace Punchy.Flora
                 b.Blob(at, new Vector3(size, size * 0.6f, size * g.Range(0.8f, 1.2f)), Quaternion.Euler(0f, g.R() * 360f, 0f), 1, 0.3f, g.R() * 50f,
                        glowing ? AccentAt(g, 0) : g.Bark * 0.25f, glowing ? FloraPart.Glow : FloraPart.Bark);
             }
+            // W-166 row 3: the forge stack is laid in fired brick (MaterialFamily.Brick, Materials/Brick.hlsl).
+            b.Family = Punchy.Terrain.MaterialFamily.Brick;
             b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
             ChimneyTop(g, new Vector3(0f, height + 0.8f, -depth * 0.7f), 0.3f, Stone(g) * 0.85f);
+            b.Family = b.BaseFamily;
             g.Perches.Add(Vector3.up * height);
             g.Perches.Add(new Vector3(0f, height + 0.8f, -depth * 0.7f));
             // The anvil on its block.

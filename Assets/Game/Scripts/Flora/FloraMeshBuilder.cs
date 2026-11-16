@@ -162,6 +162,7 @@ namespace Punchy.Flora
         public static float FamilyMark(Punchy.Terrain.MaterialFamily family) => family switch
         {
             Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
+            Punchy.Terrain.MaterialFamily.Brick => 0.115f,
             _ => 0f
         };
 

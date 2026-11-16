@@ -41,6 +41,7 @@ Shader "Punchy/Flora"
             #include "Materials/Cloth.hlsl"
             #include "Materials/Metal.hlsl"
             #include "Materials/Plaster.hlsl"
+            #include "Materials/Brick.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
 
@@ -192,11 +193,14 @@ Shader "Punchy/Flora"
                 bool strata = part == 0 && frac(input.extra.x) > 0.06 && frac(input.extra.x) < 0.09;
                 // W-166 row 3: built families with their own include ride on the bark mark (FloraMeshBuilder.FamilyMark).
                 bool plaster = part == 0 && frac(input.extra.x) > 0.095 && frac(input.extra.x) < 0.105;
+                bool brick = part == 0 && frac(input.extra.x) > 0.11 && frac(input.extra.x) < 0.12;
                 // (Refactor 3.5, measuring a bake: "-nofloradetail" sets _PunchyFloraDetailOff and skips the procedural
                 // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
                 bool detail = _PunchyFloraDetailOff < 0.5;
                 if (detail && plaster)
                     albedo *= PunchyPlaster(input.positionWS, n, footprint, r);
+                else if (detail && brick)
+                    albedo *= PunchyBrick(input.positionWS, n, v, footprint, r);
                 else if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
