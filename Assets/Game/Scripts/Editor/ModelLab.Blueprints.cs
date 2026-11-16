@@ -150,7 +150,7 @@ namespace Punchy.EditorTools
         public static string SaveBlueprint(string id = null) => Open().WriteBlueprint(id);
 
         /// <summary>The blueprint as JSON (exactly what Save writes), or null.</summary>
-        public static string BlueprintJson() => Open().blueprint is { } b ? JsonUtility.ToJson(b, true) : null;
+        public static string BlueprintJson() => Open().blueprint is { } b ? b.ToJson() : null;
 
         /// <summary>The loaded blueprint's id, host, frame in metres, parts and any warning.</summary>
         public static string BlueprintInfo()
@@ -181,6 +181,9 @@ namespace Punchy.EditorTools
                 blueprintSelected = -1;
                 if (blueprintHost == null || FloraGenerator.Units.Any(u => u.Id == id))
                     blueprintHost = DefaultHost(id);
+                // (W-175 row 4: a saved blueprint names the species it was made on.)
+                if (!string.IsNullOrEmpty(blueprint.Host))
+                    blueprintHost = HostSpecies().FirstOrDefault(s => s.name == blueprint.Host) ?? blueprintHost;
             }
             if (blueprintHost == null)
             {
@@ -362,10 +365,13 @@ namespace Punchy.EditorTools
                 return null;
             }
             blueprint.Id = id;
+            if (blueprintHost != null)
+                blueprint.Host = blueprintHost.name;
             Directory.CreateDirectory(BlueprintFolder);
             var path = BlueprintPath(id);
-            File.WriteAllText(path, JsonUtility.ToJson(blueprint, true).Replace("\r\n", "\n") + "\n");
+            File.WriteAllText(path, blueprint.ToJson().Replace("\r\n", "\n") + "\n");
             AssetDatabase.ImportAsset(path);
+            UnitLibrary.Reload();   // W-175 row 6: units nesting this one pick up the edit
             blueprintSource = BlueprintPrefix + id;
             loadedName = nameField = blueprintSource;
             setPieceNames = null;   // (the list picks up the new file)
@@ -453,10 +459,17 @@ namespace Punchy.EditorTools
                     GUIUtility.ExitGUI();
                 }
                 if (GUILayout.Button("Copy JSON"))
-                    EditorGUIUtility.systemCopyBuffer = JsonUtility.ToJson(blueprint, true);
+                    EditorGUIUtility.systemCopyBuffer = blueprint.ToJson();
+                if (GUILayout.Button(new GUIContent("Snap joins", "W-175 row 6: metre points within 12 cm of another part's point meet it; metres round to 5 cm.")))
+                {
+                    var joined = blueprint.Snap();
+                    ShowNotification(new GUIContent($"{joined} joined"));
+                    RebuildBlueprint();
+                }
             }
             EditorGUILayout.HelpBox($"Saved as W-175 unit JSON in {BlueprintFolder}. A species whose Unit is set grows this " +
-                                    "in place of its form's builder. Nothing here places it in the world.", MessageType.Info);
+                                    "in place of its form's builder, as does one whose Unit Json is this file; a \"unit\" part " +
+                                    "nests another unit by id.", MessageType.Info);
         }
 
         void DrawBlueprintPart(int i, string[] ids)
@@ -466,6 +479,8 @@ namespace Punchy.EditorTools
             var k = EditorGUILayout.Popup("Part", Array.IndexOf(ids, p.Part), ids);
             if (k >= 0)
                 p.Part = ids[k];
+            if (p.Part == "unit")
+                p.Unit = EditorGUILayout.TextField("Unit id", p.Unit);
             p.At = EditorGUILayout.Vector3Field("At (share)", p.At);
             p.AtMetres = EditorGUILayout.Vector3Field("At + m", p.AtMetres);
             p.To = EditorGUILayout.Vector3Field("To (share)", p.To);

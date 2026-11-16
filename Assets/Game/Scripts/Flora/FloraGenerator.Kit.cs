@@ -190,9 +190,7 @@ namespace Punchy.Flora
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
                 // collision is the art. Only LOD 0 keeps them (that's the one FloraModel copies).
-                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Ladder ||
-                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Flame ||
-                            p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
+                var decor = KitDecor(p);
                 // W-113 (item 10): a ruin's plinth course (trim, but a 0.5 m slab under the whole floor) is solid too, so a
                 // body walks up onto the platform rather than sinking to the ground through it. The door step (a low, small
                 // ground trim) is solid with it, so the climb is two rises under KitStep.
