@@ -1090,3 +1090,10 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - W-174 r4a (world/ground-holes 521ec1af): CHAINED (q144.job) against its merge-base d2ac9d1c: the open-country walk and townjump, Medium, bake/load and "[start] world ready" stages per game, hitches over 30 ms.
 - W-172 r7 (world/cave-walls a476d9f3): NOT QUEUED. That commit isn't on origin; please push the branch.
 - Chain order: 102 (running), 105, 97 and 99a guarded reruns, 86 (q128e), 96b, W-174 r4a.
+
+## Job 113 (2026-11-16, QUEUED, low priority, supervisor, audit 11-15 #311): measure before carding
+Main, Medium and High, no code change. Gates which audit items get cards (push back on any that come in under 0.2 ms).
+- Flora: CPU ms of `FloraSystem.Upload` and its `SetData` on a tile change while flying at 60 m/s over the forest (worst frame and mean).
+- Water: GPU ms of the WaterField compute dispatch with 1 swimmer vs a crowded shore (aim for 30+ sources); CPU ms of SourceJob.
+- Night town (`-benchspot 2988.8,-920`): GPU ms of the FarLights draw.
+- Log line `all impostors ... MB` after a full lap: impostor memory at Detail 32 and 64.
