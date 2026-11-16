@@ -5447,3 +5447,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - One overlap: A-133 (fauna/material-library@def7b902, not on main yet) already moved Creature.shader's Metal and Wood onto Materials/Metal.hlsl and Materials/Wood.hlsl (PunchyWoodGrain oak, fwidth footprint), deleted Shaders/Metal.hlsl, and added Creature.shader to MaterialLibraryTests' users.
 - Ask: merge A-133 first and have the materials lane branch from it, doing only Cloth, Leather and Bone (Wood is done). Same hunks otherwise, so a merge conflict is likely.
 - No overlap with A-108 r4 (fauna/far-details): render-system C# only, no shader edits.
+
+## 11-15 A-132 (#25) gate [folk] - main merged, WorldTests pass, ready for PR
+- folk/inn-job@4b9a681a: origin/main merged in (baef8f00, clean), then b/fix-testhooks-guard merged in, then TestHooks.Inn.cs guarded with UNITY_EDITOR.
+- WorldTests 14/14 in batch, no re-pin: fingerprint 0654C913 and landmarks 117 689D5348 hold. The Counter anchors moved no pin. Setup_SpawnRainAndShot timed out at 180 s on the full run (the same flake as A-113's first run) and passed alone on the rerun (78 s).
+- Build hotfix: b/fix-testhooks-guard@30bbb1c2 from main wraps TestHooks.Options.cs (A-131) in #if UNITY_EDITOR to fix the player build CS0103. Only TestHooks.Options.cs and TestHooks.Inn.cs lacked the guard. The DungeonWalk callers were already guarded. No player build run.

@@ -31,7 +31,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-39 | #397 #398 | player-2 (supervisor agent) | draft PR #434 | player/menus@cd837c12 (tree Punchy-docs, on take-items 487dd137) | Rows 1-3 verified; merges after P-38. Follow-up: creature Interact prompt (fauna file) joins UseTarget |
 | P-42 | #25 | player-2 | active (branch on player/menus) | - | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
 | P-43 | #396 | player-2 | done, ready for PR (player/ride-fit a980ae54; pair run not done, RAM) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
-| A-132 | #25 | folk | ready for PR | folk/inn-job@b80f3206 | r1+r2 done (verified): innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
+| A-132 | #25 | folk | ready for PR | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
