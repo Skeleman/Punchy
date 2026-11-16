@@ -115,3 +115,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: merged #407 (W-168 r2, #345), #408 (A-125 r1, #360), #409 (R-38 rows 0-4, #366), #410 (R-20 r4), #411 (R-21, closes #284).
 - 11-15: merged #416 (A-129 rows 1-3, closes #393): live-reloading dialogue archive; options design note.
 - 11-15: merged #417 (M-06 rows 1-2, closes #412): Model Lab turntable holds still while the model walks; body builder design note.
+- 11-15: merged #418 (M-06 row 3, #413): Model Lab body builder edits a species in memory (segments, taper, colour, lean); fingerprint unchanged.
