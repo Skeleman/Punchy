@@ -152,5 +152,57 @@ namespace Punchy.Tests
             Assert.Greater(after.Length, alone.Length);
             CollectionAssert.AreEqual(alone, after.Skip(after.Length - alone.Length).ToArray(), "the logs moved when wares came first");
         }
+
+        // ---- W-175 row 5: the building parts
+
+        static object GrowModel(object unit)
+        {
+            var host = AssetDatabase.LoadAssetAtPath<ScriptableObject>("Assets/Game/Flora/Stall.asset");
+            return Generator.GetMethod("GrowUnit", BindingFlags.Public | BindingFlags.Static).Invoke(null, new[] { host, unit, 0 });
+        }
+
+        static System.Collections.IList Boxes(object model) => (System.Collections.IList)model.GetType().GetField("Boxes").GetValue(model);
+
+        [Test]
+        public void EveryBuildingPartIsInTheLibraryGrowsAndCollides()
+        {
+            var ids = (string[])Generator.GetField("BuildPartIds").GetValue(null);
+            var library = ((IEnumerable<string>)Generator.GetProperty("PartIds").GetValue(null)).ToList();
+            foreach (var id in ids)
+            {
+                Assert.Contains(id, library);
+                // Lines (wall, beam, rail) run from At to a To a metre and a half along x.
+                var part = Part(id);
+                UnitPart.GetField("ToMetres").SetValue(part, new Vector3(1.5f, id == "beam" ? 1f : 0f, 0f));
+                var model = GrowModel(Unit(false, part));
+                var mesh = ((Mesh[])model.GetType().GetField("Lods").GetValue(model))[0];
+                Assert.Greater(mesh.vertexCount, 0, $"{id} drew nothing");
+                // Lamps and glass are walk-through (W-67); everything else built is a box.
+                if (id == "lantern")
+                    Assert.AreEqual(0, Boxes(model).Count, "a lantern blocks");
+                else
+                    Assert.Greater(Boxes(model).Count, 0, $"{id} has no collision box");
+            }
+        }
+
+        [Test]
+        public void ATurnedDoorTurnsItsBoxToo()
+        {
+            var plain = Boxes(GrowModel(Unit(false, Part("door", new Vector3(1f, 0f, 0f)))));
+            var turned = Boxes(GrowModel(Unit(false, Part("door", new Vector3(1f, 0f, 0f), yaw: 90f))));
+            Assert.AreEqual(plain.Count, turned.Count);
+            var box = plain[0].GetType();
+            Vector3 Centre(object b)
+            {
+                var c = box.GetField("Centre").GetValue(b);   // a float3
+                float F(string n) => (float)c.GetType().GetField(n).GetValue(c);
+                return new Vector3(F("x"), F("y"), F("z"));
+            }
+            // The leaf stands on At, so it turns about its own foot: same x and z, still the same height.
+            Assert.AreEqual(Centre(plain[0]).y, Centre(turned[0]).y, 1e-4f);
+            Assert.AreEqual(1f, Centre(turned[0]).x, 1e-4f);
+            // The step in front (+z) swings round with it: a 90 degree yaw takes +z to +x.
+            Assert.Greater(Centre(turned[1]).x, 1.2f, "the step didn't swing round with the door");
+        }
     }
 }

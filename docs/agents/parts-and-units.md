@@ -201,3 +201,17 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
 - **Tidy JSON.** `UnitDef.ToJson()` writes floats in their shortest round-trip form (0.7, not 0.699999988); the
   Model Lab saves and copies with it.
 - `UnitLibraryTests` cover tidy JSON, yaw, mirror winding and part streams.
+
+## 10. What row 5 built (the building parts)
+
+- `FloraGenerator.Parts.Build.cs` adds eleven parts: `wall`, `floor`, `door`, `window`, `gabled roof`, `beam`, `stair`,
+  `rail`, `sign`, `lantern`, `crate` (list in `FloraGenerator.BuildPartIds`). Each lays out structure-kit pieces
+  (`KitPart`) in the unit frame and draws them through the kit's `DrawKitPart`, so the host species' `KitCulture` sets
+  trim colours and wall/roof looks and every piece takes its W-166 family from `MaterialLibrary.FamilyOf`.
+- Lines (`wall`, `beam`, `rail`) run from At to To; the rest stand on or centre on At and read their size from Span,
+  with a default in metres for any axis left at zero. Doors, windows and signs face +z; turn them with Yaw.
+- Collision follows the kit (W-67): every piece that isn't decor is a box, and so is any piece marked solid (a crate's
+  body, a door step). Lamps and glass stay walk-through, so a lantern has no box. `KitDecor` is the one rule for
+  both kit buildings and these parts.
+- `stair`, `lantern` and `crate` call the kit's own builders (`StructureKit.Stair`, `LanternHead`, `Crate`): one
+  definition each (rule 33).

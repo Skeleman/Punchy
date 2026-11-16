@@ -13,7 +13,7 @@ namespace Punchy.Flora
         delegate void PartBuild(Grower g, UnitFrame f, UnitPart p);
 
         /// <summary>The part library: id to builder. Units name parts by these ids.</summary>
-        static readonly Dictionary<string, PartBuild> PartLibrary = new Dictionary<string, PartBuild>
+        static readonly Dictionary<string, PartBuild> PartLibrary = WithBuildParts(new Dictionary<string, PartBuild>
         {
             ["pole"] = Pole,
             ["post"] = Post,
@@ -29,7 +29,14 @@ namespace Punchy.Flora
             ["fire ring"] = FireRing,
             ["log tepee"] = LogTepee,
             ["embers"] = Embers,
-        };
+        });
+
+        /// <summary>Adds the row 5 building parts (FloraGenerator.Parts.Build) to the library.</summary>
+        static Dictionary<string, PartBuild> WithBuildParts(Dictionary<string, PartBuild> library)
+        {
+            AddBuildParts(library);
+            return library;
+        }
 
         /// <summary>Every part library id (for the unit tests: each unit's parts must exist).</summary>
         public static IReadOnlyCollection<string> PartIds => PartLibrary.Keys;
