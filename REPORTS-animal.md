@@ -5389,3 +5389,14 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Merged origin/main 64eb4799 into flora/tree-variety; the one conflict was WorldTests' pin line (main's 9EFF3BCF from #421). Kept main's history and re-pinned Fauna_Fingerprint to 0654C913 (A-113's five temperate species join the flora blob; no landmark moved).
 - WorldTests 14/14 (Setup_SpawnRainAndShot timed out once on the first run right after an editor restart, then passed on the rerun).
 - Branch head 9f4168bc, pushed. merge-tree onto main d2dfcd1b (#432) is clean, and #432 touches no flora or test files, so the pin holds.
+
+## 11-15 A-132 (#25) innkeeper [folk] - row 1 done (verified)
+- Branch folk/inn-job@e98b9491 (WIP 5d86fa5b + row 1). Files: FolkJobs.cs, FaunaDirector.Folk.cs, AnchorData.cs (new AnchorKind.Counter), AnchorBaking.cs (world code), TestHooks.Inn.cs (new), FolkConversationTests.cs.
+- Inns are landmark props, not plots, so the Counter is baked in AnchorBaking.AddWorkSpots beside the smithy/woodpile Work spots: on the inn's porch by the door and barrels. There is no counter model; HumanMiningCamp and LoneInn inns get one too.
+- Post priority: the Innkeeper VillagePosts row sits right after the baker (MinFree 2). Small towns have few free folk, so this costs a harsh-biome chore post first (the desert test village loses its SandClearer to staff the inn).
+- Clients: at its post the keeper works at stage FolkJobs.Serving (10), and FromWorkStage maps it back, so a joined client gets the innkeeper's job, pose and lines. Day/dusk comes from the shared Work/Homeward path, with no special case.
+- Verified in play: LiveFolk_InnkeeperAtCounter passes (HumanVillage 11:00: counter 1, keeper 0.6 m from it, stage 10; the "work" answer is the innkeeper line with its 3 replies). Innkeeper_Shot passes.
+- Shot: Assets/Temp/shots/a132-innkeeper-20261115-200247.png in the folk tree (keeper on the porch beside the door, from the street).
+- Risks: new Counter anchors may move an anchor count or fingerprint pin; WorldTests not run (no timing done, rule 21). Seen, not this row: the generic job line says "I'm a innkeeper." (a/an).
+- Shares: extends FolkJobs.VillagePosts and the AddWorkSpots work-anchor bake (rule 33). No parallel found.
+- NEXT: row 2, a wipe-counter / stack-mugs Tend pose in CreatureAnimator (code written, being verified).
