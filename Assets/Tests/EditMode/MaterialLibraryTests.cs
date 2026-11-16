@@ -71,7 +71,7 @@ namespace Punchy.Tests
                          .Where(p => p.EndsWith(".shader") || p.EndsWith(".hlsl")))
             {
                 var name = Path.GetFileName(path);
-                var inMaterials = path.Replace('\', '/').Contains("/Materials/");
+                var inMaterials = path.Replace('\\', '/').Contains("/Materials/");
                 var text = File.ReadAllText(path);
                 if (!inMaterials && !PendingWood.Contains(name) && definesWood.IsMatch(text))
                     problems.Add($"{name} defines its own wood ({definesWood.Match(text).Value.Trim()}): draw it through Materials/Wood.hlsl");

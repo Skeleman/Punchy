@@ -116,6 +116,7 @@ namespace Punchy.Flora
             g.Width = 1.8f;
             g.TrunkRadius = 0f;
             var stone = g.FoliageColor();
+            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the feet, and a stone seat's slab
             for (int side = -1; side <= 1; side += 2)
                 b.Box(new Vector3(side * 0.62f, (BenchSeat - 0.06f) * 0.5f, 0f), new Vector3(0.22f, BenchSeat - 0.06f, 0.36f),
                       Quaternion.Euler(0f, g.Range(-3f, 3f), 0f), stone, FloraPart.Bark);
@@ -126,12 +127,12 @@ namespace Punchy.Flora
                       Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.95f, 1.03f), FloraPart.Bark);
             else
             {
-                b.Wood = true;
+                b.Family = Timber(g);
                 for (int k = 0; k < 2; k++)
                     b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
                           Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
-                b.Wood = false;
             }
+            b.Family = b.BaseFamily;
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, BenchSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, BenchSeat));
         }

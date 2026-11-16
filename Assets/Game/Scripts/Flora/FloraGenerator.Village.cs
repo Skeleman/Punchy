@@ -288,7 +288,7 @@ namespace Punchy.Flora
             var post = 0.06f;
             var frontHeight = height * 0.82f;
             // Posts and counter are timber, with its grain (Z-30).
-            b.Wood = true;
+            b.Family = Timber(g);
             foreach (var x in new[] { -0.5f, 0.5f })
             foreach (var z in new[] { -0.5f, 0.5f })
             {
@@ -298,7 +298,7 @@ namespace Punchy.Flora
             }
             // Counter across the front, and goods laid out on it.
             b.Box(new Vector3(0f, 0.45f, depth * 0.5f - 0.15f), new Vector3(width * 0.95f, 0.9f, 0.45f), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
-            b.Wood = false;
+            b.Family = Punchy.Terrain.MaterialFamily.Plaster;   // W-166: the goods, crocks and wares
             if (g.Lod < 2)
                 for (int k = 0; k < 7; k++)
                 {
@@ -310,6 +310,7 @@ namespace Punchy.Flora
             var front = new Vector3(0f, frontHeight - 0.15f, depth * 0.5f + 0.45f);
             // Cloth held at both bars, so it only ripples between them.
             var stripes = g.Sides(6, 4, 2);
+            b.Family = Punchy.Terrain.MaterialFamily.Cloth;
             var awning = b.VertexCount;
             for (int k = 0; k < stripes; k++)
             {
@@ -318,6 +319,7 @@ namespace Punchy.Flora
                 b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 2, 1), colour, FloraPart.Bark);
             }
             b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI), taut: true);
+            b.Family = b.BaseFamily;
         }
 
         static void Inn(Grower g)

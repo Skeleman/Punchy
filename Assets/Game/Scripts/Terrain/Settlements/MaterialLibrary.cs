@@ -16,7 +16,9 @@ namespace Punchy.Terrain
         Cloth = 7,
         Leather = 8,
         Ice = 9,
-        Bone = 10
+        Bone = 10,
+        /// <summary>Standing water in a built piece (troughs, basins): flat by design, not a family's include.</summary>
+        Water = 11
     }
 
     /// <summary>The kinds of wood (W-166): rows of MaterialLibrary.Wood, read by Shaders/Materials/Wood.hlsl.
