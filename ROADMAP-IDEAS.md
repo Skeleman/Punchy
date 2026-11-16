@@ -52,7 +52,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   elf towns without wood (#326, W-161), wood grain and strangler roots (#330, W-163).** Next, world lane.
 - **Castle walls (#254).** Later. Modular walls, towers, a gatehouse with a working, synced portcullis.
 - **Port town (#255).** Later. A big pier, a boardable galleon and a busy main road.
-  Pushback (supervisor 11-16, waiting on Zach): build the galleon on the colossus carry (a colossus that floats); small boats share it.
+  Zach 11-16: worth the effort, start simple. Next: P-44 row 1 design note (reuse the colossus carry first; small boats share it).
 
 ## Folk and races
 - **Playable races (#291).** Shipped (A-103): sea, bat and turtle folk; bat eyes see brighter.
@@ -94,7 +94,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   lakes, spring floods, shrinking ponds).
 - Animals and folk never read the season. Their behaviour changes only through light, temperature and storms
   (builds on A-71).
-- Pushback (supervisor 11-16, waiting on Zach): seasons change the look and water level only (ice sheets, dry beds, snow,
+- Zach 11-16 agreed: seasons change the look and water level only (ice sheets, dry beds, snow,
   higher spring water); rivers keep their baked course. Flooding and re-routing stay Later.
 
 ## Fire
@@ -126,7 +126,7 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-15 (Zach): Start for out-of-world things (settings, character, multiplayer), Select for in-world (items, quests, status, stats) (#397, P-39).
 - 11-15 (Zach): one ground-edit system: natural cutaways for every levelling or cut, one seam method wherever a mesh replaces the heightmap (W-174, #406). Top concern. Shipped: design note, one edit record and one hole mask plus seam builder (row 1, PR #440). Next: row 2, beds, pads and paddies onto the edit record.
 - 11-15 (Zach): Model Lab body builder: add or remove limbs on archetypes, limb kinds, per-segment taper, subdivision, lean, colour and material; building and dungeon set pieces in the Lab (M-06, #412-#414). Shipped: steady turntable, builder note (PR #417), in-memory builder edits (PR #418), set pieces viewable with variant/seed and a parts list (M-08, PR #435). Next: the builder, after Zach's answers. Shipped: the builder saves a new creature and assigns the biomes that own it (M-06 row 3b, PR #442; first Lab species Frostdeer, Tundra). Next: Lab species join herds.
-- 11-15 (Zach): placed units (stall, smithy tent) are hierarchies of standalone parts (awning, table, anvil); parts reused, one change reaches every instance (W-175, #415). Zach OK'd the parts/units proposal 11-15; row 2 moves stalls and smithy first.
+- 11-15 (Zach): placed units (stall, smithy tent) are hierarchies of standalone parts (awning, table, anvil); parts reused, one change reaches every instance (W-175, #415). Zach OK'd the parts/units proposal 11-15; row 2 moves stalls and smithy first. Zach 11-16: no rush on old buildings, but the end goal is a total conversion.
 - Tree variety (#313, A-113): more temperate tree kinds and tall emergents, imperfect saguaros. Shipped PR #433.
 - 11-15 (Zach): build blueprint buildings in the Model Lab from kit elements, generated in game; shows the kit's limits (M-06 row 5 on W-175's unit format, #414).
 - 11-15 (Zach): a map editor that loads the world in the Unity editor and edits the heightmap (M-07, #260; design note first, through W-174's ground-edit system). Shipped: editor-only window with raise, lower, smooth, flatten and a saved edits file (M-07 rows 1-2a, PR #425). Next: row 2b, edits reach the game; Zach 11-15: towns and roads may be rebuilt or refit around edits; waits on W-174.
