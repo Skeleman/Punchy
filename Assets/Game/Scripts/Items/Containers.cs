@@ -178,11 +178,10 @@ namespace Punchy.Items
         /// <summary>One of the player's slot into the open container (the host decides where it goes).</summary>
         void Put(int slot)
         {
-            if (openContainer < 0 || slot < 0 || slot >= Capacity || slots[slot].item == 255)
+            if (openContainer < 0 || slot < 0 || slot >= Capacity || slots[slot].IsEmpty)
                 return;
-            var item = slots[slot].item;
-            if (--slots[slot].count <= 0)
-                slots[slot] = (255, 0);
+            var item = slots[slot].Row;
+            slots[slot].TakeOne();
             Debug.Log($"Items: put {ItemTable.Items[item].Name} into container {openContainer}; inventory: {DescribeInventory()}");
             if (Joined)
                 SendToHost(new PutRpc { Container = openContainer, Item = item, Count = 1 });
@@ -325,7 +324,7 @@ namespace Punchy.Items
             {
                 putArg = false;
                 openContainer = containerArg;
-                var slot = System.Array.FindIndex(slots, s => s.item != 255);
+                var slot = System.Array.FindIndex(slots, s => !s.IsEmpty);
                 Debug.Log($"Items: -putitem: slot {slot} into container {containerArg} ({Describe(containers[containerArg].Slots)})");
                 Put(slot);
             }

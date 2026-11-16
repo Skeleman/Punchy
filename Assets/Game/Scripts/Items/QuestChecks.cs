@@ -64,6 +64,16 @@ namespace Punchy.Items
             return have;
         }
 
+        /// <summary>CountFor over the inventory's shared stacks (P-35 r3 row 3).</summary>
+        public static int CountHeld(string questId, string questItem, ItemStack[] held)
+        {
+            var have = 0;
+            foreach (var s in held)
+                if (!s.IsEmpty && ItemFits(questId, questItem, s.Row))
+                    have += s.Count;
+            return have;
+        }
+
         /// <summary>A quest whose item is another quest's quest-only item could never be done: said once, at load.</summary>
         void CheckQuestItems()
         {

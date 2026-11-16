@@ -300,7 +300,7 @@ namespace Punchy.Items
         readonly HashSet<int> gone = new HashSet<int>();
         readonly Dictionary<int, WorldItem> added = new Dictionary<int, WorldItem>();
         readonly HashSet<int> openedChests = new HashSet<int>();
-        readonly (byte item, int count)[] slots = new (byte, int)[BaseSlots + MaxExtraSlots];
+        readonly ItemStack[] slots = new ItemStack[BaseSlots + MaxExtraSlots];   // (P-35 r3 row 3: the shared stack)
         BlobAssetReference<AnchorSetBlob> seededFor;
         readonly HashSet<Entity> sentTo = new HashSet<Entity>();
         World server, client;
@@ -346,8 +346,7 @@ namespace Punchy.Items
             ItemTable.Check();
             ItemCatalog.Check();
             FolkKits.CheckLooks();
-            for (int i = 0; i < instance.slots.Length; i++)
-                instance.slots[i].item = 255;
+            System.Array.Clear(instance.slots, 0, instance.slots.Length);
             instance.StartPack();
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-pickup");
@@ -722,8 +721,8 @@ namespace Punchy.Items
         {
             var total = WornWeight();
             foreach (var slot in slots)
-                if (slot.item != 255)
-                    total += ItemTable.Items[slot.item].Weight * slot.count;
+                if (!slot.IsEmpty)
+                    total += ItemTable.Items[slot.Row].Weight * slot.Count;
             return total;
         }
 
@@ -768,18 +767,19 @@ namespace Punchy.Items
         void Grant(byte item, int count)
         {
             var stack = ItemTable.Items[item].Stack;
+            var one = ItemStack.Of(item, 1);
             for (int i = 0; i < Capacity && count > 0; i++)
-                if (slots[i].item == item && slots[i].count < stack)
+                if (!slots[i].IsEmpty && slots[i].Merges(one) && slots[i].Count < stack)
                 {
-                    var n = math.min(count, stack - slots[i].count);
-                    slots[i].count += n;
+                    var n = math.min(count, stack - slots[i].Count);
+                    slots[i].Count += (ushort)n;
                     count -= n;
                 }
             for (int i = 0; i < Capacity && count > 0; i++)
-                if (slots[i].item == 255)
+                if (slots[i].IsEmpty)
                 {
                     var n = math.min(count, stack);
-                    slots[i] = (item, n);
+                    slots[i] = ItemStack.Of(item, n);
                     count -= n;
                 }
             Debug.Log($"Items: picked up {ItemTable.Items[item].Name}; inventory: {DescribeInventory()}");
@@ -789,19 +789,18 @@ namespace Punchy.Items
         {
             var parts = new List<string>();
             foreach (var s in slots)
-                if (s.item != 255)
-                    parts.Add($"{ItemTable.Items[s.item].Name} x{s.count}");
+                if (!s.IsEmpty)
+                    parts.Add(s.ToString());
             return parts.Count > 0 ? string.Join(", ", parts) : "empty";
         }
 
         /// <summary>One of slot <paramref name="slot"/>'s items on the ground 1 m in front of the player.</summary>
         void Drop(int slot)
         {
-            if (slot < 0 || slot >= slots.Length || slots[slot].item == 255 || !TryPlayer(out var player) || !TryTerrain(out var terrain))
+            if (slot < 0 || slot >= slots.Length || slots[slot].IsEmpty || !TryPlayer(out var player) || !TryTerrain(out var terrain))
                 return;
-            var item = slots[slot].item;
-            if (--slots[slot].count <= 0)
-                slots[slot] = (255, 0);
+            var item = slots[slot].Row;
+            slots[slot].TakeOne();
             var xz = player.Position.xz + math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz) * 1f;
             var pos = new float3(xz.x, terrain.SampleHeight(xz), xz.y);
             Debug.Log($"Items: dropped {ItemTable.Items[item].Name}; inventory: {DescribeInventory()}");
@@ -1194,8 +1193,8 @@ namespace Punchy.Items
             if (nav.Active && nav.Focus != lastFocus)
             {
                 lastFocus = nav.Focus;
-                (byte item, int count) s = nav.Focus < Capacity ? slots[nav.Focus] : ((byte)255, 0);
-                Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
+                var s = nav.Focus < Capacity ? slots[nav.Focus] : default;
+                Debug.Log($"Items: inventory slot {nav.Focus} ({s})");
             }
             selected = nav.Focus;
             // (In the menu the pad's A is its own Submit, and RB switches tab; the Use key as before.)
@@ -1436,18 +1435,18 @@ namespace Punchy.Items
                 {
                     var i = row * 4 + col;
                     var s = slots[i];
-                    if (nav.Button(s.item == 255 ? "" : $"{ItemTable.Items[s.item].Name}\nx{s.count}", slotStyle, GUILayout.Width(cell), GUILayout.Height(cell)))
+                    if (nav.Button(s.IsEmpty ? "" : $"{ItemTable.Items[s.Row].Name}\nx{s.Count}", slotStyle, GUILayout.Width(cell), GUILayout.Height(cell)))
                     {
                         selected = i;
                         if (openContainer >= 0) Put(i);
                         else Drop(i);
                     }
                     RightClickEquip(GUILayoutUtility.GetLastRect(), i);
-                    if (s.item != 255 && Event.current.type == EventType.Repaint)
+                    if (!s.IsEmpty && Event.current.type == EventType.Repaint)
                     {
                         var rect = GUILayoutUtility.GetLastRect();
                         GUI.color = Color.white;
-                        GUI.DrawTexture(new Rect(rect.x + cell * 0.2f, rect.y + 2f, cell * 0.6f, cell * 0.6f), ItemMeshes.Icon(s.item), ScaleMode.ScaleToFit);
+                        GUI.DrawTexture(new Rect(rect.x + cell * 0.2f, rect.y + 2f, cell * 0.6f, cell * 0.6f), ItemMeshes.Icon(s.Row), ScaleMode.ScaleToFit);
                         GUI.color = colour;
                     }
                     GUILayout.Space(gap);

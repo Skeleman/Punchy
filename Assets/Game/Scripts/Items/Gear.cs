@@ -180,9 +180,9 @@ namespace Punchy.Items
         /// </summary>
         void Equip(int slot, bool left = false)
         {
-            if (slot < 0 || slot >= Capacity || slots[slot].item == Nothing)
+            if (slot < 0 || slot >= Capacity || slots[slot].IsEmpty)
                 return;
-            var item = slots[slot].item;
+            var item = slots[slot].Row;
             var place = ItemTable.Items[item].Slot;
             if (place == GearSlot.None)
                 return;
@@ -201,8 +201,7 @@ namespace Punchy.Items
             // (Swapping a pack: only if what's in its rows still fits.)
             if (was != Nothing && place == GearSlot.Back && !RowsFree(BaseSlots + math.min(ItemTable.Items[item].Slots, MaxExtraSlots)))
                 return;
-            if (--slots[slot].count <= 0)
-                slots[slot] = (Nothing, 0);
+            slots[slot].TakeOne();
             worn[(int)place] = item;
             // (Something new in the hand is in the hand, not put away.)
             if (place == GearSlot.Hand)
@@ -264,9 +263,9 @@ namespace Punchy.Items
                 Debug.Log($"Items: took off the {ItemTable.Items[pair].Name}");
                 return;
             }
-            if (System.Array.FindIndex(slots, s => s.item == pair) < 0)
+            if (System.Array.FindIndex(slots, s => s.Row == pair) < 0)
                 Grant(pair, 1);
-            Equip(System.Array.FindIndex(slots, s => s.item == pair));
+            Equip(System.Array.FindIndex(slots, s => s.Row == pair));
             if (worn[(int)GearSlot.Head] == pair)
                 Debug.Log($"Items: put on the {ItemTable.Items[pair].Name}");
         }
@@ -292,7 +291,7 @@ namespace Punchy.Items
         bool RowsFree(int from)
         {
             for (int i = from; i < slots.Length; i++)
-                if (slots[i].item != Nothing)
+                if (!slots[i].IsEmpty)
                     return false;
             return true;
         }
@@ -868,7 +867,7 @@ namespace Punchy.Items
                 if (id < 0)
                     continue;
                 Grant((byte)id, 1);
-                Equip(System.Array.FindIndex(slots, s => s.item == id));
+                Equip(System.Array.FindIndex(slots, s => s.Row == id));
             }
             if (++equipSet >= sets.Length)
                 equipArg = null;
