@@ -30,6 +30,8 @@ uint   _InstanceCount;
 float  _DetailRadius;
 float  _DetailFull;     // every instance is kept within this distance (GroundDetailSystem.FullDensityRadius)
 float4 _PunchyPlayerPos;
+// Debug (-grassnopush, R-31 disc test): 1 turns off the push zone around players.
+float  _PunchyGrassNoPush;
 // Other players' feet (w = 1 where there is one), set by GroundDetailSystem.
 float4 _PunchyOthersPos[4];
 float2 _PunchyWindDirection;
@@ -130,6 +132,7 @@ float3 GrassBladeDisplace(Blade blade, float height, out float push)
             away = awayOther;
         }
     }
+    push *= 1 - _PunchyGrassNoPush;
     float3 shove = float3(normalize(away + 1e-4).x, 0, normalize(away + 1e-4).y) * push * height * 0.9;
     return wind + shove;
 }
