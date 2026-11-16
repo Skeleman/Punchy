@@ -178,3 +178,26 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
   crate (they stayed square to the dock before); sunken crates and raft baskets gained the band and rim.
 - Not moved: the alpine sled's lashed bundle (a bundle, not a basket), sconces, braziers, candelabra and beacons
   (other lights, not hung lanterns). Shore baskets did not exist as a site: the crab pot is its own cage.
+
+## 9. What row 4 built (the part format)
+
+- **One size rule.** `Span` is a part's full size in every axis; a round part's diameter is `Span.x`. Pole, post,
+  pyramid roof, hide tent, fire ring, log tepee and embers used to read a half size; coded units doubled those
+  values (exact in floats), so their meshes hash the same.
+- **Turn and mirror.** `UnitPart.Yaw` (degrees about up) and `Mirror` (in x, applied before the turn) act about the
+  part's `At`. `BuildUnit` moves the part's vertices, normals, colliders, boxes, perches, chimneys and windows, and
+  flips the winding when mirrored so faces still point out. All-zero offsets skip the move, so coded units keep
+  every bit.
+- **Centred parts honour At.** Hide tent, fire ring, log tepee and embers draw about the unit's middle; their `At`
+  is now an offset (it was ignored).
+- **Bounds are opt-in.** A part sets `g.Width` and `g.TrunkRadius` only when `UnitPart.Bounds` is set (the coded
+  tent and fire pit set it). A part placed in a blueprint no longer overwrites the unit's frame.
+- **Metre frames.** `UnitDef.Host` names the species a blueprint grows on, `Size` gives a fixed frame in metres (zero
+  grows from the host as before), and `WidthOfHeight` sets width as a share of height (zero keeps the host's
+  spread).
+- **A stream per part.** With `UnitDef.PartStreams`, each part draws from its own random stream (unit seed, part id,
+  `UnitPart.Seed`), so adding or reordering parts never changes another part's look. Coded units leave it off until a
+  re-pin.
+- **Tidy JSON.** `UnitDef.ToJson()` writes floats in their shortest round-trip form (0.7, not 0.699999988); the
+  Model Lab saves and copies with it.
+- `UnitLibraryTests` cover tidy JSON, yaw, mirror winding and part streams.

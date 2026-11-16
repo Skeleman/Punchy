@@ -150,7 +150,7 @@ namespace Punchy.EditorTools
         public static string SaveBlueprint(string id = null) => Open().WriteBlueprint(id);
 
         /// <summary>The blueprint as JSON (exactly what Save writes), or null.</summary>
-        public static string BlueprintJson() => Open().blueprint is { } b ? JsonUtility.ToJson(b, true) : null;
+        public static string BlueprintJson() => Open().blueprint is { } b ? b.ToJson() : null;
 
         /// <summary>The loaded blueprint's id, host, frame in metres, parts and any warning.</summary>
         public static string BlueprintInfo()
@@ -181,6 +181,9 @@ namespace Punchy.EditorTools
                 blueprintSelected = -1;
                 if (blueprintHost == null || FloraGenerator.Units.Any(u => u.Id == id))
                     blueprintHost = DefaultHost(id);
+                // (W-175 row 4: a saved blueprint names the species it was made on.)
+                if (!string.IsNullOrEmpty(blueprint.Host))
+                    blueprintHost = HostSpecies().FirstOrDefault(s => s.name == blueprint.Host) ?? blueprintHost;
             }
             if (blueprintHost == null)
             {
@@ -362,9 +365,11 @@ namespace Punchy.EditorTools
                 return null;
             }
             blueprint.Id = id;
+            if (blueprintHost != null)
+                blueprint.Host = blueprintHost.name;
             Directory.CreateDirectory(BlueprintFolder);
             var path = BlueprintPath(id);
-            File.WriteAllText(path, JsonUtility.ToJson(blueprint, true).Replace("\r\n", "\n") + "\n");
+            File.WriteAllText(path, blueprint.ToJson().Replace("\r\n", "\n") + "\n");
             AssetDatabase.ImportAsset(path);
             blueprintSource = BlueprintPrefix + id;
             loadedName = nameField = blueprintSource;
@@ -453,7 +458,7 @@ namespace Punchy.EditorTools
                     GUIUtility.ExitGUI();
                 }
                 if (GUILayout.Button("Copy JSON"))
-                    EditorGUIUtility.systemCopyBuffer = JsonUtility.ToJson(blueprint, true);
+                    EditorGUIUtility.systemCopyBuffer = blueprint.ToJson();
             }
             EditorGUILayout.HelpBox($"Saved as W-175 unit JSON in {BlueprintFolder}. A species whose Unit is set grows this " +
                                     "in place of its form's builder. Nothing here places it in the world.", MessageType.Info);

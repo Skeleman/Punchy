@@ -442,7 +442,11 @@ namespace Punchy.Flora
             public readonly int Variant, Lod;
             public readonly FloraMeshBuilder B;
             /// <summary>Shape decisions: consumed identically at every level of detail.</summary>
-            readonly System.Random rng;
+            System.Random rng;
+            /// <summary>W-175 row 4: the variant's own stream while a unit part draws from a stream of its own (UsePartStream).</summary>
+            System.Random sharedRng;
+            /// <summary>The variant's seed (W-175 row 4: unit parts' own streams are seeded from it).</summary>
+            public readonly int Seed;
             /// <summary>Fine detail that only some levels draw (loose leaves, florets).</summary>
             public readonly System.Random Detail;
             public float Height, Width, TrunkRadius, DoorHeight;
@@ -644,6 +648,26 @@ namespace Punchy.Flora
                 B = b;
                 rng = new System.Random(seed);
                 Detail = new System.Random(seed ^ 0x5BD1E995);
+                Seed = seed;
+            }
+
+            /// <summary>
+            /// W-175 row 4: draws shape decisions from a stream of their own until UseSharedStream, so a unit part's look
+            /// doesn't depend on the parts before it (UnitDef.PartStreams). The same at every level of detail.
+            /// </summary>
+            public void UsePartStream(int seed)
+            {
+                sharedRng ??= rng;
+                rng = new System.Random(seed);
+            }
+
+            /// <summary>Back to the variant's own stream, where it left off.</summary>
+            public void UseSharedStream()
+            {
+                if (sharedRng == null)
+                    return;
+                rng = sharedRng;
+                sharedRng = null;
             }
 
             public float R() => (float)rng.NextDouble();
