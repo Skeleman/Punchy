@@ -76,6 +76,22 @@ namespace Punchy.Interact
         /// <summary>Whether door <paramref name="door"/> is a walk-in house's (Use opens and shuts it; no room).</summary>
         public static bool IsWalkIn(int door) => instance != null && instance.walkInOf.ContainsKey(door);
 
+        /// <summary>
+        /// P-51 row 2: a walk-in tower's door leaf stands in its wall, about 3 m in from its Door anchor (the porch's
+        /// front), past the 2.5 m FloraSystem looks for an opened door round a leaf box. So Doors also opens this point,
+        /// just outside the leaf, for a tower's door. False for any other door.
+        /// </summary>
+        public static bool TowerLeaf(int door, out float3 point)
+        {
+            point = default;
+            if (instance == null || !instance.walkInOf.TryGetValue(door, out var i) || instance.walkIns[i].Radius <= 0f)
+                return false;
+            var w = instance.walkIns[i];
+            var xz = w.Centre + w.Facing * (w.Radius + 0.2f);
+            point = new float3(xz.x, w.Floor + 1f, xz.y);
+            return true;
+        }
+
         /// <summary>Whether a point is inside a house walked into, which, and how far in from its door (0..1).</summary>
         public static bool InWalkIn(float3 p, out int house, out float depth)
         {

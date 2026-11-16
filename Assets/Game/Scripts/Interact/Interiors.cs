@@ -237,11 +237,11 @@ namespace Punchy.Interact
         /// <summary>
         /// The species a plot's building is drawn from, as FloraPlacement.PlotSpecies picks it: the biggest town
         /// (largest radius, lowest index on a tie) builds its house, seat, inn, smithy, store and workshop plots from
-        /// its layout's Kit Building. Only walk-ins use it; room types stay keyed on the layout building.
+        /// its layout's Kit Building, all but towers. Only walk-ins use it; room types stay keyed on the layout building.
         /// </summary>
         static FloraSpecies PlacedSpecies(ref SettlementSetBlob towns, in SettlementPlot plot, FloraSpecies species, List<SettlementLayout> layouts)
         {
-            if (plot.Settlement < 0 || plot.Settlement >= towns.Settlements.Length)
+            if (plot.Settlement < 0 || plot.Settlement >= towns.Settlements.Length || FloraPlacement.KeepsOwnSpecies(species))
                 return species;
             if (plot.Role != PlotRole.House && plot.Role != PlotRole.Seat && plot.Role != PlotRole.Inn &&
                 plot.Role != PlotRole.Smithy && plot.Role != PlotRole.Store && plot.Role != PlotRole.Workshop)
