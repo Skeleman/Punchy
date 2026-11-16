@@ -1016,3 +1016,6 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Arms: main (A) against world/ground-edits (B), same seed, -fpscap 0.
 - Record: island bake time, chunk stage time, time to world ready, and frame time standing at #403 (1116,42.7,1634) and at the dwarf mining camp (-1966,651).
 - Pass (rule 23): world ready and chunk stage within 5% of A; report only otherwise.
+
+## Note (2026-11-16, player lane P-46 row 2, branch player/p46 fb9bc62c): temple socket hash B6F367A8 -> 2D2BFAEB
+- Sunken temple 105 still has 73 sockets. One hall torch socket under a stacked room is dropped (a different sconce takes its place), and clutter is kept 1.4 m clear of chest spots. Placement of landmarks and fauna is unchanged. Re-pin any check that reads the temple socket hash or the dungeon 109 spawn list. No cost check needed.
