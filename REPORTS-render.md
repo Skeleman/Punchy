@@ -1009,3 +1009,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Colossus, noon and 8:00, 45/90 m, clouds pinned: 0 errors, NaN 0, low-sun frames match main outside the shadow (2-3% px); noon 90 m shadow solid (main: faint outline).
 - Sheet: PunchyMilestones/R-40/R-40-sheet.png. Lesson: wait for ShaderUtil.anythingCompiling and pin clouds before A/B shots.
 - Next: R-31 row 2 per the queue.
+
+### R-31 row 2 handoff (11-16), render/grass-fields@14f86b6d
+- Proto e = a's count + b's height, narrower blades (1.4x); f = a's count + d's Bezier singles (7.5x). Default look unchanged.
+- Ground hidden at 3/8/15/25 m (meadow, noon, pinned clouds): today 17.5/39.9/65.5/58.5%, e 69.0/93.7/96.8/73.8%, f 45.0/74.5/89.4/72.0%; both ~168 blades/m2 vs 55; 25 m dip is still FullDensityRange thinning.
+- Dark disc near camera follows the player: moving it 40 m away brightens 21% of px (+14 levels). It is the player's shadow and/or the 0.9 m grass push zone, not the grass itself.
+- Sheet: PunchyMilestones/R-31/R-31-row2-sheet.png. Next: Zach picks e or f; BENCH cost check before it becomes default.
