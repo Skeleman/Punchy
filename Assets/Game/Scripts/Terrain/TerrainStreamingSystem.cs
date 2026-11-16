@@ -261,13 +261,17 @@ namespace Punchy.Terrain
                 }
             if (Loading)
                 FirstViewFirst(config, focus);
+            // Every chunk is the same size on the ground, so nearest first is largest on screen first (rule 20).
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+            // #400: one chunk meshes on one worker, so a batch wider than about half the workers fills them all and
+            // other systems' jobs (the creature cull) queue behind it. Loading takes every worker.
+            var workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+            var maxCount = math.min(config.MaxBuildsPerFrame * boost, Loading ? workers : math.max(1, workers / 2));
             var count = 0;
             var vertices = 0;
-            while (count < wanted.Count && count < config.MaxBuildsPerFrame * boost)
+            while (count < wanted.Count && count < maxCount)
             {
-                var quads = config.QuadsForLod(wanted[count].Lod);
-                vertices += BuildChunkMeshJob.VertexCount(quads);
+                vertices += BuildCost(config, source, wanted[count]);
                 if (count > 0 && vertices > budget)
                     break;
                 count++;
@@ -403,6 +407,23 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Starts building the first <paramref name="count"/> wanted chunks in the background.</summary>
+        /// <summary>How many times its vertices a chunk over a cave is charged against the batch budget (#400).</summary>
+        const int CaveCostScale = 5;
+
+        /// <summary>
+        /// A chunk's charge against the batch's vertex budget (#400). At LOD 0-1 a chunk over a cave cuts its mouth, and
+        /// each vertex there samples the mouth cut five times (BuildChunkMeshJob.MouthCut), so it costs about five
+        /// plain chunks: it goes alone or with a few small ones instead of filling a batch with cave-mouth chunks.
+        /// </summary>
+        static int BuildCost(in TerrainConfig config, in TerrainSource source, in BuildItem item)
+        {
+            var vertices = BuildChunkMeshJob.VertexCount(config.QuadsForLod(item.Lod));
+            if (item.Lod > 1 || !source.Caves.IsCreated)
+                return vertices;
+            var min = (float2)item.Coord * config.ChunkSize;
+            return CaveSampling.NearRect(ref source.Caves.Value, min, min + config.ChunkSize) ? vertices * CaveCostScale : vertices;
+        }
+
         void StartBuild(in TerrainConfig config, in TerrainSource source, int count)
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();
