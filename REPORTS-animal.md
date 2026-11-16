@@ -5495,3 +5495,8 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Play check at dawn on the lake near -1720,-880, sampled 12 times over 60 s. The set of active patches reshuffles every sample with no row or column stripes. 28-47 rings drawn.
 - Fauna_Fingerprint passes.
 - Possible follow-up, not changed: CreatureRenderSystem.SkyBirds draws its lane shift and slot seed with plain math.hash in the same way.
+
+## 11-15 A-133 updated with main - ready for PR
+- fauna/material-library@1ccabebc: merged main 27b11437. Only conflict was MaterialLibraryTests.cs; kept main's Plaster/Brick/Ice families plus A-133's creature Wood/Metal users. merge-tree against main is clean.
+- MaterialLibraryTests edit-mode 3/3. No shared material files changed beyond what A-133 already had, so W-166's gear WIP can rebase on it.
+- Editor closed afterwards (free RAM under 6 GB).

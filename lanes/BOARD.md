@@ -20,7 +20,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
-| A-133 | #336 | fauna | done, ready for PR | fauna/material-library@def7b902 | creature wood + metal via Materials/*.hlsl, forwarder deleted; diff only on spear shaft; tests 2/2, sparkle 0 |
+| A-133 | #336 | fauna | done, ready for PR (main 27b11437 merged in, clean vs main) | fauna/material-library@1ccabebc | creature wood + metal via Materials/*.hlsl, forwarder deleted; diff only on spear shaft; MaterialLibraryTests 3/3, sparkle 0 |
 | W-175 r1 | #415 | materials | done: audit doc, waiting for Zach's OK | world/material-library 14429012 (docs/agents/parts-and-units.md) | Stop: Zach OKs the parts/units proposal before row 2 |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1-r2 | #323 | render | r2 done (verified); r1 waiting on Zach | render/foliage-realism@d86dc216 | r2: FloraLeafTransmission (light through leaves) on mesh + impostor, sheet PunchyMilestones R-30/row2/sheet.png. r1 sheet with Zach, BENCH 102 queued. Next: Zach's leaf pick, then build it (shells per note) |
