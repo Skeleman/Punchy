@@ -156,8 +156,7 @@ namespace Punchy.Fauna
 
         void Finish(string result)
         {
-            Debug.Log($"[dungeon life] {World.Name}: {result}
-{DungeonState.Describe()}");
+            Debug.Log($"[dungeon life] {World.Name}: {result} | {DungeonState.Describe()}");
             Enabled = false;
         }
     }
