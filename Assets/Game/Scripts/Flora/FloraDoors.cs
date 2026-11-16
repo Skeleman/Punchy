@@ -22,6 +22,13 @@ namespace Punchy.Flora
         static readonly int DayId = Shader.PropertyToID("_PunchyDoorDay");
         static readonly int NightId = Shader.PropertyToID("_PunchyNight");
 
+        /// <summary>
+        /// P-37 r3 (#369): goes up whenever a door crosses half open (either way) or all are shut, so FloraSystem can
+        /// re-gather the walk-in door leaves' boxes at once. Not bumped by small swings, so a door eased open every frame
+        /// costs nothing.
+        /// </summary>
+        public static int Version { get; private set; }
+
         /// <summary>Opens (or, with 0, shuts) the door at a position. The oldest entry gives way when all are taken.</summary>
         public static void SetOpen(float3 doorPosition, float amount)
         {
@@ -29,6 +36,8 @@ namespace Punchy.Flora
             for (int i = 0; i < open.Count; i++)
                 if (math.distance((float3)(Vector3)open[i], doorPosition) < 0.5f)
                 {
+                    if (open[i].w >= 0.5f != amount >= 0.5f)
+                        Version++;
                     if (amount <= 0f)
                         open.RemoveAt(i);
                     else
@@ -37,13 +46,47 @@ namespace Punchy.Flora
                 }
             if (amount <= 0f)
                 return;
+            if (open.Count == Max && open[0].w >= 0.5f)
+                Version++;
             if (open.Count == Max)
                 open.RemoveAt(0);
+            if (amount >= 0.5f)
+                Version++;
             open.Add(new Vector4(doorPosition.x, doorPosition.y, doorPosition.z, amount));
         }
 
+        /// <summary>
+        /// P-37 r3 (#369): doors held shut (walk-in houses' shut doors near the player, from Doors every frame): entries
+        /// with w = -1, replacing the last frame's. They never push out an opened door: only free entries are used, at
+        /// most <see cref="MaxHeld"/>. Flora.hlsl takes the largest matching w, so for now they only keep the slot; with
+        /// the render lane's change (a matching w below 0 forces 0) they also stop the daytime ajar rhythm on that leaf.
+        /// </summary>
+        public static void HoldShut(List<float3> doorPositions)
+        {
+            open.RemoveAll(d => d.w < 0f);
+            var room = math.min(MaxHeld, Max - open.Count);
+            for (int i = 0; i < doorPositions.Count && i < room; i++)
+                open.Add(new Vector4(doorPositions[i].x, doorPositions[i].y, doorPositions[i].z, -1f));
+        }
+
+        public const int MaxHeld = 6;
+
+        /// <summary>P-37 r3 (#369): whether a door within this distance of a point is open (half way or more).</summary>
+        public static bool IsOpen(float3 near, float within)
+        {
+            foreach (var d in open)
+                if (d.w >= 0.5f && math.distance((float3)(Vector3)d, near) < within)
+                    return true;
+            return false;
+        }
+
         /// <summary>Shuts every door it has opened.</summary>
-        public static void Clear() => open.Clear();
+        public static void Clear()
+        {
+            if (open.Count > 0)
+                Version++;
+            open.Clear();
+        }
 
         /// <summary>Hands the list to the shaders (FloraSystem, every frame).</summary>
         internal static void Upload()

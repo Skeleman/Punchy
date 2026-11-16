@@ -149,6 +149,48 @@ namespace Punchy.Items
             return false;
         }
 
+        /// <summary>Whether a container by this id is registered.</summary>
+        public static bool HasContainer(int id) => instance != null && instance.containers.ContainsKey(id);
+
+        /// <summary>
+        /// P-37 r3 (#369): moves container <paramref name="from"/>'s stacks into <paramref name="into"/>'s free slots and,
+        /// if all fitted, removes <paramref name="from"/>. Called the same way on every machine straight after both are
+        /// registered from their seeds (a walk-in house's room stores joining its door container), so nothing is sent.
+        /// False if either is missing or some stacks didn't fit (those stay in <paramref name="from"/>).
+        /// </summary>
+        public static bool MergeContainer(int from, int into)
+        {
+            if (instance == null || from == into || !instance.containers.TryGetValue(from, out var a) || !instance.containers.TryGetValue(into, out var b))
+                return false;
+            var all = true;
+            for (int i = 0; i < ContainerSlots; i++)
+            {
+                if (a.Slots[i].item == 255)
+                    continue;
+                if (PutInFreeSlot(b, a.Slots[i].item, a.Slots[i].count))
+                    a.Slots[i] = (255, 0);
+                else
+                    all = false;
+            }
+            if (all)
+            {
+                instance.containers.Remove(from);
+                instance.changedContainers.Remove(from);
+                if (instance.openContainer == from) instance.openContainer = -1;
+            }
+            return all;
+        }
+
+        /// <summary>P-37 r3: puts a registered container somewhere else (and, if given, renames it).</summary>
+        public static void MoveContainer(int id, float3 pos, string name = null)
+        {
+            if (instance == null || !instance.containers.TryGetValue(id, out var c))
+                return;
+            c.Pos = pos;
+            if (name != null)
+                c.Name = name;
+        }
+
         /// <summary>The nearest open-able container within reach (chests only once opened), for the Use key.</summary>
         /// <summary>The container the player faces best, if it beats <paramref name="best"/> (UseTarget's score).</summary>
         void FindContainer(float3 player, float2 forward, float2 look, ref float best, ref float distance)
