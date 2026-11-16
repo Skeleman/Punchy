@@ -185,3 +185,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #489 W-176 (#475): cave side passages no longer dig pits through other passages or step down into their end chamber; new layout test finds 0 pits, 0 ledges in 23 caves.
 - 11-16: #490 P-37 r2 (#369): players no longer light the dark themselves; every new character starts with a torch, and the cave lantern glows only while a light item is held (seen by other players too).
 - 11-16: #491 P-49 r3 (#27): dungeon and find quests now ask for their own quest-only items (Heirloom key, Elder staff, Lost key); random loot never hands these out, and old saves place them again.
+- 11-16: #495 A-134 r4 (#460): after a seen theft, someone at home now steps out of the door within seconds to confront you, then goes back in.
