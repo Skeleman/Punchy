@@ -5274,3 +5274,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Pins: no game code touched, so Landmarks_V3 and Fauna_Fingerprint can't move. No timing done.
 - Shares: none new. It uses CreatureAnimator.Evaluate as M-05 does.
 - NEXT: row 2 design note (docs/agents/model-lab-builder.md), then stop for Zach.
+### 11-15 M-06 row 2: body-data design note - done, stop for Zach's OK
+- fauna/model-lab-2 8d08d8ed: docs/agents/model-lab-builder.md. No code.
+- Today: there are no archetypes. A body plan is the slot list plus Upright. The trunk is one tapered capsule. Segments taper in a straight line, start radius to end radius. A child part hangs only from the end of its parent's last segment. A quadruped trunk has no rest pitch (only sprint and LiePitch).
+- Fingerprint safe now, so row 3 can build them: stronger thigh taper (per-segment radii), head subdivision (more head segments or child parts), upright torso lean (slot Direction), per-segment colour (Accent/FixedColor), and per-segment material as a W-166 MaterialFamily id in the looks side table, which isn't hashed.
+- Each needs a re-pin, so each waits for Zach: quadruped RestPitch (new blob field, added to the existing body pitch, legs reaching from front and hind hips at different heights); a curved thigh Bulge (new segment field plus a SegmentInstance stride change in Creature.shader, timed on BENCH-QUEUE); a jaw hung from a middle head segment (ParentSegment).
+- Kit limits found: W-166 has no fur, feathers, scales, chitin, horn or shell rows. Row 4 needs those from the materials lane (rule 11 ask). StructureKit buildings are coded lists of KitPart boxes with no part registry, and colours come from CultureTrim, so Lab blueprints wait for W-175's format.
+- Questions for Zach: (1) Is one re-pin OK for quadruped RestPitch, and later one for Bulge, or straight tapers and upright-only lean? (2) Should a saved Lab variant be a new species asset or a CreatureTunables entry?
+- Shares: species, limb data and MaterialLibrary only (none changed). Pins untouched.
+- NEXT: blocked on Zach's OK for rows 3-5.
