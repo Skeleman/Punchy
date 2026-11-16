@@ -408,14 +408,21 @@ namespace Punchy.Terrain
 
         public static float Depth(float width, in RiverSettings s) => s.ChannelDepth + width * 0.04f;
 
-        /// <summary>Lowers terrain into the nearby river's channel and valley; fades out by MaxCarveDistance.</summary>
-        public static float Carve(in RiverQuery q, in RiverSettings s, float height)
+        /// <summary>
+        /// Lowers terrain into the nearby river's channel and valley; fades out by MaxCarveDistance. W-174 r3 (#406):
+        /// the fade is the shared ground-edit profile (<see cref="GroundEdits"/>): where the valley's rim meets the
+        /// hillside wanders with world noise instead of following the river at one fixed distance, and the rim's face is
+        /// broken up a little. The channel and its banks (well inside the fade's start) are untouched, so the water's
+        /// containment guards in <see cref="Profile"/> still hold.
+        /// </summary>
+        public static float Carve(in RiverQuery q, in RiverSettings s, float height, float2 xz)
         {
             if (!q.Found)
                 return height;
             var carved = SmoothMin(height, q.Carve, 2f);
-            var fade = math.smoothstep(s.MaxCarveDistance * 0.6f, s.MaxCarveDistance, q.Distance);
-            return math.lerp(carved, height, fade);
+            var w = GroundEdits.Band(q.Distance, s.MaxCarveDistance * 0.5f, s.MaxCarveDistance * 0.7f, s.MaxCarveDistance,
+                GroundEdits.EdgeNoise(xz, 1f / 40f, 17.3f));
+            return GroundEdits.Apply(xz, height, carved, w, 0.2f);
         }
 
         /// <summary>min(a, b) with the corner rounded over a band of width k, so banks don't end in a crease.</summary>

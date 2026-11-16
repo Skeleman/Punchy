@@ -728,7 +728,7 @@ namespace Punchy.Terrain
             if (Archipelago.IsCreated)
                 h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
             if (Rivers.IsCreated)
-                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h);
+                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h, xz);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
@@ -812,7 +812,7 @@ namespace Punchy.Terrain
                 var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
-                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
+                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height, xz);
                 g.River = RiverSampling.ChannelMask(river);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
