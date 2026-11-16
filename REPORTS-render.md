@@ -824,3 +824,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Checks: C# compiles clean. ShaderHasError is false for Flora, FloraImpostor, TerrainSurface and Water. Play-mode sparkle probe `r23land`: 360 frames, 0 with markers, creature 0, other bad 0, hot 0.
 - Suite: 52 passed, 2 failed, 19 skipped. Both failures (Player_CrowFliesOutOfCaveThroughHitches, CaveWater_SurfaceMatchesAndPoolStirs) also fail on main 5b953a34.
 - BENCH: job 82 PASSED on 88719cc9 (profile builds, so the player build is covered for the lighting change). 5c25c3fd only adds the main merge, so no rerun is needed. I made no new shots: row 2 is a pure move, and the earlier pixel-diff A/B showed no change.
+
+## 11-16 render: R-22 r1 and #452 tail, both resumable (RAM)
+- Free RAM fell to 1.3 GB during the R-22 shot runs (other editors about 29 GB). My editor is closed and no runs are going; it is back at 7.2 GB, and one more editor would put it under the 6 GB floor.
+- R-22 r1 (render/far-island@51e8f3e0, WIP, pushed): Medium island-on shots from the earlier session show land out to the far coast. Still to do: Medium off, High on/off, sparkleprobe NaN, seam and coast-sawtooth check, then final commit and BENCH ask. Shots need -farhaze 12000 until row 2's haze lands.
+- #452 tail (render/stone-include@006e6c49, from main aeb9a5a8, pushed): TerrainSurface.shader includes Materials/Stone.hlsl, the Shaders/Stone.hlsl forwarder and its meta are deleted, and MaterialLibraryTests lists TerrainSurface as a Stone user with Pending empty. The forwarder only did that same include, so the compiled shader text is identical. Still to do: Refresh compile, noon pixel-diff vs main, NaN 0, EditMode test. Not ready for PR until those pass.
+- Ask: tell me when an editor slot (6 GB or more free) opens, and I'll run both sets of checks in one editor session.
