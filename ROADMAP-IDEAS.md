@@ -121,6 +121,6 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-15 (Zach): every building from kit pieces so collision is predictable (#399, W-173 row 3 note first).
 - 11-15 (Zach): Start for out-of-world things (settings, character, multiplayer), Select for in-world (items, quests, status, stats) (#397, P-39).
 - 11-15 (Zach): one ground-edit system: natural cutaways for every levelling or cut, one seam method wherever a mesh replaces the heightmap (W-174, #406). Top concern.
-- 11-15 (Zach): Model Lab body builder: add or remove limbs on archetypes, limb kinds, per-segment taper, subdivision, lean, colour and material; building and dungeon set pieces in the Lab (M-06, #412-#414).
+- 11-15 (Zach): Model Lab body builder: add or remove limbs on archetypes, limb kinds, per-segment taper, subdivision, lean, colour and material; building and dungeon set pieces in the Lab (M-06, #412-#414). Shipped: steady turntable and the builder design note (PR #417). Next: the builder, after Zach's answers.
 - 11-15 (Zach): placed units (stall, smithy tent) are hierarchies of standalone parts (awning, table, anvil); parts reused, one change reaches every instance (W-175, #415).
 - 11-15 (Zach): build blueprint buildings in the Model Lab from kit elements, generated in game; shows the kit's limits (M-06 row 5 on W-175's unit format, #414).
