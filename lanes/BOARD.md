@@ -22,7 +22,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r5 | #414 | fauna | DONE, merged #469; #414 closed | - | Kit gaps carded as W-175 rows 4-6 (#415) |
-| #24 p2 r2 | #24 | fauna | r2 DONE (solo + host/joiner 7985 PASS, suite 55/0/20, fingerprint unchanged; BENCH job 106); next: merge main, Colossus uv3 families + Cave/Ruin DungeonLoot rows, then r3 DungeonExceptionsRpc (approved, 5 conditions) | fauna/dungeon-spawns eca2aaec | r1 merged #470; docs/design/dungeon-spawns.md; r4-r5 after; r6 note for the coordinator |
+| #24 p2 r2 | #24 | fauna | r2 merged PR #480 (solo + host/joiner 7985 PASS, suite 55/0/20, fingerprint unchanged; BENCH job 106); next: merge main, Colossus uv3 families + Cave/Ruin DungeonLoot rows, then r3 DungeonExceptionsRpc (approved, 5 conditions) | fauna/dungeon-spawns eca2aaec | r1 merged #470; docs/design/dungeon-spawns.md; r4-r5 after; r6 note for the coordinator |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
 | W-175 r1-3 | #415 | materials | r3 merged (PR #465); r3b DONE: kit Crate/Basket/LanternHead parts, partial StructureKit; Landmarks_V3 pass, 7/7 | r3b merged PR #477 | rows 4-6 next (kit gaps from M-06 r5) |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches. Lava far-light re-check now possible (#463 cone): render, after R-22 r1 |

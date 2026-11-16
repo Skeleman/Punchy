@@ -175,3 +175,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #477 W-175 r3b (#415): crate, basket and lantern head are shared kit parts.
 - 11-16: #478 (#424 review): -maxqueued 0 now means 1 frame queued (bench and test flag only).
 - 11-16: #479 P-50 (#24): the rain test shot waits for a settled frame; suite 57 pass, 0 fail.
+- 11-16: #480 #24 p2 r2: dungeon creatures appear near players at their posts and stay dead once killed (host; joiners in r3).
