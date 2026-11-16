@@ -5692,3 +5692,14 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Editor:** the fauna editor stop at 04:11 was my own kill by PID (Stop-Process) on a stuck editor, not a crash. Editors are now closed only with EditorApplication.Exit.
 - Shares (rule 33): same pattern as DESIGN-population.md (records on every machine, host-only creatures near players, host exceptions); one more tier on the existing FaunaDirector, no new spawner.
 - NEXT: merge main (#472, #473, #476), then the Colossus uv3 families + Cave/Ruin DungeonLoot rows, then r3 (DungeonExceptionsRpc, approved).
+
+## W-166 follow-up + P-47 rows: colossus uv3 families, Cave/Ruin chest loot (2026-11-16) - DONE (verified)
+- Issue #336 (W-166) and #24 (DungeonLoot rows). Branch fauna/dungeon-spawns 17e794b9 (main up to #479 merged in), pushed.
+- **uv3 families:** walking oak Wood 1, golem Stone 3, ice mammoth Ice 9. Bone 10 went on the SkeletalLizard, not the GiantTortoise: the tortoise is coloured slate, crystal and mushroom, so bone would have fought its look. ColossusLod carries the family into the far LODs, so the far forms match the near ones. Cosmetic only, nothing sent.
+- **Shots:** before/after contact sheets of the four colossi (near and walking) were taken in play mode and checked at small size: library grain shows on each, and no colour shift on the lizard or tortoise. They were saved under the project Temp folder, which the batch test run deleted afterwards, so there is no file to link this time. Next shots go to Assets/Temp/shots.
+- **DungeonLoot:** 17 chest rows (Kind 1) for Cave (1) and Ruin (8). Each cave or ruin chest gets one extra item, seeded from the socket, the same on every machine. Nothing else changed. Containers.cs still says "P-47; no rows yet"; that comment is player-owned, so I left it.
+- **Suite:** PlayMode 77 total, 55 passed, 2 failed, 20 skipped. Landmarks_V3 117 547D4E79 and Fauna_Fingerprint 4BEFEA91 (125 species) pass unchanged. The two failures are WorldTests.Player_CrowFliesOutOfCaveThroughHitches (timeout) and CaveWater_SurfaceMatchesAndPoolStirs (its knock-on). They are the known crow/cave-water failures that the render and world reports already found on main, and this row touches neither caves nor the player.
+- **Gotcha:** with the editor unfocused, EditorApplication.delayCall never fired, so the exit never ran. A one-shot EditorApplication.update callback that calls Exit(0) closes the editor reliably.
+- No timing (rule 21).
+- Shares (rule 33): uses the one material library (MaterialFamily ids through uv3) and the one DungeonLoot table; nothing sent.
+- NEXT: r3 DungeonExceptionsRpc (approved, 5 conditions).
