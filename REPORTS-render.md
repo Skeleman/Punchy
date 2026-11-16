@@ -721,3 +721,14 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shares: Stone.hlsl is the one stone family (terrain, flora, cave). Parallel found, not folded: the steep/mouth grain on non-rock steep ground in TerrainSurface, and plaster still gets stone until W-166 gives it a marker.
 - One slip: the first commit 8353ef43 holds only the rename (a failed add); 550ba9e0 holds the code. Squash on merge.
 - NEXT: R-25 r3 (far-lights merge + approach check).
+
+## R-25 row 3 (#302) + R-38 row 2 (#366) - far lights land, no pop on approach - done (verified)
+- Branch `render/far-lights` 4b95c112 (merged main; merges clean with main 243c7eb1). One conflict, Glow.hlsl: both reads use PunchySampleSmooth, the night read gated by `[branch] if (nightFade > 0)`. Night street-light layer weight checked nonzero after the merge.
+- Walk-in strip, human village at 22:00 Clear, 23 frames from 1200 m to 12 m: D:/Unity/PunchyMilestones/R-25/r3/town-walkin-strip.jpg. Lights read as continuous points from about 600 m inward. Warm px climb 7 (600 m) to 5843 (12 m), with two dips, both explained: 250 m (a ridge in the way) and 37 m (a lit house leaving the frame). No frame where the lights drop out. Elf grove strip (elf-walkin-strip.jpg) is supporting only: there the glowing ground fungi set the count.
+- R-38 row 2 is met by the same strip: R-38 rows 0/1/3/4 (635c59da, c1b30b46) are already in this branch.
+- NaN/sparkle probe in town at night: 282 frames, 0 marked.
+- Suite: 41/43 PlayMode. The fails are the known pair (Player_CrowFliesOutOfCaveThroughHitches timed out; CaveWater_SurfaceMatchesAndPoolStirs failed as its knock-on).
+- Still asked: BENCH job 76 (R-25 row 3 cost) should pass before merge.
+- Shares: Glow.hlsl PunchySampleSmooth stays the one coarse light map read (town, night, island).
+- Leftover reviews: b/fix-swapchain-stall c9672fcc looks fine and merges clean. Small note: `-maxqueued` accepts 0, but Unity's range is 1-10, so clamp q>=1. b/cloud-shadow-map 88ee4c89 merges clean but needs rework: its baked path returns saturate(density*3)*thickness, which skips main's R-20 r4 penumbra. It should store raw density and apply the edge after the read. It also needs a BENCH check, and WeatherSystem.cs is shared. render/audit-fixes, cobble-depth and one-surface now conflict with main. audit-fixes touches WaterPatchSystem (world-owned), so I'm asking before resolving it (rule 11).
+- NEXT: R-30 row 1.
