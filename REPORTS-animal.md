@@ -5356,3 +5356,15 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Risk: dune-groves (A-130, pin 9EFF3BCF) and tree-variety (pin 836A95D6) both move the fingerprint; whichever lands second needs a re-pin.
 - Shares: no new system; merges only.
 - NEXT: A-125 row 2 (#360) on a new branch from origin/main (row 1's branch is already in main).
+
+## M-08 (#414) - Model Lab set-piece view
+
+### Row 1 - list + one building + one dungeon piece (lab, 11-15) - done (verified)
+- lab/set-piece-view@900edcc6. New partial ModelLab.SetPieces.cs; ModelLab.cs gets small hooks only (Family.SetPiece, load/unload/draw/panel). No game code, pins untouched.
+- The "Set piece" list reads the game's definitions: 79 building-form FloraSpecies assets (houses, kit buildings, tents, shrines, docks, fixtures...) + the 4 CaveRoomType values = 83 entries.
+- Built by the game's own builders: FloraGenerator.Grow (LOD 0) and CaveRoomKit.Build + BuildMeshes, ceiling left off so the turntable looks in. Edit mode only (a grow in play mode would take the running game's pregrown variant).
+- Check (edit-mode eval, an editor tool): KitHouse v0 944 tris 9.9 x 8.7 x 9.4 m; FishStiltHouse v0 4364 tris; AshDomeShelter v0 3580 tris; Cave room/Ruin 4 meshes 73158 tris 14.4 x 5.7 x 15.8 m. 0 compile errors.
+- Shots: D:/Unity/PunchyMilestones/M-08/row1-building.png, row1-building2.png, row1-ruin-room.png, row1-window.png.
+- Gaps: no unit format (W-175 not on main), so view only. Cave room sizes are copied from CaveBaking.Rooms (kept inline there); the room's surrounding cave rock isn't drawn. Temple (SunkenTempleSystem) mesher is private, so temple pieces aren't shown yet.
+- Shares: extends the Model Lab (one viewer for creatures, colossi, set pieces); reads game meshes through Mesh.AcquireReadOnlyMeshData since the game uploads them unreadable.
+- NEXT: row 2 (seed/variant field, all kinds checked).
