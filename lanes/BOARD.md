@@ -13,7 +13,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits (new) | Row 1 audit and design note, after world-pack lands |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r3 | #336 | materials | resumable: thatch/cloth/metal done (verified) | world/material-library ea9d2dab, merged #426 (tree Punchy-materials) | Next: mark bands + Materials/Brick, Plaster, Ice.hlsl, gallery per family; then W-175 r1 |
+| W-166 r3 | #336 | materials | active: thatch/cloth/metal/plaster done (verified) | world/material-library 5857dec1 (tree Punchy-materials) | Next: brick, then ice, gallery per family; then W-175 r1 |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2 | #298 | fauna | merged #428 | fauna/far-life | Row 4 details next |
 | A-113 | no issue | fauna | ready for PR | flora/tree-variety 9f4168bc | main 64eb4799 merged, pin 0654C913, WorldTests 14/14; merges clean onto d2dfcd1b (#432) |

@@ -8097,3 +8097,22 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - Shots in the W-174 milestone folder (w174-sheet + 5): slice1 straight cuts 1116,42.7,1634 (#403); slice2 camp terrace edge 892,-3799; slice3 plot pad edge -1969,258,631; gap1 temple cut 3520,360 (floor hangs over sky from just below; #405); gap2 see-through hole at cave 0 mouth -1796,51.2,-199.
 - Stopped here for review as the card asks. Next: W-172 row 5 (tunnel side passages, #262).
 - Shares: new doc only; no code. The proposed GroundEdits would own TempleCut, MouthCut, LandmarkBeds terraces and SettlementData pads once approved.
+
+## W-166 row 3 (#336): plaster family. Done (verified)
+- **Branch:** world/material-library@5857dec1 (tree Punchy-materials).
+- **What changed:** plaster pieces (huts, inns, smithies, halls, kit houses) now carry bark mark slot 0.10 (FloraMeshBuilder.FamilyMark). Flora.shader decodes it to Materials/Plaster.hlsl.
+  - The look: mottling at three sizes, trowel sweeps, hairline cracks and wall streaks. No unit joints (the row 1 rule).
+  - Every detail fades by footprint and is centred on 1.
+  - The rock strata decode is narrowed to 0.06-0.09 to make room for the slot.
+  - The smithy hearth and the hall plinth and steps are now tagged Stone, so they keep the stone look.
+- **Gallery:** PunchyMilestones/W-166/W166_plaster-{noon3,noon15,low3,low15}.jpg, built from raw/plaster-before and raw/plaster-after.
+  - 6 pieces, NaN 0.
+  - Far tone (rule 25): object luminance stays within about 5% at every range (worst: storm shelter -6%).
+- **Test:** FamilyMarksHaveTheirOwnSlots passes, along with EveryBuiltPieceHasAMaterial and OnlyTheFamilyIncludeDrawsAFamily. Clean compile, Flora shader err 0.
+- **Probe fix:** the first plaster baseline was shot in rain. The ground stayed wet for 120 s (DrySeconds) after the probe forced clear weather, so everything looked about 2x darker. The probe now dries the ground first, and all three before sets were retaken dry.
+- **Risks:**
+  - The change is subtle. The probe frames are mostly roof, and on built walls the shared cave-detail relief still outweighs the plaster mottling.
+  - Stall goods and hall roof beams count as Plaster family, so they get the plaster look as well.
+- **Shares:** one include per family under Shaders/Materials, plus the FamilyMark slot table (rule 33).
+- **BENCH:** none for plaster (ALU only, no texture reads). The brick parallax cost request will come with the brick row.
+- Next: brick (kit stone chimneys on timber/plaster houses + smithy stack), then ice.
