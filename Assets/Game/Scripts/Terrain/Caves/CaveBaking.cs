@@ -426,8 +426,9 @@ namespace Punchy.Terrain
             PlaceWaterfalls(withCaves, caves, styles, extras);
             Step("pools");
             EndCounts[0] = EndCounts[1] = EndCounts[2] = 0;
+            HeadCounts[0] = HeadCounts[1] = HeadCounts[2] = 0;
             PlaceStreams(withCaves, caves, nodes, segments, styles, extras);
-            UnityEngine.Debug.Log($"[cave-streams] ends: pool {EndCounts[0]}, hole {EndCounts[1]}, left out {EndCounts[2]}; kept {extras.Streams.Count}");
+            UnityEngine.Debug.Log($"[cave-streams] ends: pool {EndCounts[0]}, hole {EndCounts[1]}, left out {EndCounts[2]}; heads: fall {HeadCounts[0]}, spring {HeadCounts[1]}, none {HeadCounts[2]}; kept {extras.Streams.Count}");
             Step("streams");
             // W-134 row 3: underground lakes last of the water, in spots of their own (nothing placed before moves).
             PlaceLakes(withCaves, caves, nodes, kinds, segments, styles, extras);
@@ -502,6 +503,8 @@ namespace Punchy.Terrain
         /// </summary>
         /// <summary>Stream ends this bake: [0] in a pool, [1] into a hole, [2] left out (logged for #3).</summary>
         static readonly int[] EndCounts = new int[3];
+        /// <summary>Stream heads this bake (W-172): [0] a spring pocket under a small fall, [1] a spring pocket alone, [2] neither.</summary>
+        static readonly int[] HeadCounts = new int[3];
 
         static void PlaceStreams(in TerrainSource source, List<CaveData> caves, List<CaveNode> nodes, List<CaveSegment> segments,
                                  List<CaveStyle> styles, Extras extras)
@@ -574,6 +577,15 @@ namespace Punchy.Terrain
                         }
                         extras.StreamPoints.RemoveRange(first + keep, count - keep);
                         count = keep;
+                        // W-172 (#277): nor does it start from nothing. It wells up from a spring pocket near its
+                        // head (the points before it dropped), under a small fall from the wall where one fits.
+                        var head = StreamHead(source, extras.StreamPoints, first, count, out var pocket, out var pocketRadius);
+                        var fell = false;
+                        if (head >= 0)
+                        {
+                            extras.StreamPoints.RemoveRange(first, head);
+                            count -= head;
+                        }
                         min = float.MaxValue;
                         max = float.MinValue;
                         for (int i = 0; i < count; i++)
@@ -588,12 +600,23 @@ namespace Punchy.Terrain
                         // ranges move up one). None where it drops into a hole.
                         var end = extras.StreamPoints[extras.StreamPoints.Count - 1];
                         if (radius > 0f)
+                            AddPool(end.Position, radius);
+                        // The spring pocket the same way, and the fall over it (its own draw, so no other cave moves).
+                        if (head >= 0)
+                        {
+                            AddPool(pocket, pocketRadius);
+                            var fallRng = new Random(math.hash(new uint2(caves[c].Key, 0x5717u)) | 1u);
+                            fell = NotchFall(source, pocket, pocketRadius, fallRng.NextFloat(math.PI * 2f), 1.2f, 3f, extras);
+                        }
+                        HeadCounts[head < 0 ? 2 : fell ? 0 : 1]++;
+
+                        void AddPool(float3 centre, float r)
                         {
                             extras.Pools.Insert(cave.FirstPool + cave.PoolCount, new CavePool
                             {
-                                Centre = end.Position,
-                                Radius = radius,
-                                Depth = math.min(1.2f, radius * 0.4f),
+                                Centre = centre,
+                                Radius = r,
+                                Depth = math.min(1.2f, r * 0.4f),
                                 Lava = 0f
                             });
                             cave.PoolCount++;
@@ -637,6 +660,35 @@ namespace Punchy.Terrain
             }
             radius = 0f;
             return 0;
+        }
+
+        /// <summary>
+        /// W-172: where a stream starts (the index of its first kept point; -1: none found), at one of its first dozen
+        /// points (~18 m) that leaves at least four after it: the first with room for a spring pocket a little behind it,
+        /// at its level, whose floor holds the water all round but downstream, where it spills into the stream. The pocket
+        /// shrinks from its full size down to 1.2 m before the next point is tried.
+        /// </summary>
+        static int StreamHead(in TerrainSource source, List<CaveStreamPoint> points, int first, int count, out float3 centre,
+                              out float radius)
+        {
+            for (int i = 0; i <= math.min(12, count - 5); i++)
+            {
+                var p = points[first + i];
+                var flow = math.normalizesafe(points[first + i + 1].Position.xz - p.Position.xz);
+                if (math.lengthsq(flow) < 0.5f)
+                    continue;
+                radius = math.clamp(p.Width * 1.4f, 1.2f, 2f);
+                for (; radius >= 1.2f; radius *= 0.8f)
+                {
+                    var xz = p.Position.xz - flow * radius * 0.4f;
+                    centre = new float3(xz.x, p.Position.y, xz.y);
+                    if (RimHolds(source, centre, radius, flow))
+                        return i;
+                }
+            }
+            centre = float3.zero;
+            radius = 0f;
+            return -1;
         }
 
         /// <summary>Whether the cave floor just ahead of a stream's surface falls away (a hole or crevice) 1.5 m or more.</summary>
@@ -1429,57 +1481,74 @@ namespace Punchy.Terrain
                     var pool = extras.Pools[i];
                     if (pool.Lava > 0.5f || rng.NextFloat() >= style.WaterfallChance)
                         continue;
-                    var from = pool.Centre + new float3(0f, 1.5f, 0f);
-                    var start = rng.NextFloat(math.PI * 2f);
-                    for (int k = 0; k < 8; k++)
-                    {
-                        var a = start + k * math.PI * 0.25f;
-                        var dir = new float2(math.cos(a), math.sin(a));
-                        var t = 0.3f;
-                        while (t < pool.Radius + 4f && source.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t) < 0f)
-                            t += 0.1f;
-                        if (t >= pool.Radius + 4f)
-                            continue;
-                        // Just off the wall, as high as the ceiling there allows.
-                        var foot = pool.Centre.xz + dir * (t - 0.35f);
-                        var ceiling = source.CeilingOver(new float3(foot.x, pool.Centre.y + 1f, foot.y));
-                        var lipY = math.min(ceiling - 0.4f, pool.Centre.y + 7f);
-                        if (lipY - pool.Centre.y < 2f)
-                            continue;
-                        // The water comes out of a dark notch cut into the wall, and starts inside it.
-                        var width = math.min(pool.Radius * 0.6f, 1.6f);
-                        var into = new float3(dir.x, 0f, dir.y);
-                        // The wall at the lip's height (it may lean in or out from where it was found lower down).
-                        var wall = new float3(foot.x, lipY, foot.y) + into * 0.35f;
-                        for (int step = 0; step < 30 && source.CaveDistance(wall) < 0f; step++)
-                            wall += into * 0.1f;
-                        for (int step = 0; step < 30 && source.CaveDistance(wall - into * 0.1f) > 0f; step++)
-                            wall -= into * 0.1f;
-                        var notch = Rod(wall - into * 0.3f, wall + (into + new float3(0f, 0.25f, 0f)) * 0.9f,
-                                        width * 0.42f, width * 0.25f, 0.15f);
-                        notch.Carve = 1f;
-                        extras.Speleothems.Add(notch);
-                        extras.Waterfalls.Add(new CaveWaterfall
-                        {
-                            Lip = wall + into * 0.25f,
-                            Width = width,
-                            Out = -dir,
-                            Drop = lipY - pool.Centre.y
-                        });
+                    if (NotchFall(source, pool.Centre, pool.Radius, rng.NextFloat(math.PI * 2f), 2f, 7f, extras))
                         made++;
-                        break;
-                    }
                 }
             }
         }
 
-        /// <summary>Whether the cave floor stays above a pool's surface all round its rim and just inside it.</summary>
-        static bool RimHolds(in TerrainSource source, float3 surface, float radius)
+        /// <summary>
+        /// A waterfall pouring into a pool: from the nearest wall within a few metres of its rim (eight ways round from
+        /// start), out of a dark notch cut into the wall as high as the ceiling allows, at most maxRise over the water.
+        /// False (nothing added) when no wall gives at least minDrop. Shared by the pools' falls and the streams' heads
+        /// (W-172), so both look and behave alike.
+        /// </summary>
+        static bool NotchFall(in TerrainSource source, float3 surface, float radius, float start, float minDrop, float maxRise,
+                              Extras extras)
+        {
+            var from = surface + new float3(0f, 1.5f, 0f);
+            for (int k = 0; k < 8; k++)
+            {
+                var a = start + k * math.PI * 0.25f;
+                var dir = new float2(math.cos(a), math.sin(a));
+                var t = 0.3f;
+                while (t < radius + 4f && source.CaveDistance(from + new float3(dir.x, 0f, dir.y) * t) < 0f)
+                    t += 0.1f;
+                if (t >= radius + 4f)
+                    continue;
+                // Just off the wall, as high as the ceiling there allows.
+                var foot = surface.xz + dir * (t - 0.35f);
+                var ceiling = source.CeilingOver(new float3(foot.x, surface.y + 1f, foot.y));
+                var lipY = math.min(ceiling - 0.4f, surface.y + maxRise);
+                if (lipY - surface.y < minDrop)
+                    continue;
+                // The water comes out of a dark notch cut into the wall, and starts inside it.
+                var width = math.min(radius * 0.6f, 1.6f);
+                var into = new float3(dir.x, 0f, dir.y);
+                // The wall at the lip's height (it may lean in or out from where it was found lower down).
+                var wall = new float3(foot.x, lipY, foot.y) + into * 0.35f;
+                for (int step = 0; step < 30 && source.CaveDistance(wall) < 0f; step++)
+                    wall += into * 0.1f;
+                for (int step = 0; step < 30 && source.CaveDistance(wall - into * 0.1f) > 0f; step++)
+                    wall -= into * 0.1f;
+                var notch = Rod(wall - into * 0.3f, wall + (into + new float3(0f, 0.25f, 0f)) * 0.9f,
+                                width * 0.42f, width * 0.25f, 0.15f);
+                notch.Carve = 1f;
+                extras.Speleothems.Add(notch);
+                extras.Waterfalls.Add(new CaveWaterfall
+                {
+                    Lip = wall + into * 0.25f,
+                    Width = width,
+                    Out = -dir,
+                    Drop = lipY - surface.y
+                });
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Whether the cave floor stays above a pool's surface all round its rim and just inside it, but on the side facing
+        /// spill when one is given (a spring pocket's outflow), which is left open.
+        /// </summary>
+        static bool RimHolds(in TerrainSource source, float3 surface, float radius, float2 spill = default)
         {
             for (int k = 0; k < 12; k++)
             {
                 var a = k / 12f * math.PI * 2f;
                 var dir = new float2(math.cos(a), math.sin(a));
+                if (math.dot(dir, spill) > 0.5f)
+                    continue;
                 foreach (var f in new[] { 0.75f, 1.05f })
                 {
                     var q = surface.xz + dir * radius * f;
