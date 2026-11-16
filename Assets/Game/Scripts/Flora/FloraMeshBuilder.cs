@@ -163,6 +163,7 @@ namespace Punchy.Flora
         {
             Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
             Punchy.Terrain.MaterialFamily.Brick => 0.115f,
+            Punchy.Terrain.MaterialFamily.Ice => 0.13f,
             _ => 0f
         };
 

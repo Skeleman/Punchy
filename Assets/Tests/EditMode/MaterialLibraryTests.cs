@@ -81,6 +81,7 @@ namespace Punchy.Tests
             }
             Assert.That(used.Any(u => u.Item1 == "Plaster"), "plaster has no slot");
             Assert.That(used.Any(u => u.Item1 == "Brick"), "brick has no slot");
+            Assert.That(used.Any(u => u.Item1 == "Ice"), "ice has no slot");
         }
 
         // Each family's include: what defining its look by hand looks like, what drawing it looks like, and which
@@ -93,6 +94,7 @@ namespace Punchy.Tests
             ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader" }),
             ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
             ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
+            ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
         };
 
         [Test]
