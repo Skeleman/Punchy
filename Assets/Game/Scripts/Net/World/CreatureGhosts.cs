@@ -133,6 +133,11 @@ namespace Punchy.Net
         /// <summary>Critters (FaunaDirector's critter tier) are sent only to players within this of them.</summary>
         public const float CritterRadius = 60f;
 
+        /// <summary>How far from a player (m, from CreatureMotion.SeenAt) a creature is sent to it: CritterRadius for a
+        /// critter, else Radius, or further for the huge; for a riding pair the larger of the two (A-119).</summary>
+        public static float SendRadius(in CreatureState s, ref CreatureBlob b, byte task)
+            => task == (byte)CreatureTask.Critter ? CritterRadius : math.max(Radius, CreatureMotion.SeenFrom(s, ref b) + 20f);
+
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
@@ -154,12 +159,13 @@ namespace Punchy.Net
                     players[owner.ValueRO.NetworkId] = transform.ValueRO.Position;
             if (players.Count == 0)
                 return;
-            foreach (var (ghost, transform, body, net) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>, RefRO<CreatureBody>, RefRO<CreatureNet>>())
+            foreach (var (ghost, creature, body, net) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<CreatureState>, RefRO<CreatureBody>, RefRO<CreatureNet>>().WithAll<LocalTransform>())
             {
-                var xz = transform.ValueRO.Position.xz;
+                // (A-119: a rider and its mount sent or dropped together, from the mount's position.)
+                var xz = CreatureMotion.SeenAt(creature.ValueRO).xz;
                 // (Huge animals seen from far off are sent from that far; critters, the small life round a player, only
                 // to players near them.)
-                var radius = net.ValueRO.Task == (byte)CreatureTask.Critter ? CritterRadius : math.max(Radius, body.ValueRO.Blob.Value.SeenFrom + 20f);
+                var radius = SendRadius(creature.ValueRO, ref body.ValueRO.Blob.Value, net.ValueRO.Task);
                 var radiusSq = radius * radius;
                 foreach (var player in players)
                     if (math.distancesq(player.Value.xz, xz) > radiusSq)
