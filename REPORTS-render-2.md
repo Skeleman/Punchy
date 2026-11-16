@@ -96,13 +96,28 @@ Compared the reference (MIT @freeborn, PunchyReferences: a full-res, 500-step an
 | Row | Do | Done when |
 |---|---|---|
 | 1 | This audit, with picks A-E | Supervisor confirms the picks |
-| 2 | Trial on render/cloud-ideas (new off main): bake A into CloudNoise `a`; B, C and D in Sky.hlsl/Clouds.hlsl, each behind its bit; E on (fixed metres move to PunchyReferenceDistance, exact at fov 60 Detail 1) | Compile 0 failed, NaN 0. Sheet: cumulus clear sky, towering cloud, low sun into the light, overcast; current vs each pick vs all, ground and peak; 6-frame fly-through. BENCH below. Zach picks |
+| 2 | Trial on render/cloud-picks (new off main): bake A into CloudNoise `a`; B, C and D in Sky.hlsl/Clouds.hlsl, each behind its bit; E on (fixed metres move to PunchyReferenceDistance, exact at fov 60 Detail 1) | Compile 0 failed, NaN 0. Sheet: cumulus clear sky, towering cloud, low sun into the light, overcast; current vs each pick vs all, ground and peak; 6-frame fly-through. BENCH below. Zach picks |
 | 3 | Ship Zach's picks on by default, E kept | Before/after; BENCH at or under today's cloud cost or Zach accepts the added cost; NaN 0 |
 
 ### DRAFT BENCH request, R-35 row 2 (for the coordinator to file when row 2 lands; not in BENCH-QUEUE)
-#### Job (render-2 lane, R-35 r2 #333, branch render/cloud-ideas <sha>): cloud look picks, cost per pick
-- Arms (all on the branch build, by `-skyoff` mask): base 0; A 4096; B 8192; C 16384; D 32768; all 61440; clouds off 3 (the cloud share, as job 79). Also main for the E check (E is always on in the branch).
+#### Job (render-2 lane, R-35 r2 #333, branch render/cloud-picks b7a1f7cc): cloud look picks, cost per pick
+- Arms (all on the branch build, by `-skyoff` mask): base 0; A 4096; B 8192; C 16384; D 32768; all 61440; clouds off 3 (the cloud share, as job 79); E off 65536 (fades in metres, the branch with E taken out). Also main for the E check. The branch carries #494 (merged in for ScreenSize.hlsl), so main vs branch base also includes #494's fades; the 0 vs 65536 pair isolates E.
 - Profile build, 1920x1080, Medium and Ultra, uncapped, noon, arms rotated, 3 rounds, 300 frames.
 - Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
 - Record: GPU ms per arm and view; cloud share = arm minus clouds-off; main vs branch base, to confirm E is within noise at fov 60.
 - Expect A, B and D within noise. C is the one to price (one extra density sample per lit step). Report only.
+
+## R-35 row 2 (#333) 11-16: picks A-E written, editor-free (unverified, needs editor)
+Branch render/cloud-picks b7a1f7cc (new off main 25558ed8). The BENCH draft above now has this sha.
+- A, -skyoff 4096: the cloud noise's unused alpha now holds dome lobes, x / sqrt(x + 0.04) with x = 1 - F1²/0.36 over Worley cells at 8, 16 and 32, plus small |Perlin| bumps. It is stored as erosion and remapped to g's mean (0.48), so overall erosion is about the same (checked offline on a 32³ sample). Clouds.hlsl reads it in place of g on billowy tops, in both octaves. The MIT notice (SPDX line, copyright @freeborn, licence URL) is in the CloudNoise.cs header.
+- B, 8192: the light's soft*phase becomes beer*phase + (0.5 e^-0.25od + 0.25 e^-0.06od) * lerp(phase, 1, 0.6), times 0.6, so a thin edge keeps today's brightness and bodies glow deeper. The MIT notice is in the Sky.hlsl header.
+- C, 16384: one density sample 300 m straight up, taken only when the sun samples are taken (reused otherwise). Ambient is multiplied by exp(-0.6 sigma od), and the height ramp is softened to 0.8-1.1.
+- D, 32768: the 90 m sun sample reads edge detail at the step's own detail level. It fades out with mergeFirst by 6 km.
+- E, on by default: the detail and fine fades read PunchyMainReferenceDistance(t). That is exact at fov 60 Detail 1, and the same in every pass. -skyoff 65536 puts back fixed metres for same-tree pairs.
+- Shadows and cover (PunchyCloudShadow, CoverAlong) read detail 0, so A and D don't change them.
+- Dependency: E needs ScreenSize.hlsl, which only exists on render/one-surface-5 (#494). I merged origin/render/one-surface-5 into this branch, so #494 must merge before this branch.
+- Editor turn (on the coordinator's ping):
+  1. #494's frozen-time drift pair at cave, lake and colossus, and the colossus clouds on/off pair from one view.
+  2. Compile 0 failed, NaN 0.
+  3. From one cumulus view, at noon and at golden hour, shots with each of A-D on and off, and with E on and off (65536). Plus fov 60 Detail 1 branch vs main for E.
+  4. Close with EditorApplication.Exit.
