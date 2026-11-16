@@ -460,6 +460,7 @@ namespace Punchy.Terrain
             // they were), then their details, lamps and frames against the caves with them.
             if (tunnelRuns.Count > 0)
             {
+                System.Array.Clear(SideCounts, 0, SideCounts.Length);
                 AddTunnels(source, palette, styles, tunnelRuns, caves, nodes, kinds, segments);
                 var withTunnels = BuildBlob(caves, nodes, kinds, segments, extras, Allocator.Persistent);
                 withCaves.Caves = withTunnels;
@@ -468,6 +469,9 @@ namespace Punchy.Terrain
                 var tunnelFlora = CaveFloraTable.Collect(types);
                 var keepClear = PlaceTunnelDetails(withCaves, caves, nodes, segments, styles, tunnelFlora, extras);
                 PlaceTunnelFittings(withCaves, caves, nodes, segments, styles, tunnelFlora, extras, keepClear);
+                // W-172 row 5: the side ways' mushrooms, roots and benches.
+                PlaceTunnelSides(withCaves, palette, caves, nodes, segments, styles, tunnelFlora, extras);
+                UnityEngine.Debug.Log($"[tunnel-sides] dead ends {SideCounts[0]}, branches {SideCounts[4]}, chambers {SideCounts[1]}, benches {SideCounts[2]}, camp sockets {SideCounts[3]}, floor plants {SideCounts[5]}, roots {SideCounts[6]}");
                 withTunnels.Dispose();
                 Step("tunnels");
             }
