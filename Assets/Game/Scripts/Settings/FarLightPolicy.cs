@@ -56,6 +56,14 @@ namespace Punchy.Settings
         /// reads about 25% dimmer, not 37%).</summary>
         public static float Brightness = 5f;
 
+        /// <summary>
+        /// The most a far light's brightest channel reaches on screen before the tonemap (R-25 row 6). Brighter is
+        /// eased under it with the other channels scaled alike, so a warm light keeps its hue: at 5-7 a window's orange core clipped to white under the Neutral tonemap, where the near windows read orange.
+        /// Only light over 0.4 of the cap is eased, so the faint halo is untouched. Divided by the exposure lift (bat
+        /// eyes) so it holds on screen. 0 turns the easing off.
+        /// </summary>
+        public static float CoreCap = 1.5f;
+
         /// <summary>The tier table: each tier's brightness against the Fire tier's.</summary>
         public static float TierStrength(FarLightTier tier)
         {
