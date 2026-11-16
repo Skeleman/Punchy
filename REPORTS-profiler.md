@@ -2,6 +2,29 @@
 
 Newest first.
 
+## Job 96 rerun: v0.16 tunnel entry along the bore (#400; v0.16.0 4e02a1b0), 2026-11-16 (q137b.job): **FAIL (41-62 frames over 33 ms per run, worst 460-514 ms); cause: main thread stalls in CreatureRenderSystem's JobHandle.Complete while terrain chunk meshing fills the workers**
+**Setup:** Profile build of v0.16.0, Medium, 1920x1080, uncapped, 12:00, Clear. The route this time follows W-172's mouth (-2061,263.2,691): from 20 m outside it on the road, through it, past the card's point (-2089,732) and 70 m on to -2128.5,789.8. 140 m at 6 m/s, with only x/z carried (gravity sets y). 3 timed runs, then 1 Profiler run (BProfileTools, every main frame over 33 ms).
+
+| game | avg fps | 1% low | median | worst | main thread | GPU | frames over 33 ms |
+|---|---|---|---|---|---|---|---|
+| r1 | 41.6 | 2.4 | 16.3 ms | 514 ms | 18.8 ms | 12.6 ms | 62 |
+| r2 | 52.2 | 4.4 | 15.4 ms | 460 ms | 16.6 ms | 12.0 ms | 41 |
+| r3 | 46.1 | 3.3 | 16.2 ms | 504 ms | 18.6 ms | 12.2 ms | 62 |
+| Profiler | 40.9 | 5.4 | 20.3 ms | 242 ms | 24.1 ms | 13.1 ms | 26 at 50 ms+ |
+
+- **This replaces q137's 4.6-8.5 fps.** That run went up the hill at yaw 45, not into the bore. Along the bore the median is fine (15-16 ms), but hitches run the whole way.
+- **Where:** the first hitches (35-140 ms) come at the mouth (-2052..-2064, y 259-264, z 677-695). The worst (300-514 ms) come about 50 m past the card's point (-2112..-2120, y 282-285, z 765-777). There the player's y rises 25 m over 40 m. So past the card's point the bore climbs, or the route leaves it. **The route still isn't confirmed:** round 1's start shot shows an open snowy slope with a seat stump and no portal in view. A pose from inside the tunnel would settle it.
+- **Cause (Profiler):** 22 of the 26 run frames over 50 ms have the same shape. The main thread sits 120-220 ms in `Idle < WaitForJobGroupID < JobHandle.Complete < CreatureRenderSystem` (Presentation group). In those frames the workers run 1.2-1.6 s of `BuildChunkMeshJob` (Burst), with SurfaceGlow FarScanJob (217 ms) in some.
+  - The rest also wait on jobs. No GC, no managed spikes. FloraSystem.LateUpdate is under 16 ms.
+  - CreatureRenderSystem.cs (v0.16) completes its cull chain (`culling.Complete()`, line ~340; `copied.Complete()`, ~260) the same frame it schedules it. The cull samples TerrainSource for every creature in a cave (A-22).
+  - The capture can't tell which of two things happens. Either the cull's dependency includes the chunk meshing, or the cull simply queues behind hundreds of chunk-mesh batches on the laptop's few workers. Either way, a small, same-frame Complete pays for the terrain mesh burst near the tunnel.
+- **Owning systems:**
+  - Terrain streaming (world lane): BuildChunkMeshJob comes in bursts of 1.2-1.6 s of worker time per frame at the mouth and in the bore. It should be spread across frames or capped.
+  - CreatureRenderSystem (fauna lane): don't Complete the cull in the same frame (rule: no same-frame Complete of heavy work). Use last frame's result, or complete late.
+  - Either fix alone should remove most of the stall. A test: the same run with fauna culled off, or with the chunk mesh budget lowered, if either has a flag.
+- Pass (no frame over 33 ms on entry): **FAIL.**
+
+Cost: laptop total $947 (laptop session e163d8ab; 0 builds, 4 games, 1 analysis).
 ## Job 97 (and 99a, 100, 102): no player build, 2026-11-16 (q138.job): **main from #420 to just before #436 can't build a player; rerun on guarded local commits, chained**
 - q138's build of fe23fc62 failed with `TestHooks.Options.cs(40,23): error CS0103: The name 'PersonaIndividual' does not exist`. The cause: TestHooks.Options.cs has no `#if UNITY_EDITOR` guard, but PersonaIndividual lives in the editor-only TestHooks.cs. That's the bug #436 (30bbb1c2) fixed. It was introduced with #420 (61588fae), so every main merge from #420 up to #436 fails a player build: 15 first-parent merges. So do branches cut from that range.
 - It hits these chained jobs: 97 (fe23fc6/5e59c65), 99a (6ce454c/84d7d57; q139 is failing the same way now), 100 (d2dfcd1/64eb479) and 102 (render/foliage-realism d86dc21/9cec43a). Jobs 94, 105, 86 and 96 are outside the range.
