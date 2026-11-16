@@ -984,3 +984,8 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Arm: main d2dfcd1b (B) against d2dfcd1b^1 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds.
 - View: the biggest town at 22:00 from about 150 m up (the R-39 row 1 glide spot), then from 600 m. Record CPU main-thread ms and GPU ms. Far flames now hand over instead of stopping at 150 m.
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms.
+
+## Job 101 (2026-11-15, QUEUED after 100; materials lane, W-166 merged #437): brick parallax
+- Arm: main b04b5432 (B) against b04b5432^1 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds.
+- View: a town with kit stone chimneys and the smithy at noon, low sun, camera 3-15 m from the brick walls. Record CPU main-thread ms and GPU ms.
+- Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms. Ice and plaster are math only; this mainly prices the brick mortar parallax.
