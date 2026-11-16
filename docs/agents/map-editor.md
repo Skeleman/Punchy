@@ -15,17 +15,24 @@ edits to a file that the game, builds and multiplayer all apply the same way.
   well under a second; a miss bakes once (about 14 s) and writes the file, as it does in play mode.
 - Terrain shows through the normal chunk meshing (`TerrainSource` sampling), restricted to a view box around
   the scene camera so the editor never meshes the whole 9.2 km island at once.
+- Row 2a (editor only, built): the preview is the window's own grid mesh over part of the island (base heights
+  from `SampleHeight` on worker threads, plus the edits); a brush rewrites only the vertices it reached. Brushes
+  are `MapBrush` assets (raise with a sign, smooth, flatten; radius, strength, falloff curve), so the set is data.
+  Edits are offsets over the finished ground as the preview shows it; where the bake applies them is row 2b.
 - The brush preview re-meshes only the chunks under the brush. Places (rivers, towns, roads) do not refit in
   the preview; that needs a re-bake (see 2), shown by a "Re-bake" button and a stale marker.
 
 ## 2. Edits file: a sparse delta layer
 
-- One asset per world: `IslandEdits` (ScriptableObject, binary payload), saved next to the world file (W-168).
-- Content: a sparse set of 64 m tiles, each a 33x33 grid of half-float height deltas (2 m spacing, shared edge
-  rows so tiles meet without seams). Only touched tiles exist; an untouched island is an empty file.
+- One file per world: `IslandEdits` (binary `.bytes`, so a build can carry it as a TextAsset), saved next to the
+  world file (W-168). Until the bake hook lands it lives in `Assets/Game/WorldEdits/` and is not committed.
+- Content: a sparse set of 64 m tiles, each 32x32 half-float height deltas at 2 m spacing. Tiles don't overlap:
+  sampling near a tile edge reads the neighbour's vertices, so there are no seams and no shared rows to keep in
+  step. Only touched tiles exist; an untouched island is an empty file (stable hash).
 - Brush strokes are flattened into the tiles on save (no op log), so file size scales with painted area only.
   An undo stack lives in the editor window, not in the file.
-- Header: format version, island version it was painted on, world size, and a content hash.
+- Header: magic, format version, island version it was painted on, grid spacing and tile size; a SHA-256
+  trailer is both the damage check and the content hash.
 
 ### Fixed point in the bake
 
