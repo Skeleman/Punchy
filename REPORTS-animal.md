@@ -5423,3 +5423,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Not run: WorldTests (the row 1 Counter anchors may move an anchor pin). No timing done (rule 21).
 - Shares: extends the Tend pose family (TaskPose/TendBody) and the PoseGear Tend gear (rule 33); the a/an fix sits in the one shared fill path.
 - NEXT: lanes don't open PRs, so the coordinator opens folk/inn-job.
+
+### Row 3 (#414) - done (verified), cheaper version; card ready for PR
+- Pushback taken: no hover names on the mesh itself. Buildings come from the grower as one merged mesh, and cave parts carry only a group and a shape. Instead the set-piece panel has a Parts side list, and hovering a row dims every other group's mesh.
+- Check (edit-mode eval, lab/set-piece-view 374c083f): Lake = Stone 1770 shell boxes | Trim 35 shell boxes, 38 set boxes | Wood 20 set boxes, 3 set drums | Pale 1 set box, 3 set drums. Ruin = Stone 1439 shell + 47 set boxes | Trim 34 shell boxes, 138 set boxes, 14 set drums | Wood 14 set boxes, 14 set drums | Pale 124 set boxes. Buildings show one row naming the gap. 0 compile errors.
+- Shots: D:/Unity/PunchyMilestones/M-08/row3-ruin-all.png, row3-ruin-wood.png, row3-ruin-trim.png (hover highlight), row3-window.png (Parts list).
+- Rule 11 ask (flora-owned Flora/FloraGenerator.Kit.cs): KitStructure could record its List<KitPart> on the grown model (editor-only, e.g. a field the Lab reads). The Lab would then list a kit building's walls, roofs, doors and trim by KitPiece and highlight them. The same list is what M-06 row 5 blueprints need.
+- Shares: Model Lab only; the part list ask lines up with W-175's unit format (parts with offsets).
+- Lab editor closed (by PID).
+
