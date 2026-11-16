@@ -31,7 +31,7 @@ namespace Punchy.EditorTools
     /// the preview scene, in edit mode only, since builders set their kind's static rig fields.
     /// </para>
     /// </summary>
-    public class ModelLab : EditorWindow
+    public partial class ModelLab : EditorWindow
     {
         enum Family { Creature, Colossus }
         enum Gait { Idle, Walk, Run }
@@ -461,9 +461,10 @@ namespace Punchy.EditorTools
             if (guid != null)
             {
                 family = Family.Creature;
-                species = AssetDatabase.LoadAssetAtPath<CreatureSpecies>(AssetDatabase.GUIDToAssetPath(guid));
+                source = AssetDatabase.LoadAssetAtPath<CreatureSpecies>(AssetDatabase.GUIDToAssetPath(guid));
+                species = WorkCopy(source);   // (the body builder edits this copy, never the asset)
                 loadedName = name;
-                nudgeSlot = nudgeSegment = 0;
+                nudgeSlot = nudgeSegment = buildSlot = buildSegment = 0;
                 Rebuild();
                 Frame();
                 return;
@@ -524,6 +525,8 @@ namespace Punchy.EditorTools
                 blob.Dispose();
             blob = default;
             species = null;
+            source = null;
+            DestroyWorkCopy();
             if (colossus != null)
             {
                 foreach (var mf in colossus.GetComponentsInChildren<MeshFilter>(true))
@@ -796,7 +799,10 @@ namespace Punchy.EditorTools
             if (!string.IsNullOrEmpty(loadedName))
             {
                 if (family == Family.Creature)
+                {
                     DrawCreatureSliders();
+                    DrawBuilder();
+                }
                 else
                     DrawColossusSliders();
                 DrawSaveReset();
