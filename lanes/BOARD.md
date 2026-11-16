@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-174 r3 | #406 | world | active | world/ground-edits | Main merged in (97c95eff). Code pushed uncompiled @ a8a1fb3b: river valley rim, falls banks/basin rim, pool lips through GroundEdits. Waiting for the editor slot (after render-2, R-22 r3) to compile, test, shoot. Then M-07 r2b, W-172 r7 |
+| W-174 r3 | #406 | world | active | world/ground-edits | Main merged in (97c95eff). Code pushed uncompiled @ a8a1fb3b: river valley rim, falls banks/basin rim, pool lips through GroundEdits. Waiting for the editor slot (after render-2, R-22 r3) to compile, test, shoot. Then M-07 r2b (prep pushed: world/map-edits-bake @ 2e2f6abb, uncompiled), W-172 r7 |
 | W-174 | #406 | world | in flight (r3) | world/ground-edits | Rows 1-2 merged (#440, #481). Next: row 3 river carves and pools, row 4 seams (#405), row 5 guard |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
