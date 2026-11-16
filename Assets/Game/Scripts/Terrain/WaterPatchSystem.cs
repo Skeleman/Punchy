@@ -281,12 +281,12 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>What presses on the field this frame (CreatureWakeSystem's choice of creatures): a dimple under each
-        /// at the surface, and a splash where one has just dropped through it.</summary>
         /// <summary>R-39 row 4 (#269): how much of a wader's speed-driven dimple and shove is kept (the trailing
         /// rebound behind a run through shallows), 1 being the old height.</summary>
         public static float WadeRebound = 0.4f;
 
+        /// <summary>What presses on the field this frame (CreatureWakeSystem's choice of creatures): a dimple under each
+        /// at the surface, and a splash where one has just dropped through it.</summary>
         [BurstCompile]
         struct SourceJob : IJob
         {
