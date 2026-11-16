@@ -2,6 +2,32 @@
 
 Newest first.
 
+## Job 95: A-124 row 1 one build per person (merge #387 db79d9f8 = B vs its first parent 509022e4 = A), 2026-11-16 (q136.job): load PASS; frame level except B's first game (+0.30 over all rounds, at the bar)
+**Setup:** local builds, 1920x1080, Medium, uncapped, 12:00, Clear, arms alternated, 3 rounds. Each game launches straight into town 73's centre (`-goto 2972,-885`, `-benchspot 2972,-885,0`), a fresh load every time, and holds 60 s. Then one Profiler game per arm (BProfileTools, Creature/FaunaDirector kept).
+
+**Load (`[fauna build]` lines, per game):**
+
+| | blobs ms (r1 / r2 / r3) | build frame ms (r1 / r2 / r3) |
+|---|---|---|
+| A | 73 / 139 / 132 | 607 / 936 / 721 |
+| B | 76 / 81 / 123 | 521 / 638 / 756 |
+
+- **Load +50 ms or less: PASS.** B's blob bakes and build frame are no slower than A's. The spread between games (up to 300 ms on the build frame) is bigger than any arm difference.
+- Memory: gfx 668 MB in both arms. System memory: B 2528-2731 MB, A 2571-2776 MB. There's no "blob memory" line in the log, so the process figures are the nearest I have; no change shows.
+
+**Frame (town held in view):**
+
+| | GPU by round | mean GPU | median frame | CPU |
+|---|---|---|---|---|
+| A | 16.0, 15.7, 15.5 | 15.73 | 18.07 | 19.83 |
+| B | **17.0**, 15.5, 15.6 | 16.03 (+0.30) | 18.4 | 20.0 |
+
+- Rounds 2-3 alone: B 15.55, A 15.60, so level. Round 1 is each arm's first launch of a freshly built player. Both read high (A +0.4, B +1.4 over their later rounds), B more so; I'd put that down to first-launch warm-up, not the change. The profiled game reads B 16.0 vs A 16.1.
+- **Frame +0.2 ms or less:** PASS on rounds 2-3 and the profiled game. The all-rounds mean is +0.30 because of B's first game. If you want it settled, I can rerun with a throwaway warm-up launch per build first.
+- Profiler (Medium, median ms per frame, B vs A): CreatureRenderSystem on main 0.314 vs 0.312; PoseJob on workers 1.31 vs 1.23 (+0.08); FaunaDirector.Update 0.262 vs 0.257. Draw calls aren't in the runner or the capture analysis here; RenderDoc can count them if you want that row.
+
+Cost: laptop total $940 (laptop session e163d8ab; 2 builds, 8 games).
+
 ## Profiler: 11-16 queue plan, and three poses I need
 **Chained on the laptop:** 95 (running), 96 (tunnel; heading probed with -benchface), 86 rebuild (q128c), 94 (q135b at the branch tip), 97 (q138), 99a (q139). The 97/98/99 builds chain: 97 B = 98 A = fe23fc6, 98 B = 99a A = 84d7d57, 99a B = 99b A = 6ce454c, so each later job reuses one build.
 - **97 (wood grain):** the card's "town gate" isn't located, so I stand 15 m and 80 m south of town 73's centre looking north.

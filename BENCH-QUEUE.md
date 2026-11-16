@@ -944,7 +944,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   Record: GPU ms and the Flora draw's GPU time if the profile build can split it.
 - Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
 
-## Job 95 (2026-11-15, RUNNING 11-16 (q136.job, merged #387: db79d9f8 vs first parent 509022e4); fauna lane, A-124 row 1 #358): one build per person, crowd cost
+## Job 95 (2026-11-15, REPORTED 11-16 in REPORTS-profiler.md (q136.job) (q136.job, merged #387: db79d9f8 vs first parent 509022e4); fauna lane, A-124 row 1 #358): one build per person, crowd cost
 - Arm: fauna/individual-builds dcc36fe8 (B) against its base main (A). Profile builds, 1920x1080, Medium, uncapped,
   Clear, noon, ABBA, 3 rounds.
 - What changed: folk bake up to 16 build blobs per species (separate blobs keyed by build), and builds split draw batches.
@@ -954,7 +954,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Pass: load +50 ms or less, frame +0.2 ms or less.
 - 11-15 note (supervisor): #385-#391 merged to main (37750588). Fauna fingerprint now 859112C9 (was DDE01A70 -> 43D1F778 with body-reads #385, then 859112C9 with the turtle robe panels #390; limb data only, no placement moved). Landmarks 117 689D5348 unchanged. Re-pin your baseline if a job compares it. The cliff kit (#386) adds pieces on sea cliffs and mesas, so a far-view cost check after it would be useful when the queue allows.
 
-## Job 96 (2026-11-15, CHAINED 11-15 after 95 (q137.job, v0.16.0 4e02a1b0; heading probed with -benchface); v0.16 playtest #400): tunnel entry hitch
+## Job 96 (2026-11-15, RUNNING 11-16 (q137.job, v0.16.0 4e02a1b0; heading probed with -benchface); v0.16 playtest #400): tunnel entry hitch
 - Build: v0.16.0 (main 40478293 + bump). 1920x1080, Medium, uncapped.
 - View: start at -goto -2089,259.3,732 facing the tunnel; run in. Record the worst frames and what spikes (cave streaming, mesh builds, lights, GC).
 - Pass: no frame over 33 ms on entry. Report the cause and the owning system; the supervisor cards the fix.
