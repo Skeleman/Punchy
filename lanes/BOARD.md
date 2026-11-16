@@ -27,7 +27,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-39 | #401 #402 #302 #269 | render-2 | merged #432 | render/playtest-1115 | #401 #402 closed; #302 and #269 stay open for R-25 r4-6 and R-15. Next: R-25 r4-6 (R-30 r1 stays with render) |
 | P-38 | #372 | player | ready for PR | player/take-items b23a3c16 (main aa064602 merged, pin 0654C913) | Rows 0-4 verified (job gear kit items, A-128 drape, eyewear head items + rule 11 wire change, Model Lab kit). Main build bug: TestHooks.Options.cs needs UNITY_EDITOR guard (A-131) |
 | P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
-| P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
+| P-31 | no issue | player | ready for PR | player/netsim 6688f286 (main merged) | -netsim re-checked solo + host/join + rejoin, 0 exceptions; not superseded |
 | P-39 | #397 #398 | player-2 (supervisor agent) | draft PR #434 | player/menus@cd837c12 (tree Punchy-docs, on take-items 487dd137) | Rows 1-3 verified; merges after P-38. Follow-up: creature Interact prompt (fauna file) joins UseTarget |
 | P-42 | #25 | player-2 | row 1 done, verified solo + host (client run owed, RAM) | player/talk-replies@630b3969 (on player/menus) | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
 | P-43 | #396 | player-2 | merged #441 (joined-client pair run still owed) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |

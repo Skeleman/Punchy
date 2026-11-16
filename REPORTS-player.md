@@ -1631,3 +1631,14 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Only conflict: Fauna/CreatureRenderSystem.PoseGear.cs. Main's old job-gear block against the branch's removal of it (post items are kit items now). Resolved to the branch side, so the file matches 496abb7d. Fauna logic note: main's one change in that block (A-132 row 2, b80f3206: innkeepers carry no bucket) is not dropped. It is ported into Items/FolkKits.cs, where the Tend bucket rule now skips FolkJob.Innkeeper. Nothing else in fauna's logic changed.
 - Compile clean. Fingerprint 0654C913 (unchanged, no re-pin).
 - Suite 52/72 passed, 1 failed, 19 skipped. Lying_AnimalsGetUpBeforeMoving failed (an animal moved 0.35 m while down). LyingTests run alone: it passed ("fastest 0.000 m/s"). P-38 doesn't touch animal lying, so I count it as flaky. Note: a class filter also runs the Explicit Lying_Shots test.
+
+## P-31 main merge: player/netsim refreshed, -netsim re-checked solo + host/join - done (verified); ready for PR
+- Branch player/netsim @ 6688f286 (merges main c98364b6; no conflicts). Merges cleanly with main 27b11437 too. It is not superseded: main has no -netsim, -rttlog or -rejoin.
+- Dev build (Builds/Dev), with no island file shipped, so each player bakes its own.
+  - Solo, -netsim 150,30,2 -autowalk, 60 s: 0 exceptions, clean quit. Solo has one world and no netcode drivers, so -netsim is never touched, as designed.
+  - Host and joiner, both -netsim 150,30,2 -autowalk, joiner -rejoin 50,1, all on the main PC: 0 exceptions on both. The host logs only "hosting: drivers left as they are".
+  - Joiner RTT settles at 299-328 ms (deviation 8-27), the same as row 1. It spikes to 0.7-1.8 s while both players load and bake.
+  - Rejoin: 1 of 1 back in game after 6.3 s, with no crash. Row 2's A-98 occlusion crash on leave looks fixed on main (one run).
+- Snaps: more than row 2. Some 5 s windows show 1.5-5 m steps on both own and other players. The host's own player also snaps while loading, so this looks like frame stalls from two players baking and streaming on one PC, not the lag stage. I didn't separate the two.
+- Suite 51/72 passed, 2 failed (both WorldTests cave tests: CrowFliesOutOfCave timed out at 180 s, CaveWater didn't read the pool). Run alone: 2/2 passed. This branch only changes Net drivers, so I count both as flaky. Fingerprint 0654C913.
+- UNVERIFIED: Relay join with -netsim; a joined client on a second machine.
