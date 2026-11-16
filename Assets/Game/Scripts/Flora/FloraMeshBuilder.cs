@@ -246,6 +246,16 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>
+        /// Turns the triangles added since <paramref name="firstIndex"/> inside out (W-175 row 4: a mirrored part, whose
+        /// mirrored vertices would otherwise face away).
+        /// </summary>
+        public void FlipWinding(int firstIndex)
+        {
+            for (int i = firstIndex; i + 2 < indices.Count; i += 3)
+                (indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
+        }
+
         /// <summary>Recolours vertices by position and normal (moss on the tops of rocks).</summary>
         public void Recolor(int firstVertex, Func<Vector3, Vector3, Color, Color> tint)
         {

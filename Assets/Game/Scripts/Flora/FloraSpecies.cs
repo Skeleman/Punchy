@@ -190,10 +190,24 @@ namespace Punchy.Flora
     [CreateAssetMenu(menuName = "Punchy/Flora Species", fileName = "Flora")]
     public class FloraSpecies : ScriptableObject
     {
+        // W-175 row 6: read the blueprint JSON where TextAsset.text is allowed (the main thread), and list it for nesting.
+        void OnEnable() => LoadUnitJson();
+        void OnValidate() => LoadUnitJson();
+
+        void LoadUnitJson()
+        {
+            JsonUnit = UnitJson != null ? UnitLibrary.FromJson(UnitJson.text) : null;
+            UnitLibrary.Register(JsonUnit);
+        }
+
         [Header("Growth")]
         public FloraForm Form = FloraForm.Shrub;
         [Tooltip("M-06 r5: a blueprint (W-175 unit) drawn in place of the form's builder. Empty = the form's own builder.")]
         public UnitDef Unit;
+        [Tooltip("W-175 row 6: a saved blueprint (Model Lab JSON in Flora/Units) grown when Unit is empty; other units can then nest it by id.")]
+        public TextAsset UnitJson;
+        /// <summary>W-175 row 6: UnitJson read on the main thread (OnEnable), for growers on worker threads; null without one.</summary>
+        [System.NonSerialized] public UnitDef JsonUnit;
         public FloraLayer Layer = FloraLayer.Shrub;
         [Tooltip("Height range of fully grown plants, in metres.")]
         public Vector2 Height = new Vector2(1f, 1.6f);

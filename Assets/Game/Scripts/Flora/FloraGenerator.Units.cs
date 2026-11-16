@@ -32,7 +32,7 @@ namespace Punchy.Flora
         static UnitPart StallPole(float x, float z) => new UnitPart
         {
             Part = "pole", At = new Vector3(x, 0f, z), AtMetres = new Vector3(0f, -0.05f, 0f),
-            To = new Vector3(x, z > 0f ? 0.82f : 1f, z), SpanMetres = new Vector3(0.06f, 0f, 0f),
+            To = new Vector3(x, z > 0f ? 0.82f : 1f, z), SpanMetres = new Vector3(0.12f, 0f, 0f),
         };
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace Punchy.Flora
             Parts = new[]
             {
                 SmithyPost(-0.5f, -1f), SmithyPost(-0.5f, 1f), SmithyPost(0.5f, -1f), SmithyPost(0.5f, 1f),
-                new UnitPart { Part = "pyramid roof", At = new Vector3(0f, 0.58f, 0f), To = new Vector3(0f, 1f, 0f), Span = new Vector3(0.5f, 0f, 1f) },
+                new UnitPart { Part = "pyramid roof", At = new Vector3(0f, 0.58f, 0f), To = new Vector3(0f, 1f, 0f), Span = new Vector3(1f, 0f, 2f) },
                 new UnitPart { Part = "forge hearth", At = new Vector3(0f, 0f, -0.45f), Span = new Vector3(0.55f, 0f, 0.8f) },
                 new UnitPart { Part = "chimney stack", At = new Vector3(0f, 0f, -0.7f), AtMetres = new Vector3(0f, 1.1f, 0f),
                                To = new Vector3(0f, 1f, -0.7f), ToMetres = new Vector3(0f, 0.8f, 0f), SpanMetres = new Vector3(0.7f, 0f, 0.6f) },
@@ -58,32 +58,36 @@ namespace Punchy.Flora
         static UnitPart SmithyPost(float x, float z) => new UnitPart
         {
             Part = "post", At = new Vector3(x, 0f, z), AtMetres = new Vector3(0f, -0.05f, 0f),
-            To = new Vector3(x, 0.58f, z), SpanMetres = new Vector3(0.12f, 0.11f, 0f),
+            To = new Vector3(x, 0.58f, z), SpanMetres = new Vector3(0.24f, 0.22f, 0f),
         };
 
-        /// <summary>A hide tent (goblin and ogre camps): the shell, and a door mat before its open +Z panel.</summary>
+        /// <summary>
+        /// A hide tent (goblin and ogre camps): the shell, the frame's full size and setting the unit's bounds, and a door
+        /// mat before its open +Z panel.
+        /// </summary>
         public static readonly UnitDef TentUnit = new UnitDef
         {
             Id = "tent",
             Parts = new[]
             {
-                new UnitPart { Part = "hide tent" },
+                new UnitPart { Part = "hide tent", Span = new Vector3(1f, 1f, 1f), Bounds = true },
                 new UnitPart { Part = "door mat", At = new Vector3(0f, 0f, 0.5f), Span = new Vector3(0.35f, 0f, 0f) },
             },
         };
 
         /// <summary>
-        /// A camp's fire pit, its frame height the fire's radius: a ring of stones round an ash bed, charred logs leaning
-        /// over it and embers in the ash.
+        /// A camp's fire pit, its frame as wide as it is tall and its height the fire's radius: a ring of stones round an
+        /// ash bed (setting the unit's bounds), charred logs leaning over it and embers in the ash.
         /// </summary>
         public static readonly UnitDef FirePitUnit = new UnitDef
         {
             Id = "fire pit",
+            WidthOfHeight = 1f,
             Parts = new[]
             {
-                new UnitPart { Part = "fire ring", Span = new Vector3(0f, 1f, 0f) },
-                new UnitPart { Part = "log tepee", Span = new Vector3(0f, 1f, 0f) },
-                new UnitPart { Part = "embers", Span = new Vector3(0f, 1f, 0f) },
+                new UnitPart { Part = "fire ring", Span = new Vector3(2f, 0f, 2f), Bounds = true },
+                new UnitPart { Part = "log tepee", Span = new Vector3(2f, 0f, 2f) },
+                new UnitPart { Part = "embers", Span = new Vector3(2f, 0f, 2f) },
             },
         };
 
