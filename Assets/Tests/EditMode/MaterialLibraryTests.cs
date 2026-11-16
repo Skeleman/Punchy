@@ -24,8 +24,10 @@ namespace Punchy.Tests
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
         // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166): Creature.shader
-        // (fauna's) carries its own wood and reaches metal through the old Shaders/Metal.hlsl forwarder.
-        static readonly (string include, string shader)[] Pending = { ("Wood.hlsl", "Creature.shader"), ("Metal.hlsl", "Creature.shader") };
+        // (fauna's) carries its own wood and reaches metal through the old Shaders/Metal.hlsl forwarder; Cave.shader and
+        // TerrainSurface.shader reach stone through the old Shaders/Stone.hlsl forwarder (R-34's, render's).
+        static readonly (string include, string shader)[] Pending = { ("Wood.hlsl", "Creature.shader"), ("Metal.hlsl", "Creature.shader"),
+            ("Stone.hlsl", "Cave.shader"), ("Stone.hlsl", "TerrainSurface.shader") };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -82,6 +84,7 @@ namespace Punchy.Tests
             Assert.That(used.Any(u => u.Item1 == "Plaster"), "plaster has no slot");
             Assert.That(used.Any(u => u.Item1 == "Brick"), "brick has no slot");
             Assert.That(used.Any(u => u.Item1 == "Ice"), "ice has no slot");
+            Assert.That(used.Any(u => u.Item1 == "Stone"), "built stone has no slot");
         }
 
         // Each family's include: what defining its look by hand looks like, what drawing it looks like, and which
@@ -95,6 +98,7 @@ namespace Punchy.Tests
             ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
             ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
+            ("Stone.hlsl", @"\w*Stone(Surface|Blocks|Course|Rubble|Spec)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader" }),
         };
 
         [Test]
