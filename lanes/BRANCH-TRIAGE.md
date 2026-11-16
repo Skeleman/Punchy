@@ -32,6 +32,7 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | render/grass-fields | R-31 (#325) | render | Prep at be206e54; waits on an editor slot. |
 | render/cloud-picks, render/one-surface-4 | R-35, R-23 r4 | render-2 | cloud-picks waits on Zach's pick; one-surface-4 folded into one-surface-5 (#494). |
 | world/map-edits-bake | M-07 r2b | world | In progress. |
+| render/effects-kit | R-29 (#320) | render-2 | Row 2 wired at 05a8043f, uncompiled; waits on an editor slot. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
