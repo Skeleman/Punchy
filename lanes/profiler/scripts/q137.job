@@ -1,0 +1,40 @@
+# Job 96 (v0.16 playtest #400): tunnel entry hitch on v0.16.0 (4e02a1b0). Medium, 1920x1080, uncapped, noon, Clear.
+# The card gives the start (-2089,259.3,732, "facing the tunnel") but no heading. before() stands there with
+# -benchface (dist 0: faces up the slope, where a portal is cut) and reads the yaw it logs; the run is then a 120 m
+# -benchline along that yaw at 6 m/s holding the start height (height -200 keeps y, so it goes into the bore rather
+# than over the hill). -hitchms 33 logs every frame over the bar. 3 plain runs, then one with the Profiler on,
+# analysed for every main frame over 33 ms. Shots on round 1 show whether the run went in.
+Q=q137; TITLE="job 96 tunnel entry"
+BUILDS="4e02a1b"
+VIEWS="run"
+view() { local y; y=$(cat "$R/$Q-yaw" 2>/dev/null || echo 0)
+  local x1 z1; read x1 z1 < <(python -c "import math;y=math.radians($y);print(round(-2089+120*math.sin(y),1),round(732+120*math.cos(y),1))")
+  echo "-goto -2089,259.3,732 -benchstops line -benchline -2089,732,$x1,$z1,6,-200 -benchhour 12 -benchweather Clear -hitchms 33"; }
+ARMS="A"
+arm() { echo "Profile-4e02a1b"; }
+ROUNDS=3; GFX="Medium"
+before() {
+  [ -n "${DRY:-}" ] && return
+  BENCHW=1920 BENCHH=1080 runcsv Profile-4e02a1b $Q-probe 4e02a1b s100 1 -gfx Medium -fpscap 0 -goto -2089,259.3,732 \
+    -benchstops face -benchface -2089,732,0 -benchhour 12 -benchweather Clear -benchshots "$W/$Q-shots/probe"
+  check "$R/q-$Q-probe-cs100-1.log"
+  grep -ah 'BenchRoute: face at' "$R/q-$Q-probe-cs100-1.log" | head -1
+  grep -aho 'BenchRoute: face at.*yaw -\?[0-9]*' "$R/q-$Q-probe-cs100-1.log" | head -1 | grep -o '\-\?[0-9]*$' > "$R/$Q-yaw"
+  echo "probe yaw $(cat $R/$Q-yaw); run: $(view run)"
+}
+after() {
+  [ -n "${DRY:-}" ] && return
+  local t=$Q-prof-cs100-1
+  BENCHW=1920 BENCHH=1080 runcsv Profile-4e02a1b $Q-prof 4e02a1b s100 1 -gfx Medium -fpscap 0 $(view run) \
+    -profiler-enable -profiler-log-file "$W/q-$t.raw" -profiler-maxusedmemory 1073741824
+  check "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$t.txt")" -over 33 -logFile "$W/analyze-$t.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$t.txt" ] && rm -f "$R/q-$t.raw"
+  echo "== $t"; grep -a "^OVER\|frames used" "$R/$t.txt" | cut -c1-400 | head -20
+  for f in "$L"/q-$Q-*.log; do echo "-- $(basename $f): $(grep -ah 'BenchRoute: hitch' $f | head -6 | cut -c1-160 | tr '\n' '|')"; done
+}

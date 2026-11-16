@@ -1,0 +1,15 @@
+# Job 90 rerun: Medium hermit garden only (q132's first B round overlapped stray editors). No after().
+# Job 90 (W-164 row 2, #334): garden beds in the ground pass. world/level-gardens c378a480 (B) vs main 3b192717 (A).
+# Shelf builds. Medium and High, noon, Clear, 3 rounds. Views: the hermit garden looking at the hill (-benchspot
+# 140,22,-548,30) and the default spawn, 60 s each (-benchlong). After: one -freshisland start per arm (island bake and
+# the terrain chunk stage from the [start] ledger, worst chunk-apply frame).
+Q=q132r; TITLE="job 90 garden beds"
+BUILDS="c378a48 3b19271"
+VIEWS="garden"
+view() { case $1 in
+  garden) echo "-goto 140,22,-548 -benchstops spot -benchspot 140,22,-548,30 -benchlong spot 60 -benchhour 12 -benchweather Clear";;
+  spawn)  echo "-benchstops here -benchlong here 60 -benchhour 12 -benchweather Clear";;
+  fresh)  echo "-freshisland -benchstops here -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-c378a48";; A) echo "Profile-3b19271";; esac; }
+ROUNDS=3; GFX="Medium"; REF=A; BAR=0.3
