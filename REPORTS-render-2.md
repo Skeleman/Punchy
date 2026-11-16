@@ -121,3 +121,28 @@ Branch render/cloud-picks b7a1f7cc (new off main 25558ed8). The BENCH draft abov
   2. Compile 0 failed, NaN 0.
   3. From one cumulus view, at noon and at golden hour, shots with each of A-D on and off, and with E on and off (65536). Plus fov 60 Detail 1 branch vs main for E.
   4. Close with EditorApplication.Exit.
+
+## R-35 row 2 (#333) + R-23 r4+r5 drift pair (#298) 11-16: editor turn, done (verified by numbers; shots unviewed for Zach)
+Punchy-release tree, branch render/cloud-picks b7a1f7cc (no code change in this turn; tree clean). Editor closed with EditorApplication.Exit.
+- **#494 drift pair** (frozen time, clouds off, fov 60, the same view shot twice): cave 2.18 mean / 5.38% >8, lake 2.92 / 3.08%, colossus 9.15 / 36.13%, NaN 0. Compare with R-23's main-vs-branch at fov 60 (cave 7.5, lake 4.2, colossus 11.1): the colossus and lake gaps are mostly drift (animated things freeze at different moments). Cave keeps about 5 above drift, which is unexplained. That is small, but worth a look if Job 109 flags the cave. **Colossus clouds on vs off** from one frozen view: 1.12 / 5.27%. Shots are in PunchyMilestones/R-35/drift494/.
+- **Compile:** 122 shaders, 0 failed. NaN/Inf/negative 0 on every checked shot.
+- **Picks** (job 79 peak -3460,2425, looking west about 20 deg up, PartlyCloudy, coverage 0.12, Detail 1.5 from prefs, ppm 1403). Noon has sunY -0.819 and golden hour -0.107. Pixel diff vs base (mask 0), mean / % of pixels >8:
+
+  | Pick | Noon | Golden |
+  |---|---|---|
+  | A lobes 4096 | 0.44 / 1.09 | 0.55 / 1.76 |
+  | B multi-scatter 8192 | 1.03 / 5.99 | 1.17 / 6.69 |
+  | C skylight dim 16384 | 0.36 / 0.58 | 0.68 / 3.41 |
+  | D nearest sun sample 32768 | 0.11 / 0.00 | 0.11 / 0.00 |
+  | E off (fixed metres) 65536 | 0.33 / 0.29 | 0.47 / 1.34 |
+  | A-D all 61440 | 1.24 / 6.72 | 1.52 / 9.16 |
+  | base again (noise) | 0.06 / 0 | 0.08 / 0 |
+
+  D is at noise level, so Zach probably can't see it. I suggest dropping D in row 3 unless he sees it. B is the biggest single change. C matters most at golden hour.
+- **E at fov 60, Detail 1** (in one frozen frame, mask 0 vs 65536 = main's fixed-metre path): 0.026 mean, 0% >8 (base-again noise 0.031). E is identical to main at fov 60 and Detail 1, as designed. An earlier try that swapped in main's shader files with a live AssetDatabase.Refresh drifted by 12-14 mean even between two copies of the same shader, so the reload method doesn't work for this. Those shots are deleted.
+- **Gotcha (worth a docs line):** in host+client play, WorldSync.ApplyHostState copies the server WorldState.TimeOfDay into the DayNightCycle every Update, so setting `cycle.TimeOfDay` alone snaps back. My first pick shots were all at 14 h and were retaken. Set the hour on the server ghost too, or set it again after the view settles. R23Probe.SetHour (untracked, in Assets/Temp) now does both.
+- **Shots (unviewed, for Zach to pick):** D:/Unity/PunchyMilestones/R-35/picks/: noon-* and golden-*, named by mask (0 base, 4096 A, 8192 B, 16384 C, 32768 D, 65536 E off, 61440 A-D, again), plus e-fov60-d1-{0,65536,again}. D:/Unity/PunchyMilestones/R-35/drift494/: cave60a/b, lake60a/b, colossus60a/b, colossus-cloudson/off.
+- **#494:** the drift pair is in. It is still waiting on BENCH Job 109 (QUEUED after 108), so it is not ready yet. Merge order stays #494, then render/cloud-picks.
+- **Next:** row 3 once Zach picks (ship the picks on by default, E kept), plus BENCH on the draft above (the coordinator files it).
+- Risks: the picks were shot at Detail 1.5 (Zach's prefs), and E's diff is larger there by design (screen-size fades move with Detail).
+- Shares: the sky/cloud shared path (SkyCommon.hlsl `_PunchySkyOff` bits, ScreenSize.hlsl from #494). No parallel left unfolded.
