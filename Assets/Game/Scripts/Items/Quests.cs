@@ -137,18 +137,30 @@ namespace Punchy.Items
             UpdateQuestSave();
             if (quests.Length == 0 || boards.Count == 0 || !TryPlayer(out var player))
                 return;
+            // (The board faced within 2.5 m, by the one Use rule: UseTarget. One with nothing left only shows a note,
+            // and that gives way to anything else in reach.)
             targetBoard = -1;
+            var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
+            var camera = Camera.main;
+            var look = camera != null ? math.normalizesafe(((float3)camera.transform.forward).xz) : forward;
+            var boardScore = float.MaxValue;
             for (int b = 0; b < boards.Count; b++)
                 if (math.distance(boards[b].Pos.xz, player.Position.xz) < 2.5f)
-                    targetBoard = b;
-            if (targetBoard >= 0 && prompt == null)
+                {
+                    var score = UseTarget.Score(player.Position, forward, look, boards[b].Pos);
+                    if (score < boardScore)
+                        (boardScore, targetBoard) = (score, b);
+                }
+            var boardSlot = targetBoard >= 0 ? NextSlot(targetBoard, out _, out _) : -1;
+            var boardWins = UseTarget.Bid(UseKind.Board, boardSlot >= 0 ? boardScore : float.MaxValue);
+            if (targetBoard >= 0 && (boardWins || boardSlot < 0 && !UseTarget.OtherBids(UseKind.Board)))
             {
                 var slot = NextSlot(targetBoard, out var turnIn, out var from);
                 if (slot >= 0)
                     UseKey.Offer();
                 prompt = slot < 0 ? $"Notice board ({boards[targetBoard].Town}): nothing more for you"
                        : turnIn ? $"{UseKey.Name}  hand in: {QuestText(from, slot)}" : $"{UseKey.Name}  take: {QuestText(from, slot)}";
-                if (slot >= 0 && UseKey.WasPressed() && target < 0 && targetChest < 0 && targetContainer < 0)
+                if (slot >= 0 && UseKey.WasPressed())
                 {
                     if (turnIn) TurnIn(from, slot);
                     else TakeQuest(from, slot);

@@ -361,8 +361,8 @@ namespace Punchy.Items
                 Receive();
 
             FindTarget();
-            // (The Use key goes to the nearer of a door and an item, judged on last frame's distances.)
-            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && TargetDistance <= Doors.FacingDistance && TargetDistance <= FolkTalk.TargetDistance && UseKey.WasPressed())
+            // (FindTarget keeps a target only when it won the Use key: UseTarget.)
+            if ((target >= 0 || targetChest >= 0 || targetContainer >= 0) && UseKey.WasPressed())
             {
                 if (target >= 0) Pickup(target);
                 else if (targetChest >= 0) OpenChest(targetChest);
@@ -451,31 +451,43 @@ namespace Punchy.Items
             TargetDistance = float.MaxValue;
             if (!TryPlayer(out var player))
                 return;
+            // (Items, chests and containers are all scored by the one facing rule, UseTarget; the best of them bids.)
             var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
+            var camera = Camera.main;
+            var look = camera != null ? math.normalizesafe(((float3)camera.transform.forward).xz) : forward;
+            var best = float.MaxValue;
             foreach (var kv in world)
             {
                 var to = kv.Value.Pos - player.Position;
                 var d = math.length(to.xz);
-                if (d >= TargetDistance || d > Reach || math.abs(to.y) > 1.5f || d > 0.4f && math.dot(math.normalizesafe(to.xz), forward) < 0.3f)
+                if (d > Reach || math.abs(to.y) > 1.5f)
                     continue;
-                (TargetDistance, target) = (d, kv.Key);
+                var score = UseTarget.Score(player.Position, forward, look, kv.Value.Pos);
+                if (score < best)
+                    (best, TargetDistance, target) = (score, d, kv.Key);
             }
             foreach (var (socket, pos) in ChestSockets())
             {
                 if (openedChests.Contains(socket))
                     continue;
                 var d = math.distance(pos.xz, player.Position.xz);
-                if (d < TargetDistance && d <= Reach && math.abs(pos.y - player.Position.y) < 1.5f)
-                    (TargetDistance, target, targetChest) = (d, -1, socket);
+                if (d > Reach || math.abs(pos.y - player.Position.y) >= 1.5f)
+                    continue;
+                var score = UseTarget.Score(player.Position, forward, look, pos);
+                if (score < best)
+                    (best, TargetDistance, target, targetChest) = (score, d, -1, socket);
             }
-            var before = TargetDistance;
-            FindContainer(player.Position, ref TargetDistance);
-            if (TargetDistance < before && targetContainer >= 0)
+            var before = best;
+            FindContainer(player.Position, forward, look, ref best, ref TargetDistance);
+            if (best < before && targetContainer >= 0)
                 (target, targetChest) = (-1, -1);
             else
                 targetContainer = -1;
-            if (TargetDistance > Doors.FacingDistance || TargetDistance > FolkTalk.TargetDistance)
+            if (!UseTarget.Bid(UseKind.Item, best))
+            {
+                (target, targetChest, targetContainer) = (-1, -1, -1);
                 return;
+            }
             if (target >= 0 || targetChest >= 0 || targetContainer >= 0)
                 UseKey.Offer();
             var key = UseKey.Name;

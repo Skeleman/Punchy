@@ -183,12 +183,15 @@ namespace Punchy.Interact
             }
             CreatureSnapshotSystem.Release(world, states, bodies, entities);
             if (target == Entity.Null)
+            {
+                UseTarget.Bid(UseKind.Folk, float.MaxValue);
                 return;
+            }
             if (bestScore < float.MaxValue)
                 heldUntil = Time.realtimeSinceStartup + DoorPick.Hold;
             TargetDistance = distance;
-            // (The nearest of this, a door and an item takes the Use key.)
-            if (distance >= Doors.FacingDistance || distance >= Items.Items.TargetDistance)
+            // (One pick for every Use prompt: UseTarget. A held folk bids as if at the cone's edge.)
+            if (!UseTarget.Bid(UseKind.Folk, bestScore < float.MaxValue ? bestScore : distance * 2f))
             {
                 target = Entity.Null;
                 return;
