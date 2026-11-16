@@ -993,7 +993,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 
 ## Note (2026-11-15, supervisor): fauna fingerprint on main is 0206544F since #442 (Frostdeer joins the species and Tundra lists; no placement moved). Re-pin any bench check that reads it.
 
-## Job 102 (2026-11-15, RUNNING 11-16 (q141.job on guarded commits; R-22 forest vantage pose asked); render lane, R-30 r1 trial, branch render/foliage-realism 9cec43a5): leaf looks
+## Job 102 (2026-11-15, DONE 11-16: a/b FAIL, c +1.3-1.6 ms, transmission free; backlit view still needs a pose (q141.job on guarded commits; R-22 forest vantage pose asked); render lane, R-30 r1 trial, branch render/foliage-realism 9cec43a5): leaf looks
 -leaftrial off / a / b / c at the R-22 forest view and the oak glade, noon. Report GPU frame time, shadow pass time and flora triangles per mode. Questions: is (b) shells affordable at High, and what does (c) rim cost over off?
 Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the forest view, backlit (sun low behind the trees), GPU frame time.
 
@@ -1012,7 +1012,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 
 ## Note (2026-11-16, supervisor): #463 moved placement: landmarks 117 547D4E79 (VolcanoCone takes an Ashlands spot at (-891,-2021), one Ashlands BoneGraveyard drops), fauna fingerprint 4BEFEA91. Re-baseline any Ashlands view and re-pin checks that read either.
 
-## Job 105 (2026-11-16, CHAINED 11-16 (q142.job, B = 3c3b50b1, A = 2b6ef9e3); world lane, W-174 row 2, #406/#403, branch world/ground-edits): ground-edit profile cost
+## Job 105 (2026-11-16, RUNNING 11-16 (q142.job, B = 3c3b50b1, A = 2b6ef9e3); world lane, W-174 row 2, #406/#403, branch world/ground-edits): ground-edit profile cost
 - ShapeHeight gains a domain-warped cellular gully (1 cellular + 4 snoise) and a warped pass track (4 snoise) inside the pass box; landmark flats, garden beds, plot pads and paddy rims add 2-4 snoise each on their banks. Rule 21: the lane did not time it.
 - Arms: main (A) against world/ground-edits (B), same seed, -fpscap 0.
 - Record: island bake time, chunk stage time, time to world ready, and frame time standing at #403 (1116,42.7,1634) and at the dwarf mining camp (-1966,651).

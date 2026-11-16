@@ -2,6 +2,22 @@
 
 Newest first.
 
+## Job 102: R-30 leaf looks (render/foliage-realism d86dc216 -leaftrial off/a/b/c; N = 9cec43a5, r1 without transmission), 2026-11-16 (q141.job): **(a) and (b) are not affordable at High; (c) costs +1.3-1.6 ms; transmission is free**
+High, 1920x1080, uncapped, Clear, 3 rounds, arms alternated, inside the oak grove (-place OakGrove). Both builds carry the bench-only TestHooks.Options.cs guard (see Job 97). No rule-23 bar on the card; High's +1 ms is shown for scale.
+
+| mode | noon GPU ms | vs off | 18:30 GPU ms | vs off | plants in view (k tris) | plant shadow lists (k tris) | noon 1% low fps | noon frames over budget |
+|---|---|---|---|---|---|---|---|---|
+| off | 18.87 | | 17.87 | | 5309 (1573) | 8229 (247) | 4.4 | 37.7 |
+| a | 32.03 | **+13.17** | 31.43 | **+13.57** | 5189 (6406) | 8310 (519) | 2.4 | 316.7 |
+| b (shells) | 26.73 | **+7.87** | 24.97 | **+7.10** | 5320 (3645) | 8217 (676) | 2.6 | 108.7 |
+| c (rim) | 20.50 | **+1.63** | 19.20 | **+1.33** | 5384 (1586) | 8191 (247) | 3.5 | 50.0 |
+| N (r1, no transmission) | 19.03 | +0.17 | 17.70 | -0.17 | 5302 (1572) | 8224 (247) | 4.2 | 39.3 |
+
+- **(b) shells at High: no.** +7-8 ms on a 19 ms frame; its plants in view go from 1.57 M to 3.65 M triangles, and the shadow lists from 247 k to 676 k. (a) is worse: 6.4 M triangles, +13 ms.
+- **(c) rim over off: +1.3-1.6 ms** with the same triangles, so the cost is all shading. That's over High's +1 ms; it needs trimming or a Medium/High switch.
+- **Transmission (off on r2 vs N on r1): within noise**, -0.17 to +0.17 ms.
+- CPU main thread follows the GPU (a/b wait on the GPU). The laptop's pass timers read nothing, so the shadow pass isn't split; the triangle counts show where it goes.
+- **Backlit view not measured:** 18:30 on this seed is already dark in the grove (fireflies out, no sun on the leaves), so the transmission look can't be judged there. The R-22 forest vantage and a backlit heading still need a pose; an hour of about 17:00 would keep the sun up.
 ## Job 100: R-39 flames by screen size, darker nights (main d2dfcd1b = B vs d2dfcd1b^1 64eb479 = A), 2026-11-16 (q140.job): **PASS**
 Both arms built with the TestHooks.Options.cs editor guard (bench-only local commits; main's player build fails without it, see Job 97). Profile builds, 1920x1080, uncapped, ABBA, 3 rounds, 22:00 Clear, the R-25 town (2972,-885).
 Views: glide150 = 300 m line north into the town at 6 m/s, 150 m up; far600 = 600 m south of it, 150 m up, near-still.
