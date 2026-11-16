@@ -994,3 +994,4 @@ Take the queue in this order. Anything not changed here runs as written in its j
 
 ## Job 102 (2026-11-15, QUEUED after 101; render lane, R-30 r1 trial, branch render/foliage-realism 9cec43a5): leaf looks
 -leaftrial off / a / b / c at the R-22 forest view and the oak glade, noon. Report GPU frame time, shadow pass time and flora triangles per mode. Questions: is (b) shells affordable at High, and what does (c) rim cost over off?
+Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the forest view, backlit (sun low behind the trees), GPU frame time.
