@@ -4111,3 +4111,5 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 ## BENCH request (world, W-174 r4a, world/ground-holes @ 521ec1af)
 
 - IsCaveHole and flora placement now add a ScarpSet.Strip lookup per sample. Please compare flora/settlement bake and streaming burst cost against main on the default seed when the queue allows.
+
+- World W-174 r4b (world/seams): terrain chunk build now does extra Cut evaluations (2 gradient taps plus a re-check) for kept-side vertices within 1.3 quads of a rim (LOD0-2). Please compare chunk mesh build burst cost against main on the default seed when the queue allows.

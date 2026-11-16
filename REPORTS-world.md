@@ -8461,3 +8461,10 @@ Plan:
 - Checks: compile clean; WorldTests 17/17. Probe: temple 80 m box at 0.5 m has 120 removed points before and after (TempleCut was already in the old test); the 2 scarps newly remove 5123 m2 at 1 m spacing. Tests did not need re-pins.
 - Branch is new (world/ground-holes): the old world/ground-edits still holds the merged r1-r3 commits, and a force push was refused. Old branch can be deleted.
 - BENCH note: IsCaveHole and flora placement now also run a scarp strip lookup (request in REPORTS-profiler).
+
+## W-174 r4b + r5 (seam builder, seam guard test) - world/seams @ a481465d, ready for review
+- BuildChunkMeshJob.Seam is the one seam builder for cave mouths, temple entrances and scarp strips. A kept-side vertex near a rim takes one Newton step onto it and stays inside its triangle fan. The temple cut is exact now (it used to be widened by a step).
+- r5: TestHooks.SeamProblems + WorldTests.Seams_NoOpenRims (Order 90, 8 min timeout). They fail on an open slot or overhang, or on temple ground that is cut but not removed.
+- Measures, worst case (plain grid in brackets): temple slot 0.00 (0.00), overhang 0.25 (0.44); mouths x3 0.13 (0.13) / 0.32 (0.31); scarps x2 0.00 (0.00) / 0.01 (0.10). The temple lip left is at a convex corner, under the coping.
+- Checks: WorldTests 18/18 before the rebase onto main; compiles clean after it. Shots: W-174/w174-r4b-sheet.jpg (temple, mouth, cliff at 20/150 m), written check OK.
+- Fauna gaps (not my files): CreatureMotion.cs:306/362 and TraceSystem.cs:300 use MouthCut only. DungeonSpawner/FaunaDirector spawns should check GroundHoles.Removed (the #405 goblin case).
