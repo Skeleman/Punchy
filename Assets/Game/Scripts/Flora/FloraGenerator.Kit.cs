@@ -299,7 +299,11 @@ namespace Punchy.Flora
             var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
                        p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
             b.Surface = (int)look;
-            b.Wood = p.Material == Punchy.Terrain.KitMaterial.Wood;
+            // W-166: each part states its family; a ruin's bare walls are old stone, not plaster.
+            // W-166 row 3: standing stone chimneys are laid in brick (Materials/Brick.hlsl); rune and trim stacks keep their own.
+            b.Family = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
+                     : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
+                     : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
             b.Unfounded = p.Afloat;
             if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                 RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
@@ -322,7 +326,7 @@ namespace Punchy.Flora
                                                        p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Flame ||
                                                        p.Material == Punchy.Terrain.KitMaterial.Rune ? FloraPart.Window : FloraPart.Bark);
             b.Surface = 0;
-            b.Wood = false;
+            b.Family = b.BaseFamily;
             b.Unfounded = false;
             return true;
         }

@@ -24,7 +24,8 @@ namespace Punchy.Flora
             var pole = g.Bark;
             var bays = Mathf.Max(3, Mathf.RoundToInt(half / 1.8f));
 
-            // Pole pairs crossing above the ridge, and the ridge pole.
+            // Pole pairs crossing above the ridge, and the ridge pole (W-166: wood; the hides are the form's leather).
+            b.Family = Timber(g);
             for (int k = 0; k <= bays; k++)
             {
                 var x = Mathf.Lerp(-half, half, k / (float)bays) + g.Range(-0.15f, 0.15f);
@@ -34,6 +35,7 @@ namespace Punchy.Flora
             }
             b.Tube(new List<Vector3> { new Vector3(-half - 0.6f, height - 0.05f, 0f), new Vector3(half + 0.6f, height - 0.05f, 0f) },
                    new List<float> { 0.13f, 0.13f }, g.Sides(6, 4, 3), pole, FloraPart.Bark);
+            b.Family = b.BaseFamily;
 
             // Hides: one sagging panel per bay and side, from the ridge to the ground, and the two ends closed.
             var rows = g.Sides(4, 2, 1);
@@ -192,6 +194,7 @@ namespace Punchy.Flora
             g.Width = length;
             g.TrunkRadius = 0f;
             var logs = g.Lod == 2 ? 4 : 10;
+            b.Family = Timber(g);   // W-166: logs and rails
             for (int k = 0; k < logs; k++)
             {
                 var x = Mathf.Lerp(-length * 0.5f, length * 0.5f, (k + 0.5f) / logs);
@@ -207,6 +210,7 @@ namespace Punchy.Flora
             if (g.Lod < 2)
                 foreach (var y in new[] { 0.25f, 0.7f })
                     b.Box(new Vector3(0f, height * y, -0.2f), new Vector3(length, 0.12f, 0.1f), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
+            b.Family = b.BaseFamily;
             for (int k = -1; k <= 1; k++)
                 g.Colliders.Add(new Vector4(k * 1f, 0f, 0.55f, height));
         }
@@ -238,6 +242,7 @@ namespace Punchy.Flora
             // glowing embers among dark coals, and its chimney up through the roof.
             var hearth = new Vector3(0f, 0.55f, -depth * 0.45f);
             float hearthX = half * 1.1f, hearthZ = depth * 0.8f, bed = 0.85f, rim = 0.15f;
+            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the hearth is stone, not the walls' plaster
             b.Box(new Vector3(hearth.x, bed * 0.5f, hearth.z), new Vector3(hearthX, bed, hearthZ), Quaternion.identity, Stone(g), FloraPart.Bark);
             foreach (var side in new[] { -1f, 1f })
             {
@@ -246,6 +251,7 @@ namespace Punchy.Flora
                 b.Box(new Vector3(hearth.x + side * (hearthX - rim) * 0.5f, (bed + 1.1f) * 0.5f, hearth.z), new Vector3(rim, 1.1f - bed, hearthZ - rim * 2f),
                       Quaternion.identity, Stone(g), FloraPart.Bark);
             }
+            b.Family = b.BaseFamily;
             var pit = new Vector2(hearthX * 0.5f - rim - 0.08f, hearthZ * 0.5f - rim - 0.08f);
             var embers = g.Lod == 0 ? 7 : 3;
             for (int k = 0; k < embers; k++)
@@ -256,8 +262,11 @@ namespace Punchy.Flora
                 b.Blob(at, new Vector3(size, size * 0.6f, size * g.Range(0.8f, 1.2f)), Quaternion.Euler(0f, g.R() * 360f, 0f), 1, 0.3f, g.R() * 50f,
                        glowing ? AccentAt(g, 0) : g.Bark * 0.25f, glowing ? FloraPart.Glow : FloraPart.Bark);
             }
+            // W-166 row 3: the forge stack is laid in fired brick (MaterialFamily.Brick, Materials/Brick.hlsl).
+            b.Family = Punchy.Terrain.MaterialFamily.Brick;
             b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
             ChimneyTop(g, new Vector3(0f, height + 0.8f, -depth * 0.7f), 0.3f, Stone(g) * 0.85f);
+            b.Family = b.BaseFamily;
             g.Perches.Add(Vector3.up * height);
             g.Perches.Add(new Vector3(0f, height + 0.8f, -depth * 0.7f));
             // The anvil on its block.

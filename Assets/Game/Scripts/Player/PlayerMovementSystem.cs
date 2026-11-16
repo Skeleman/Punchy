@@ -73,11 +73,19 @@ namespace Punchy.Player
             foreach (var avatar in SystemAPI.Query<RefRO<Punchy.Fauna.CreatureState>>().WithAll<Punchy.Fauna.PlayerAvatar>())
                 down = math.max(avatar.ValueRO.Lie, avatar.ValueRO.Sit);
 
-            // (A rider is carried, not moved: PlayerRideSystem puts it on its mount, A-104 row 3.)
-            foreach (var (transform, motor, motion) in
+            // (A rider is carried, not moved: PlayerRideSystem puts it on its mount, A-104 row 3. A-126 row 4: unless it
+            // steers a creature, when it moves as ever with the creature's abilities, the body's seat not holding it.)
+            foreach (var (transform, motor, motion, entity) in
                      SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>()
-                         .WithNone<Punchy.Fauna.PlayerRide>())
+                         .WithEntityAccess())
             {
+                var steering = false;
+                if (SystemAPI.HasComponent<Punchy.Fauna.PlayerRide>(entity))
+                {
+                    if (!SystemAPI.GetComponent<Punchy.Fauna.PlayerRide>(entity).Steering)
+                        continue;
+                    steering = true;
+                }
                 ref var t = ref transform.ValueRW;
                 ref var m = ref motion.ValueRW;
                 var settings = motor.ValueRO;
@@ -85,7 +93,7 @@ namespace Punchy.Player
                 // Getting up comes before going anywhere: lying or sitting, the body stands first (moving gets it up,
                 // InteractionInputSystem) rather than crawling off with its folded legs dragging under it. A jump
                 // pressed meanwhile only gets it up.
-                if (down > 0.25f && m.Grounded)
+                if (down > 0.25f && m.Grounded && !steering)
                 {
                     input.MoveDirection = float2.zero;
                     input.JumpPressed = false;

@@ -298,6 +298,18 @@ namespace Punchy.Fauna
                 pitch += act * 1.45f;
                 height = math.lerp(height, 0.16f * scale, act);
             }
+            // A-126 row 2: folk climbing onto a ledge keep their hands planted on the rim (the arm IK below) while the
+            // climb lifts the body past them. The shoulders can't rise more than an arm's length over the rim, so the body
+            // sinks into a crouch over its hands, leaning onto them, and only straightens once it's over the top.
+            else if (s.Action == IdleAction.Mantle && b.Upright && math.lengthsq(s.Anchor) > 0f)
+            {
+                var u = math.saturate((s.ActionTime - 0.12f) / 0.73f);
+                var shoulder = s.Position.y + height + MantleShoulder * b.StandHeight * scale;
+                var reach = ArmReach(ref b) * scale;
+                var drop = reach > 0f ? math.max(0f, shoulder - (s.Anchor.y + 0.8f * reach)) * MantleHold(u) : 0f;
+                height -= drop;
+                pitch += 0.6f * math.saturate(drop / (0.5f * b.StandHeight * scale));
+            }
             // A-103 row 2b, A-127 row 2: a sea folk out of the water stands upright, with only a slight forward
             // set as it walks (it trudges, uncomfortable). In the water it leans into its swim as before.
             if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
@@ -594,6 +606,35 @@ namespace Punchy.Fauna
                     {
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.7f);
                         a.x += j == 0 ? -0.3f : j == 1 ? -0.7f : 0f;
+                    }
+                    // A player's weapon (P-28): the right arm bent, ready, the weapon up before it; a swing raises it
+                    // over the shoulder and brings it down fast. A spear in both hands, levelled; a bow held out in the
+                    // left, the right drawing the string back to the cheek.
+                    if (part.Role == LimbRole.Arm && s.Outfit.Weapon != CreatureWeapon.None)
+                    {
+                        var wSwing = s.Outfit.Swing == 0 ? 0f : (s.Outfit.Swing - 1) / 254f;
+                        var wTwo = s.Outfit.Weapon == CreatureWeapon.Spear || s.Outfit.Weapon == CreatureWeapon.Bow;
+                        if (part.Side > 0f || wTwo)
+                            a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], 0.85f);
+                        if (s.Outfit.Weapon == CreatureWeapon.Bow)
+                        {
+                            var wDraw = wSwing < 0.75f ? math.smoothstep(0f, 0.6f, wSwing) : 0f;
+                            if (part.Side < 0f)
+                                a.x += j == 0 ? -1.45f : 0f;
+                            else
+                                a += j == 0 ? new float3(-1.3f, 0f, -0.35f * wDraw) : j == 1 ? new float3(-0.5f - 1.6f * wDraw, 0f, 0f) : float3.zero;
+                        }
+                        else if (s.Outfit.Weapon == CreatureWeapon.Spear)
+                        {
+                            var wThrust = math.sin(wSwing * math.PI);
+                            a.x += j == 0 ? (part.Side > 0f ? -0.55f - 0.5f * wThrust : -0.9f - 0.3f * wThrust) : j == 1 ? (part.Side > 0f ? -1.1f + 0.7f * wThrust : -0.6f + 0.4f * wThrust) : 0f;
+                        }
+                        else if (part.Side > 0f)
+                        {
+                            var wLift = wSwing < 0.55f ? math.smoothstep(0f, 0.55f, wSwing) : 1f - math.smoothstep(0.55f, 0.72f, wSwing);
+                            var wStrike = math.smoothstep(0.6f, 0.72f, wSwing) * (1f - math.smoothstep(0.8f, 1f, wSwing));
+                            a.x += j == 0 ? -0.5f - 2.0f * wLift - 0.4f * wStrike : j == 1 ? -0.9f - 0.5f * wLift + 0.6f * wStrike : 0f;
+                        }
                     }
                     // Meeting a messenger bird: the left forearm raised out in front at chest height, bent, for it to land
                     // on; once it's there, the right hand across to take the roll from its leg.
@@ -949,11 +990,14 @@ namespace Punchy.Fauna
                     rot = math.mul(turn, rot);
                     // (No angle frees the ball of the hip itself, which the belly rests on, nor quite all of a long leg on a
                     // slope, judged on a plane: lift what is left against the real ground up into the flank, at most the hip's
-                    // own radius (a leg folded on the lie: the shallow dip above), so no leg stays in the ground.)
+                    // own radius plus the lying body's height (at least the folded leg's shallow dip above), so no leg stays in the
+                    // ground and none rises above the back. (Bony, near-bellyless bodies have hips too thin for the radius alone
+                    // to clear curved slopes.)
                     var left = LowestLegOnGround(ref b, ref part, ref segPos, ref segRot, in terrain, s.Position.y, scale);
                     if (left < 0f)
                     {
-                        var rise = new float3(0f, math.min(-left, shallow) * weight, 0f);
+                        var reach = math.max(shallow, b.Segments[part.FirstSegment].RadiusStart * scale + height);
+                        var rise = new float3(0f, math.min(-left, reach) * weight, 0f);
                         for (int j = 0; j < part.SegmentCount; j++)
                             segPos[part.FirstSegment + j] += rise;
                         pos += rise;
@@ -965,7 +1009,7 @@ namespace Punchy.Fauna
                 if (part.Role == LimbRole.Arm && part.SegmentCount >= 2 && s.Action == IdleAction.Mantle && b.Upright &&
                     math.lengthsq(s.Anchor) > 0f && part.FirstSegment + part.SegmentCount <= MaxSegments)
                 {
-                    var hold = 1f - math.smoothstep(0.45f, 0.7f, (s.ActionTime - 0.12f) / 0.73f);
+                    var hold = MantleHold((s.ActionTime - 0.12f) / 0.73f);
                     if (hold > 0.01f)
                     {
                         var s1 = part.FirstSegment + 1;
@@ -1430,8 +1474,16 @@ namespace Punchy.Fauna
         static float Haul(float t, bool right) => math.smoothstep(-0.6f, 0.6f, math.sin(t * 1.7f + (right ? 0f : math.PI)));
 
         /// <summary>
+        /// An innkeeper's chore at its counter (A-132): 1 while it wipes the counter down, 0 while it stacks mugs, easing
+        /// from one to the other every half minute or so (offset per innkeeper so a town's keepers don't switch together).
+        /// </summary>
+        static float Wiping(in CreatureState s) =>
+            math.smoothstep(-0.25f, 0.25f, math.sin(s.Clock * 0.11f + (s.Individual % 97) * 0.37f));
+
+        /// <summary>
         /// The rest of a tender's body by its job (A-33): a baker leans over its table, bobbing into each push; a healer
-        /// is bent right over its bowl, head down; a well keeper leans back against the rope's weight.
+        /// is bent right over its bowl, head down; a well keeper leans back against the rope's weight; an innkeeper
+        /// leans in to wipe its counter.
         /// </summary>
         static float3 TendBody(ref CreaturePart part, in CreatureState s, int joint)
         {
@@ -1451,6 +1503,9 @@ namespace Punchy.Fauna
                 case FolkJob.FireTender:
                     // Upright, head bowed a little over the flame.
                     return new float3(torso ? 0.04f : 0.22f, 0f, 0f);
+                case FolkJob.Innkeeper:
+                    // (A-132) Leaning over the counter to wipe it, upright again to stack the mugs; head down at the work.
+                    return new float3((torso ? 0.06f : 0.2f) + 0.14f * Wiping(in s), 0f, 0f);
                 default:
                     return float3.zero;
             }
@@ -1571,6 +1626,22 @@ namespace Punchy.Fauna
                             var toss = math.smoothstep(0.66f, 0.74f, p) * (1f - math.smoothstep(0.74f, 0.88f, p));
                             var low = right ? 0f : 0.15f;
                             return new float3(joint == 0 ? -0.45f + low - 0.85f * lift - 0.5f * toss : -0.3f - 0.45f * lift + 0.35f * toss, 0f, 0f);
+                        }
+                        case FolkJob.Innkeeper:
+                        {
+                            // (A-132) Two chores at the counter in turn. Wiping it down: the right hand scrubs round in
+                            // small circles on the top while the left rests flat. Stacking mugs: each hand in turn lifts
+                            // a mug up to the stack at chest height and comes back down for the next.
+                            var wipe = Wiping(in s);
+                            var circle = t * 2.4f;
+                            var wipeArm = right
+                                ? new float2(-0.6f + 0.12f * math.sin(circle), -0.75f + 0.16f * math.cos(circle))
+                                : new float2(-0.45f, -0.9f);
+                            var p = math.frac(t * 0.42f + (right ? 0f : 0.5f));
+                            var lift = math.smoothstep(0.05f, 0.3f, p) * (1f - math.smoothstep(0.45f, 0.7f, p));
+                            var stackArm = new float2(-0.5f - 0.65f * lift, -0.85f + 0.35f * lift);
+                            var arm = math.lerp(stackArm, wipeArm, wipe);
+                            return new float3(joint == 0 ? arm.x : arm.y, 0f, 0f);
                         }
                         case FolkJob.Roofer:
                         {
@@ -1951,6 +2022,25 @@ namespace Punchy.Fauna
         /// bending the way it did. The rest of the leg (foot, toes) keeps its orientation and shifts with it.
         /// Returns how far the end of the leg moved.
         /// </summary>
+        /// <summary>How far over its hips folk's shoulders are, in standing heights (near enough for every folk body).</summary>
+        const float MantleShoulder = 0.5f;
+
+        /// <summary>A-126 row 2: how firmly folk climbing onto a ledge keep their hands planted on its rim, by how far the
+        /// climb has gone (0..1): all the way up, and on while the body goes over them, letting go as it stands up.</summary>
+        static float MantleHold(float u) => 1f - math.smoothstep(0.75f, 0.95f, u);
+
+        /// <summary>The length of a body's arm (upper arm and forearm, unscaled); 0 without arms.</summary>
+        static float ArmReach(ref CreatureBlob b)
+        {
+            for (int p = 0; p < b.Parts.Length; p++)
+            {
+                ref var part = ref b.Parts[p];
+                if (part.Role == LimbRole.Arm && part.SegmentCount >= 2)
+                    return b.Segments[part.FirstSegment].Length + b.Segments[part.FirstSegment + 1].Length;
+            }
+            return 0f;
+        }
+
         static float3 PlaceFoot(ref CreatureBlob b, ref CreaturePart part,
                                 ref FixedList4096Bytes<float3> segPos, ref FixedList4096Bytes<quaternion> segRot,
                                 float3 delta, float scale)

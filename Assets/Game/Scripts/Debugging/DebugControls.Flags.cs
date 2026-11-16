@@ -297,6 +297,10 @@ namespace Punchy.Debugging
                     Cycle.TimeOfDay = Mathf.Repeat(hours, 24f);
                 if (args[i] == "-watch")
                     watchSpecies = args[i + 1];
+                // "-hair style,colour" (P-29): the player's hair for this run (CreatureHair ids; not saved), so one shot
+                // list can show every style.
+                if (args[i] == "-hair" && ParseFloats(args[i + 1]) is float[] hair && hair.Length >= 1)
+                    Punchy.Net.PlayerHair.Test((byte)hair[0], hair.Length >= 2 ? (byte)hair[1] : Punchy.Net.PlayerHair.Colour);
                 if (args[i] == "-splashshot" && int.TryParse(args[i + 1], out var splashShots))
                     splashShotsLeft = splashShots;
                 // "-viewpitch 60": the player's own camera looking down from that angle (-20: up), as if the mouse moved.
