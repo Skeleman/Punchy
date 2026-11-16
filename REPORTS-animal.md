@@ -5254,3 +5254,13 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Solo/host/client: text per machine, nothing new sent. No timing done.
 - Ready for PR: folk/dialogue-archive.
 - NEXT: proposed A-131 = folk side of options (parse, validation, Answer.Options, Choose, tests; no UI). Second option: fold quests.json loading and the hermit WorkSets lines onto LiveJsonFile.
+
+## 11-15 A-130 (#404): dune palms in groves and clearings - done (verified)
+- fauna/dune-groves 7b2624eb (from origin/main 4c423eba). Data only, no code: 9 assets plus the test pin.
+- Cause: W-126 gave clearings only to biomes with a ClearingAmount. Dunes had none, and neither did MesaCanyonlands, Ashlands, ElectricWastelands, GlassDesert, Glacier or Volcano. Palm and PaloVerde had no GroveSpacing either, so they scattered evenly wherever water was near.
+- Fix: those 7 biomes join the same clearing mask (amount 0.3-0.45, size 160-200). Palm gets groves (spacing 90, radius 18, gain 5) and PaloVerde too (75/16/4). Audit: every biome with flora now has clearings (Ocean has no flora). EmberPine, FungalOak and GoldTree stay grove-less forest mixes.
+- Numbers (whole island, every 4th tree cell): palms 686 -> 206; 120 m bins holding palms 155 -> 111; max per bin 14 -> 6. Fauna fingerprint 859112C9 -> 9EFF3BCF, re-pinned. Landmarks 117 689D5348, unchanged. WorldTests 14/14.
+- Shots: D:/Unity/PunchyMilestones/A-130/before and /after (dunes-aerial, dunes-wide, contact sheets). Before is an even scatter; after shows stands with open sand between.
+- Risk: one earlier play on main's assets logged fingerprint 90AEAF81 instead of 859112C9. Two later runs on this branch both read 9EFF3BCF, from the test spot and from the dunes. Worth watching for a flaky Fauna_Fingerprint. Also, entering play rewrote Resources/CreatureTunables.asset (a Deer entry); I reverted it and left it out of the commit.
+- Shares: W-126's one clearing mask and the per-species grove settings (rule 33). No new field.
+- Ready for PR: fauna/dune-groves. NEXT: far-life (A-108 r2) world-file edits on the merge.

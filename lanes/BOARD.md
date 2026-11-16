@@ -18,7 +18,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-108 r2 | #298 | fauna | next | fauna/far-life d0524eaa | Rule 11 answered YES 11-15: fauna makes the 3 world-file edits on the merge |
 | A-113 | no issue | fauna | ready? | flora/tree-variety f92b1fef | Merge main in, re-pin, hand off |
 | A-110 | #298 | fauna | active | fauna/one-population 70d27698 | Rows to r7b |
-| A-130 | #404 | fauna | next | - | Put dune palms back on W-126's clearing mask |
+| A-130 | #404 | fauna | ready for PR | fauna/dune-groves 7b2624eb | Done: desert biomes on the clearing mask, palm groves; fingerprint 9EFF3BCF |
 | M-06 r1 | #412-414 | lab | active | fauna/model-lab-2 - | Turntable wobble, then the body-data note (stop for Zach) |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
 | A-131 | #25 | folk | active | folk/dialogue-options - | Options data + Choose (no UI), then sample talks |
