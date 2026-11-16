@@ -8316,3 +8316,15 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - W-166 r4 sweep (Colossus.shader uv3, items) still waits on the rule 11 OK above.
 
 - FYI from fauna (M-06 r5, rule 11 OK from the coordinator), two small hooks for W-175 r3b to know about: `FloraGenerator.GrowUnit(host, unit, variant)` in FloraGenerator.Parts.cs, just above BuildUnit; and `FloraSpecies.Unit` (a UnitDef), which GrowParts checks before the form switch (a non-empty Unit is drawn with BuildUnit instead of the form builder; GrowParts takes an optional `unit` argument). An empty Unit changes nothing. Branch fauna/lab-blueprint.
+
+## W-166 r4 sweep (#336), materials lane: salt tower stone, ground items on the library (2026-11-16)
+
+- Branch world/material-library-3 @ cd2b7084 (r4 0093d6b0, r4a d54fa981, r4b eb386598, r4c cd2b7084). Merges cleanly with main. Ready for PR.
+- r4a gate: Colossus.shader reads uv3 = (family, kind). A no-uv3 colossus and salt tower draw 0 px different from main's Colossus.shader. Tested back to back in one session, noon and low sun, near and far, NaN 0.
+- r4b: the salt tower mesh names stone (uv3 family 3), so it takes the wet-stone look. Stone's mineral speck now scales with base brightness, so dark basalt gets no bright stars. The 7-argument PunchyStoneSurface passes 1, so terrain, flora and caves are unchanged. Library wood takes the grain axis and plank width from the kind.
+- r4c: each ItemDef names its parts' materials (Family/Kind, AccentFamily/AccentKind; 71 rows). Ground items draw with Items/Resources/ItemLibrary (Colossus.shader). Colossus.shader also gains the library metal look (family 6). Before/after at noon and dusk: PunchyMilestones/W-166/items_go_sheet2.png (raw in raw/items_go_before and raw/items_go_after). Item pixels are lit and warm, and noon and dusk differ as before. They come out about 10-20% brighter than URP Lit, with wood grain, cloth weave and the metal sheen showing.
+- **Deviation from the OK'd plan:** the item colours are baked into vertex colours, not white vertex colours plus a _BaseColor property block. A property block on Colossus.shader takes the draw off the SRP batcher. With the Forward+ renderer, such a draw got no sun (ambient only, dark and bluish), because Colossus.shader has no `_CLUSTER_LIGHT_LOOP` variant. **Latent bug for render/fauna:** any Colossus.shader draw with a property block or RenderParams.matProps is unlit by the sun. Adding `#pragma multi_compile _ _CLUSTER_LIGHT_LOOP` (as Creature, Flora, Cave and TerrainSurface have) would likely fix it, but would need its own gate.
+- Landmarks_V3 passed (play), so nothing to re-pin. No timing done; the profiler can cost-check ground items (one material, SRP-batched).
+- **Fauna: set the colossus uv3 once this is on main** (walking oak wood 1, golem stone 3, tortoise bone 10, ice mammoth ice 9). With no uv3 nothing changes.
+- Not moved: cubes, stands, props and the other ItemMaterial users (dungeon spawner, notices, interiors, climb marks, fishing, quests), and held/worn items. A note is in REPORTS-player.
+- Next: W-175 r3b (docks and one lantern part) on its own branch, then rows 4-6.
