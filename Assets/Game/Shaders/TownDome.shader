@@ -101,7 +101,8 @@ Shader "Punchy/Town Dome"
                 thick *= thick * thick;
                 // Fades in from inside its edge to a little way out, so it's still there while the town's own lights
                 // are a thin line at a low angle (400-600 m), and gone where they take over.
-                float dist = distance(camera.xz, d.at.xz);
+                // (R-39, rule 20: 3D camera distance; it was by ground distance, so a glide over a town crossed it.)
+                float dist = distance(camera, d.at.xyz);
                 float near = smoothstep(d.at.w * 0.5, d.at.w * 1.5 + 100, dist);
                 // Thinned by the haze, but only a twentieth as much as the land (the haze itself is lit by it), so it
                 // still shows from 3 km where the land has gone.

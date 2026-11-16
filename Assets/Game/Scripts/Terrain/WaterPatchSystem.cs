@@ -281,6 +281,10 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>R-39 row 4 (#269): how much of a wader's speed-driven dimple and shove is kept (the trailing
+        /// rebound behind a run through shallows), 1 being the old height.</summary>
+        public static float WadeRebound = 0.4f;
+
         /// <summary>A creature in the field's square and when its turn comes (R-15): players first, then nearest the centre.</summary>
         struct SourceTurn : System.IComparable<SourceTurn>
         {
@@ -302,6 +306,8 @@ namespace Punchy.Terrain
             [ReadOnly] public TerrainSource Terrain;
             public float2 Corner;
             public float DeltaTime;
+            /// <summary>R-39 row 4: WadeRebound, handed in (Burst reads no mutable statics).</summary>
+            public float Rebound;
             /// <summary>Seconds since play began, now and when this last ran (wading strides keep time by it).</summary>
             public float Time, LastTime;
             /// <summary>Each creature's place when this last ran (to see it drop through the surface, and which way it goes).</summary>
@@ -324,7 +330,7 @@ namespace Punchy.Terrain
             public NativeArray<int> Stats;
 
             /// <summary>Presses and splashes share the list's MaxSources slots.</summary>
-            bool Room => Presses.Length + Room;
+            bool Room => Presses.Length + Splashes.Length < MaxSources;
 
             public void Execute()
             {
@@ -440,11 +446,16 @@ namespace Punchy.Terrain
                     // diver only dents it near the top.)
                     var near = upright ? 1f : 1f - math.smoothstep(0.3f, 1.2f, under);
                     var depth = (0.04f + 0.05f * math.min(s.Speed, 3f)) * size * near;
+                    // R-39 row 4 (#269): something on its feet running through shallows left a trailing rebound 2-3x too
+                    // high: its dimple's speed share and its shove spring back behind it. Damped for upright waders only;
+                    // the leading hump (the bow wave) and swimmers are untouched.
+                    if (upright)
+                        depth = (0.04f + 0.05f * Rebound * math.min(s.Speed, 3f)) * size * near;
                     if (depth > 0.002f && Room)
                         Presses.Add(new float4(at, radius, depth));
                     // And while it moves, it keeps shoving water aside (a small knock every step, in with the dimples so
                     // every step gets it): the troughs it leaves spring back as rings, and in a line they make its wake.
-                    var shove = 0.006f * math.min(s.Speed, 4f) * size * near;
+                    var shove = 0.006f * math.min(s.Speed, 4f) * size * near * (upright ? Rebound : 1f);
                     if (shove > 0.0005f && Room)
                         Presses.Add(new float4(at, -radius, shove));
                     // Zach's leading swell (13:05): moving, it heaps the water up just ahead of itself, a raised hump before
@@ -1073,6 +1084,7 @@ namespace Punchy.Terrain
                     States = states, Bodies = bodies, Entities = entities, Terrain = SystemAPI.GetSingleton<TerrainSource>(),
                     Corner = fieldCorner, DeltaTime = math.max(dt, StepTime), Time = now, LastTime = lastSourceTime, LastAt = lastAt, Presses = presses, Splashes = splashes,
                     Vents = vents, Clock = clock, LastClock = lastClock, VentCount = ventCount, SwimmerSplashes = swimmerSplashes, Knocks = knocks, Viscosity = viscosityField,
+                    Rebound = WadeRebound,
                     Turns = turns, Stats = sourceStats
                 }.Run();
                 knocks.Dispose();
