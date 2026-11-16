@@ -21,7 +21,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r5 | #414 | fauna | DONE, merged #469; #414 closed | - | Kit gaps carded as W-175 rows 4-6 (#415) |
-| #24 p2 r1 | #24 | fauna | DONE (merged #470); r2 approved, r3 struct to supervisor first; add Cave/Ruin chest rows to DungeonLoot once P-47 merges | fauna/dungeon-spawns f7b85f1b | docs/design/dungeon-spawns.md; rows 2-6 proposed; r3 and r6 need rule 11 |
+| #24 p2 r1 | #24 | fauna | DONE (merged #470); r2 approved, r3 DungeonExceptionsRpc (12 B) approved 11-16 (64-resident guard, ordinal-match test, multiplayer.md line, late-joiner test on 7985); add Cave/Ruin chest rows to DungeonLoot once P-47 merges | fauna/dungeon-spawns f7b85f1b | docs/design/dungeon-spawns.md; rows 2-6 proposed; r3 and r6 need rule 11 |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
 | W-175 r1-3 | #415 | materials | r3 merged (PR #465); now W-166 r4 sweep (rule 11 OK 11-16) | world/material-library-3 7b152200 | then r3b docks + one lantern part (kit adapter, look change), then rows 4-6 (kit gaps from M-06 r5) |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches. Lava far-light re-check now possible (#463 cone): render, after R-22 r1 |
