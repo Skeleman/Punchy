@@ -47,7 +47,8 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-45 | #24 | player (fishing agent) | DONE, merged #466 | player/dungeon-pieces@44630e60 | -place piece:hall/deadend/pool, walk 0 falls, sockets checked, design note. Follow-up: 2 temple sockets in walls |
 | P-44 | #255, #276 | player | parked (Zach 11-16: can wait); rescoped to walk-on-moving-bodies for colossi and the galleon | - | Row 1 design note covers both; stop for review |
-| P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
+| P-41 | #266 | player (supervisor agent) | DONE, on main (rods 461f138c: a rod in slot 0, seeded rods on fishing-village wharves) | - | play-mode suite still owed: P-46 row 1 |
+| P-46 | #24 #266 | player (fishing agent) | next | from main | Row 1: play-mode suite on main (owed by P-41). Row 2: move the 2 temple sockets out of walls (chest, interactable), re-pin the socket hash, fix tests, tell the profiler |
 | M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); Zach 11-15: towns and roads may be rebuilt/refit around edits; r2b bake hook waits only on W-174 | merged #425 | r2b blocked on W-174; world takes r2b after W-174 r2 (lab agent gone) |
 | M-08 | #414 | lab | merged #435 | lab/set-piece-view | rows 1-3 shipped; #414 stays open for M-06 row 5 blueprints |
 | M-06 r3b | #413 | lab | merged #442 (Lab species herds moved to fauna, who own Herds.cs; lab blocked on W-166 / Zach) | lab/new-species 3c1ee5f1 | Homes merge, Lab species index group (after 124 built-ins), Save as new panel, KitParts field; Frostdeer (Tundra) verified solo + host; Fauna_Fingerprint 0206544F; temple Ruin ctor dropped (public static offered) |
