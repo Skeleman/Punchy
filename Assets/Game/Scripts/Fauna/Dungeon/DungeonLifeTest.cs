@@ -33,7 +33,7 @@ namespace Punchy.Fauna
 
         protected override void OnCreate()
         {
-            var args = System.Environment.GetCommandLineArgs();
+            var args = Punchy.Debugging.DebugControls.LaunchArgs;
             Enabled = System.Array.IndexOf(args, "-dungeonlife") >= 0 && System.Array.IndexOf(args, "-guardtest") >= 0;
             player = new EntityQueryBuilder(Allocator.Temp).WithAll<PlayerTag, LocalTransform, PlayerMotion>().Build(this);
             replicas = new EntityQueryBuilder(Allocator.Temp).WithAll<CreatureReplica, CreatureState>().Build(this);
