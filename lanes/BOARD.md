@@ -37,4 +37,4 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
 | M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); r2b bake hook waits on Zach + W-174 | merged #425 | r2b blocked; lab takes M-08 meanwhile |
 | M-08 | #414 | lab | merged #435 | lab/set-piece-view | rows 1-3 shipped; #414 stays open for M-06 row 5 blueprints |
-| M-06 r3b | #413 | lab | active | lab/new-species (fresh from main) | supervisor-approved rule 11: CreatureSpecies Homes field merged by FaunaDirector.Build, Lab-made species in their own group indexed after all built-ins (no renumbering), KitStructure keeps its KitPart list, SunkenTemple Ruin ctor; owners told |
+| M-06 r3b | #413 | lab | code in WIP, waiting for 12 GB RAM to compile + test | lab/new-species 23464db1 | Homes merge, Lab species index group, KitParts field, Save as new panel written; temple Ruin ctor dropped (needs a public static entry instead); verify, pin and shots next |
