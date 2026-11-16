@@ -39,7 +39,7 @@ Shader "Punchy/SunkenTemple"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Glow.hlsl"
             // Stone.hlsl reads the shared detail texture (a global, set by CaveSystem); its includer declares it.
             TEXTURE2D(_PunchyCaveDetail);

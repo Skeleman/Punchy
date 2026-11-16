@@ -21,7 +21,7 @@ Shader "Punchy/Precipitation"
             #pragma fragment Frag
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half _Shape;

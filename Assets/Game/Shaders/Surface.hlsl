@@ -15,7 +15,7 @@
 // - PUNCHY_SURFACE_REAL_LIGHTS: real lights (PunchyRealLights, the glow's falloff) in lit.lights; the shader sets
 //   s.positionCS. Under Forward+ the lantern is one of them, so lit.lantern stays 0 there.
 //
-// Needs URP's Lighting.hlsl, Sky.hlsl, WideShadow.hlsl and Glow.hlsl included first.
+// Needs URP's Lighting.hlsl, Atmosphere.hlsl (or Sky.hlsl, which includes it), WideShadow.hlsl and Glow.hlsl included first.
 
 /// What the shader knows about the point it lights.
 struct PunchySurface
