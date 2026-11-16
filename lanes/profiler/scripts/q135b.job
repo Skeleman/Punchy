@@ -1,0 +1,15 @@
+# Respec 11-16: c5d49a53's base (244805ae) is older than the bench runner (no TerrainSource.Settlements etc.), so the
+# build failed. The branch has since merged main: B = its tip b1c2ab17, A = its merge-base 19bdb274 (same 6-file diff).
+# Job 94 (W-170 row 1): lying-log bark along the grain. world/log-bark b1c2ab13 (B) vs its base main 19bdb27e (A).
+# Medium and High, noon, Clear, 3 rounds. Views: 10 m south of the camp at -2894,46.9,-653 facing it (seat log,
+# woodpile), and 10 m south of the gravel bar at -2667,175.8,629 facing it. Whole-frame GPU (the laptop's GPU pass
+# timers read nothing, so no Flora draw split).
+Q=q135b; TITLE="job 94 log bark"
+BUILDS="b1c2ab1 19bdb27"
+VIEWS="camp gravel"
+view() { case $1 in
+  camp)   echo "-goto -2894,-663 -benchstops spot -benchspot -2894,-663,0 -benchhour 12 -benchweather Clear";;
+  gravel) echo "-goto -2667,619 -benchstops spot -benchspot -2667,619,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-b1c2ab1";; A) echo "Profile-19bdb27";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.3

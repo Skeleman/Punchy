@@ -934,7 +934,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Ask: pin an ordinary night in those scripts (keep the big moon as caster, comparable with old runs) and take one
   blue-night baseline as its own row. Merged 11-14 as #363 (main 1a18ba61): apply now.
 
-## Job 94 (2026-11-15, CHAINED 11-15 after 86 (q135.job, A = base 244805ae); world lane, W-170 row 1): lying-log bark along the grain
+## Job 94 (2026-11-15, CHAINED 11-16 last (q135b.job: B = tip b1c2ab17, A = its merge-base 19bdb274; q135.job's c5d49a53 build failed: its base 244805ae predates the bench runner's TerrainSource.Settlements); world lane, W-170 row 1): lying-log bark along the grain
 - Arm: world/log-bark c5d49a53 (B) against its base main (A). Profile builds, 1920x1080, Medium and High, uncapped,
   Clear, noon, ABBA, 3 rounds.
 - What changed: Flora.shader gets a second bark-furrow path (furrows round the piece's grain axis, picked by a vertex
@@ -944,7 +944,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   Record: GPU ms and the Flora draw's GPU time if the profile build can split it.
 - Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
 
-## Job 95 (2026-11-15, CHAINED 11-15 after 94 (q136.job, merged #387: db79d9f8 vs first parent 509022e4); fauna lane, A-124 row 1 #358): one build per person, crowd cost
+## Job 95 (2026-11-15, RUNNING 11-16 (q136.job, merged #387: db79d9f8 vs first parent 509022e4); fauna lane, A-124 row 1 #358): one build per person, crowd cost
 - Arm: fauna/individual-builds dcc36fe8 (B) against its base main (A). Profile builds, 1920x1080, Medium, uncapped,
   Clear, noon, ABBA, 3 rounds.
 - What changed: folk bake up to 16 build blobs per species (separate blobs keyed by build), and builds split draw batches.
