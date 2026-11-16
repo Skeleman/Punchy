@@ -28,7 +28,7 @@ The island's layout is a test bed. Systems and procedural generation come before
 | world | `D:/Unity/Punchy-world` | W, some R | `Scripts/Terrain/{Caves,Anchors,Landmarks,Settlements}/**`, water surfaces, `Shaders/Cave.shader`, landmark, cave-style, settlement and glacier assets, `WORLD.md` |
 | folk | `D:/Unity/Punchy-folk` | A (folk, races, households) | `Scripts/Fauna/**` and `Fauna/**`, shared with fauna and split by card |
 | fauna | `D:/Unity/Punchy-fauna` | A (creatures, far life) | as folk; also `Resources/Domestics.asset`, `Scripts/Debugging/DebugControls.cs`, `Scripts/Audio/**`, `Scripts/Ambience/`, Sun handling in `WeatherSystem.cs`, `Scripts/Player/PlayerMovementSystem.cs`, `GLOSSARY.md` |
-| render | `D:/Unity/Punchy-render` | R (refactors, rule 28) | `Shaders/*.hlsl`, the surface lighting path, `DetailPolicy` |
+| render | `D:/Unity/Punchy-render` | R (refactors, rule 28) | `Shaders/*.hlsl`, the surface lighting path, `DetailPolicy`; render-2 also owns `Scripts/Weather/CloudNoise.cs` (R-35, 11-16) |
 | player (2nd account) | `D:/Unity/Punchy-player` | P | `Scripts/Settings/**`, `Scripts/UI/**`, `Scripts/Camera/ThirdPersonCamera.cs`; interiors, doors, pickups, inventory (#26) |
 | profiler (other PC) | its own | BENCH-QUEUE jobs | `Scripts/Debugging/BenchmarkRoute.cs`, `b/*` branches; small measured perf or crash fixes on `b/fix-*` (`lanes/shared/bench.md`) |
 
