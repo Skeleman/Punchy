@@ -255,7 +255,9 @@ namespace Punchy.Terrain
                     continue;
                 var room = math.cmin(p.Max - p.Centre) - math.length(p.Half);
                 var blend = math.max(PadBlend, math.min(PadBlend + math.abs(h - p.Pad), math.min(room, PadBlendMax)));
-                var w = 1f - math.smoothstep(0f, blend, Outside(p, xz));
+                // W-174 (#406): the shared ground-edit band: flat over the rectangle at least, the bank's top wandering
+                // out over the first 40% of the blend, so a pad's rim is no ruler line.
+                var w = GroundEdits.Band(Outside(p, xz), 0f, blend * 0.4f, blend, GroundEdits.EdgeNoise(xz, 0.12f, 13.3f));
                 if (w <= 0f)
                     continue;
                 var w2 = w * w;
@@ -267,7 +269,7 @@ namespace Punchy.Terrain
             // At the very edge of a blend w is ~1e-6 and w^8 underflows to 0, so sum can be 0 while best is not: that
             // gave 0/0 = NaN heights on a thin ring round each pad (NaN normals drew black hexes that bloom smeared
             // white). The pad's pull there is nil anyway, so the ground stays as it is.
-            return best > 0f && sum > 0f ? math.lerp(h, mix / sum, best) : h;
+            return best > 0f && sum > 0f ? GroundEdits.Apply(xz, h, mix / sum, best, 0.3f) : h;
         }
 
         /// <summary>Packed earth's colour (linear) where paved streets give way outside a town's centre.</summary>

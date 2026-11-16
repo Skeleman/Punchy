@@ -295,7 +295,14 @@ namespace Punchy.Terrain
                 ref var inst = ref set.Instances[hit.Instance];
                 ref var type = ref set.Types[hit.Type];
                 var mask = Mask(hit.Distance);
-                h = math.lerp(h, inst.BaseHeight, type.Flatten * mask);
+                // W-174 (#406): levelling uses the shared ground-edit profile, so the flat's rim wanders (no perfect
+                // disc) and a deep cut gets a broken bank with talus at its toe. The outer reach stays the footprint.
+                if (type.Flatten > 0f)
+                {
+                    var edge = GroundEdits.EdgeNoise(xz, 1f / math.max(hit.Radius * 0.45f, 6f), inst.Seed);
+                    var level = type.Flatten * GroundEdits.Band(hit.Distance, 0.5f, 0.8f, 1f, edge);
+                    h = GroundEdits.Apply(xz, h, inst.BaseHeight, level, 0.35f);
+                }
                 h += type.Height * inst.Scale * Profile(ref type, hit.Local, hit.Radius) * mask;
                 if (type.Roughness > 0f)
                     h += type.Roughness * inst.Scale * mask * (noise.snoise(hit.Local * 0.11f + inst.Seed) * 0.7f + noise.snoise(hit.Local * 0.31f - inst.Seed) * 0.3f);
