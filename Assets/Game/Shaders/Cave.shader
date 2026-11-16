@@ -219,9 +219,13 @@ Shader "Punchy/Cave"
                     float stoneShare = saturate(-input.data.z);
                     roadShare = saturate(input.data.z) * smoothstep(0.5, 0.75, shape.y) * (1 - terrain);
                     float bareWall = (1 - stoneShare) * (1 - roadShare) * (1 - terrain);
-                    // Cut stone courses on the side walls of a built tunnel, ending raggedly where the vault and the
-                    // floor take over.
-                    float courses = built ? (1 - smoothstep(0.35, 0.55, abs(shape.y) + (PunchyValueNoise(p.xz * 0.7 + p.y * 0.5 + 19) - 0.5) * 0.25)) * bareWall : 0;
+                    // Cut stone courses on the side walls of a built tunnel. W-172 row 4: they stop at a clear edge
+                    // under the vault (no ragged noise), topped by a capping course of long pale stones with a dark
+                    // shadow line where the rough vault rock hangs over it.
+                    float slope = abs(shape.y);
+                    float courses = built ? (1 - smoothstep(0.43, 0.45, slope)) * bareWall : 0;
+                    float capping = built ? smoothstep(0.35, 0.36, slope) * courses : 0;
+                    float overhang = built ? smoothstep(0.44, 0.46, slope) * (1 - smoothstep(0.46, 0.52, slope)) * bareWall : 0;
                     // Rough rock: a coarse read of the shared detail, so the bare rock breaks into knobs and hollows
                     // at arm's length (flatter where it's cut stone).
                     float3 coarseNudge;
@@ -242,12 +246,29 @@ Shader "Punchy/Cave"
                         if (acrossX) joint = min(joint, min(frac(bx), 1 - frac(bx)) * blockLength);
                         if (acrossZ) joint = min(joint, min(frac(bz), 1 - frac(bz)) * blockLength);
                         int3 block = int3(row, acrossX ? floor(bx) : 0, acrossZ ? floor(bz) : 0);
-                        float blockTone = 0.8 + 0.4 * (FacetHash(block).x + 0.5);
-                        float mortar = 1 - smoothstep(0.012, 0.03, joint);
+                        float3 blockHash = FacetHash(block);
+                        float blockTone = 0.8 + 0.4 * (blockHash.x + 0.5);
+                        // W-172 row 4 (W-166 brick rule): recessed mortar a little wider, and each block's faces
+                        // rounded into its joints in the normal (light catches the top arrises, the bed under it is
+                        // shaded), each block set a touch off true, so the courses read as stones, not a painted grid.
+                        float mortar = 1 - smoothstep(0.018, 0.034, joint);
                         float bevel = 1 - smoothstep(0.03, 0.09, joint);
-                        rock = lerp(rock, rock * blockTone * (1 - bevel * 0.25), courses);
-                        rock = lerp(rock, rock * 0.45, mortar * courses);
+                        float bed = fy * rowHeight, head = (1 - fy) * rowHeight;
+                        float3 round3 = float3(0, (1 - smoothstep(0.02, 0.08, head)) - (1 - smoothstep(0.02, 0.08, bed)), 0);
+                        if (acrossX) { float f = frac(bx) * blockLength; round3.x = (1 - smoothstep(0.02, 0.08, blockLength - f)) - (1 - smoothstep(0.02, 0.08, f)); }
+                        if (acrossZ) { float f = frac(bz) * blockLength; round3.z = (1 - smoothstep(0.02, 0.08, blockLength - f)) - (1 - smoothstep(0.02, 0.08, f)); }
+                        n = normalize(n + (round3 * 0.55 + blockHash * 0.08) * courses * (1 - mortar) * (1 - capping));
+                        rock = lerp(rock, rock * blockTone * (1 - bevel * 0.25), courses * (1 - capping));
+                        // The capping course: long pale stones, one joint per two blocks, a dark bed joint under them.
+                        float capJoint = acrossX ? frac(bx * 0.5) : frac(bz * 0.5);
+                        capJoint = min(capJoint, 1 - capJoint) * blockLength * 2;
+                        float capTone = 1.12 + 0.12 * blockHash.y;
+                        rock = lerp(rock, rock * capTone, capping);
+                        mortar = max(mortar * (1 - capping), max(1 - smoothstep(0.018, 0.034, capJoint), smoothstep(0.35, 0.36, slope) * (1 - smoothstep(0.36, 0.372, slope))) * capping);
+                        rock = lerp(rock, rock * 0.38, mortar * courses);
                     }
+                    // The shadow line just over the courses, where the vault's rock stands out over them.
+                    rock *= 1 - overhang * 0.55;
                     // Fallen stones: pale grey, darker where they sit in the floor.
                     half3 stone = half3(0.62, 0.6, 0.56) * (0.7 + 0.6 * detail.b) * (0.8 + 0.4 * coarse.b) * input.data.y;
                     rock = lerp(rock, stone, smoothstep(0.5, 0.9, stoneShare));
