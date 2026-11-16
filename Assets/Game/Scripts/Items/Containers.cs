@@ -247,7 +247,7 @@ namespace Punchy.Items
                     Carry(PlayerId(em, from), m.Item, -m.Count);
                     if (!HostPut(m.Container, m.Item, m.Count, "host, for a client") && em.Exists(from))
                     {
-                        Send(em, from, new GrantRpc { Item = m.Item, Count = m.Count });   // (full: back to them)
+                        Send(em, from, KitGrant(m.Item, m.Count));   // (full: back to them)
                         Carry(PlayerId(em, from), m.Item, m.Count);
                     }
                     em.DestroyEntity(r);
@@ -265,7 +265,7 @@ namespace Punchy.Items
                         Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfContainer(m.Container), PlayerId(em, from), $"{ItemTable.Items[s.item].Name} x{s.count} from {c.Name} {m.Container}");
                         SetSlot(m.Container, m.Slot, 255, 0, "host, for a client");
                         Carry(PlayerId(em, from), s.item, s.count);
-                        Send(em, from, new GrantRpc { Item = s.item, Count = (byte)math.min(s.count, 255) });
+                        Send(em, from, KitGrant(s.item, s.count));
                     }
                     em.DestroyEntity(r);
                 }

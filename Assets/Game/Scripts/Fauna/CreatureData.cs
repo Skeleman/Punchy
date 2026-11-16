@@ -725,14 +725,15 @@ namespace Punchy.Fauna
     /// </summary>
     public struct FolkKit : System.IEquatable<FolkKit>
     {
-        public byte Hand, LeftHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
+        public ushort Hand, LeftHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
         /// <summary>Zach 11-12 row 5: what stands at its post while it works there (a kneading table and a loaf, the well's
         /// rope and bucket, the hot iron, a chopping block and log), drawn by the Gear pass.</summary>
-        public byte Post0, Post1;
+        public ushort Post0, Post1;
 
-        /// <summary>A slot's value for an item (its id + 1), and the item in a slot (-1 for nothing).</summary>
-        public static byte Of(int item) => (byte)(item + 1);
-        public static int Item(byte slot) => slot - 1;
+        /// <summary>A slot's value for an item (its id + 1: the catalog id, as ItemStack.Item), and the item in a slot (-1
+        /// for nothing). Ushort since P-35 r3 row 4, with the same values.</summary>
+        public static ushort Of(int item) => (ushort)(item + 1);
+        public static int Item(ushort slot) => slot - 1;
 
         public bool Empty => (Hand | LeftHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3 | Post0 | Post1) == 0;
 

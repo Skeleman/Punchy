@@ -501,7 +501,7 @@ namespace Punchy.Items
             }
         }
 
-        static string KitName(byte slot)
+        static string KitName(ushort slot)
         {
             var item = FolkKit.Item(slot);
             return item < 0 ? "-" : item < ItemTable.Items.Length ? ItemTable.Items[item].Name : "?" + item;

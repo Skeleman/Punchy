@@ -255,8 +255,6 @@ namespace Punchy.Items
     public struct ItemGoneRpc : IRpcCommand { public int Uid; }
     /// <summary>Host → everyone: a world item appeared (a drop, a chest's contents).</summary>
     public struct ItemSpawnRpc : IRpcCommand { public int Uid; public byte Item, Count; public float3 Pos; }
-    /// <summary>Host → the picker: it's yours, into the inventory.</summary>
-    public struct GrantRpc : IRpcCommand { public byte Item, Count; }
     /// <summary>Host → everyone: a chest has been opened (named as in <see cref="OpenChestRpc"/>).</summary>
     public struct ChestOpenedRpc : IRpcCommand { public uint Dungeon; public ushort Type, Socket; }
 
@@ -267,7 +265,7 @@ namespace Punchy.Items
     /// same ones without sending them), plus what's dropped and what chests give, which the host sends. Drawn as small
     /// coloured blocks within 60 m.</item>
     /// <item>Picking up: facing an item within 2 m, the Use key (P-10's, shared with doors: the nearer one wins). The host
-    /// decides: it removes the item for everyone (ItemGoneRpc) and grants it to the picker (GrantRpc). Solo decides alone.</item>
+    /// decides: it removes the item for everyone (ItemGoneRpc) and grants it to the picker (KitSlotRpc). Solo decides alone.</item>
     /// <item>Inventory: 16 slots with stacks, this machine's own for the session (no disk save). Tab or I shows it; click a
     /// slot (or select with the arrows and press Use) to drop one of it on the ground in front of the player.</item>
     /// <item>Dungeon chests: every dungeon's Chest sockets (the sunken temple's, every cave's and the caves' ruin rooms',
@@ -883,8 +881,7 @@ namespace Punchy.Items
         void Serve()
         {
             var em = server.EntityManager;
-            ServeGear(em);
-            ServeArmour(em);
+            ServeKit(em);
             ServeSlots(em);
             ServeSwings(em);
             ServeFish(em);
@@ -896,7 +893,7 @@ namespace Punchy.Items
                     if (Take(uid, out var it) && em.Exists(from))
                     {
                         Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfItem(uid), PlayerId(em, from), $"{ItemTable.Items[it.Item].Name} x{it.Count} (item {uid})");
-                        Send(em, from, new GrantRpc { Item = it.Item, Count = it.Count });
+                        Send(em, from, KitGrant(it.Item, it.Count));
                         Carry(PlayerId(em, from), it.Item, it.Count);   // (P-17: the host's tally)
                     }
                     em.DestroyEntity(r);
@@ -962,27 +959,26 @@ namespace Punchy.Items
             var joined = Joined;
             Each(em, joined, onItemGone ??= OnItemGone);
             Each(em, joined, onItemSpawn ??= OnItemSpawn);
-            Each(em, joined, onGrant ??= OnGrant);
+            Each(em, joined, onKitSlot ??= OnKitSlot);
             Each(em, joined, onContainerSlot ??= ReceiveContainer);
             Each(em, joined, onQuestState ??= ReceiveQuestState);
             Each(em, joined, onChestOpened ??= OnChestOpened);
-            Each(em, joined, onGearState ??= OnGearState);
-            Each(em, joined, onArmourState ??= OnArmourState);
-            Each(em, joined, onSlotState ??= OnSlotState);
             Each(em, joined, onSwing ??= OnSwing);
             Each(em, joined, onLeftSwing ??= OnLeftSwing);
             Each(em, joined, onFish ??= OnFish);
+            if (joined)
+            {
+                ReadKits(em);   // (P-35 r3 row 4: what everyone has on, from their ghosts)
+                SyncKit();
+            }
         }
 
         System.Action<ItemGoneRpc> onItemGone;
         System.Action<ItemSpawnRpc> onItemSpawn;
-        System.Action<GrantRpc> onGrant;
+        System.Action<KitSlotRpc> onKitSlot;
         System.Action<ContainerSlotRpc> onContainerSlot;
         System.Action<QuestStateRpc> onQuestState;
         System.Action<ChestOpenedRpc> onChestOpened;
-        System.Action<GearStateRpc> onGearState;
-        System.Action<ArmourStateRpc> onArmourState;
-        System.Action<SlotStateRpc> onSlotState;
         System.Action<SwingRpc> onSwing;
         System.Action<LeftSwingRpc> onLeftSwing;
         System.Action<FishRpc> onFish;
@@ -1013,8 +1009,6 @@ namespace Punchy.Items
             added[m.Uid] = w;
             Debug.Log($"Items: item {m.Uid} ({ItemTable.Items[m.Item].Name} x{m.Count}) appeared (from the host)");
         }
-
-        void OnGrant(GrantRpc m) => Grant(m.Item, m.Count);
 
         void OnChestOpened(ChestOpenedRpc m)
         {

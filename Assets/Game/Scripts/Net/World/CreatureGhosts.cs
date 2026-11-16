@@ -47,9 +47,9 @@ namespace Punchy.Net
         /// <summary>The need cue it shows (CreatureState.Cue, a NeedCue), so clients draw it too (#64).</summary>
         [GhostField] public byte Cue;
         /// <summary>Zach 11-12: one of the folk's kit (FolkKit: items in hand, sheathed, worn, in its bag), the host's.</summary>
-        [GhostField] public byte KitHand, KitLeftHand, KitSheath, KitHead, KitBody, KitBack, KitNeck, KitBag0, KitBag1, KitBag2, KitBag3;
+        [GhostField] public ushort KitHand, KitLeftHand, KitSheath, KitHead, KitBody, KitBack, KitNeck, KitBag0, KitBag1, KitBag2, KitBag3;
         /// <summary>Zach 11-12 row 5: what stands at its post while it works there (FolkKit.Post0, Post1).</summary>
-        [GhostField] public byte KitPost0, KitPost1;
+        [GhostField] public ushort KitPost0, KitPost1;
     }
 
     /// <summary>Client: this creature is a server ghost that FaunaDirector has given a body (CreatureState/CreatureBody).</summary>
