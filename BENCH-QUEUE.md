@@ -961,3 +961,9 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - 11-15 note (supervisor): #419-#422 merged to main (61588fae). A-130 (#421) re-pinned the world fingerprint to 9EFF3BCF: desert biomes now place palm and palo verde groves with clearings, so desert flora counts moved. Fishing (#419), dialogue options (#420) and dismount (#422) add no placement. Re-baseline any desert view.
 
 - 11-15 note (supervisor): #423 (far lights, R-25 r3) and #424 (your -vsync/-maxqueued flags) are on main. Two notes from the render lane's review: (1) clamp -maxqueued to at least 1 in a small follow-up on b/fix-*. (2) b/cloud-shadow-map 88ee4c89 needs rework before merge: the baked path skips main's soft cloud-shadow edge (R-20 r4, #410), so store raw density and apply the edge after the read; then queue main vs branch at the cloud views yourself (it touches WeatherSystem.cs, so tell me before pushing changes there). R-34 (stone look) will add a job here when it lands.
+
+## Job 97 (2026-11-15, QUEUED after 96; materials lane, W-166 rows 2-3a #336, merged #426): wood grain on every built piece
+- Arm: main fe23fc62 (B) against fe23fc62^1, main before #426 (A). Profile builds, 1920x1080, Medium and High, uncapped, Clear, noon, ABBA, 3 rounds.
+- What changed: all built wood (houses, stalls, fences, props) draws through Materials/Wood.hlsl in Flora.shader with grain; planks that were flat colour now run the grain path. Thatch, cloth and metal moved files unchanged.
+- View: the biggest town on Medium from its gate (about 15 m), then a view across the town from about 80 m. Record: GPU ms and the Flora draw's GPU time if the build can split it.
+- Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
