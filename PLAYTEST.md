@@ -170,3 +170,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #471 W-166 r3 tail (#336): terrain includes the library stone directly; no look change.
 - 11-16: #472 P-46 (#24): temple torches no longer in low halls, clutter kept off chest spots; temple socket hash re-pinned 2D2BFAEB.
 - 11-16: #473 P-47 (#24): cave and ruin chests open and sync like the temple chest (dungeon, type, socket ids; 89 chests, no clashes).
+- 11-16: #474 P-48 (#24): debug dungeon walk no longer times out on stacked ruin and temple floors; cave pits filed as #475 (W-176).
