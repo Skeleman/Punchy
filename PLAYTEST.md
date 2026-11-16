@@ -143,3 +143,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: #443 merged (A-125, #360): fast dolphins leave spaced, lighter wake rings. Check: swim beside dolphins.
 - 11-15: #444 merged (A-108 r4, #298): far eagle over summits, dust behind far herds, fish rings on far lakes at dawn. Check: dawn at a lake, look across.
 - 11-15: #445 merged (#352): audio no longer reads a released terrain copy after a rebuild. Check: rebuild the world in play, listen near doors.
+- 11-15: #446 merged (P-31): dev flags -netsim (lag stage), -rttlog and -rejoin for multiplayer tests. Check: host plus joiner with -netsim 150,30,2; joiner RTT about 300 ms.
