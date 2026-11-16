@@ -51,7 +51,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Farm fields (#335, W-165), towers with real storeys (#337, W-167),
   elf towns without wood (#326, W-161), wood grain and strangler roots (#330, W-163).** Next, world lane.
 - **Castle walls (#254).** Later. Modular walls, towers, a gatehouse with a working, synced portcullis.
-- **Port town (#255).** Later. A big pier, a boardable galleon and a busy main road.
+- **Port town (#255).** Later. A big pier, a boardable galleon and a busy main road.
   Pushback (supervisor 11-16, waiting on Zach): build the galleon on the colossus carry (a colossus that floats); small boats share it.
 
 ## Folk and races
@@ -93,7 +93,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   snow, dormancy), fauna spawn numbers, water (desert rivers dry most of the year and fill in a monsoon; frozen
   lakes, spring floods, shrinking ponds).
 - Animals and folk never read the season. Their behaviour changes only through light, temperature and storms
-  (builds on A-71).
+  (builds on A-71).
 - Pushback (supervisor 11-16, waiting on Zach): seasons change the look and water level only (ice sheets, dry beds, snow,
   higher spring water); rivers keep their baked course. Flooding and re-routing stay Later.
 
