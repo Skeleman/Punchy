@@ -1754,3 +1754,18 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
   - Late joiner: it gets both chests as opened, takes the items, and the host logs "dropped a bad OpenChestRpc: dungeon DEADBEEF type 0 socket 4095".
 - Heads-up: materials' world/material-library-3 also edits Items.cs (ItemDef fields, Items.Draw). That touches different regions, but whichever merges second should re-check.
 - Shares: TestHooks.cs (one appended method), WorldTests.cs (one test), docs/agents/multiplayer.md (wire-change list).
+
+## P-48 row 1 (#24): ruin walk fall/timeout, done (verified) - player/ruin-walk@775ef973
+- Cause (walk code, player-owned): `LineClear` in DebugControls.DungeonWalk.cs followed floors from the start height and never checked that the line ended on the target's floor. The sunken ruin (cave 2271969851) has passage node 130 at (-2797.2, 47.2, -597.1) sitting over chamber 114 (floor 18.1), so the route point there reads 18.1. Leg 29, from that pit floor back to the passage (44.7) at nearly the same spot, passed the check, and the body walked 25 m under it and timed out. The temple's leg 39 timeout (7.5 m under the target) was the same bug.
+- The leg 23 fall was the body slipping off that pit's rim while the line ran along it (it did not repeat in 2 walks).
+- Fix: skip (teleport) when the end floor is over 1.5 m from the target, or when a pit over 3 m deep lies within the body's width (0.35 m) beside the line.
+- Walk `-dungeonwalk 2:Human`, before -> after: Ruin falls 0 (1 in the card's run) -> 0, timeouts 1 -> 0, skipped 6 -> 7. Temple timeouts 1 -> 0, skipped 6 -> 7. Caves 78/78 walked, unchanged. DONE: 0 problems.
+- For world (no fix asked, report only): the pit is real cave geometry. CaveBaking.cs:278 `CutsMain` only tests a new side branch against main paths. A side branch that crosses another side branch at another height still cuts a pit: here chamber 114 (branch 107-114) opens the floor of passage 129-131, a 26 m drop. Several dead-end branches also end in a chamber 13-20 m under their last passage node (nodes 78, 84, 90, 94 -> chambers 79, 85, 91, 95), because the ceiling clamp pushes big end chambers down. A player can fall into these.
+- No shot (walk check only).
+- Shares: DungeonWalk LineClear (one check for every walked dungeon type). Parallel not folded in: world's CutsMain could test side-on-side crossings too.
+
+## P-48 row 2: Setup_SpawnRainAndShot timeout, report only - verdict: test bug
+- Logs/playmode-tests.log (11-16 run): the last line before an 11-minute gap is `[measure] shot test-rain-deer-...png`, which `Shots.Take` logs from Check (WorldTests.cs:141). NetMenu's "Net status" line, printed every 10 s of real time, stops from 03:42:47 to 03:53:46, so no frames ran at all. The test ended at 660 s with "Timeout value of 180000 ms was exceeded", because the 180 s timeout can't fire while the main thread is blocked. The 11-15 full run failed the same way after 923 s.
+- `-weather Clear` never ran: "Weather: forced Clear" never appears after "forced Rain ... (held)". DebugControls.RunOptions only stores the line, to apply on a later frame, and that frame never came.
+- So the hang is in the frame right after `Shots.Take`, the old immediate `camera.Render()` into a temporary RenderTexture plus ReadPixels, in batchmode with forced rain. It is not in the weather code. Take is the only immediate-render helper still used by a default-suite test (the other users are Explicit).
+- Suggested fix (test file, Assets/Tests/PlayMode/WorldTests.cs:141; owner decides): use `yield return Shots.Settled(...)` like every other shot test. Not reproduced in the GUI editor; this verdict comes from the logs only.
