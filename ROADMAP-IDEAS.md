@@ -28,7 +28,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Shadows (#286 closed; bias #354 closed 11-15: no visible difference, stays 0.1/0.5).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
   R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36), smooth cloud shadow reads (R-20 row 4, PR #410).
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
-  R-33), wet stone (#332, R-34, in flight), clouds from a reference shader (#333, R-35).** Next, render lane.
+  R-33), wet stone (#332, R-34, shipped PR #427), clouds from a reference shader (#333, R-35).** Next, render lane.
 - **Sun moves smoothly (R-38, 11-15).** Sun position every 0.1 s as a trial. Shipped (R-38, PRs #409, #423).
 - **Caves.** Shipped: screen-size cave LOD, cave water, dungeon texturing and collision. Shipped: no paddy spikes on slopes (W-172 row 1, PR #384). In flight: playtest
   fixes, tunnel variety and cave walls that fit the place (W-172 rows 5 and 7: moss only near light or damp,
@@ -107,7 +107,7 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - Blue moon casts the shadows on blue-moon nights, so its blue light reads as coming from it (R-32 row 3, #328).
 - 11-14 (Zach): procedural wood grain on planks and static strangler-fig roots on swamp trunks and cave walls (W-163, #330).
 - 11-14 (Zach): caked, cracked dry ground on salt flats and cracked bark (R-33 #331, W-163 row 3).
-- 11-14 (Zach): wet-stone look trial on in-game stone (R-34 #332).
+- 11-14 (Zach): wet-stone look trial on in-game stone (R-34 #332). Shipped: wet stone is the base rock (PR #427).
 - Reference shaders Zach sent (wood grain, cracked plates, wet stone, grass, clouds): D:/Unity/PunchyReferences (local, README lists licence and card).
 - 11-14 (Zach): explore a reference cumulus shader for cheaper or better clouds: R-35, #333.
 - 11-14 (Zach): farm fields outside towns, crops for every biome, e.g. snow potatoes, agave-like ferns (W-165, #335).

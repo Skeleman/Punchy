@@ -967,3 +967,9 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - What changed: all built wood (houses, stalls, fences, props) draws through Materials/Wood.hlsl in Flora.shader with grain; planks that were flat colour now run the grain path. Thatch, cloth and metal moved files unchanged.
 - View: the biggest town on Medium from its gate (about 15 m), then a view across the town from about 80 m. Record: GPU ms and the Flora draw's GPU time if the build can split it.
 - Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
+
+## Job 98 (2026-11-15, QUEUED after 97; render lane, R-34 row 2 #332, merged #427): wet stone as the base rock
+- Arm: main 84d7d574 (B) against 84d7d574^1, main before #427 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds; Clear noon, then Rain noon.
+- What changed: Stone.hlsl replaces two triplanar detail reads with its own octaves on terrain rock, boulders, built stone and cave walls; wet adds two spec lobes.
+- View: boulder-2 and wall-2 (-3224.5,1602.0) from REPORTS-render R-34 row 1 (cliff-2 now faces open water on the current layout), then cave-2. Record GPU ms.
+- Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.

@@ -21,9 +21,8 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | A-133 | #336 | fauna | next | - | Creature.shader includes Materials/Metal.hlsl (then delete the Shaders/Metal.hlsl forwarder) and draws wood through Materials/Wood.hlsl; no look change, pixel-diff |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
-| R-25 r4-6 | #302 | render | next | - | Row 3 merged #423; rows 4-6 after R-34 lands and R-30 r1 |
+| R-25 r4-6 | #302 | render | next | - | Row 3 merged #423; rows 4-6 after R-30 r1 (R-34 merged #427) |
 | R-30 r1 | #323 | render | active | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
-| R-34 r2 | #332 | render | active | render/stone-trial 550ba9e0 | Merge main in (conflicts after #423), re-verify, squash merge; BENCH after |
 | R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance. Row 2: Zach picked glow o3 and darker night haze (11-15) |
 | P-38 | #372 | player | in progress | player/take-items 0fa149fd | row 0 merge of main done; next row 1 (A-106 job gear as kit items), then A-128 drape, eyewear items (rule 11 OK), Model Lab PoseKit |
 | P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
