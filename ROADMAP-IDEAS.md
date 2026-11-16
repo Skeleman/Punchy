@@ -24,7 +24,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   water, river falls and rapids (R-9), one builder with curved curtain sheets (R-21, PR #411).
 - **Lava and toxic pools (#303, W-154).** Shipped: first lava look and per-fluid underwater (PR #213). Next: W-154
   coarse crust normals and the far form.
-- **Lights (#302, R-25).** No light switches on as you approach. Shipped: town lights steady from 600 m, no pop on approach (R-25 row 3, PR #423). Shipped: glows and flames by on-screen size, Zach's glow option 3 with darker nights, igloo windows lit at every distance (R-39, PR #432). Next: R-25 rows 4-6 (vantage check, lava far form, warm far points). Shipped: the lamplighter lights towns at dusk (A-115, PR #374).
+- **Lights (#302, R-25).** No light switches on as you approach. Shipped: town lights steady from 600 m, no pop on approach (R-25 row 3, PR #423). Shipped: glows and flames by on-screen size, Zach's glow option 3 with darker nights, igloo windows lit at every distance (R-39, PR #432). Shipped: lava far lights and far cores that keep their hue (R-25 rows 5-6, PR #439). Next: re-check lava far lights once surface lava exists. Shipped: the lamplighter lights towns at dusk (A-115, PR #374).
 - **Shadows (#286 closed; bias #354 closed 11-15: no visible difference, stays 0.1/0.5).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
   R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36), smooth cloud shadow reads (R-20 row 4, PR #410).
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
