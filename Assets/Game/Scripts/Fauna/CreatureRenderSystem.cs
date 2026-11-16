@@ -114,7 +114,9 @@ namespace Punchy.Fauna
         /// <summary>Capsules for what a player's body has on (P-23): a hat's brim and crown, a pack; and (A-103 row 5) its
         /// eyewear, two lenses and a bridge or strap.</summary>
         const int WornParts = 6;
-        static int WornCount(byte worn) => worn != 0 ? WornParts : 0;
+        static int WornCount(in CreatureState s) => s.Worn != 0 || s.Outfit.Weapon != 0 || s.Outfit.Armoured ? WornParts + WeaponParts + ArmourParts : 0;
+        /// <summary>Capsules for a player's own hair (P-29), after the worn block: only bodies with OwnHair.</summary>
+        static int HairCount(in CreatureState s) => s.Outfit.OwnHair ? HairParts : 0;
         /// <summary>Where a held item's light comes from among its capsules (the lantern's glass, the torch's flame).</summary>
         static int LightPart(HeldItem held) => held == HeldItem.Lantern ? 2 : held == HeldItem.Torch ? 0 : -1;
         /// <summary>Capsules per hanging bat and the most per roost. Colonies show while DetailPolicy.ColonyPixels
@@ -779,8 +781,10 @@ namespace Punchy.Fauna
                     Goggles(state, ref body.Blob.Value, offset, held, faded);
                 if (HasGear(state.Task))
                     Gear(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task), faded);
-                if (state.Worn != 0)
+                if (WornCount(state) != 0)
                     Worn(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task), faded);
+                if (HairCount(state) != 0)
+                    Hair(state, ref body.Blob.Value, offset, held + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state), faded);
             }
         }
     }
