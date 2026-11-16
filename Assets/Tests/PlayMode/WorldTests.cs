@@ -141,7 +141,8 @@ namespace Punchy.Tests
             yield return TestSceneSetup.Spawn("Deer", at.x + 2f, at.z);
             yield return TestSceneSetup.Weather(true);
             yield return TestSceneSetup.Seconds(2f);
-            Shots.Take("test-rain-deer");
+            // (P-50: the ready-gated ShotTool shot; the old immediate Shots.Take render stalled batchmode for minutes in rain.)
+            yield return Shots.Settled("test-rain-deer", 960, 540);
             yield return TestSceneSetup.Weather(false);
         }
 

@@ -339,8 +339,9 @@ namespace Punchy.Fauna
 
     /// <summary>
     /// Fills dungeons (#24): for each entity with a <see cref="DungeonSocket"/> buffer, picks content per socket, logs
-    /// the pick hash, then makes the creatures (in the world animals live in: solo or the host's server) and the
-    /// placeholder items (in the presentation world, so a joined client sees them too). Picks are seed-derived state:
+    /// the pick hash, then hands the creatures to the director as residents (in the world animals live in: solo or the
+    /// host's server; the director makes them near players) and makes the placeholder items (in the presentation
+    /// world, so a joined client sees them too). Picks are seed-derived state:
     /// each machine makes them itself. Runs once per dungeon, so it costs nothing per frame after that.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
@@ -378,7 +379,8 @@ namespace Punchy.Fauna
             var shows = World == World.DefaultGameObjectInjectionWorld;
             if (!animals && !World.IsClient())
                 return;
-            // A director rebuild (terrain re-baked) destroys every animal: make the creatures again, not the props.
+            // A director rebuild (terrain re-baked) destroys every animal: register the residents again (the director
+            // keeps their dead and makes them near players), not the props.
             if (animals && !filled.IsEmpty)
             {
                 using var done = filled.ToEntityArray(Allocator.Temp);
@@ -387,8 +389,8 @@ namespace Punchy.Fauna
                     if (EntityManager.GetComponentData<DungeonFilled>(d).Builds == director.Builds)
                         continue;
                     DungeonSpawner.PickAll(EntityManager.GetBuffer<DungeonSocket>(d, true), picks, counts);
-                    var made = MakeCreatures(d);
-                    Debug.Log($"[dungeon] {World.Name} dungeon {d.Index}: animals rebuilt, {made} creatures made again at their posts");
+                    var made = RegisterCreatures(d);
+                    Debug.Log($"[dungeon] {World.Name} dungeon {d.Index}: animals rebuilt, {made} residents registered again");
                 }
             }
             using var dungeons = fresh.ToEntityArray(Allocator.Temp);
@@ -432,7 +434,7 @@ namespace Punchy.Fauna
                     Debug.Log($"[dungeon] loot: dungeon {d.Index} type {type} seed 0x{lootSeed:x8}: {loot.Count} items, {spawned} spawned here:{list}");
                 }
                 if (animals)
-                    MakeCreatures(d);
+                    RegisterCreatures(d);
                 else
                     EntityManager.AddComponentData(d, new DungeonFilled());
             }
@@ -470,42 +472,47 @@ namespace Punchy.Fauna
             }
         }
 
+        readonly List<DungeonResident> residents = new();
+
         /// <summary>
-        /// Makes the creature picks (already in <see cref="picks"/>) at their sockets, each with its post, and marks the
-        /// dungeon filled in this director build. Returns how many were made.
+        /// #24 phase 2 row 2: hands the creature picks (already in <see cref="picks"/>) to the director as the dungeon's
+        /// residents, each with its post, and marks the dungeon filled in this director build. The director makes each
+        /// one only while a player is near, and never again once it dies. Returns how many residents.
         /// </summary>
-        int MakeCreatures(Entity d)
+        int RegisterCreatures(Entity d)
         {
-            var made = new List<(Entity e, DungeonPost post)>();
-            // (A copy: spawning a creature is a structural change, which invalidates the buffer.)
-            using var copy = EntityManager.GetBuffer<DungeonSocket>(d, true).ToNativeArray(Allocator.Temp);
-            var id = EntityManager.HasComponent<DungeonInfo>(d) ? EntityManager.GetComponentData<DungeonInfo>(d).Id : 0u;
-            for (int i = 0; i < copy.Length; i++)
+            residents.Clear();
+            var sockets = EntityManager.GetBuffer<DungeonSocket>(d, true);
+            var info = EntityManager.HasComponent<DungeonInfo>(d) ? EntityManager.GetComponentData<DungeonInfo>(d) : default;
+            var id = info.Id;
+            var ordinal = 0;
+            for (int i = 0; i < sockets.Length; i++)
             {
-                var s = copy[i];
+                var s = sockets[i];
                 var c = picks[i];
                 if (!DungeonSpawner.IsCreature(c))
                     continue;
+                // (The ordinal counts every creature pick, so a species missing here doesn't shift the others' bits.)
+                var at = ordinal++;
                 var species = director.SpeciesIndex(c.ToString());
                 if (species < 0)
                     continue;
                 var fwd = math.mul(s.Rot, new float3(0, 0, 1));
-                var e = director.Spawn(species, s.Pos, math.atan2(fwd.x, fwd.z));
-                // (Every dungeon creature gets a post, even with nothing to do there: the post is what keeps the
-                // director from letting it go.)
+                // (Every dungeon creature gets a post, even with nothing to do there: it marks it as the dungeon's,
+                // which the director's dungeon tier, not the wild one, makes and lets go.)
                 var post = DungeonPost.From(s, c);
                 post.Dungeon = id;
-                made.Add((e, post));
+                residents.Add(new DungeonResident
+                {
+                    Socket = i, Ordinal = at, Species = species, Position = s.Pos, Yaw = math.atan2(fwd.x, fwd.z), Post = post
+                });
             }
-            // (After the loop: adding components moves entities.)
-            foreach (var (e, post) in made)
-                if (EntityManager.Exists(e))
-                    EntityManager.AddComponentData(e, post);
+            director.RegisterDungeon(FaunaDirector.DungeonKey(info.Type, id), residents);
             if (EntityManager.HasComponent<DungeonFilled>(d))
                 EntityManager.SetComponentData(d, new DungeonFilled { Builds = director.Builds });
             else
                 EntityManager.AddComponentData(d, new DungeonFilled { Builds = director.Builds });
-            return made.Count;
+            return residents.Count;
         }
 
         static Material propMaterial;

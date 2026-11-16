@@ -42,6 +42,12 @@ namespace Punchy.Items
         public float Length;
         public ItemSheath Sheath;
         public bool Dyed;
+        /// <summary>W-166 r4 (#336): what each part is made of (part 0, drawn in Colour; part 1, in Accent), so an item on
+        /// the ground takes the material library's look for its family, the same look as a building's beams or a
+        /// colossus's stone (None: plain colour). The kind is the family's own row (MaterialLibrary.cs); for wood, plus
+        /// 16 x the grain's axis when it isn't up (48: along z, as a haft lies).</summary>
+        public MaterialFamily Family, AccentFamily;
+        public byte Kind, AccentKind;
     }
 
     /// <summary>Where an item goes when sheathed (Zach 11-12): nowhere (it can't be: back into the pack), on the back or
@@ -62,105 +68,105 @@ namespace Punchy.Items
     {
         public static readonly ItemDef[] Items =
         {
-            new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stick, Length = 0.6f },
-            new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stone },
+            new ItemDef { Name = "Stick", Colour = new Color(0.55f, 0.38f, 0.2f), Stack = 20, Weight = 0.3f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stick, Length = 0.6f, Family = MaterialFamily.Wood, Kind = 48 },
+            new ItemDef { Name = "Stone", Colour = new Color(0.55f, 0.55f, 0.58f), Stack = 20, Weight = 1f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Stone, Family = MaterialFamily.Stone },
             new ItemDef { Name = "Berry", Colour = new Color(0.75f, 0.1f, 0.3f), Accent = new Color(0.25f, 0.5f, 0.2f), Stack = 30, Weight = 0.02f },
             new ItemDef { Name = "Mushroom", Colour = new Color(0.72f, 0.32f, 0.2f), Accent = new Color(0.9f, 0.85f, 0.72f), Stack = 20, Weight = 0.05f },
             new ItemDef { Name = "Shell", Colour = new Color(0.95f, 0.85f, 0.8f), Stack = 20, Weight = 0.05f },
             new ItemDef { Name = "Fish", Colour = new Color(0.4f, 0.6f, 0.75f), Accent = new Color(0.3f, 0.42f, 0.55f), Stack = 5, Weight = 0.8f },
-            new ItemDef { Name = "Coin", Colour = new Color(1f, 0.8f, 0.2f), Stack = 99, Weight = 0.01f },
-            new ItemDef { Name = "Key", Colour = new Color(0.8f, 0.7f, 0.3f), Stack = 5, Weight = 0.05f },
-            new ItemDef { Name = "Torch", Colour = new Color(0.42f, 0.28f, 0.15f), Accent = new Color(1f, 0.55f, 0.15f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Hand, Light = 11f },
-            new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f, Length = 1.6f },
-            new ItemDef { Name = "Hat", Colour = new Color(0.62f, 0.5f, 0.3f), Accent = new Color(0.36f, 0.24f, 0.16f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.3f },
-            new ItemDef { Name = "Pack", Colour = new Color(0.42f, 0.33f, 0.2f), Accent = new Color(0.25f, 0.18f, 0.12f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Back, Slots = 8 },
-            new ItemDef { Name = "Club", Colour = new Color(0.45f, 0.3f, 0.17f), Accent = new Color(0.3f, 0.2f, 0.12f), Stack = 1, Weight = 1.4f, Slot = GearSlot.Hand, Damage = 6f, Reach = 0.9f, Speed = 1.1f, Weapon = Punchy.Fauna.CreatureWeapon.Club, Length = 0.8f, Sheath = ItemSheath.Auto },
-            new ItemDef { Name = "Spear", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1.9f, Speed = 0.8f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Spear, Length = 2.1f, Sheath = ItemSheath.Auto },
-            new ItemDef { Name = "Sword", Colour = new Color(0.7f, 0.72f, 0.75f), Accent = new Color(0.4f, 0.26f, 0.14f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 9f, Reach = 1.1f, Speed = 1.4f, Weapon = Punchy.Fauna.CreatureWeapon.Sword, Length = 0.95f, Sheath = ItemSheath.Hip },
-            new ItemDef { Name = "Bow", Colour = new Color(0.55f, 0.38f, 0.2f), Accent = new Color(0.88f, 0.85f, 0.75f), Stack = 1, Weight = 0.9f, Slot = GearSlot.Hand, Damage = 7f, Reach = 25f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bow, Length = 1.1f, Sheath = ItemSheath.Back },
-            new ItemDef { Name = "Arrow", Colour = new Color(0.6f, 0.45f, 0.28f), Accent = new Color(0.9f, 0.9f, 0.88f), Stack = 30, Weight = 0.03f },
-            new ItemDef { Name = "Cap", Colour = new Color(0.45f, 0.3f, 0.18f), Accent = new Color(0.32f, 0.2f, 0.12f), Stack = 1, Weight = 0.5f, Slot = GearSlot.Head, Armour = 1f, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Cap },
-            new ItemDef { Name = "Helm", Colour = new Color(0.55f, 0.57f, 0.6f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.Helm },
-            new ItemDef { Name = "Jerkin", Colour = new Color(0.47f, 0.31f, 0.18f), Accent = new Color(0.3f, 0.19f, 0.1f), Stack = 1, Weight = 3f, Slot = GearSlot.Body, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Jerkin },
-            new ItemDef { Name = "Chainmail", Colour = new Color(0.52f, 0.54f, 0.57f), Accent = new Color(0.36f, 0.37f, 0.4f), Stack = 1, Weight = 9f, Slot = GearSlot.Body, Armour = 5f, Look = Punchy.Fauna.CreatureArmour.Chain },
-            new ItemDef { Name = "Greaves", Colour = new Color(0.5f, 0.52f, 0.55f), Accent = new Color(0.36f, 0.24f, 0.14f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Legs, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Greaves },
-            new ItemDef { Name = "Boots", Colour = new Color(0.33f, 0.21f, 0.12f), Accent = new Color(0.22f, 0.14f, 0.08f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Feet, Armour = 1f, Look = Punchy.Fauna.CreatureArmour.Boots },
-            new ItemDef { Name = "Tunic", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.Tunic },
-            new ItemDef { Name = "Robe", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Body, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Robe },
-            new ItemDef { Name = "Cloak", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1f, Slot = GearSlot.Back, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Cloak },
-            new ItemDef { Name = "Scarf", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.15f, Slot = GearSlot.Neck, Cover = 0.05f, Look = Punchy.Fauna.CreatureArmour.Scarf },
-            new ItemDef { Name = "Hood", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Hood },
-            new ItemDef { Name = "Woolcap", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Cover = 0.15f, Look = Punchy.Fauna.CreatureArmour.Woolcap },
-            new ItemDef { Name = "Brimhat", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.3f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.Brimhat },
+            new ItemDef { Name = "Coin", Colour = new Color(1f, 0.8f, 0.2f), Stack = 99, Weight = 0.01f, Family = MaterialFamily.Metal },
+            new ItemDef { Name = "Key", Colour = new Color(0.8f, 0.7f, 0.3f), Stack = 5, Weight = 0.05f, Family = MaterialFamily.Metal },
+            new ItemDef { Name = "Torch", Colour = new Color(0.42f, 0.28f, 0.15f), Accent = new Color(1f, 0.55f, 0.15f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Hand, Light = 11f, Family = MaterialFamily.Wood, Kind = 48 },
+            new ItemDef { Name = "Staff", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.72f, 0.66f, 0.5f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Reach = 0.5f, Length = 1.6f, Family = MaterialFamily.Wood, Kind = 48 },
+            new ItemDef { Name = "Hat", Colour = new Color(0.62f, 0.5f, 0.3f), Accent = new Color(0.36f, 0.24f, 0.16f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.3f, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Pack", Colour = new Color(0.42f, 0.33f, 0.2f), Accent = new Color(0.25f, 0.18f, 0.12f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Back, Slots = 8, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Club", Colour = new Color(0.45f, 0.3f, 0.17f), Accent = new Color(0.3f, 0.2f, 0.12f), Stack = 1, Weight = 1.4f, Slot = GearSlot.Hand, Damage = 6f, Reach = 0.9f, Speed = 1.1f, Weapon = Punchy.Fauna.CreatureWeapon.Club, Length = 0.8f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Spear", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1.9f, Speed = 0.8f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Spear, Length = 2.1f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Sword", Colour = new Color(0.7f, 0.72f, 0.75f), Accent = new Color(0.4f, 0.26f, 0.14f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 9f, Reach = 1.1f, Speed = 1.4f, Weapon = Punchy.Fauna.CreatureWeapon.Sword, Length = 0.95f, Sheath = ItemSheath.Hip, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Bow", Colour = new Color(0.55f, 0.38f, 0.2f), Accent = new Color(0.88f, 0.85f, 0.75f), Stack = 1, Weight = 0.9f, Slot = GearSlot.Hand, Damage = 7f, Reach = 25f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bow, Length = 1.1f, Sheath = ItemSheath.Back, Family = MaterialFamily.Wood, Kind = 48 },
+            new ItemDef { Name = "Arrow", Colour = new Color(0.6f, 0.45f, 0.28f), Accent = new Color(0.9f, 0.9f, 0.88f), Stack = 30, Weight = 0.03f, Family = MaterialFamily.Wood, Kind = 48 },
+            new ItemDef { Name = "Cap", Colour = new Color(0.45f, 0.3f, 0.18f), Accent = new Color(0.32f, 0.2f, 0.12f), Stack = 1, Weight = 0.5f, Slot = GearSlot.Head, Armour = 1f, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Cap, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Helm", Colour = new Color(0.55f, 0.57f, 0.6f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.Helm, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Jerkin", Colour = new Color(0.47f, 0.31f, 0.18f), Accent = new Color(0.3f, 0.19f, 0.1f), Stack = 1, Weight = 3f, Slot = GearSlot.Body, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Jerkin, Family = MaterialFamily.Leather, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Chainmail", Colour = new Color(0.52f, 0.54f, 0.57f), Accent = new Color(0.36f, 0.37f, 0.4f), Stack = 1, Weight = 9f, Slot = GearSlot.Body, Armour = 5f, Look = Punchy.Fauna.CreatureArmour.Chain, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Greaves", Colour = new Color(0.5f, 0.52f, 0.55f), Accent = new Color(0.36f, 0.24f, 0.14f), Stack = 1, Weight = 2.5f, Slot = GearSlot.Legs, Armour = 2f, Look = Punchy.Fauna.CreatureArmour.Greaves, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Boots", Colour = new Color(0.33f, 0.21f, 0.12f), Accent = new Color(0.22f, 0.14f, 0.08f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Feet, Armour = 1f, Look = Punchy.Fauna.CreatureArmour.Boots, Family = MaterialFamily.Leather },
+            new ItemDef { Name = "Tunic", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.Tunic, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Robe", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Body, Cover = 0.1f, Look = Punchy.Fauna.CreatureArmour.Robe, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Cloak", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 1f, Slot = GearSlot.Back, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Cloak, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Scarf", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.15f, Slot = GearSlot.Neck, Cover = 0.05f, Look = Punchy.Fauna.CreatureArmour.Scarf, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Hood", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.Hood, Family = MaterialFamily.Cloth },
+            new ItemDef { Name = "Woolcap", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Cover = 0.15f, Look = Punchy.Fauna.CreatureArmour.Woolcap, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Brimhat", Colour = new Color(0.6f, 0.27f, 0.22f), Accent = new Color(0.78f, 0.69f, 0.46f), Stack = 1, Weight = 0.3f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.Brimhat, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
             // Item rows (Zach 11-10: never idle, more weapons and wear in small rows).
-            new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe, Length = 0.75f, Sheath = ItemSheath.Auto },
-            new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer, Length = 0.7f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Axe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.6f, Slot = GearSlot.Hand, Damage = 8f, Reach = 1f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Axe, Length = 0.75f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.5f, 0.51f, 0.54f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 10f, Reach = 0.9f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Hammer, Length = 0.7f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
             // P-33: a fishing rod, held like a weapon but cast (Reach: the longest cast, m).
-            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Rod, Length = 1.8f, Sheath = ItemSheath.Back },
-            new ItemDef { Name = "Pickaxe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 7f, Reach = 1.1f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Pickaxe, Length = 0.75f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Rod", Colour = new Color(0.55f, 0.4f, 0.22f), Accent = new Color(0.6f, 0.44f, 0.28f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Reach = 22f, Speed = 1.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Rod, Length = 1.8f, Sheath = ItemSheath.Back, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Pickaxe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Hand, Damage = 7f, Reach = 1.1f, Speed = 0.8f, Weapon = Punchy.Fauna.CreatureWeapon.Pickaxe, Length = 0.75f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
             // (Held, it is the folk's lit lantern, HeldItem.Lantern: its light is theirs, 9 m.)
-            new ItemDef { Name = "Lantern", Colour = new Color(0.22f, 0.2f, 0.18f), Accent = new Color(1f, 0.78f, 0.4f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Light = 9f },
-            new ItemDef { Name = "Shovel", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 5f, Reach = 1.3f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Shovel, Length = 1.05f, Sheath = ItemSheath.Auto },
+            new ItemDef { Name = "Lantern", Colour = new Color(0.22f, 0.2f, 0.18f), Accent = new Color(1f, 0.78f, 0.4f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Light = 9f, Family = MaterialFamily.Metal },
+            new ItemDef { Name = "Shovel", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.8f, Slot = GearSlot.Hand, Damage = 5f, Reach = 1.3f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Shovel, Length = 1.05f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
             // Zach 11-12, one item system: everything folk carry, wear and work with, as items (ids from 36).
             // What guards carry: an ogre's great club, a goblin's scrap shield.
-            new ItemDef { Name = "Great club", Colour = new Color(0.36f, 0.24f, 0.14f), Accent = new Color(0.25f, 0.17f, 0.1f), Stack = 1, Weight = 4f, Slot = GearSlot.Hand, Damage = 11f, Reach = 1.3f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.GreatClub, Length = 1.15f, Sheath = ItemSheath.Auto },
-            new ItemDef { Name = "Shield", Colour = new Color(0.36f, 0.3f, 0.24f), Accent = new Color(0.25f, 0.22f, 0.2f), Stack = 1, Weight = 3f, Slot = GearSlot.Hand, Armour = 3f, Weapon = Punchy.Fauna.CreatureWeapon.Shield, Length = 0.34f, Sheath = ItemSheath.Back },
+            new ItemDef { Name = "Great club", Colour = new Color(0.36f, 0.24f, 0.14f), Accent = new Color(0.25f, 0.17f, 0.1f), Stack = 1, Weight = 4f, Slot = GearSlot.Hand, Damage = 11f, Reach = 1.3f, Speed = 0.6f, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.GreatClub, Length = 1.15f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48 },
+            new ItemDef { Name = "Shield", Colour = new Color(0.36f, 0.3f, 0.24f), Accent = new Color(0.25f, 0.22f, 0.2f), Stack = 1, Weight = 3f, Slot = GearSlot.Hand, Armour = 3f, Weapon = Punchy.Fauna.CreatureWeapon.Shield, Length = 0.34f, Sheath = ItemSheath.Back, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
             // What travellers and miners carry: a letter, ore and a sack of it.
             new ItemDef { Name = "Letter", Colour = new Color(0.9f, 0.86f, 0.74f), Accent = new Color(0.6f, 0.12f, 0.1f), Stack = 5, Weight = 0.02f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Letter },
-            new ItemDef { Name = "Ore", Colour = new Color(0.42f, 0.36f, 0.32f), Accent = new Color(0.55f, 0.3f, 0.15f), Stack = 20, Weight = 2f },
-            new ItemDef { Name = "Ore sack", Colour = new Color(0.55f, 0.45f, 0.3f), Accent = new Color(0.42f, 0.36f, 0.32f), Stack = 1, Weight = 12f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.OreSack },
+            new ItemDef { Name = "Ore", Colour = new Color(0.42f, 0.36f, 0.32f), Accent = new Color(0.55f, 0.3f, 0.15f), Stack = 20, Weight = 2f, Family = MaterialFamily.Stone, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Ore sack", Colour = new Color(0.55f, 0.45f, 0.3f), Accent = new Color(0.42f, 0.36f, 0.32f), Stack = 1, Weight = 12f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.OreSack, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Stone },
             // Workers' tools.
-            new ItemDef { Name = "Hoe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 4f, Reach = 1.2f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Hoe, Length = 1.1f, Sheath = ItemSheath.Auto },
-            new ItemDef { Name = "Broom", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.76f, 0.62f, 0.33f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Damage = 1f, Reach = 1.3f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Broom, Length = 1.25f, Sheath = ItemSheath.Auto },
-            new ItemDef { Name = "Smith's hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Damage = 5f, Reach = 0.7f, Speed = 1.2f, Weapon = Punchy.Fauna.CreatureWeapon.SmithHammer, Length = 0.4f, Sheath = ItemSheath.Hip },
-            new ItemDef { Name = "Tongs", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Tongs, Length = 0.35f, Sheath = ItemSheath.Hip },
-            new ItemDef { Name = "Bucket", Colour = new Color(0.42f, 0.3f, 0.18f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Bucket },
+            new ItemDef { Name = "Hoe", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Damage = 4f, Reach = 1.2f, Speed = 0.9f, Weapon = Punchy.Fauna.CreatureWeapon.Hoe, Length = 1.1f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Broom", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.76f, 0.62f, 0.33f), Stack = 1, Weight = 1f, Slot = GearSlot.Hand, Damage = 1f, Reach = 1.3f, Speed = 1f, Weapon = Punchy.Fauna.CreatureWeapon.Broom, Length = 1.25f, Sheath = ItemSheath.Auto, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Thatch },
+            new ItemDef { Name = "Smith's hammer", Colour = new Color(0.5f, 0.36f, 0.2f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Hand, Damage = 5f, Reach = 0.7f, Speed = 1.2f, Weapon = Punchy.Fauna.CreatureWeapon.SmithHammer, Length = 0.4f, Sheath = ItemSheath.Hip, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Tongs", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 0.8f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Tongs, Length = 0.35f, Sheath = ItemSheath.Hip, Family = MaterialFamily.Metal },
+            new ItemDef { Name = "Bucket", Colour = new Color(0.42f, 0.3f, 0.18f), Accent = new Color(0.55f, 0.56f, 0.58f), Stack = 1, Weight = 1.5f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Bucket, Family = MaterialFamily.Wood, AccentFamily = MaterialFamily.Metal },
             // What healers, traders and bakers have in hand, and food.
-            new ItemDef { Name = "Bowl", Colour = new Color(0.5f, 0.36f, 0.22f), Accent = new Color(0.32f, 0.42f, 0.2f), Stack = 5, Weight = 0.4f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bowl },
+            new ItemDef { Name = "Bowl", Colour = new Color(0.5f, 0.36f, 0.22f), Accent = new Color(0.32f, 0.42f, 0.2f), Stack = 5, Weight = 0.4f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Bowl, Family = MaterialFamily.Wood },
             new ItemDef { Name = "Jar", Colour = new Color(0.55f, 0.32f, 0.2f), Accent = new Color(0.7f, 0.6f, 0.45f), Stack = 5, Weight = 0.6f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Jar },
             new ItemDef { Name = "Apple", Colour = new Color(0.78f, 0.18f, 0.12f), Accent = new Color(0.3f, 0.5f, 0.2f), Stack = 20, Weight = 0.15f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Fruit },
             new ItemDef { Name = "Bread", Colour = new Color(0.62f, 0.38f, 0.16f), Accent = new Color(0.8f, 0.6f, 0.35f), Stack = 10, Weight = 0.4f, Slot = GearSlot.Hand, Weapon = Punchy.Fauna.CreatureWeapon.Loaf },
             new ItemDef { Name = "Dough", Colour = new Color(0.9f, 0.82f, 0.62f), Stack = 5, Weight = 0.5f, Slot = GearSlot.Hand, TwoHanded = true, Weapon = Punchy.Fauna.CreatureWeapon.Dough },
             // Props at a worker's post (placed there; heavy).
-            new ItemDef { Name = "Kneading table", Colour = new Color(0.6f, 0.48f, 0.32f), Accent = new Color(0.9f, 0.88f, 0.82f), Stack = 1, Weight = 25f },
-            new ItemDef { Name = "Chopping block", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 1, Weight = 30f },
-            new ItemDef { Name = "Log", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 10, Weight = 4f },
-            new ItemDef { Name = "Rope", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 5, Weight = 0.5f },
-            new ItemDef { Name = "Hot iron", Colour = new Color(1f, 0.42f, 0.08f), Accent = new Color(0.3f, 0.31f, 0.33f), Stack = 1, Weight = 1f },
-            new ItemDef { Name = "Creel", Colour = new Color(0.55f, 0.42f, 0.25f), Accent = new Color(0.2f, 0.15f, 0.1f), Stack = 1, Weight = 1f },
+            new ItemDef { Name = "Kneading table", Colour = new Color(0.6f, 0.48f, 0.32f), Accent = new Color(0.9f, 0.88f, 0.82f), Stack = 1, Weight = 25f, Family = MaterialFamily.Wood },
+            new ItemDef { Name = "Chopping block", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 1, Weight = 30f, Family = MaterialFamily.Wood, AccentFamily = MaterialFamily.Wood },
+            new ItemDef { Name = "Log", Colour = new Color(0.32f, 0.22f, 0.14f), Accent = new Color(0.7f, 0.56f, 0.36f), Stack = 10, Weight = 4f, Family = MaterialFamily.Wood, Kind = 48, AccentFamily = MaterialFamily.Wood, AccentKind = 48 },
+            new ItemDef { Name = "Rope", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 5, Weight = 0.5f, Family = MaterialFamily.Cloth },
+            new ItemDef { Name = "Hot iron", Colour = new Color(1f, 0.42f, 0.08f), Accent = new Color(0.3f, 0.31f, 0.33f), Stack = 1, Weight = 1f, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Creel", Colour = new Color(0.55f, 0.42f, 0.25f), Accent = new Color(0.2f, 0.15f, 0.1f), Stack = 1, Weight = 1f, Family = MaterialFamily.Thatch, AccentFamily = MaterialFamily.Thatch },
             new ItemDef { Name = "Honeycomb", Colour = new Color(0.85f, 0.6f, 0.15f), Accent = new Color(0.95f, 0.8f, 0.3f), Stack = 5, Weight = 0.3f },
             // What guards and workers wear.
-            new ItemDef { Name = "Goggles", Colour = new Color(0.1f, 0.1f, 0.12f), Accent = new Color(0.36f, 0.22f, 0.12f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Goggles },
-            new ItemDef { Name = "Kettle hat", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.3f, Look = Punchy.Fauna.CreatureArmour.KettleHat },
-            new ItemDef { Name = "Horned helm", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.78f, 0.74f, 0.62f), Stack = 1, Weight = 2.6f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.HornedHelm },
-            new ItemDef { Name = "Crested helm", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.04f, 0.2f, 0.16f), Stack = 1, Weight = 2f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.CrestedHelm, Dyed = true },
-            new ItemDef { Name = "Pot helm", Colour = new Color(0.3f, 0.29f, 0.27f), Accent = new Color(0.22f, 0.21f, 0.2f), Stack = 1, Weight = 2f, Slot = GearSlot.Head, Armour = 2f, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.PotHelm },
-            new ItemDef { Name = "Skull helm", Colour = new Color(0.78f, 0.74f, 0.62f), Accent = new Color(0.6f, 0.56f, 0.46f), Stack = 1, Weight = 3f, Slot = GearSlot.Head, Armour = 2f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.SkullHelm },
-            new ItemDef { Name = "Breastplate", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 7f, Slot = GearSlot.Body, Armour = 5f, Look = Punchy.Fauna.CreatureArmour.Breastplate },
-            new ItemDef { Name = "Leather cuirass", Colour = new Color(0.36f, 0.22f, 0.12f), Accent = new Color(0.25f, 0.15f, 0.08f), Stack = 1, Weight = 4f, Slot = GearSlot.Body, Armour = 3f, Look = Punchy.Fauna.CreatureArmour.Cuirass },
-            new ItemDef { Name = "Sash", Colour = new Color(0.32f, 0.06f, 0.04f), Accent = new Color(0.55f, 0.42f, 0.18f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Neck, Look = Punchy.Fauna.CreatureArmour.Sash, Dyed = true },
-            new ItemDef { Name = "Hide cape", Colour = new Color(0.36f, 0.27f, 0.18f), Accent = new Color(0.25f, 0.19f, 0.12f), Stack = 1, Weight = 3f, Slot = GearSlot.Back, Cover = 0.3f, Look = Punchy.Fauna.CreatureArmour.HideCape },
-            new ItemDef { Name = "Apron", Colour = new Color(0.62f, 0.58f, 0.5f), Accent = new Color(0.45f, 0.42f, 0.36f), Stack = 1, Weight = 0.4f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.Apron },
-            new ItemDef { Name = "Leather apron", Colour = new Color(0.36f, 0.22f, 0.12f), Accent = new Color(0.25f, 0.15f, 0.08f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Body, Armour = 1f, Look = Punchy.Fauna.CreatureArmour.LeatherApron },
-            new ItemDef { Name = "Baker's apron", Colour = new Color(0.86f, 0.84f, 0.78f), Accent = new Color(0.7f, 0.68f, 0.62f), Stack = 1, Weight = 0.4f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.BakerApron },
-            new ItemDef { Name = "Baker's cap", Colour = new Color(0.86f, 0.84f, 0.78f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.BakerCap },
-            new ItemDef { Name = "Straw hat", Colour = new Color(0.82f, 0.7f, 0.42f), Accent = new Color(0.5f, 0.38f, 0.2f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.StrawHat },
-            new ItemDef { Name = "Fisher's hat", Colour = new Color(0.34f, 0.38f, 0.3f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.FisherHat },
-            new ItemDef { Name = "Satchel", Colour = new Color(0.4f, 0.25f, 0.13f), Accent = new Color(0.3f, 0.18f, 0.09f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Back, Slots = 4, Look = Punchy.Fauna.CreatureArmour.Satchel },
+            new ItemDef { Name = "Goggles", Colour = new Color(0.1f, 0.1f, 0.12f), Accent = new Color(0.36f, 0.22f, 0.12f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Goggles, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Kettle hat", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 2.2f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.3f, Look = Punchy.Fauna.CreatureArmour.KettleHat, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Horned helm", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.78f, 0.74f, 0.62f), Stack = 1, Weight = 2.6f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.HornedHelm, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Bone },
+            new ItemDef { Name = "Crested helm", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.04f, 0.2f, 0.16f), Stack = 1, Weight = 2f, Slot = GearSlot.Head, Armour = 3f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.CrestedHelm, Dyed = true, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Pot helm", Colour = new Color(0.3f, 0.29f, 0.27f), Accent = new Color(0.22f, 0.21f, 0.2f), Stack = 1, Weight = 2f, Slot = GearSlot.Head, Armour = 2f, Cover = 0.25f, Look = Punchy.Fauna.CreatureArmour.PotHelm, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Skull helm", Colour = new Color(0.78f, 0.74f, 0.62f), Accent = new Color(0.6f, 0.56f, 0.46f), Stack = 1, Weight = 3f, Slot = GearSlot.Head, Armour = 2f, Cover = 0.2f, Look = Punchy.Fauna.CreatureArmour.SkullHelm, Family = MaterialFamily.Bone, AccentFamily = MaterialFamily.Bone },
+            new ItemDef { Name = "Breastplate", Colour = new Color(0.55f, 0.56f, 0.58f), Accent = new Color(0.4f, 0.41f, 0.44f), Stack = 1, Weight = 7f, Slot = GearSlot.Body, Armour = 5f, Look = Punchy.Fauna.CreatureArmour.Breastplate, Family = MaterialFamily.Metal, AccentFamily = MaterialFamily.Metal },
+            new ItemDef { Name = "Leather cuirass", Colour = new Color(0.36f, 0.22f, 0.12f), Accent = new Color(0.25f, 0.15f, 0.08f), Stack = 1, Weight = 4f, Slot = GearSlot.Body, Armour = 3f, Look = Punchy.Fauna.CreatureArmour.Cuirass, Family = MaterialFamily.Leather, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Sash", Colour = new Color(0.32f, 0.06f, 0.04f), Accent = new Color(0.55f, 0.42f, 0.18f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Neck, Look = Punchy.Fauna.CreatureArmour.Sash, Dyed = true, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Hide cape", Colour = new Color(0.36f, 0.27f, 0.18f), Accent = new Color(0.25f, 0.19f, 0.12f), Stack = 1, Weight = 3f, Slot = GearSlot.Back, Cover = 0.3f, Look = Punchy.Fauna.CreatureArmour.HideCape, Family = MaterialFamily.Cloth, Kind = 1, AccentFamily = MaterialFamily.Leather },
+            new ItemDef { Name = "Apron", Colour = new Color(0.62f, 0.58f, 0.5f), Accent = new Color(0.45f, 0.42f, 0.36f), Stack = 1, Weight = 0.4f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.Apron, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Leather apron", Colour = new Color(0.36f, 0.22f, 0.12f), Accent = new Color(0.25f, 0.15f, 0.08f), Stack = 1, Weight = 1.2f, Slot = GearSlot.Body, Armour = 1f, Look = Punchy.Fauna.CreatureArmour.LeatherApron, Family = MaterialFamily.Leather, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Baker's apron", Colour = new Color(0.86f, 0.84f, 0.78f), Accent = new Color(0.7f, 0.68f, 0.62f), Stack = 1, Weight = 0.4f, Slot = GearSlot.Body, Look = Punchy.Fauna.CreatureArmour.BakerApron, Family = MaterialFamily.Cloth, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Baker's cap", Colour = new Color(0.86f, 0.84f, 0.78f), Stack = 1, Weight = 0.1f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.BakerCap, Family = MaterialFamily.Cloth },
+            new ItemDef { Name = "Straw hat", Colour = new Color(0.82f, 0.7f, 0.42f), Accent = new Color(0.5f, 0.38f, 0.2f), Stack = 1, Weight = 0.25f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.StrawHat, Family = MaterialFamily.Thatch, AccentFamily = MaterialFamily.Cloth },
+            new ItemDef { Name = "Fisher's hat", Colour = new Color(0.34f, 0.38f, 0.3f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Cover = 0.35f, Look = Punchy.Fauna.CreatureArmour.FisherHat, Family = MaterialFamily.Cloth },
+            new ItemDef { Name = "Satchel", Colour = new Color(0.4f, 0.25f, 0.13f), Accent = new Color(0.3f, 0.18f, 0.09f), Stack = 1, Weight = 0.6f, Slot = GearSlot.Back, Slots = 4, Look = Punchy.Fauna.CreatureArmour.Satchel, Family = MaterialFamily.Leather, AccentFamily = MaterialFamily.Leather },
             // A-106 + A-103 job gear at a worker's post, as items (P-38, rule 33): a roofer's guy rope and coil, a mender's
             // trestle and the dented helm on it, a fire tender's spirit flame, what a sweeper or shoveller has cleared, an
             // ice cutter's snow block and the ice block on it.
-            new ItemDef { Name = "Guy rope", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1.5f },
-            new ItemDef { Name = "Rope coil", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1f },
-            new ItemDef { Name = "Trestle", Colour = new Color(0.5f, 0.38f, 0.24f), Accent = new Color(0.36f, 0.24f, 0.13f), Stack = 1, Weight = 12f },
-            new ItemDef { Name = "Dented helm", Colour = new Color(0.3f, 0.31f, 0.33f), Stack = 1, Weight = 2f },
+            new ItemDef { Name = "Guy rope", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1.5f, Family = MaterialFamily.Cloth },
+            new ItemDef { Name = "Rope coil", Colour = new Color(0.6f, 0.52f, 0.36f), Stack = 1, Weight = 1f, Family = MaterialFamily.Cloth },
+            new ItemDef { Name = "Trestle", Colour = new Color(0.5f, 0.38f, 0.24f), Accent = new Color(0.36f, 0.24f, 0.13f), Stack = 1, Weight = 12f, Family = MaterialFamily.Wood, AccentFamily = MaterialFamily.Wood },
+            new ItemDef { Name = "Dented helm", Colour = new Color(0.3f, 0.31f, 0.33f), Stack = 1, Weight = 2f, Family = MaterialFamily.Metal },
             new ItemDef { Name = "Spirit flame", Colour = new Color(0.55f, 0.95f, 0.86f), Accent = new Color(0.45f, 0.85f, 0.78f), Stack = 1, Weight = 0f },
             new ItemDef { Name = "Heap", Colour = new Color(0.6f, 0.58f, 0.55f), Stack = 1, Weight = 20f },
             new ItemDef { Name = "Snow block", Colour = new Color(0.86f, 0.9f, 0.94f), Stack = 5, Weight = 15f },
-            new ItemDef { Name = "Ice block", Colour = new Color(0.62f, 0.8f, 0.9f), Stack = 5, Weight = 15f },
+            new ItemDef { Name = "Ice block", Colour = new Color(0.62f, 0.8f, 0.9f), Stack = 5, Weight = 15f, Family = MaterialFamily.Ice },
             // P-38 row 3: eyewear as head items (A-103 row 5), put on with G or from the inventory.
             new ItemDef { Name = "Glasses", Colour = new Color(0.04f, 0.04f, 0.05f), Stack = 1, Weight = 0.05f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.Glasses },
-            new ItemDef { Name = "Glow goggles", Colour = new Color(0.32f, 0.85f, 0.45f), Accent = new Color(0.2f, 0.17f, 0.14f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.GlowGoggles },
+            new ItemDef { Name = "Glow goggles", Colour = new Color(0.32f, 0.85f, 0.45f), Accent = new Color(0.2f, 0.17f, 0.14f), Stack = 1, Weight = 0.2f, Slot = GearSlot.Head, Look = Punchy.Fauna.CreatureArmour.GlowGoggles, AccentFamily = MaterialFamily.Leather },
         };
         public const byte Fish = 5, Key = 7, Torch = 8, Staff = 9, Hat = 10, Pack = 11;
         /// <summary>Item row: the lantern (held: HeldItem.Lantern).</summary>
@@ -287,7 +293,7 @@ namespace Punchy.Items
         readonly Dictionary<int, GameObject> shown = new Dictionary<int, GameObject>();
         GUIStyle promptStyle, slotStyle;
         static Material itemMaterial;
-        static MaterialPropertyBlock block;
+        static Material libraryMaterial;
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -1318,19 +1324,13 @@ namespace Punchy.Items
                 var r = go.AddComponent<MeshRenderer>();
                 go.transform.position = (Vector3)it.Pos + Vector3.up * 0.02f;
                 go.transform.rotation = Quaternion.Euler(0f, uid * 37 % 360, 0f);
-                // (Items/Resources/ItemMaterial: the pipeline's own lit material. A primitive's default material has no URP
-                // shader in a player build, and drew magenta.)
-                if (itemMaterial == null) itemMaterial = Resources.Load<Material>("ItemMaterial");   // (not ??=: it misses a destroyed Unity object)
-                if (itemMaterial != null)
-                    r.sharedMaterials = mesh.subMeshCount > 1 ? new[] { itemMaterial, itemMaterial } : new[] { itemMaterial };
-                block ??= new MaterialPropertyBlock();
-                block.SetColor(BaseColorId, ItemTable.Items[it.Item].Colour);
-                r.SetPropertyBlock(block, 0);
-                if (mesh.subMeshCount > 1)
-                {
-                    block.SetColor(BaseColorId, ItemTable.Items[it.Item].Accent);
-                    r.SetPropertyBlock(block, 1);
-                }
+                // (Items/Resources/ItemLibrary: Colossus.shader, W-166 r4, so an item on the ground takes the material
+                // library's look for what it's made of (ItemDef.Family), the same as a building's beams. Cubes, stands
+                // and props keep ItemMaterial, the pipeline's own lit material.)
+                if (libraryMaterial == null) libraryMaterial = Resources.Load<Material>("ItemLibrary");   // (not ??=: it misses a destroyed Unity object)
+                // (The item's Colour and Accent are in the mesh's vertex colours, ItemMeshes.Of: no property block.)
+                if (libraryMaterial != null)
+                    r.sharedMaterials = mesh.subMeshCount > 1 ? new[] { libraryMaterial, libraryMaterial } : new[] { libraryMaterial };
                 if (uid >= SpareBase)
                     StandSpare(uid, it, go, mesh);
                 shown[uid] = go;
