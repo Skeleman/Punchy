@@ -276,6 +276,10 @@ namespace Punchy.Flora
 
         /// <summary>W-127: a model's lit window panes (FloraModel.Windows; model index as placement gives it), or null.</summary>
         public List<Vector4> ModelWindows(int model) => model >= 0 && model < models.Count ? models[model].Windows : null;
+        /// <summary>P-37 r3 row 2 (#369): how many models there are, and one by placement's model index (null past the end),
+        /// for creatures' walls round walk-in houses (Fauna/WalkInWalls).</summary>
+        public int ModelCount => models.Count;
+        public FloraModel ModelAt(int model) => model >= 0 && model < models.Count ? models[model] : null;
 
         // ------------------------------------------------------------------------------------------- fountains' water
 
