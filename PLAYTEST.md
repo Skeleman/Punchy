@@ -131,3 +131,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #431 fauna/swimmer-droplets (A-125 row 2, #360 closed): dolphin and fish splashes throw droplets, at most 4 at once.
 - #432 render/playtest-1115 (R-39; #401 #402 closed): glows and flames hold on a low glide, Zach's glow option 3 with darker night haze, igloo windows lit at every distance, softer wading rebound (#269).
 - 11-15: #395 merged: release v0.16.0 (bundleVersion 0.16.0). Check: title screen shows 0.16.0.
+- 11-15: #433 merged (A-113, #313): tulip tree, white pine, willow, beech and fir in temperate woods; saguaros with imperfections. Fingerprint pin 0654C913. Check: walk a temperate wood, look for tall trees above the canopy.
