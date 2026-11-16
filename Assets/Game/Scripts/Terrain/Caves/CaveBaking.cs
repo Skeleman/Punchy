@@ -35,7 +35,14 @@ namespace Punchy.Terrain
         /// A-91 row 3: how steep a whole main path may get when thin rock further on leaves MainGrade no way under it
         /// (about 31 degrees, still well under the 45 degree slope limit).
         /// </summary>
-        const float MaxGrade = 0.6f;
+        public const float MaxGrade = 0.6f;
+        /// <summary>
+        /// A-91 row 3: how far a node's floor lies under its centre (as CaveSampling's capsules cut it), for a cave of this
+        /// profile and rock: a wide chamber's floor sits lower than a passage's at the same centre. Shared with the W-176
+        /// layout audit (TestHooks.CaveLayoutProblems).
+        /// </summary>
+        public static float FloorDropOf(float nodeRadius, float2 profile, float4 rock)
+            => nodeRadius * profile.y * (0.45f + (1f - rock.y) * 0.65f);
         /// <summary>A-91 row 3: the share of MainGrade a main path may climb or fall between a chamber and its neighbours.</summary>
         const float ChamberGrade = 0.2f;
         /// <summary>A-91 row 3: the smallest a main path's node may be squashed to under shallow rock, as a share of the passage radius.</summary>
@@ -142,13 +149,13 @@ namespace Punchy.Terrain
                     return ground - nodeRadius * profile.y - Cover;
                 }
 
-                // A-91 row 3: how far a node's floor lies under its centre (as CaveSampling's capsules cut it), so main
-                // paths can be graded on their floors: a wide chamber's floor sits lower than a passage's at the same centre.
+                // A-91 row 3: paths are graded on their floors (FloorDropOf).
                 var flatness = rock.y;
-                float FloorDrop(float nodeRadius) => nodeRadius * profile.y * (0.45f + (1f - flatness) * 0.65f);
-                // Grades a main path (chain[0] is fixed: the mouth, or the node it branches from): each floor as near its
-                // planned height as it can be, never above its node's ceiling, and never more than MainGrade per metre
-                // above or below the floor before it. The ceilings are made Lipschitz first (a low ceiling pulls the
+                float FloorDrop(float nodeRadius) => FloorDropOf(nodeRadius, profile, rock);
+                // Grades a path (chain[0] is fixed: the mouth, or the node it branches from): each floor as near its
+                // planned height as it can be, never above its node's ceiling, and never more than `grade` per metre
+                // above or below the floor before it (MainGrade on main paths; W-176: MaxGrade on side passages, so they
+                // stay steep where planned but never step down into their end chamber). The ceilings are made Lipschitz first (a low ceiling pulls the
                 // floors before it down gradually), so the grade only gives way to the ceiling right at a mouth. A node
                 // too tall for the rock over its graded floor is made lower (down to MinMain of the passage radius)
                 // rather than sunk, so a chamber near a mouth is squat instead of a pit.
@@ -158,7 +165,7 @@ namespace Punchy.Terrain
                 var facetReach = style != null ? 0.64f * style.FacetSize * style.Angularity : 0f;
                 var horse = (RiderHead + CaveSampling.JaggedReach * rock.x * CeilingDip + (CaveSampling.NoiseReach * wall.x + facetReach) * WallDip) / tall;
                 var minMain = math.max(math.max(r * MinMain, MainHead / tall), horse);
-                void Grade(List<int> path, List<float> want, List<float> ceil)
+                void Grade(List<int> path, List<float> want, List<float> ceil, float grade = MainGrade)
                 {
                     var n = path.Count;
                     var up = new float[n];
@@ -171,7 +178,7 @@ namespace Punchy.Terrain
                         var node = nodes[path[i]];
                         var least = math.min(node.Radius, minMain);
                         up[i] = hard[i] = ceil[i] == float.MaxValue ? float.MaxValue : ceil[i] + node.Radius * profile.y - least * tall;
-                        full[i] = gap[i] = i > 0 ? math.distance(node.Position.xz, nodes[path[i - 1]].Position.xz) * MainGrade : 0f;
+                        full[i] = gap[i] = i > 0 ? math.distance(node.Position.xz, nodes[path[i - 1]].Position.xz) * grade : 0f;
                         // Into or out of a chamber nearly level: a chamber's floor is a flat disc, so a passage that
                         // came down onto it at the full grade would meet the disc's rim as a step.
                         if (i > 0 && (kinds[path[i]] == CaveNodeKind.Chamber || kinds[path[i - 1]] == CaveNodeKind.Chamber))
@@ -181,14 +188,14 @@ namespace Punchy.Terrain
                     // in under a valley lower than its mouth), the whole path steepens just enough (up to MaxGrade)
                     // instead of the floor dropping off a ledge where it can't keep up.
                     f[0] = nodes[path[0]].Position.y - FloorDrop(nodes[path[0]].Radius);
-                    float run = 0f, need = MainGrade;
+                    float run = 0f, need = grade;
                     for (int i = 1; i < n; i++)
                     {
-                        run += full[i] / MainGrade;
+                        run += full[i] / grade;
                         if (hard[i] != float.MaxValue)
                             need = math.max(need, (f[0] - hard[i]) / math.max(run, 1f));
                     }
-                    var steepen = math.min(need, MaxGrade) / MainGrade;
+                    var steepen = math.min(need, MaxGrade) / grade;
                     for (int i = 1; i < n; i++)
                     {
                         full[i] *= steepen;
@@ -264,19 +271,27 @@ namespace Punchy.Terrain
                 }
                 Grade(chain, plan, tops);
                 mainEnds.x = previous - firstNode;
-                var mainSegments = segments.Count;   // segments before this are the main passage's; main branches add theirs to mainLinks
-                var mainLinks = new List<int2>();
-                for (int s = firstSegment; s < mainSegments; s++)
-                    mainLinks.Add(new int2(segments[s].A, segments[s].B));
 
-                // A-91 row 3: whether the passages laid since segment `since` run into a main path's passage at another
-                // height (a floor a metre or more apart, with too little rock between them), which cuts a pit or a
-                // shelf into the main path where they meet. Passages well above or below one, or level with it (a
-                // crossroads), are fine. The node a branch starts from is skipped: it meets the main path there by design.
+                // A-91 row 3: whether the passages laid since segment `since` run into an earlier passage of this cave at
+                // another height (a floor a metre or more apart, with too little rock between them), which cuts a pit or
+                // a shelf into it where they meet. Passages well above or below one, or level with it (a crossroads), are
+                // fine. W-176: every earlier passage counts, side passages too (only main paths did, so side passages
+                // cut pits through each other). The links at the node a branch starts from and one link on are skipped:
+                // the branch leaves its parent there by design.
+                var near = new List<int>(4);
                 float Floor(float3 at, float nodeRadius) => at.y - FloorDrop(nodeRadius);
                 float Top(float3 at, float nodeRadius) => at.y + nodeRadius * profile.y + CaveSampling.JaggedReach * rock.x;
-                bool CutsMain(int since, int fromNode)
+                bool Cuts(int since, int fromNode)
                 {
+                    near.Clear();
+                    near.Add(fromNode);
+                    for (int s = firstSegment; s < since; s++)
+                    {
+                        if (segments[s].A == fromNode)
+                            near.Add(segments[s].B);
+                        else if (segments[s].B == fromNode)
+                            near.Add(segments[s].A);
+                    }
                     for (int s = since; s < segments.Count; s++)
                         for (int k = 0; k <= 2; k++)
                         {
@@ -284,12 +299,13 @@ namespace Punchy.Terrain
                             var nb = nodes[segments[s].B];
                             var at = math.lerp(na.Position, nb.Position, k * 0.5f);
                             var ar = math.lerp(na.Radius, nb.Radius, k * 0.5f);
-                            foreach (var link in mainLinks)
+                            for (int e = firstSegment; e < since; e++)
                             {
-                                if (link.x == fromNode || link.y == fromNode)
+                                var link = segments[e];
+                                if (near.Contains(link.A) || near.Contains(link.B))
                                     continue;
-                                var ma = nodes[link.x];
-                                var mb = nodes[link.y];
+                                var ma = nodes[link.A];
+                                var mb = nodes[link.B];
                                 var ab = mb.Position.xz - ma.Position.xz;
                                 var t = math.saturate(math.dot(at.xz - ma.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
                                 var mp = math.lerp(ma.Position, mb.Position, t);
@@ -310,7 +326,7 @@ namespace Punchy.Terrain
                 // Side passages. The first half start from the main passage; later ones may start from earlier side
                 // passages too, so big networks branch like a tree (and meet themselves where branches cross).
                 // A-91 row 3: the first mains - 1 of them are main paths too (always off the main passage, twice as long,
-                // graded like it); the rest may be as steep as they come.
+                // graded like it); the rest may be steeper (W-176: graded at MaxGrade, so no ledge into their end chamber).
                 var mainAttach = attach.Count;
                 for (int b = 0, tries = 0; b < branches && attach.Count > 0; b++)
                 {
@@ -350,11 +366,10 @@ namespace Punchy.Terrain
                         plan.Add(originFloor + (targetY - origin.y) * k / bsteps);
                         tops.Add(top);
                     }
-                    if (main)
-                        Grade(chain, plan, tops);
-                    // A-91 row 3: a passage that runs into a main path at another height is laid again on a new heading
+                    Grade(chain, plan, tops, main ? MainGrade : MaxGrade);
+                    // A-91 row 3: a passage that runs into an earlier passage at another height is laid again on a new heading
                     // (up to 4 times), then left out.
-                    if (CutsMain(segmentsBefore, from.Node))
+                    if (Cuts(segmentsBefore, from.Node))
                     {
                         nodes.RemoveRange(nodesBefore, nodes.Count - nodesBefore);
                         kinds.RemoveRange(nodesBefore, kinds.Count - nodesBefore);
@@ -368,11 +383,7 @@ namespace Punchy.Terrain
                     }
                     tries = 0;
                     if (main)
-                    {
                         mainEnds[b + 1] = last - firstNode;
-                        for (int s = segmentsBefore; s < segments.Count; s++)
-                            mainLinks.Add(new int2(segments[s].A, segments[s].B));
-                    }
                 }
 
                 // Shafts: from chambers, the last laid out first (side-passage ends, then the main passage's), straight
