@@ -1101,3 +1101,5 @@ Main, Medium and High, no code change. Gates which audit items get cards (push b
 ## Job 114 (2026-11-16, QUEUED, render lane, R-31 row 2 #325, branch render/grass-fields@14f86b6d): grass e and f cost
 Meadow at noon, Medium and High. Compare three arms: today, e, f (use the existing switch). Record GPU ms (opaque pass plus shadow
 casters) and CPU ms for each. About 3x the blades/m² (55 to 168), so expect a real cost. Zach is choosing between e and f; both are needed.
+- Addendum to 113 and 114 (supervisor, audit part 2 #311): in job 114, also run each arm once with grass shadow casting off, to get the grass-shadow share.
+  In job 113, record the worst CPU frame on WideShadow's 90-frame rescan in a town (it walks every scene root's renderers).
