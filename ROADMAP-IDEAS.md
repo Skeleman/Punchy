@@ -71,7 +71,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Climbing (A-101).** Shipped: one climbing model, ladders, marked walls, ledge hang. Shipped: brisk ladders
   (A-126 row 1, PR #383). In flight: A-126 rows 2-4 (ledge hands, shimmy prompt, steering ridden animals); cave routes
   climb by the cliff method (W-162).
-- **Fishing (A-100, P-33).** Shipped: catch tables, fish notice the bobber. In flight: player fishing (P-33).
+- **Fishing (A-100, P-33).** Shipped: catch tables, fish notice the bobber, player fishing rows 1-3 (P-33, PR #419). Next: feel tuning after Zach plays it.
 - **Individual builds and gaits (A-124).** Shipped: row 1 builds (PR #387) and the style draw that really varies (PR #388). In flight: later rows.
 - **Bodies read clearly (A-123, #356).** Shipped (PR #385): arms meet the torso, canine faces, feathered birds. Shipped: robes, aprons and capes clear the legs (A-127 PR #390, A-128 PR #394).
 - **Gold variants.** Shipped: 1 in 400.
