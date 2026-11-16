@@ -342,7 +342,11 @@ namespace Punchy.Interact
                 ClimbTest(ref terrain);
             foreach (var d in open)
                 if (d < doorAnchors.Count)
+                {
                     Punchy.Flora.FloraDoors.SetOpen(terrain.Anchors.Value.Anchors[doorAnchors[d]].Position, 1f);
+                    if (Interiors.TowerLeaf(d, out var leaf))
+                        Punchy.Flora.FloraDoors.SetOpen(leaf, 1f);
+                }
             HoldWalkInsShut(ref terrain.Anchors.Value);
         }
 
@@ -553,6 +557,8 @@ namespace Punchy.Interact
                 return;
             if (!isOpen && TryGetDoor(door, out var p, out _))
                 Punchy.Flora.FloraDoors.SetOpen(p, 0f);
+            if (!isOpen && Interiors.TowerLeaf(door, out var leaf))
+                Punchy.Flora.FloraDoors.SetOpen(leaf, 0f);
             Debug.Log($"Doors: door {door} {(isOpen ? "open" : "shut")} ({who})");
             if (server != null && server.IsCreated && server.IsServer())
                 Broadcast(door, isOpen);
