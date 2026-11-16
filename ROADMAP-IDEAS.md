@@ -58,8 +58,8 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Households (#25, A-105).** Shipped: own homes, going home at dusk, family talk. Shipped: notice board (A-116), fire heat (A-121), doors and sound (A-122). Shipped: household
   pets (#340, A-120, PR #389). Later, after items (P-35): owned items, and theft that angers owners and guards.
 - **Conversation (#25).** Shipped: personalities, a conversation API, reactions to an animal player (A-93),
-  hermit chores and talk (A-106), the player talk system (P-28). Later: dialogue options, a hand-editable text
-  archive reloaded live.
+  hermit chores and talk (A-106), the player talk system (P-28). Shipped: a hand-editable text archive reloaded
+  live (A-129, PR #416). Next: dialogue options (A-131 folk side, then the player UI).
 - **One population (#298, A-110).** Next. Far figures are a town's real people; nobody swaps as you approach.
 - **Skills and attributes.** Shipped first stats (P-28). Grows as features need it.
 
@@ -123,3 +123,4 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-15 (Zach): one ground-edit system: natural cutaways for every levelling or cut, one seam method wherever a mesh replaces the heightmap (W-174, #406). Top concern.
 - 11-15 (Zach): Model Lab body builder: add or remove limbs on archetypes, limb kinds, per-segment taper, subdivision, lean, colour and material; building and dungeon set pieces in the Lab (M-06, #412-#414).
 - 11-15 (Zach): placed units (stall, smithy tent) are hierarchies of standalone parts (awning, table, anvil); parts reused, one change reaches every instance (W-175, #415).
+- 11-15 (Zach): build blueprint buildings in the Model Lab from kit elements, generated in game; shows the kit's limits (M-06 row 5 on W-175's unit format, #414).
