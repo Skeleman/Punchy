@@ -5264,3 +5264,13 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Risk: one earlier play on main's assets logged fingerprint 90AEAF81 instead of 859112C9. Two later runs on this branch both read 9EFF3BCF, from the test spot and from the dunes. Worth watching for a flaky Fauna_Fingerprint. Also, entering play rewrote Resources/CreatureTunables.asset (a Deer entry); I reverted it and left it out of the commit.
 - Shares: W-126's one clearing mask and the per-species grove settings (rule 33). No new field.
 - Ready for PR: fauna/dune-groves. NEXT: far-life (A-108 r2) world-file edits on the merge.
+
+## M-06
+### 11-15 M-06 row 1 (#412): turntable wobble - done (verified)
+- fauna/model-lab-2 6a45b6ed (from origin/main 4c423eba). Editor-only: ModelLab.cs only.
+- Cause: every frame, DrawScene took the camera centre, distance, grid and scale person from the posed bounds, so a walking stride moved the framing. Fix: frame from the idle pose's bounds (clock 0, no task), recomputed only on a rebake (load or slider change). Close-up captures still frame the posed model. I pulled out Skip and SegmentBounds, and added a CameraFrame() hook for the check.
+- Check (editor eval, Wolf, Walk plus spin, 10 s in 0.25 s steps): centre (0, 10.8754, -0.3597) and d 6.1921 held for all 41 frames while yaw went 90 -> 210. The Legs slider at 1.5 re-framed to d 6.2261, and a reset returned it to 6.1921 (tunables asset not saved).
+- Shots: D:/Unity/PunchyMilestones/M-06/m06-r1-t0.png and m06-r1-t5.png (same framing, 60 degrees apart).
+- Pins: no game code touched, so Landmarks_V3 and Fauna_Fingerprint can't move. No timing done.
+- Shares: none new. It uses CreatureAnimator.Evaluate as M-05 does.
+- NEXT: row 2 design note (docs/agents/model-lab-builder.md), then stop for Zach.
