@@ -127,7 +127,6 @@ namespace Punchy.Fauna
         int builtModels = -1;
         Entity entity;
         WalkInWalls walls;
-        static readonly List<KitBox> NoDoors = new List<KitBox>();
 
         protected override void OnCreate()
         {
@@ -205,11 +204,7 @@ namespace Punchy.Fauna
             model.Species != null && model.Species.Form == FloraForm.KitBuilding && model.Boxes.Count > 0 &&
             model.Colliders.Count == 0 && model.TrunkRadius <= 0f;
 
-        /// <summary>
-        /// Its door leaves (model space). FloraModel.DoorBoxes comes with the walk-in houses themselves (player/seamless-2,
-        /// P-37 r3 row 1); until that is in, there are no walk-in houses and no leaves. When it merges this becomes
-        /// <c>model.DoorBoxes</c>.
-        /// </summary>
-        static List<KitBox> DoorsOf(FloraModel model) => NoDoors;
+        /// <summary>Its door leaves (model space), from the walk-in house itself (P-37 r3 row 1).</summary>
+        static List<KitBox> DoorsOf(FloraModel model) => model.DoorBoxes;
     }
 }
