@@ -204,5 +204,67 @@ namespace Punchy.Tests
             // The step in front (+z) swings round with it: a 90 degree yaw takes +z to +x.
             Assert.Greater(Centre(turned[1]).x, 1.2f, "the step didn't swing round with the door");
         }
+
+        // W-175 row 6: nested units, the unit library, JSON units and snapping.
+        static Type Library => Game.GetType("Punchy.Flora.UnitLibrary");
+
+        static object Nest(string id, Vector3 at)
+        {
+            var p = Part("unit", at);
+            UnitPart.GetField("Unit").SetValue(p, id);
+            return p;
+        }
+
+        [Test]
+        public void ANestedUnitDrawsLikeTheUnitAloneMovedToItsSpot()
+        {
+            var child = Unit(true, Part("crate", Vector3.zero, new Vector3(0.6f, 0.6f, 0.6f)), Part("beam", new Vector3(0.5f, 0f, 0f), new Vector3(0.1f, 1.2f, 0.1f)));
+            UnitDef.GetField("Id").SetValue(child, "r6 test child");
+            UnitDef.GetField("Size").SetValue(child, new Vector3(2f, 2f, 2f));
+            Library.GetMethod("Register").Invoke(null, new[] { child });
+            Assert.AreSame(child, Library.GetMethod("Find").Invoke(null, new object[] { "r6 test child" }));
+
+            var alone = GrowUnit(child);
+            var nested = GrowUnit(Unit(false, Nest("r6 test child", new Vector3(2f, 0f, 1f))));
+            Assert.AreEqual(alone.vertexCount, nested.vertexCount, "the nested unit drew different parts");
+            var shift = nested.bounds.center - alone.bounds.center;
+            Assert.Less((shift - new Vector3(2f, 0f, 1f)).magnitude, 0.05f, $"moved by {shift}, not to its At");
+            Assert.Less((nested.bounds.size - alone.bounds.size).magnitude, 0.05f, "the nested unit changed size");
+        }
+
+        [Test]
+        public void AUnitNestingItselfStops()
+        {
+            var loop = Unit(false, Part("crate", Vector3.zero, new Vector3(0.5f, 0.5f, 0.5f)), Nest("r6 test loop", new Vector3(1f, 0f, 0f)));
+            UnitDef.GetField("Id").SetValue(loop, "r6 test loop");
+            Library.GetMethod("Register").Invoke(null, new[] { loop });
+            Assert.Greater(GrowUnit(loop).vertexCount, 0);
+        }
+
+        [Test]
+        public void AUnitReadsBackFromItsJson()
+        {
+            var unit = Unit(true, Part("wall", new Vector3(1f, 0f, 0f)), Nest("stall", new Vector3(0f, 0f, 2f)));
+            var json = (string)UnitDef.GetMethod("ToJson").Invoke(unit, null);
+            var back = Library.GetMethod("FromJson").Invoke(null, new object[] { json });
+            Assert.IsNotNull(back, json);
+            var parts = (Array)UnitDef.GetField("Parts").GetValue(back);
+            Assert.AreEqual(2, parts.Length);
+            Assert.AreEqual("stall", UnitPart.GetField("Unit").GetValue(parts.GetValue(1)));
+            Assert.AreEqual(new Vector3(1f, 0f, 0f), UnitPart.GetField("AtMetres").GetValue(parts.GetValue(0)));
+            Assert.IsNull(Library.GetMethod("FromJson").Invoke(null, new object[] { "not json" }));
+        }
+
+        [Test]
+        public void SnapJoinsNearPointsAndRoundsToTheGrid()
+        {
+            var unit = Unit(false, Part("wall", new Vector3(1f, 0f, 0f)), Part("wall", new Vector3(1.08f, 0.01f, 0f)), Part("wall", new Vector3(3.07f, 0f, 0f)));
+            var joined = (int)UnitDef.GetMethod("Snap").Invoke(unit, new object[] { 0.05f, 0.12f });
+            var parts = (Array)UnitDef.GetField("Parts").GetValue(unit);
+            Vector3 At(int k) => (Vector3)UnitPart.GetField("AtMetres").GetValue(parts.GetValue(k));
+            Assert.AreEqual(1, joined);
+            Assert.AreEqual(At(0), At(1), "the near point didn't join");
+            Assert.Less(Mathf.Abs(At(2).x - 3.05f), 1e-4f, "not rounded to 5 cm");
+        }
     }
 }

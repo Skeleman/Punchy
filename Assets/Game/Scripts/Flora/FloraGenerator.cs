@@ -257,6 +257,8 @@ namespace Punchy.Flora
             // form's builder. An empty Unit (every species so far) changes nothing.
             if (unit == null && species.Unit != null && species.Unit.Parts != null && species.Unit.Parts.Length > 0)
                 unit = species.Unit;
+            if (unit == null && species.JsonUnit != null && species.JsonUnit.Parts.Length > 0)   // W-175 row 6: a saved blueprint
+                unit = species.JsonUnit;
             var model = new FloraModel { Species = species, MeshName = $"{name} {variant}", Pending = shapeOnly ? null : new FloraMeshBuilder[3] };
             model.CastsShadows = !FloraModel.Shadowless(species.Form);
             var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(name));

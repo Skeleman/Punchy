@@ -215,3 +215,18 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
   both kit buildings and these parts.
 - `stair`, `lantern` and `crate` call the kit's own builders (`StructureKit.Stair`, `LanternHead`, `Crate`): one
   definition each (rule 33).
+
+## 11. What row 6 built (nesting, snapping, JSON units in the world)
+
+- **Nested units:** a part with id `unit` and `UnitPart.Unit` set draws that whole unit at `At`, turned and mirrored
+  with the part. Its frame is the part's Span if it has one, otherwise the unit's own Size, otherwise the parent's
+  frame. A nested unit always draws from part streams salted by its id and the part's Seed. Nesting stops at depth 4,
+  so a unit that nests itself still grows. `DrawParts` uses salt 0 at the top level, so coded units hash the same.
+- **`UnitLibrary`** finds a unit by id: the coded units, any JSON unit a species loaded, and (in the editor only) every
+  blueprint in `Assets/Game/Flora/Units`. The Model Lab's Save calls `Reload` so nested copies pick up the edit.
+- **JSON units at runtime:** `FloraSpecies.UnitJson` (a TextAsset) is read on the main thread in OnEnable/OnValidate
+  into `JsonUnit`, which `GrowParts` uses when `Unit` is empty. Wherever that species is placed, it grows the
+  blueprint. Placing units into settlements is still world's to do.
+- **Snapping:** `UnitDef.Snap(grid, join)` moves a metre-only point onto an earlier part's point when it is within
+  `join` of it, then rounds metres to `grid`. The Lab's "Snap joins" button uses 5 cm / 12 cm. The Lab shows a
+  "Unit id" field when a part is `unit`.

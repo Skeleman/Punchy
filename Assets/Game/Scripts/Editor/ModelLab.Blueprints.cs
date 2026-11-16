@@ -371,6 +371,7 @@ namespace Punchy.EditorTools
             var path = BlueprintPath(id);
             File.WriteAllText(path, blueprint.ToJson().Replace("\r\n", "\n") + "\n");
             AssetDatabase.ImportAsset(path);
+            UnitLibrary.Reload();   // W-175 row 6: units nesting this one pick up the edit
             blueprintSource = BlueprintPrefix + id;
             loadedName = nameField = blueprintSource;
             setPieceNames = null;   // (the list picks up the new file)
@@ -459,9 +460,16 @@ namespace Punchy.EditorTools
                 }
                 if (GUILayout.Button("Copy JSON"))
                     EditorGUIUtility.systemCopyBuffer = blueprint.ToJson();
+                if (GUILayout.Button(new GUIContent("Snap joins", "W-175 row 6: metre points within 12 cm of another part's point meet it; metres round to 5 cm.")))
+                {
+                    var joined = blueprint.Snap();
+                    ShowNotification(new GUIContent($"{joined} joined"));
+                    RebuildBlueprint();
+                }
             }
             EditorGUILayout.HelpBox($"Saved as W-175 unit JSON in {BlueprintFolder}. A species whose Unit is set grows this " +
-                                    "in place of its form's builder. Nothing here places it in the world.", MessageType.Info);
+                                    "in place of its form's builder, as does one whose Unit Json is this file; a \"unit\" part " +
+                                    "nests another unit by id.", MessageType.Info);
         }
 
         void DrawBlueprintPart(int i, string[] ids)
@@ -471,6 +479,8 @@ namespace Punchy.EditorTools
             var k = EditorGUILayout.Popup("Part", Array.IndexOf(ids, p.Part), ids);
             if (k >= 0)
                 p.Part = ids[k];
+            if (p.Part == "unit")
+                p.Unit = EditorGUILayout.TextField("Unit id", p.Unit);
             p.At = EditorGUILayout.Vector3Field("At (share)", p.At);
             p.AtMetres = EditorGUILayout.Vector3Field("At + m", p.AtMetres);
             p.To = EditorGUILayout.Vector3Field("To (share)", p.To);

@@ -51,6 +51,41 @@ namespace Punchy.Flora
         /// </summary>
         public string ToJson() => TidyNumbers(JsonUtility.ToJson(this, true));
 
+        /// <summary>
+        /// W-175 row 6: snaps the parts' metre offsets together: a point in metres (At or To, with no share of the frame)
+        /// within <paramref name="join"/> of an earlier part's point moves onto it, so a wall's end meets the next wall's
+        /// start; then every metre value rounds to <paramref name="grid"/>. Shares are left alone. Returns how many
+        /// points joined.
+        /// </summary>
+        public int Snap(float grid = 0.05f, float join = 0.12f)
+        {
+            var joined = 0;
+            var points = new System.Collections.Generic.List<Vector3>();
+            Vector3 Join(Vector3 share, Vector3 metres)
+            {
+                if (share != Vector3.zero)
+                    return metres;
+                foreach (var q in points)
+                    if (q != metres && (q - metres).sqrMagnitude <= join * join)
+                    {
+                        joined++;
+                        return q;
+                    }
+                points.Add(metres);
+                return metres;
+            }
+            Vector3 Round(Vector3 v) => grid <= 0f ? v : new Vector3(Mathf.Round(v.x / grid) * grid, Mathf.Round(v.y / grid) * grid, Mathf.Round(v.z / grid) * grid);
+            for (int i = 0; i < Parts.Length; i++)
+            {
+                var p = Parts[i];
+                p.AtMetres = Round(Join(p.At, p.AtMetres));
+                p.ToMetres = Round(Join(p.To, p.ToMetres));
+                p.SpanMetres = Round(p.SpanMetres);
+                Parts[i] = p;
+            }
+            return joined;
+        }
+
         /// <summary>Rewrites every decimal number in JSON text as the shortest text for the same float.</summary>
         public static string TidyNumbers(string json) =>
             Regex.Replace(json, @"-?\d+\.\d+(?:[eE][-+]?\d+)?", m =>
@@ -87,6 +122,11 @@ namespace Punchy.Flora
         public bool Bounds;
         /// <summary>W-175 row 4: with UnitDef.PartStreams, picks this part's stream (two crates side by side differ).</summary>
         public int Seed;
+        /// <summary>
+        /// W-175 row 6: for a "unit" part, the id of the unit drawn here (UnitLibrary): its parts in a frame Span in size
+        /// (or the unit's own Size, or this unit's frame), its origin at At, turned and mirrored with the part.
+        /// </summary>
+        public string Unit;
     }
 
     /// <summary>A unit variant's frame: its width, height and depth in metres, which UnitPart's shares are of.</summary>

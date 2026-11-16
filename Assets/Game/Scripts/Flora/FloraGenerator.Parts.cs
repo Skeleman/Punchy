@@ -29,6 +29,7 @@ namespace Punchy.Flora
             ["fire ring"] = FireRing,
             ["log tepee"] = LogTepee,
             ["embers"] = Embers,
+            ["unit"] = NestedUnit,
         });
 
         /// <summary>Adds the row 5 building parts (FloraGenerator.Parts.Build) to the library.</summary>
@@ -56,7 +57,7 @@ namespace Punchy.Flora
         /// The parts drawn round the unit's origin rather than at their At (each is one round thing: a tent, a fire). Their
         /// At moves them afterwards (Place), so a unit can stand a fire pit off-centre.
         /// </summary>
-        static readonly HashSet<string> CentredParts = new HashSet<string> { "hide tent", "fire ring", "log tepee", "embers" };
+        static readonly HashSet<string> CentredParts = new HashSet<string> { "hide tent", "fire ring", "log tepee", "embers", "unit" };
 
         /// <summary>
         /// Draws a unit: grows its frame from the species (height from Height, width from Spread or WidthOfHeight) or takes
@@ -73,17 +74,55 @@ namespace Punchy.Flora
             g.Height = frame.Height;
             g.Width = Mathf.Max(frame.Width, frame.Depth) * 1.3f;
             g.TrunkRadius = 0f;
+            DrawParts(g, unit, frame, 0u, unit.PartStreams);
+        }
+
+        /// <summary>
+        /// Draws a unit's parts in order in a frame, each placed by Place. With streams, each part draws from its own
+        /// stream, salted for a nested unit (0 at the top, so coded units draw exactly as before).
+        /// </summary>
+        static void DrawParts(Grower g, UnitDef unit, UnitFrame frame, uint salt, bool streams)
+        {
+            var b = g.B;
             foreach (var part in unit.Parts)
             {
                 b.Family = b.BaseFamily;
                 var mark = new PartMark(g);
-                if (unit.PartStreams)
-                    g.UsePartStream((int)Hash((uint)g.Seed, StableHash(part.Part), (uint)part.Seed));
-                PartLibrary[part.Part](g, frame, part);
+                if (streams)
+                    g.UsePartStream((int)Hash((uint)g.Seed ^ salt, StableHash(part.Part), (uint)part.Seed));
+                if (part.Part != null && PartLibrary.TryGetValue(part.Part, out var build))
+                    build(g, frame, part);
                 g.UseSharedStream();
                 Place(g, mark, frame, part);
             }
             b.Family = b.BaseFamily;
+        }
+
+        /// <summary>How deep nested units go (a unit that nests itself stops here).</summary>
+        const int MaxNesting = 4;
+        [System.ThreadStatic] static int nesting;
+
+        /// <summary>
+        /// W-175 row 6: a whole unit as one part (UnitPart.Unit, looked up in UnitLibrary). Its parts draw about the origin
+        /// in a frame Span in size, or the unit's own Size, or this unit's frame; Place then stands it at At, turned and
+        /// mirrored. A nested unit always uses part streams, salted by its id and the part's Seed.
+        /// </summary>
+        static void NestedUnit(Grower g, UnitFrame f, UnitPart p)
+        {
+            var unit = UnitLibrary.Find(p.Unit);
+            if (unit?.Parts == null || nesting >= MaxNesting)
+                return;
+            var span = f.Span(p);
+            var frame = span.y > 0f ? UnitFrame.Sized(span) : unit.Size.y > 0f ? UnitFrame.Sized(unit.Size) : f;
+            nesting++;
+            try
+            {
+                DrawParts(g, unit, frame, Hash(StableHash(p.Unit), (uint)p.Seed, 0x6E57u), true);
+            }
+            finally
+            {
+                nesting--;
+            }
         }
 
         /// <summary>What a grower held before a part was drawn, so Place can move just that part's share.</summary>
