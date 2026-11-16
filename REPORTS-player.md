@@ -1661,3 +1661,9 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Not seen: an innkeeper offering replies (no innkeeper drew that line in any run). Not run: joined client (7.7 GB free; owed with the P-43 pair run).
 - Shots: D:/Unity/PunchyMilestones/P-42/row2-host/talk-02-guard-quest, talk-03-guard-held (.png), not viewed. The solo run saved none (no folder at the time).
 - Shares: one talk window and one offer path (rule 33). The note sits in FolkTalk.Show, next to the existing hide rule.
+
+## P-38 main merge 4 + #259 rejoin check (2026-11-15)
+- player/take-items 9b5b724f = main e88f5d7d merged in. Only conflict: WorldTests Fauna_Fingerprint pin, now 0206544F (same as main, from #442 Frostdeer) with a re-pin note. Main's #442 lines in CreatureSpecies.cs, ModelLab.cs and CreatureRenderSystem.cs are all there, and nothing was deleted.
+- Fauna_Fingerprint + 3 FolkTalkTests: 4/4 pass. Dev build solo `-body BatFolk -eyewear`: 0 exceptions, 85 items, head Glasses, BatVision 1.00 -> 0.00. Ready for PR.
+- #259: NOT passing. Host + joiner dev build, no lag, joiner `-autowalk -rejoin 45,3`. Rejoin 1 of 3 was back in game after 10.4 s. On "rejoin: 2 of 3: leaving" the joiner crashed natively before "worlds disposed" was logged (0 managed exceptions; the host exited cleanly). Per the crash rule, stopped at the first crash.
+- Native stack (worker thread; job names from the Burst debug info): entry Punchy.Terrain.BuildChunkMeshJob, then frames in the SurfaceGlow.ScanJob and CaveSystem.MeshJob modules (Burst shares code, so the inner names are rough). Likely a terrain chunk mesh job still running while leave tears the world down. This is not the earlier GameAudio Occlude crash. Owner: terrain (world lane). Suggested fix: complete or wait on in-flight chunk mesh jobs before the leave dispose. Log: Punchy-player Logs/p38/rj-join.log line 1768.
