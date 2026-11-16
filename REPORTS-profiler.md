@@ -2,6 +2,10 @@
 
 Newest first.
 
+## Job 89 (W-168 row 2): needs a shelf build with its island file
+- The card asks for one Play in the editor on world/world-pack a74f9c2a (and on main) before building, so each build ships its island file. The laptop builds in batch mode and can't enter Play mode, and a74f9c2 isn't on the shelf.
+- **Ask:** shelve Profile-a74f9c2 (after the Play), and the main you want as A, from the main PC. Then I'll run job 89 as specced. Meanwhile I've gone on to job 90.
+
 ## Job 88: R-20 row 1 at High (#353: main 3b192717 = B vs 4df85493 = A), 2026-11-15 (q130.job): Medium unchanged; High +0.5 to +1.2 ms GPU, **town 73 over the 1.0 flag**; the medium filter halves it
 **Setup:** shelf builds (runner checked), 1920x1080, uncapped, noon, Clear, arms rotated, 3 rounds, Medium and High. Views: town 73 centre (`-benchspot 2972,-885,0`), the forest edge (`-place OakGrove`), the spawn view. Arm "B medium" = B with `-sunshadowfilter medium`, run at every view.
 

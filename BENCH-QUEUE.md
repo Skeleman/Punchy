@@ -885,7 +885,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Pass (rule 23): Medium unchanged within noise (B must not touch it); High reported, flag if B adds more than 1.0 ms
   whole-frame GPU on any view. Also try `-sunshadowfilter medium` at High once on town 73 for a cheaper fallback.
 
-## Job 89 (2026-11-14, QUEUED after 88; world lane, W-168 row 2, #345): first-view world ready and the boost cap
+## Job 89 (2026-11-14, WAITING 11-15 for a shelf build with its island file (the laptop can't Play in batch mode), see REPORTS-profiler; world lane, W-168 row 2, #345): first-view world ready and the boost cap
 - world/world-pack a74f9c2a (B) vs main (A). Profile builds, 1920x1080, Medium and High, uncapped, 12:00, Clear.
   Play once in the editor on each branch before building, so each build ships its island file (B warns if not).
 - Per build: one warm-up, then 3 cache-hit launches at the default spawn, `-place HumanVillage` and `-place OakGrove`.
@@ -896,7 +896,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   LoadBoostBehind (provisional 2) and the load-boost cap. Pass: B's world ready comes no later than A's on any start;
   no hole visible in the first view.
 
-## Job 90 (2026-11-14, QUEUED after 89; world lane, W-164 row 2, #334): garden beds in the ground pass
+## Job 90 (2026-11-14, NEXT on the laptop, chained after 91 (q132.job); world lane, W-164 row 2, #334): garden beds in the ground pass
 - world/level-gardens c378a480 (B) vs main 3b192717 (A). Profile builds, 1920x1080, Medium and High, uncapped,
   12:00, Clear. Island and landmark pins are unchanged (117 landmarks, 689D5348); only the ground under the
   HermitHut garden moves.
