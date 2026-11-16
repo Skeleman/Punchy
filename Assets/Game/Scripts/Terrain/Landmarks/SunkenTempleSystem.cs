@@ -359,20 +359,22 @@ namespace Punchy.Terrain
                         float f = FloorOn(r, e, s0, s1), m = 0.5f * (s0 + s1);
                         float gu = e == 0 ? r.U0 - 0.3f : e == 1 ? r.U1 + 0.3f : m, gv = e == 2 ? r.V0 - 0.3f : e == 3 ? r.V1 + 0.3f : m;
                         var top = Ground(gu, gv) + 0.05f;
+                        // Coping: a kerb of stone blocks on the rim, a little uneven, hiding the terrain's cut edge. W-172
+                        // row 3: over a door into a closed room too, since the cut is widened past the edge there as well
+                        // and left a slot down beside the wall above the door.
+                        if (lod == 0 && (n < 0 || Rooms[n].Kind == 0))
+                        {
+                            float lift = rng.NextFloat(-0.06f, 0.1f), back = rng.NextFloat(1.1f, 1.5f), inset = rng.NextFloat(0.05f, 0.18f);
+                            float y0 = top - 0.5f, y1 = top + 0.05f + lift;
+                            var uv = e == 0 ? new float4(r.U0 - back, r.U0 + inset, s0 + 0.03f, s1 - 0.03f)
+                                : e == 1 ? new float4(r.U1 - inset, r.U1 + back, s0 + 0.03f, s1 - 0.03f)
+                                : e == 2 ? new float4(s0 + 0.03f, s1 - 0.03f, r.V0 - back, r.V0 + inset)
+                                : new float4(s0 + 0.03f, s1 - 0.03f, r.V1 - inset, r.V1 + back);
+                            b.Solid(0, uv, new float2(y0, y1), 0, 4);
+                        }
                         if (n < 0)
                         {
                             Wall(b, 0, i, e, s0, s1, f, top);
-                            // Coping: a kerb of stone blocks on the rim, a little uneven, hiding the terrain's cut edge.
-                            if (lod == 0)
-                            {
-                                float lift = rng.NextFloat(-0.06f, 0.1f), back = rng.NextFloat(1.1f, 1.5f), inset = rng.NextFloat(0.05f, 0.18f);
-                                float y0 = top - 0.5f, y1 = top + 0.05f + lift;
-                                var uv = e == 0 ? new float4(r.U0 - back, r.U0 + inset, s0 + 0.03f, s1 - 0.03f)
-                                    : e == 1 ? new float4(r.U1 - inset, r.U1 + back, s0 + 0.03f, s1 - 0.03f)
-                                    : e == 2 ? new float4(s0 + 0.03f, s1 - 0.03f, r.V0 - back, r.V0 + inset)
-                                    : new float4(s0 + 0.03f, s1 - 0.03f, r.V1 - inset, r.V1 + back);
-                                b.Solid(0, uv, new float2(y0, y1), 0, 4);
-                            }
                             return;
                         }
                         var o = Rooms[n];
@@ -382,7 +384,31 @@ namespace Punchy.Terrain
                         if (o.Kind == 0)
                             Wall(b, 0, i, e, s0, s1, math.max(f, o.Ceil), top);  // above the door, up to the ground
                     });
+                    // W-172 row 3 (#365): a block on each outer corner. The edges' kerbs stop at the corner, and the cut
+                    // (widened a step, rounded) left a quarter-round hole in the sand there.
+                    if (lod == 0)
+                        for (int c = 0; c < 4; c++)
+                        {
+                            float su = (c & 1) == 0 ? -1f : 1f, sv = (c & 2) == 0 ? -1f : 1f;
+                            float cu = su < 0f ? r.U0 : r.U1, cv = sv < 0f ? r.V0 : r.V1;
+                            if (InRoom(cu + su * 0.3f, cv + sv * 0.3f))
+                                continue;
+                            float lift = rng.NextFloat(-0.06f, 0.1f), back = rng.NextFloat(1.1f, 1.5f), inset = rng.NextFloat(0.05f, 0.18f);
+                            var top = Ground(cu + su * 0.3f, cv + sv * 0.3f) + 0.05f;
+                            float ua = cu - su * inset, ub = cu + su * back, va = cv - sv * inset, vb = cv + sv * back;
+                            b.Solid(0, new float4(math.min(ua, ub), math.max(ua, ub), math.min(va, vb), math.max(va, vb)),
+                                new float2(top - 0.5f, top + 0.05f + lift), 0, 4);
+                        }
                 }
+            }
+
+            /// <summary>Whether (u, v) lies in any room, open or closed.</summary>
+            bool InRoom(float u, float v)
+            {
+                foreach (var o in Rooms)
+                    if (u >= o.U0 && u <= o.U1 && v >= o.V0 && v <= o.V1)
+                        return true;
+                return false;
             }
 
             /// <summary>Every closed room: floor, walls (open where rooms meet), ceiling, drifts; inside boxes; torch brackets.</summary>
