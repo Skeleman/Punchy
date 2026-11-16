@@ -65,8 +65,9 @@ namespace Punchy.Interact
             return keyboard != null && keyboard[Current].wasPressedThisFrame || pad != null && pad.buttonSouth.wasPressedThisFrame;
         }
 
-        /// <summary>The key alone (not the pad's button: in the inventory, the pad's A is the panel's own Submit).</summary>
-        public static bool KeyWasPressed() => !Punchy.UI.Overlay.AnyOpen && Keyboard.current != null && Keyboard.current[Current].wasPressedThisFrame;
+        /// <summary>The key alone (not the pad's button: in the inventory, the pad's A is the panel's own Submit). For the
+        /// in-world menu's own use, so only the main menu or a talk holds it.</summary>
+        public static bool KeyWasPressed() => !Punchy.UI.Overlay.Frozen && Keyboard.current != null && Keyboard.current[Current].wasPressedThisFrame;
 
         static int offeredFrame = -10;
         /// <summary>Something in front of the player can be used now (a door, an item, a chest, someone to talk to, a

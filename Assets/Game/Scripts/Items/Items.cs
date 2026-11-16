@@ -244,6 +244,7 @@ namespace Punchy.Items
         bool padTest;
         float padAt;
         int padStep;
+        float3 stickFrom;
         Gamepad testPad;
         int pickupArg, pickupDone;
         bool dropArg, openChestArg;
@@ -911,11 +912,11 @@ namespace Punchy.Items
 
         /// <summary>
         /// The panel: Tab or I, or View on a pad, opens and closes it (B too). Inside, MenuNav moves between the slots
-        /// (arrows, d-pad, left stick) and Submit (Enter, A) or the Use key drops one of the focused slot's items.
+        /// (arrows, d-pad; the left stick walks) and Submit (Enter, A) or the Use key drops one of the focused slot's items.
         /// </summary>
         void UpdateInventoryKeys()
         {
-            if (Punchy.UI.Overlay.AnyOpen)
+            if (Punchy.UI.Overlay.Frozen)
                 return;
             var keyboard = Keyboard.current;
             var pad = Gamepad.current;
@@ -940,6 +941,8 @@ namespace Punchy.Items
                 openContainer = -1;
                 return;
             }
+            // (P-39, #397: the menu has the buttons, not the walk.)
+            Punchy.UI.Overlay.HoldForFieldMenu();
             nav.ReadInput();
             if (nav.Active && nav.Focus != lastFocus)
             {
@@ -961,7 +964,9 @@ namespace Punchy.Items
 
         /// <summary>
         /// "-invpad": drives the panel with a virtual gamepad through the Input System (the real input path): View opens it,
-        /// d-pad right three times, A drops one, B closes it. Starts 45 s in (after any -pickup).
+        /// d-pad right three times, A drops one, B closes it. Starts 45 s in (after any -pickup). P-39 (#397): with the panel
+        /// open it also holds the left stick up for a step, and logs how far the player walked and where the focus went
+        /// (the stick walks, the d-pad alone moves the focus).
         /// </summary>
         void PadTest()
         {
@@ -980,14 +985,28 @@ namespace Punchy.Items
                 InputSystem.EnableDevice(testPad);
             }
             testPad.MakeCurrent();
-            GamepadButton[] script = { GamepadButton.Select, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
+            // (Start: a stand-in for "the left stick, held up": the pad's Start opens the main menu, so it's never pressed.)
+            GamepadButton[] script = { GamepadButton.Select, GamepadButton.Start, GamepadButton.DpadRight, GamepadButton.DpadRight, GamepadButton.DpadLeft, GamepadButton.South, GamepadButton.East };
             var press = padStep % 2 == 0;
             var button = script[padStep / 2];
-            InputSystem.QueueStateEvent(testPad, press ? new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(button) : new UnityEngine.InputSystem.LowLevel.GamepadState());
+            var stick = button == GamepadButton.Start;
+            var state = new UnityEngine.InputSystem.LowLevel.GamepadState();
+            if (press && stick)
+                state.leftStick = new Vector2(0f, 1f);
+            else if (press)
+                state = state.WithButton(button);
+            if (stick && TryPlayer(out var at))
+            {
+                if (press)
+                    stickFrom = at.Position;
+                else
+                    Debug.Log($"Items: -invpad stick walked {math.distance(stickFrom.xz, at.Position.xz):0.00} m with the panel {(panel ? "open" : "closed")}; focus {nav.Focus} (active {nav.Active})");
+            }
+            InputSystem.QueueStateEvent(testPad, state);
             // (P-16: processed now, so this frame's actions and wasPressedThisFrame see it.)
             InputSystem.Update();
             if (press)
-                Debug.Log($"Items: -invpad presses {button} (pad enabled {testPad.enabled}, current {Gamepad.current == testPad}, {button} down {testPad[button].isPressed})");
+                Debug.Log($"Items: -invpad presses {(stick ? "left stick up" : button.ToString())} (pad enabled {testPad.enabled}, current {Gamepad.current == testPad}, {button} down {testPad[button].isPressed})");
             if (++padStep >= script.Length * 2)
             {
                 padTest = false;
@@ -1122,12 +1141,12 @@ namespace Punchy.Items
         // script stays out of Unity's IMGUI pass (and its per-frame garbage) the rest of the time.
         void Start()
         {
-            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => !Punchy.UI.Overlay.AnyOpen && (prompt != null || panel), true);
+            Punchy.UI.GuiHook.Add(gameObject, DrawGui, () => !Punchy.UI.Overlay.Frozen && (prompt != null || panel), true);
         }
 
         void DrawGui()
         {
-            if (Punchy.UI.Overlay.AnyOpen)
+            if (Punchy.UI.Overlay.Frozen)
                 return;
             if (prompt != null)
             {

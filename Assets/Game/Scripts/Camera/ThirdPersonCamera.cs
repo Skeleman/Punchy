@@ -575,8 +575,9 @@ namespace Punchy.CameraRig
 
         void HandleCursor()
         {
-            // The main menu (Esc or Start) needs the mouse; take it back once it closes.
-            if (Punchy.UI.Overlay.AnyOpen)
+            // The main menu (Esc or Start) needs the mouse; take it back once it closes. (Not the in-world menu: the
+            // player still walks and looks around with it up.)
+            if (Punchy.UI.Overlay.Frozen)
             {
                 if (Cursor.lockState == CursorLockMode.Locked)
                     SetCursorCaptured(false);
