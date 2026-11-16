@@ -50,6 +50,19 @@ namespace Punchy.Tests
             Assert.AreEqual("", Game.Hook<string>("DungeonOrdinalProblems"));
         }
 
+        /// <summary>
+        /// #24 phase 2 row 4 (rule 20): the dungeon props are drawn by screen size (whole, as their biggest part, or
+        /// not at all), not kept as GameObjects drawn at any distance.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Dungeons_PropsDrawnByScreenSize()
+        {
+            yield return AllDungeonsRegistered();
+            yield return null;
+            yield return null;
+            Assert.AreEqual("", Game.Hook<string>("DungeonPropTiers"));
+        }
+
         /// <summary>Waits (up to 60 s) until the director has residents for every dungeon (caves come a few per frame).</summary>
         static IEnumerator AllDungeonsRegistered()
         {
