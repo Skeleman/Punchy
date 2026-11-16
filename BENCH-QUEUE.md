@@ -877,7 +877,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 
 - 11-14 note (supervisor): #353 merged to main (3b192717): at High and Ultra the sun now uses the wide soft-shadow filter and a 4096 map (set at run time; Medium and Low unchanged). Shadow cost at High moves; re-baseline High if a job compares across it.
 
-## Job 88 (2026-11-14, RUNNING 11-15 (q130.job); render lane, R-20 row 1, #286): wide sun filter + 4096 map at High
+## Job 88 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md (q130.job); render lane, R-20 row 1, #286): wide sun filter + 4096 map at High
 - main 4df85493 (A) vs main 3b192717 (B, includes #353). Profile builds, 1920x1080, Medium and High, uncapped,
   12:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: town 73 centre `-benchspot 2972,-885`; a forest edge `-place OakGrove`; the spawn view.

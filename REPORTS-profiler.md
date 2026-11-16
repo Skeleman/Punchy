@@ -2,6 +2,27 @@
 
 Newest first.
 
+## Job 88: R-20 row 1 at High (#353: main 3b192717 = B vs 4df85493 = A), 2026-11-15 (q130.job): Medium unchanged; High +0.5 to +1.2 ms GPU, **town 73 over the 1.0 flag**; the medium filter halves it
+**Setup:** shelf builds (runner checked), 1920x1080, uncapped, noon, Clear, arms rotated, 3 rounds, Medium and High. Views: town 73 centre (`-benchspot 2972,-885,0`), the forest edge (`-place OakGrove`), the spawn view. Arm "B medium" = B with `-sunshadowfilter medium`, run at every view.
+
+| view | preset | A | B (#353) | **B - A** | B medium filter | **- A** |
+|---|---|---|---|---|---|---|
+| town 73 | Medium | 14.8 | 15.17 | +0.37 (B's rounds 15.6, 14.9, 15.0) | 15.13 | +0.33 |
+| forest | Medium | 12.83 | 12.9 | +0.07 | 13.0 | +0.17 |
+| spawn | Medium | 13.37 | 13.33 | -0.03 | 13.73 | +0.37 |
+| town 73 | High | 18.5 | 19.73 | **+1.23** | 19.1 | +0.60 |
+| forest | High | 16.87 | 17.65 | +0.78 | 17.4 | +0.53 |
+| spawn | High | 16.97 | 17.5 | +0.53 | 17.2 | +0.23 |
+
+(GPU ms, mean of 3 rounds; one stalled High forest round left out.)
+- **Medium: unchanged within noise** (forest +0.07, spawn -0.03; the town's +0.37 is one 15.6 round, the other two 14.9-15.0 against A's 14.7-14.9). B doesn't change Medium, as intended.
+- **High: flag at town 73, +1.23 ms GPU** (rounds 19.5-20.0 vs 18.2-18.9); forest +0.78, spawn +0.53.
+- **Fallback, `-sunshadowfilter medium` at High:** +0.23 to +0.60, about half of B's cost, and under the 1.0 flag everywhere. That's the cheaper option if the town's +1.2 matters.
+- **Shadow map memory:** graphics memory at High 714 -> **740 MB (+26 MB)** with the 4096 map (the medium filter doesn't change it); Medium unchanged (659 / 658).
+- The main-light shadow pass on its own isn't separable here (the laptop's GPU pass timers read nothing; a RenderDoc pair would split it if wanted).
+
+Cost: laptop total $930 (laptop session e163d8ab; 0 builds (shelf), 54 games).
+
 ## Job 86: R-28 row 2 cobble parallax (render/cobble-depth 4cd4edd8): NOT RUN, the branch can't build a player (Burst BC1091)
 - **Build error (twice, 11-15):** "Burst error BC1091: External and internal calls are not allowed inside static constructors: UnityEngine.Shader.PropertyToID", reached from `CreatureRenderSystem.CompactJob.Execute` (CreatureRenderSystem.Passes.cs:519) -> `CreatureRenderSystem.Decide` -> `DetailPolicy..cctor()` (DetailPolicy.cs:71).
 - **Cause:** 4cd4edd8 adds `static readonly int TerrainParallaxId = Shader.PropertyToID("_PunchyTerrainParallax");` to `DetailPolicy`, which Burst jobs read, so its static constructor now makes a managed call that Burst can't compile. Main's DetailPolicy has no such field (editor and Play mode don't Burst-compile ahead of time, so it only shows in a player build).
