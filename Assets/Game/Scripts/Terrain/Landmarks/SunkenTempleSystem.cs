@@ -360,8 +360,8 @@ namespace Punchy.Terrain
                         float gu = e == 0 ? r.U0 - 0.3f : e == 1 ? r.U1 + 0.3f : m, gv = e == 2 ? r.V0 - 0.3f : e == 3 ? r.V1 + 0.3f : m;
                         var top = Ground(gu, gv) + 0.05f;
                         // Coping: a kerb of stone blocks on the rim, a little uneven, hiding the terrain's cut edge. W-172
-                        // row 3: over a door into a closed room too, since the cut is widened past the edge there as well
-                        // and left a slot down beside the wall above the door.
+                        // row 3: over a door into a closed room too. W-174 row 4: the cut is exact now and the seam builder
+                        // puts the terrain's edge on the rim, so the kerb only dresses the edge; it no longer covers a slot.
                         if (lod == 0 && (n < 0 || Rooms[n].Kind == 0))
                         {
                             float lift = rng.NextFloat(-0.06f, 0.1f), back = rng.NextFloat(1.1f, 1.5f), inset = rng.NextFloat(0.05f, 0.18f);
@@ -384,8 +384,8 @@ namespace Punchy.Terrain
                         if (o.Kind == 0)
                             Wall(b, 0, i, e, s0, s1, math.max(f, o.Ceil), top);  // above the door, up to the ground
                     });
-                    // W-172 row 3 (#365): a block on each outer corner. The edges' kerbs stop at the corner, and the cut
-                    // (widened a step, rounded) left a quarter-round hole in the sand there.
+                    // W-172 row 3 (#365): a block on each outer corner, where the edges' kerbs stop (the old widened cut
+                    // left a quarter-round hole there; W-174 row 4 snaps the terrain onto the exact corner).
                     if (lod == 0)
                         for (int c = 0; c < 4; c++)
                         {

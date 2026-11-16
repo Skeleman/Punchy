@@ -23,6 +23,14 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
+        /// Signed distance (m) to the nearest cave mouth or temple entrance cut at ground height h, negative inside, for
+        /// samplers that keep a margin from the edge (grass blades hanging over an opening). Scarp strips keep their own
+        /// margin (ScarpSet.Edge). 100 away from both.
+        /// </summary>
+        public static float Edge(in TerrainSource source, float2 xz, float h) =>
+            math.min(source.MouthCut(xz, h), source.Landmarks.IsCreated ? source.TempleCut(xz) : 100f);
+
+        /// <summary>
         /// Whether nothing may stand here: the ground is removed, or a cliff kit piece rises over it or hangs over it
         /// (CliffKit.Covered). Flora and other placed things ask this.
         /// </summary>

@@ -123,7 +123,6 @@ namespace Punchy.Terrain
             var pooled = new NativeArray<bool>(v * v, Allocator.Temp);
             // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
             // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
-            var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
             // W-136: darkening where trunks, rocks, walls and props meet the ground, multiplied into the albedo.
             var shaded = Flora.IsCreated && Contacts.IsCreated;
             var shade = new NativeArray<float>(shaded ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
@@ -140,8 +139,20 @@ namespace Punchy.Terrain
             {
                 var local = new float2(x, z) * step;
                 var world = request.Origin + local;
+                var grid = world;          // the water sheet keeps the grid point (it is built on the grid)
                 var ground = Source.SampleGround(world);
+                var gridGround = ground;
                 var h = ground.Height;
+                // Cut where the ground is replaced (see Cut). W-174 row 4 (#405), the one seam builder: a ground vertex
+                // near a rim moves onto it, so the per-pixel cut's edge runs through vertices on the rim (exact corners and
+                // noisy mouth rims, no slot beside a temple wall) instead of between grid points.
+                world = Seam(world, h, step, request.Lod, out var cave, out var strip, out var stripY);
+                if (!world.Equals(grid))
+                {
+                    local = world - request.Origin;
+                    ground = Source.SampleGround(world);
+                    h = ground.Height;
+                }
                 // Fixed-scale normals keep lighting identical across LODs, so LOD switches don't flicker.
                 var normal = Source.SampleNormal(world, NormalEpsilon);
                 minY = math.min(minY, h);
@@ -157,17 +168,10 @@ namespace Punchy.Terrain
                 // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
                 if (ground.HasWater)
                     vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
-                // Cut where the cave walls' field opens (see TerrainSource.MouthCut): the walls carry a skin of the
-                // surface round the opening, under the terrain.
-                var cave = cutHoles ? MouthCut(world, h, step) : 100f;
-                // W-56: the sunken temple's entrance cut, widened a step so no terrain hangs over it (its coping covers the edge).
-                if (request.Lod <= 1 && Source.Landmarks.IsCreated)
-                    cave = math.min(cave, Source.TempleCut(world) - step);
-                // W-155: a scarp's stepped strip is left to its skin mesh. The strip is cut away like a cave mouth, and
-                // the vertices in it carry the level run-on of the rim or the foot, so the cut edges land on both.
-                if (request.Lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, world, step, h, out var strip, out var stripY))
+                // W-155: the vertices in a scarp's strip carry the level run-on of the rim or the foot, so the cut
+                // edges land on both.
+                if (strip < 100f)
                 {
-                    cave = math.min(cave, strip);
                     if (strip < 0f)
                     {
                         vertex.Position.y = stripY;
@@ -197,17 +201,17 @@ namespace Punchy.Terrain
                 verts[z * v + x] = vertex;
                 // Landmark pools are left out of the sheet: CaveSystem bakes each on the finer 0.5 m water lattice, fitted
                 // to its basin (W-148; a small pool spans only a few quads of this grid, which gave it a ragged edge).
-                var sheet = ground.WaterSurface;
+                var sheet = gridGround.WaterSurface;
                 if (Source.Landmarks.IsCreated)
                 {
-                    var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, world, out var claim);
-                    if (claim > 0f && pool >= ground.WaterSurface - 0.001f)
+                    var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, grid, out var claim);
+                    if (claim > 0f && pool >= gridGround.WaterSurface - 0.001f)
                         sheet = GroundSample.NoWater;
                     pooled[z * v + x] = claim > 0f;
                 }
-                water[z * v + x] = new float4(sheet, ground.Flow, h);
-                rapids[z * v + x] = ground.Rapids;
-                looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
+                water[z * v + x] = new float4(sheet, gridGround.Flow, gridGround.Height);
+                rapids[z * v + x] = gridGround.Rapids;
+                looks[z * v + x] = Source.WaterLook(grid, gridGround.Biomes, out var glow);
 
                 glows[z * v + x] = glow;
             }
@@ -588,6 +592,89 @@ namespace Punchy.Terrain
             wetQuad.Dispose();
             return range;
         }
+
+        /// <summary>
+        /// The terrain's cut at a point (negative where the ground is replaced; the shader clips it per pixel): the cave
+        /// walls' field where a mouth opens (MouthCut; the walls carry a skin of the surface round the opening, under the
+        /// terrain), the sunken temple's entrance cut, and a scarp's stepped strip, left to its skin mesh (strip, and its
+        /// level run-on stripY; strip is 100 off any strip). The same holes as GroundHoles.Removed.
+        /// </summary>
+        public float Cut(float2 xz, float h, float step, bool cutHoles, int lod, out float strip, out float stripY)
+        {
+            var cave = cutHoles ? MouthCut(xz, h, step) : 100f;
+            // W-56: the temple's entrance cut. W-174: exact now (it was widened a step, which left a slot beside the
+            // walls where the coping didn't reach); the seam builder puts the terrain's edge on the walls' line.
+            if (lod <= 1 && Source.Landmarks.IsCreated)
+                cave = math.min(cave, Source.TempleCut(xz));
+            strip = 100f;
+            stripY = 0f;
+            if (lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, xz, step, h, out var s, out var sy))
+            {
+                strip = s;
+                stripY = sy;
+                cave = math.min(cave, s);
+            }
+            return cave;
+        }
+
+        /// <summary>
+        /// W-174 row 4 (#405): the one seam builder for every replaced patch of ground (cave mouths, temple entrances,
+        /// scarp strips). Returns where a grid vertex goes (the grid point, or the rim point it snaps to) and its cut
+        /// there. Only vertices on the kept side snap (holding SeamEpsilon, so the clip edge runs through them): if both sides
+        /// snapped, a triangle with every corner on the rim would put its edge through the midpoints, off the rim at a
+        /// corner. With one side, a straight rim through a snapped corner can't cross its triangle. Only Source
+        /// is read, so TestHooks.SeamProblems builds the same vertices to check the seams.
+        /// </summary>
+        public float2 Seam(float2 grid, float h, float step, int lod, out float cave, out float strip, out float stripY)
+        {
+            var cutHoles = lod <= 1 && Source.Caves.IsCreated;
+            cave = Cut(grid, h, step, cutHoles, lod, out strip, out stripY);
+            if (!(cave > 0f && cave < 1.3f * step) || !SeamSnap(grid, cave, step, cutHoles, lod, out var rim))
+                return grid;
+            // One Newton step lands on the rim of a straight edge or a smooth field, but not across a kink (where two
+            // rooms' edges meet, a mouth's 5-tap min): a vertex that misses the rim keeps its grid point.
+            var at = Cut(rim, Source.SampleHeight(rim), step, cutHoles, lod, out var rimStrip, out var rimStripY);
+            if (math.abs(at) > SeamMiss + 0.25f * math.abs(cave))
+                return grid;
+            cave = math.max(at, SeamEpsilon);
+            strip = rimStrip;
+            stripY = rimStripY;
+            return rim;
+        }
+
+        /// <summary>
+        /// Moves a point near a rim onto it with one Newton step along the cut's gradient (exact for the temple's walls,
+        /// close for a mouth's noisy field). False where the field is flat there (MouthCut's rock value is capped) or
+        /// the move would leave the vertex's fan of triangles (see SeamReach).
+        /// </summary>
+        bool SeamSnap(float2 xz, float cut, float step, bool cutHoles, int lod, out float2 rim)
+        {
+            rim = xz;
+            var e = math.min(SeamProbe, 0.25f * step);
+            float2 ax = xz + new float2(e, 0f), az = xz + new float2(0f, e);
+            var g = new float2(Cut(ax, Source.SampleHeight(ax), step, cutHoles, lod, out _, out _) - cut,
+                               Cut(az, Source.SampleHeight(az), step, cutHoles, lod, out _, out _) - cut) / e;
+            var g2 = math.lengthsq(g);
+            if (g2 < 0.04f)
+                return false;
+            var move = -cut * g / g2;
+            // The fan round a vertex (split i0-i2-i1 / i1-i2-i3, diagonals along x+z) is the hexagon
+            // max(|x|, |z|, |x+z|) < 1 quad: inside it no triangle flips.
+            if (math.cmax(math.abs(new float3(move, move.x + move.y))) > SeamReach * step)
+                return false;
+            rim = xz + move;
+            return true;
+        }
+
+        /// <summary>Finite-difference distance (m) for the seam builder's gradient.</summary>
+        const float SeamProbe = 0.2f;
+        /// <summary>The cut value a snapped vertex keeps (its side's sign), so the clip edge runs through it.</summary>
+        const float SeamEpsilon = 0.001f;
+        /// <summary>How far off the rim (m of cut, plus a quarter of the grid point's) a snap may land and still count.</summary>
+        const float SeamMiss = 0.02f;
+        /// <summary>How far a vertex may move onto a rim, as a share of its fan (quads): most of it, so a ground vertex
+        /// can reach a convex corner of a hole instead of the chord between two edge snaps cutting the corner off.</summary>
+        const float SeamReach = 0.9f;
 
         /// <summary>
         /// The terrain's cut at a vertex: the lowest MouthCut at it and half a quad away each way. An opening narrower

@@ -318,6 +318,18 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>W-174 rows 4-5 (#405): the terrain's cut edge round every temple entrance, cave mouth and scarp strip
+        /// follows the rim (the seam builder) with no slot or overhang wider than its kind allows, and ground inside a
+        /// temple's cut reads as removed.</summary>
+        [UnityTest, Order(90), Timeout(480000)]   // one long frame: every rim cell is sampled on the main thread
+        public IEnumerator Seams_NoOpenRims()
+        {
+            var problems = Game.Hook<string>("SeamProblems");
+            LogWatch.Measure($"seams: {Game.HookField<string>("SeamTrail")}; {(problems == "" ? "no open seams" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
         /// <summary>P-47: no two dungeon chests (the temple's, every cave's, the ruin rooms') share a container id, so a
         /// chest RPC names one chest on every machine.</summary>
         [UnityTest, Order(90)]
