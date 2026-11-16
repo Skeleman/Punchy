@@ -215,6 +215,10 @@ namespace Punchy.Flora
         public Color Foliage = new Color(0.22f, 0.4f, 0.14f);
         [Tooltip("Second foliage colour; each clump picks somewhere between the two.")]
         public Color FoliageVariation = new Color(0.3f, 0.45f, 0.16f);
+        [Tooltip("R-30: how much low sun shines through the leaves when the plant stands against it (Flora.hlsl's " +
+                 "FloraLeafTransmission). 1 = broadleaf; less for thick or waxy leaves (cacti); dark needles need more " +
+                 "than 1 to show a lift at all, as the light is tinted by their own colour.")]
+        [Range(0f, 2f)] public float LeafThinness = 1f;
         [Tooltip("Flowers, berries or fruit. Each variant picks one. Empty = none.")]
         public List<Color> Accents = new List<Color>();
         [Tooltip("Share of the plant dotted with flowers/fruit (shrubs, cacti).")]

@@ -180,7 +180,7 @@ Shader "Punchy/FloraImpostor"
                 half ao = surface.occlusion * PunchyGrounding(positionWS.y - input.ground.x, n.y, leafy ? 0 : 1);
                 half3 color = albedo * (light.color * shadow * diffuse * lerp(0.6, 1, ao) + sky * ao);
                 if (leafy)   // light through the leaves, as on the mesh (Flora.hlsl)
-                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, wideLit * cloudLit, lerp(0.5, 1, ao));
+                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, wideLit * cloudLit, lerp(0.5, 1, ao) * input.ground.z);
                 // Bark and rock: the mesh's faint sky reflection at grazing angles (Flora.shader), at its far strength, so
                 // a far trunk or rock fades into the haze as the mesh beside it does and the hand-off keeps its tone (R-11).
                 if (!leafy)

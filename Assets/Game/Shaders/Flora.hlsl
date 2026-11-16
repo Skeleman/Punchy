@@ -24,6 +24,18 @@ struct FloraInstance
 
 StructuredBuffer<FloraInstance> _FloraInstances;
 StructuredBuffer<uint2> _FloraVisible;
+// R-30: each of the layer's models' leaf thinness (FloraSpecies.LeafThinness, by model less _FloraModelBase), for
+// FloraLeafTransmission. Unbound (caves) reads as 1.
+StructuredBuffer<float> _FloraLeafThin;
+int _FloraModelBase;
+
+half FloraSpeciesThin(int model)
+{
+    uint count, stride;
+    _FloraLeafThin.GetDimensions(count, stride);
+    uint local = (uint)(model - _FloraModelBase);
+    return local < count ? _FloraLeafThin[local] : 1;
+}
 // Each draw's region of _FloraVisible starts at its indirect arguments' startInstance (FloraSystem and CaveSystem
 // draw with RenderMeshIndirect), so draws share one material with no per-draw property block.
 #define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs

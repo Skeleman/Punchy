@@ -117,6 +117,8 @@ Shader "Punchy/Flora"
                 float4 moss : TEXCOORD9;   // FloraMossData: cover (2: not moss), point in the plant's frame
                 // Items 27-28: 1 on a model that moves (a living plant: its Bark is bark), 0 on FLORA_STATIC ones (rocks, logs).
                 nointerpolation half living : TEXCOORD10;
+                // R-30: the species' leaf thinness (FloraSpecies.LeafThinness), for the light through its leaves.
+                nointerpolation half thin : TEXCOORD11;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -135,6 +137,7 @@ Shader "Punchy/Flora"
                 o.grainPos = input.positionOS;
                 o.grainAxis = input.color.a;
                 o.moss = FloraMossData(input);
+                o.thin = FloraSpeciesThin(v.plant.model);
 #ifdef FLORA_STATIC
                 o.living = 0;
 #else
@@ -367,7 +370,7 @@ Shader "Punchy/Flora"
                 half3 color = albedo * (light.color * shadow * diffuse * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
                 // Light through the leaves (R-30 row 2, Flora.hlsl), its own soft self-shadow; thinner deep in the crown.
                 if (leafy && !metal)
-                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, wideLit * cloudLit, lerp(0.5, 1, ao));
+                    color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, wideLit * cloudLit, lerp(0.5, 1, ao) * input.thin);
                 // Tinted reflections of the sky, a sharp sun highlight, and glints that twinkle as the leaves move and
                 // the view changes (shared with creature gear: Metal.hlsl).
                 if (metal)
