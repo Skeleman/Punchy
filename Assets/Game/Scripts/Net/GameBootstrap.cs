@@ -22,7 +22,25 @@ namespace Punchy.Net
     [Preserve]
     public class GameBootstrap : ClientServerBootstrap
     {
-        public const ushort Port = 7979;
+        /// <summary>The game's default UDP port; the wire format is the same on any port.</summary>
+        public const ushort DefaultPort = 7979;
+
+        /// <summary>
+        /// The port this run hosts, listens and joins on: <c>-port N</c> from the launch flags (in the editor, also
+        /// Temp/PlayArgs.txt), else <see cref="DefaultPort"/>. Lets several local test pairs run side by side without
+        /// one lane's joiner landing on another lane's host. Read from the flags each time, so an editor play picks up
+        /// changed test flags. A port in the join address itself (<c>-join host:port</c>) still wins.
+        /// </summary>
+        public static ushort Port
+        {
+            get
+            {
+                var args = Punchy.Debugging.DebugControls.LaunchArgs;
+                var at = Array.IndexOf(args, "-port");
+                return at >= 0 && at + 1 < args.Length && ushort.TryParse(args[at + 1], out var port) && port != 0
+                    ? port : DefaultPort;
+            }
+        }
 
         /// <summary>Where the local player should be put once the reloaded scene has a player (see NetMenu).</summary>
         public enum Placement { None, KeepPosition, NearHost }
