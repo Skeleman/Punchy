@@ -83,7 +83,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   A-95). Shipped: A-91 rows 2-4 (PR #249). Shipped: set-piece placement on the shared temple rules (P-45, PR #466); temple sockets out of walls (P-46, PR #472); cave and ruin chests open like temple chests (P-47, PR #473). Dungeon walk test fixed for stacked floors (P-48, PR #474). Shipped: dungeon creatures as residents on a near-player tier, the dead stay dead (#24 p2 r2, PR #480); cave and ruin chest loot rows (PR #486). In flight: r3 tells joiners which residents are dead, then item sockets (animal lanes); new rooms wait on W-174 seams (row 4)/W-175.
 - **Items and inventory (#26).** Shipped: first items and doors (P-28), pocket reach (A-114). Shipped: hand
   actions, per-item block and folk gear kits (P-38, PR #450). Next: one item definition and saved state (P-35, design first).
-- **Quests (#27).** Shipped: first quests (P-28), dungeon quests (P-49, #485). Later: more objective types, tracking.
+- **Quests (#27).** Shipped: first quests (P-28), dungeon quests (P-49, #485), quest-only items (#491). Later: more objective types, tracking.
 
 ## Seasons
 - A generic calendar: day-of-year counter, configurable year length and season count, synced. Values follow
