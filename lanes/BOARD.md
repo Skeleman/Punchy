@@ -9,8 +9,8 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r7+ | #365 | world | active | world/playtest-1114 cb8ea8ac | Rows 2-6 done (verified). W-174 note on world/ground-edits 2e48bec2 for review. Next: row 7 (cave wall details) |
-| W-174 | #406 | world | next | world/ground-edits (new) | Row 1 audit and design note, after world-pack lands |
+| W-172 r7+ | #365 | world | active | world/playtest-1114 cb8ea8ac | Rows 2-6 done (verified). Next: c21/c17 headroom fix, main merge, hand off rows 2-6 for PR; then row 7 (cave wall details) |
+| W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r3 | #336 | materials | done (verified): thatch/cloth/metal/plaster/brick/ice; ready for PR | world/material-library 439e8892 (tree Punchy-materials) | Supervisor: PR + BENCH brick parallax |
