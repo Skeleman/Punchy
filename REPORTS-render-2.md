@@ -181,7 +181,7 @@ render/hour-sync-doc @ **349c274e** (on 0fb62bf8). It adds one bullet to docs/ag
   - *FloraSystem.DrawBolts* (Flora lane): spire-to-spire and spire-to-ground strikes timed from the shared clock, with a Zip crack. It uses a **fixed reach** of 160 m × ViewRange, which breaks rule 20.
   - *Fauna/GolemArcs.cs* (W-89): continuous arcs with the same mesh at ×7 thickness, so the jag scales ×7 too. The rock bob runs on local `Time.time` and the crack on `UnityEngine.Random`, so it isn't shared between players.
   - *FloraPart.Arc* (FloraGenerator.Crystals, Flora.shader): crystal arcs are **baked tubes** in the flora mesh. They only jitter by 0.18 × scale and flash in brightness bursts. **This is most likely the "one fixed shape that flashes colour" Zach saw.** The magnetic rock uses the same tubes.
-  - *Storm lightning* (WeatherSystem, LightningRpc): a sky flash and light only, with no visible bolt. It is a candidate kit consumer.
+  - *Storm lightning* (WeatherSystem, LightningRpc): a sky flash and light, and Sky.hlsl does draw a bolt in the sky (correction 11-16: the first inventory said no visible bolt). It is a candidate kit consumer.
 - **Fire (the model):** FireEffect/FireSystem/Flame.shader. It is used by landmark flames, beacons, forest fire and colossus lanterns.
 - **Steam, smoke and spray on the GPU:** LandmarkEffectSystem plus LandmarkPlume.shader draw procedural emitters with no CPU sim. The landmark assets have 52 Plume, 18 Flame, 5 Bubbles and 1 Waterfall entries. Code also spawns emitters for chimney smoke (W-43c), river fall mist, foam and lip spray (R-21), and the grand falls.
 - **Smoke, steam, spray and sparks on the CPU (Shuriken one-offs, the cost risk):**
@@ -229,3 +229,14 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
   - It is camera-facing core plus glow, additive and fogged. All timing comes from `_PunchyClock` with no ghost field. The CPU and GPU use the same PCG hash.
 
 **Editor slot request:** I'm ready for one on port 7986. I'll check ≥ 6 GB free first and close with EditorApplication.Exit. In that slot I would compile, make the asset, add .meta files, and take 12-frame strips near and at 50 m with a 3-line call from a probe spot, with `-sparkleprobe` NaN 0.
+
+### Row 2 handoff (2026-11-16, render/effects-kit 05a8043f, main 0834e28b merged in)
+- Status: call sites wired, still uncompiled. I stayed editor-free; this waits for the editor slot after render (R-31).
+- Kit: `Scripts/Rendering/Effects/` (render-2 owns): ElectricityEffect, ElectricitySystem, EffectsDriver (draws the kit once a frame from the pipeline's begin-frame hook, material from Resources), and Shaders/Electricity.shader. The editor slot makes the Electricity material and effect asset.
+- Flora (call sites only): FloraSystem.DrawBolts now calls `ElectricitySystem.AddStrike` per bolt. Its own mesh, material and the struck-restore table are gone. Bolt rhythm and seed come from the same seeded draw as before. The 160 m x ViewRange gather radius is fixed metres (rule 20); it is left as is and flagged for a later card.
+- Fauna (call sites only): GolemArcs.LateUpdate calls `ElectricitySystem.AddArc` per arc. Only arc 0 cracks, and the seed comes from the golem's position, so every peer sees the same pattern. The StoneColossi.RockGolem comment now names ElectricitySystem.
+- Removed: ArcBolt.shader and Resources/ArcBolt.mat, since no code uses them now.
+- For the player lane: LightPolicy.cs gets one enum value, `LightKind.Electric`, plus its policy row (Real at best, Emissive at worst, importance 2). LightBudget.cs needs `Kinds` changed from 7 to 8 so the log arrays fit. That one line goes beyond the agreed enum value and row. LightKind is never sent over the network or saved (checked by grep).
+- Crystal arcs (FloraGenerator.Crystals): deferred to the editor slot. The plan is to keep the baked far tubes (W-101 far crackle) and swap the near LODs to kit arcs from model-space endpoints. The magnetic rock's orbiting shards need care.
+- Asked: a BENCH-QUEUE note for the Shuriken baseline (towns and the StoneColossi.Puffs giants), to measure against in row 3.
+- Next: editor slot (compile, material, 12-frame strips near and at 50 m, `-sparkleprobe` NaN 0, tune the ArcPixels fade), then row 3 one family per commit, with wind last for Zach's OK.

@@ -1079,3 +1079,8 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Views: (a) a ground walk through open forest with clearings (forest cover inside 375-1500 m); (b) summit `-goto -3460,2425` at noon, clear, far forest in view; (c) a 1000 m flight over forest toward the coast; (d) a coast or meadow walk with no forest in view (control).
 - Record: terrain pass GPU ms and whole-frame GPU/CPU ms; bake time from the `[flora] far forest map baked in N ms` line, and whether start-up waits on it (it should not; it runs on workers).
 - Pass: B within 0.3 ms GPU of A at (a) and (d), within 0.8 ms at (b) and (c); bake under 3 s on workers with no main-thread hitch over 2x median. Report the numbers otherwise.
+
+## Note (2026-11-16, render-2 lane, R-29 #320, branch render/effects-kit 05a8043f): Shuriken baseline for the effects kit
+- Not a job yet: a baseline to compare against when R-29 row 3 moves smoke, steam and dust onto the shared kit (no look change).
+- Wanted: CPU main-thread and GPU ms for the Shuriken particle work as it is on main now, at (a) a busy town (AmbienceSystem chimney smoke, WorkDust) and (b) near the giants that use StoneColossi.Puffs (CarnivorousPlant, CharredTreant, CinderSnail, HermitCrab, IceMammoth, MagmaSerpent, MireWalker, Puffball, SkyWhale and the rest of the StoneColossi partials), plus a control view with neither. Profile build, Medium, uncapped, 300 frames.
+- Row 3 commits will ask for the same views against the kit branch.
