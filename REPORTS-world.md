@@ -8328,3 +8328,19 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Fauna: set the colossus uv3 once this is on main** (walking oak wood 1, golem stone 3, tortoise bone 10, ice mammoth ice 9). With no uv3 nothing changes.
 - Not moved: cubes, stands, props and the other ItemMaterial users (dungeon spawner, notices, interiors, climb marks, fishing, quests), and held/worn items. A note is in REPORTS-player.
 - Next: W-175 r3b (docks and one lantern part) on its own branch, then rows 4-6.
+
+## W-175 row 3b (#415), materials lane: kit crates, baskets and lanterns as one part each (2026-11-16)
+
+- Branch world/parts-units-3 @ 5446f7ba (from main). Ready for PR.
+- **World: StructureKit is now `public static partial class`** (a one-word edit, OK'd by the coordinator). The new parts live beside it in Landmarks/StructureKit.Parts.cs, so StructureKit.cs (over 2500 lines) shrinks by 6 lines.
+- Each part is defined once: `Crate` (body plus lid band), `Basket` (net body plus wood rim) and `LanternHead` (cap, glass, tray; glass material, scale and roll are arguments). The kit sites that now call them: the wharf door lamp and wharf crates, the coast lantern, the Lantern, PierLamp and WallLantern fixtures, the raft baskets, the sunken and trade-goods crates, and the inn lantern.
+- **Intended look change:** lanterns now all have the same cap, glass and tray, crates all get a lid band, and baskets get a rim. Nothing else moves. A 24-seed part-list diff of every kit form that uses them (Wharf, all fixtures, SeaRaft, Inn, Shore, Wreck, Alpine, Dock, Stilt, Boardwalk, coast lantern, trade goods) shows only lantern, crate and basket part lines changed, 0 other lines. The RNG draws are kept, so placements are the same. Sconce, Brazier, Candelabra, Rune, Beacon, Alpine and Boardwalk are identical. No shots were taken: the part-list diff is exact, and a before/after pixel diff would need two extra recompiles. I can shoot them if wanted.
+- Not moved: the sled bundle, sconce, brazier, candelabra and beacon (different shapes, not lantern heads). The shore baskets are not a separate site.
+- Tests: Landmarks_V3 passed (play), so nothing to re-pin. UnitLibraryTests + MaterialLibraryTests 7/7 (EditMode). No timing done.
+- parts-and-units.md section 8 records what row 3b built.
+- Next: W-175 rows 4-6 (kit gaps from M-06 r5).
+
+## W-166 r4 (#336), materials lane: main merged in (2026-11-16)
+
+- world/material-library-3 @ 6af0edfc merges origin/main 7d0e415c (P-47 #473) into the r4 sweep, as the coordinator asked. Items.cs merged by itself: P-47's chest changes and r4c's ItemDef Family/Kind rows touch different parts of the file. It compiles with 0 errors.
+- Re-run on the merged tree: MaterialLibraryTests + UnitLibraryTests 7/7 (EditMode), including main's updated MaterialLibraryTests. Ready for PR.
