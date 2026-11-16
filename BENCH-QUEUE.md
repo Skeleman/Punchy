@@ -1002,3 +1002,9 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Arm: main bb32a928 (B) against the first parent of the #442 merge (A). Profile builds, 1920x1080, High, uncapped, ABBA, 3 rounds. Warm the island cache once per build and note the bake ms (B adds Lab species to the herd bake).
 - Record: process private bytes and managed heap after 60 s at the 99a grassland view; island cache bake ms; [herds] log line; CPU main-thread and GPU ms at the 99a view and at the Tundra Frostdeer herd.
 - Pass (rule 23): High at most +0.5 ms; report any memory change over 50 MB or bake change over 10%.
+
+## Job 104 (2026-11-16, QUEUED after 102; render-2 lane, R-23 r3 part A #298, branch render/one-surface-3 9795d6a3): shader include split
+- Sky.hlsl is split into SkyCommon/Clouds/Atmosphere/Sky; 14 haze-only shaders now include less. The look should be identical.
+- Arms: main (A) against render/one-surface-3 (B), editor on each tree with ShaderCache (Library/ShaderCache) cleared first.
+- Record: full shader import time after the cache clear, variant count per changed shader (Sky, Water, TerrainSurface, Creature, Flora, Grass), and player build shader-compile time.
+- Report only; nothing fails. A frame-time check isn't needed unless the variant counts change.
