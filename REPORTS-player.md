@@ -1939,3 +1939,31 @@ public struct FolkKit : IEquatable<FolkKit>
   - The bag is still client-side, so the host trusts the client's Item in a move, as it did before. A host-held bag is a later row.
   - Old-build joiner message: the ghost and RPC changes alter the protocol hash. Whether an old joiner gets a visible message is checked on the editor ping.
   - The ghost size cost has a BENCH-QUEUE note.
+
+## P-35 r3 row 5: ids from records (11-16, uncompiled)
+
+Branch player/item-ids@6975ead4, off kit-wire. Written without an editor. It compiles and gets verified after rows 2, 3 and 4.
+
+- New WorldIds (Items/WorldIds.cs). A record is a hash of kind and baked position (rounded to cm). Kinds: Door, WorkPost, Landmark. Until the world file exists, this stands in for its record id.
+  - Seeded uid = bit 30 | family << 28 | 28 hash bits. Families: DoorStarter, Spare, Rod.
+  - Room storage id = bit 29 | 29 hash bits of (door record, k).
+  - Drops and dungeon spawns keep the host counter (nextDrop, starting at 1). Saving it is row 7, which is untouched.
+- Uses:
+  - door starter items (Items.Seed)
+  - spares, keyed on the work post, so a post is stocked once
+  - wharf rods (landmark record) and hut rods (door record, which also picks the door)
+  - room storage ids and fill seeds (Interiors.Storage indexes every store's id when rooms build; StorageDoor resolves from the index; Ownership.OfContainer works unchanged)
+- Removed: DropBase, RoomBase, SpareBase and RodBase/HutRods, plus every numeric uid range check.
+- Clashes are logged and the later item is skipped. The test checks for at most 1 clash in 4,000 starter ids and 8,000 store ids.
+- Unchanged: cave chests (ChestId) and temple chests (socket index).
+- Layout: door starter items, hut rod doors and room store contents reshuffle once, because they now draw from records instead of indexes. Layout-free applies.
+- Not done in row 5:
+  - ItemTable generated from the catalog, with the start check flipping direction. This needs the editor or a generator, so it goes on the editor ping or a later card.
+  - Post set pieces (world lane).
+  - Owner derived in place (row 8).
+- Verify plan on the editor slot:
+  - compile
+  - WorldIdTests plus the existing item tests
+  - solo: starter items, spares, rods and room stores appear, and a taken one stays taken after reload in the session
+  - host plus joiner: the same store contents and ids, with take/put syncing
+  - grep the log for "id clash"
