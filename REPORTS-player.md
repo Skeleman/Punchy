@@ -1667,3 +1667,12 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Fauna_Fingerprint + 3 FolkTalkTests: 4/4 pass. Dev build solo `-body BatFolk -eyewear`: 0 exceptions, 85 items, head Glasses, BatVision 1.00 -> 0.00. Ready for PR.
 - #259: NOT passing. Host + joiner dev build, no lag, joiner `-autowalk -rejoin 45,3`. Rejoin 1 of 3 was back in game after 10.4 s. On "rejoin: 2 of 3: leaving" the joiner crashed natively before "worlds disposed" was logged (0 managed exceptions; the host exited cleanly). Per the crash rule, stopped at the first crash.
 - Native stack (worker thread; job names from the Burst debug info): entry Punchy.Terrain.BuildChunkMeshJob, then frames in the SurfaceGlow.ScanJob and CaveSystem.MeshJob modules (Burst shares code, so the inner names are rough). Likely a terrain chunk mesh job still running while leave tears the world down. This is not the earlier GameAudio Occlude crash. Owner: terrain (world lane). Suggested fix: complete or wait on in-flight chunk mesh jobs before the leave dispose. Log: Punchy-player Logs/p38/rj-join.log line 1768.
+
+## P-33 re-check on main + P-44 draft parked (2026-11-16)
+- player/fishing has nothing to PR. It was already contained in main (rows 1-3 via #419, P-41 rods 461f138c), so "merge origin/main" was a fast-forward to ec1ea218 (W-172 #451, pin E764AAEC, no re-pin needed). The branch is pushed at ec1ea218.
+- Dev build of main ec1ea218, `-place clearlake -equip Rod -cast "1;1" -castwater -fishplay hook`:
+  - solo: a cast, a bite, then caught a herring 19 cm and a mackerel 27 cm (Fish x2); 0 exceptions;
+  - host plus `-join 127.0.0.1`: the host caught a herring and a mackerel, and the client caught a sea bream and a herring. Each side logs the other's bite/hooked/caught ("player 2: caught, Fish 22 cm (host tally: 1)"). 0 exceptions and 0 deserialize errors on both sides.
+- Row 4 still waits on Zach's feel notes. Stopped there.
+- P-44: a row 1 draft written before the park is committed as WIP on its own branch, player/ships 7d95ccbc (docs/agents/ships.md, marked parked). It covers a carrier lookup that generalises ColossusCollision.Carry, hull kit boxes placed at the ship pose, clock-driven motion with nothing sent, a remote-on-deck drift fix with no wire change, masts as climb columns, and cost per step. It is input for the rescoped walk-on-moving-bodies card. Not started further.
+- Logs: Punchy-player Logs/p33/solo.log, host.log, join.log.

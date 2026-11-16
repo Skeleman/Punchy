@@ -26,7 +26,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-30 r1-r2c | #323 | render | r2c done: Pine/Spruce 1.4; ready for PR | render/foliage-realism@326437af | sheet R-30/row2c/sheet-backlit.png; merge-tree vs main ec1ea218 clean. Fir/WhitePine 1.4 after W-166. Shells-as-default = R-30 r3 only if 'option b' meant shells |
 | R-39 | #401 #402 #302 #269 | render-2 | merged #432 | render/playtest-1115 | #401 #402 closed; #302 and #269 stay open for R-25 r4-6 and R-15. Next: R-25 r4-6 (R-30 r1 stays with render) |
 | P-38 | #372 | player | merged #450 | main 27171bd2 | Rows 0-4 verified (job gear kit items, A-128 drape, eyewear head items + rule 11 wire change, Model Lab kit). Main build bug: TestHooks.Options.cs needs UNITY_EDITOR guard (A-131) |
-| P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
+| P-33 | #266 | player | blocked | merged #419; rows 1-3 re-checked on main ec1ea218 (11-16) | Row 4 feel tuning waits on Zach playing fishing |
 | P-31 | no issue | player | merged #446 | | -netsim / -rttlog / -rejoin on main; Relay + 2nd machine untested |
 | P-39 | #397 #398 | player-2 (supervisor agent) | draft PR #434 | player/menus@cd837c12 (tree Punchy-docs, on take-items 487dd137) | Rows 1-3 verified; merges after P-38. Follow-up: creature Interact prompt (fauna file) joins UseTarget |
 | P-42 | #25 | player-2 | rows 1-2 done, verified solo + host (client runs owed, RAM) | player/talk-replies@c34b3f4b (on player/menus) | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
