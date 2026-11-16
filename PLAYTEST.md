@@ -182,3 +182,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #485 P-49 (#24, #27): dungeon quests; a notice board names a cave or ruin-room chest (heirloom Key, elder Staff) and you bring back what it holds.
 - 11-16: #486 W-166 r4 (#336), #24 p2: colossi wear library wood, stone, bone and ice; cave and ruin chests draw from their own loot rows.
 - 11-16: #488 A-134 (#460): households own their houses and goods; a theft seen by someone home or a guard brings a guard over, and that household refuses favours for 3 days.
+- 11-16: #489 W-176 (#475): cave side passages no longer dig pits through other passages or step down into their end chamber; new layout test finds 0 pits, 0 ledges in 23 caves.
