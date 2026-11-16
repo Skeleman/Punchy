@@ -23,7 +23,7 @@ Newest first.
 
 Cost: laptop total $935 (laptop session e163d8ab; 2 builds, 28 games).
 
-## Job 90: W-164 row 2 garden beds in the ground pass (world/level-gardens c378a480 = B vs main 3b192717 = A), 2026-11-15 (q132.job): PASS (one Medium round spoiled by my own stray editor; clean rerun to follow)
+## Job 90: W-164 row 2 garden beds in the ground pass (world/level-gardens c378a480 = B vs main 3b192717 = A), 2026-11-15 (q132.job, q132r.job): PASS (one Medium round spoiled by my own stray editor; clean rerun confirms)
 **Setup:** shelf builds (runner checked), 1920x1080, uncapped, 12:00, Clear, arms alternated, 3 rounds, Medium and High. Views: the hermit garden (`-benchspot 140,22,-548,30`) and the default spawn, 60 s each. Then one `-freshisland` start per arm at High for the bake.
 
 **Load (`[start]` ledger, Player.log):**
@@ -48,7 +48,7 @@ Cost: laptop total $935 (laptop session e163d8ab; 2 builds, 28 games).
 | spawn | High | 17.13 | 17.37 | +0.23 | 19.63 / 19.67 | 20.0 / 20.0 |
 
 - **Rule 23: PASS.** Medium within +0.1 ms, High within +0.25, CPU level, slow frames level.
-- **Spoiled round:** B's first Medium garden game (18:54-18:57) ran while two batch-mode editors I'd started by mistake (a dry run of job 92's spec ran its analysis step) were up; I stopped them by PID within minutes. That game read 14.1 GPU, 20.2 ms CPU, 38 frames over the hitch bar, 1% low 14 fps; every other game read 0-1. report.py's all-rounds row says +0.33 FAIL with it in; I've left it out above. I'll rerun the Medium garden view clean after job 92.
+- **Spoiled round:** B's first Medium garden game (18:54-18:57) ran while two batch-mode editors I'd started by mistake (a dry run of job 92's spec ran its analysis step) were up; I stopped them by PID within minutes. That game read 14.1 GPU, 20.2 ms CPU, 38 frames over the hitch bar, 1% low 14 fps; every other game read 0-1. report.py's all-rounds row says +0.33 FAIL with it in; I've left it out above. **Rerun 11-15 23:21 (q132r.job, 3 clean rounds each, 0 slow frames in every game): A 13.73, B 13.57 GPU ms (-0.17), median frame 15.57 / 15.27, CPU 16.13 / 15.93. PASS confirmed.**
 - The fresh-start row in report.py (+0.40 "FAIL") is a single game during the first stream, there for the ledger only; not a frame measurement.
 
 Cost: laptop total $934 (laptop session e163d8ab; 0 builds (shelf), 26 games).

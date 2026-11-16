@@ -897,7 +897,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   LoadBoostBehind (provisional 2) and the load-boost cap. Pass: B's world ready comes no later than A's on any start;
   no hole visible in the first view.
 
-## Job 90 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md (q132.job; Medium garden rerun to follow); world lane, W-164 row 2, #334): garden beds in the ground pass
+## Job 90 (2026-11-14, REPORTED 11-15 in REPORTS-profiler.md (q132.job; Medium garden rerun q132r.job confirms); world lane, W-164 row 2, #334): garden beds in the ground pass
 - world/level-gardens c378a480 (B) vs main 3b192717 (A). Profile builds, 1920x1080, Medium and High, uncapped,
   12:00, Clear. Island and landmark pins are unchanged (117 landmarks, 689D5348); only the ground under the
   HermitHut garden moves.
