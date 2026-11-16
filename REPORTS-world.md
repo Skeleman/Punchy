@@ -8197,3 +8197,13 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Lava (render-2's question):** v3 realms leave out the Volcano biome, and VolcanoCone is only in Volcano's Landmarks list, so no lava places. Cheapest fix is adding VolcanoCone to Ashlands' Landmarks (Ashlands already paints volcano ridges): one asset line, rebake, landmark re-pin, a shot, and a note to the profiler, about half a row. Giving Volcano its own realm land costs more (layout, many re-pins). I can add the half-row after W-174 if wanted.
 - **Shares:** CaveBaking.RiderHead is public for any later rider or mount clearance check (rule 33).
 - Next: row 7 (cave wall details).
+
+## W-166 row 3 stone (#336): built stone, cut and rubble. Compiled + tests, shots pending
+- **Branch:** world/material-library-2@b24503bc (tree Punchy-materials).
+- **What changed:** one built-stone look, PunchyStoneBlocks in Materials/Stone.hlsl, beside R-34's wet rock. Cut stone has 0.34 m courses with blocks 0.5-0.9 m long, thin dark joints and arris lean. Rubble is domed Voronoi stones with pale lime grout. Ruins draw rubble; fountains, forums, plinths, hearths and seats draw cut stone. Detail fades by screen size (rules 20, 25).
+- **Move:** Shaders/Stone.hlsl moved to Materials/Stone.hlsl (git mv, GUID kept). A one-line forwarder stays at the old path for TerrainSurface.shader (render's), which is still listed as Pending in the test. Render: point its include at Materials/Stone.hlsl when convenient, then delete the forwarder.
+- **Marks:** built stone 0.142, rubble 0.144 (in the same slot).
+- **Verified:** Flora, Cave and Terrain Surface compile with 0 errors. MaterialLibraryTests 3/3.
+- **Not yet:** before/after close-ups and the NaN check. Editor RAM was down to 1 GB free, so I closed my editor; both go in with the gear row.
+- **BENCH:** the stone branch costs about the same as brick (a 3x3 Voronoi for rubble). Suggest adding a built-stone close-up to job 101 instead of opening a new job.
+- **Gear WIP (next):** world/material-library-2@1bf93cce, built on A-133 (fauna/material-library, merged into my branch). Merge order: A-133 first, then mine. On top of A-133: cloth and leather use Cloth.hlsl, bone uses a new Materials/Bone.hlsl, MaterialLibrary.FamilyOf(SegmentMaterial) gets its own test, and Cave tunnel courses use PunchyStoneBlocks (cut). They are cut stone (0.42 x 0.95 m), not brick, so they use Stone.hlsl rather than Brick.hlsl.
