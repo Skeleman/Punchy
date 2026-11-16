@@ -1790,3 +1790,16 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
   - Bat folk dark vision is separate (Camera/BatVision.cs, an exposure volume), so turning the lantern off leaves it alone.
   - Plan if allowed: move the lantern into a new partial (CaveSystem.Lantern.cs) and have it follow a held light item (ItemDef.Light, the Torch has 11) instead of "in a cave". The starting torch goes in Items/Gear (player files): give one Torch to a character with no save.
 - Shares: LoadVeil (the one load/ready gate) drives the start view. No second "world ready" check.
+
+## P-37 row 2 (#369): no body glow, a starting torch, done (verified) - player/cave-lantern@28d7fdf2
+- Move: the lantern code (fields, UpdateLantern, LanternWanted, CreateLantern, PlaceLantern, UpdateOtherLanterns) now lives in Terrain/Caves/CaveSystem.Lantern.cs. The CaveSystem.cs diff is removals only (113 lines; the call sites and release code stay).
+- Gate: the lantern still needs "in a cave" and depth, and now also needs a light item in either hand. The local player is checked with `Items.OwnHeldLight`, other players with `Items.HeldLight(networkId)` (new statics in Gear.cs, ItemDef.Light). _PunchyLantern still feeds cave plants while a torch is lit and is 0 otherwise.
+- Sync: the held item reaches other clients through the gear RPCs that already exist (host's gearOf by GhostOwner.NetworkId, the table that dresses remote bodies). No new ghost field or RPC.
+- Start pack: StartPack (Fishing.cs) puts one Torch in slot 1 beside the rod. The inventory isn't saved yet, so every start counts as a new character.
+- Checks (dev build, port 7982):
+  - Solo, night, cave #2: mean brightness 0.19 with no torch, 0.29 with `-equip Torch` (the old build lit the bodies with no torch).
+  - Host with a torch plus joined client, temporary probe: the client reads host p1 = 11 and its own hands = 0. The host reads its own = 11.
+  - The joined client's `-gocave` didn't land in the host's cave, so there is no client shot of the host's light underground.
+- Shots: D:/Unity/PunchyMilestones/P-37/row2/ (1-before-cave-glow, 2-after-no-torch, 3-torch-equipped). The before shot is from the row-1 build, in the bat folk cave, a similar view.
+- Risk: the cold shader cache made the first build take 56 min. The torch's own flame light (CreatureRenderSystem) is unchanged, so with a torch in a cave both lights add up, as before.
+- Shares: gear sync (gearOf) and ItemDef.Light, the shared item definitions. No new held-item channel. Parallel not folded in: CreatureRenderSystem's torch light also reads the held item, and the two could share one helper later.
