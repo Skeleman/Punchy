@@ -871,3 +871,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - render/far-island@98bc7ca2 (WIP, pushed). The 893d70a0 merge left one compile error, a stray `return 0f;` in UpdateFarIsland that my earlier no-editor edit put in. It is fixed and the branch now compiles clean.
 - Free RAM then fell to 3.5 GB in edit mode, before any play run, so I closed the editor cleanly. The tree is clean on render/far-island and there was no scene backup.
 - Still to do next slot: list2 runs (medium-off, high-on with sparkle, high-off), seams/coast check, final commit, BENCH ask; then the lava far-light re-check (#302, -891,-2021 at dusk).
+
+## 11-16 render: R-22 r1 Medium-on after merge done, slot ended on RAM again
+- render/far-island@98bc7ca2 (no code change this slot). Waited for 9 GB free (10.2 GB at 04:21), then opened one editor.
+- Medium, far island on, list2 (10 shots): all done, in PunchyMilestones/R-22/row1/m-on (contact-sheet.jpg). The island draws past the streamed ground out to the coast in fly300/fly1000. No holes or seams on the summit or pan shots.
+- During that run free RAM fell from 12.9 to 0.5 GB. Five other editors use 4-6 GB each and mine used about 5 GB. I stopped play mode and closed with EditorApplication.Exit, which was slow but clean (no kill).
+- Still to do: Medium-off, High-on with sparkle NaN, High-off, coast sawtooth A/B, final commit, BENCH ask; then the lava far-light re-check (#302; walk-in list ready in PunchyMilestones/R-25/lava-recheck/work/lava.txt). Need about 12 GB free at start, not 9, since one run takes about 7 GB on top of edit mode.
