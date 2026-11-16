@@ -997,3 +997,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - **Walk:** a 6-frame walk across the meadow at eye height for the leading prototype and today's grass, frames 0.5 s apart. This checks for flicker, pop and how tufts read in motion.
 - **Numbers per variant:** the probe's coverage at 3, 8, 15 and 25 m (target at least 90% at 3-20 m) and the blades-per-m² line. For (d), also the spacing-to-height ratio. NaN count 0.
 - **Output.** Shots go to PunchyMilestones/R-31/ as `<variant>-<time>-<pin>.png`. The sheet is one grid per time of day, with coverage under each column. It goes to you for Zach. The cost check goes to BENCH-QUEUE as a separate request (rule 21).
+
+### R-31 row 1 handoff (11-16), render/grass-fields@8253b5a9, paused (budget)
+- Ground hidden at 3/8/15/25 m (meadow, eye 1.7 m, noon): today 18/40/66/59%, a (3x count) 38/69/87/71, b (wider, taller blades) 46/79/92/73, c (shell) 28/49/70/60, d (Bezier singles) 20/44/69/62. None reaches 90% across 3-20 m; b is closest, d needs a higher count.
+- Causes: blades are thin and short (3.3 cm wide, 0.23 m tall at 55/m2); tufts of 5 leave gaps between clumps; thinning past FullDensityRange lowers coverage at 25 m; a dark round disc near the camera with a hard edge shows in every variant, today's too (look into it in row 2).
+- Sheet for Zach: PunchyMilestones/R-31/R-31-noon-pin1.jpg (5 tiles, coverage under each). Probe: GrassCoverageProbe.Measure; prototype switch: GroundDetailSystem.SetProto(0-4). NaN 0, Grass.shader compiles clean.
+- Row 2 not started. Editor closed.
