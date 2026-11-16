@@ -8304,3 +8304,13 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - Fauna fingerprint re-pinned E764AAEC -> 4BEFEA91 (spawn plots shift with the moved landmarks).
 - WorldTests 14/14 in play mode. Ready for review and merge. Profiler: world layout moved (one landmark), re-pin any bench that names the fingerprint.
 - Next: W-174 row 2 on world/ground-edits.
+
+## W-175 row 3 (#415), materials lane: camps as units (2026-11-16)
+
+- Branch world/parts-units-2 @ d4f83dfd (from main 82c9de1c). Ready for PR.
+- Tent and FirePit are now `BuildUnit` calls (`TentUnit`, `FirePitUnit`). New library parts: hide tent, door mat (it wraps the `DoorMat` that houses and kit doors already call), fire ring, log tepee, embers.
+- No look change: W175Probe hashes match main for 13 species and 46 variants (every LOD mesh, collider, perch). Gallery shots of CampTent, CampTentSnow and FirePit at noon and low sun, 3 and 15 m, differ by 0.00 px. NaN 0.
+- Tests: UnitLibraryTests + MaterialLibraryTests 7/7 (EditMode). Landmarks_V3 passed (play), so nothing to re-pin. No shared files touched.
+- parts-and-units.md section 7 records what row 3 built.
+- Docks and lanterns are split off as row 3b. Wharf crates, shore baskets and the six lantern builds are StructureKit boxes, not flora builders, so they need a kit adapter. That means a new partial beside StructureKit.cs (3422 lines) plus a one-word `partial` edit to it, which is world-owned. Unifying them changes how most of them look, so 3b is a look-change row with a pixel-diff.
+- W-166 r4 sweep (Colossus.shader uv3, items) still waits on the rule 11 OK above.
