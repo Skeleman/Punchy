@@ -51,6 +51,8 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-35 r2 | #333 | render-2 | row 2 done in editor 11-16 (picks A-E, E = main at fov 60 D1); shots in PunchyMilestones/R-35 for Zach | render/cloud-picks@b7a1f7cc (after #494) | Waits on Zach's picks for row 3; BENCH draft in REPORTS to file |
 | R-31 | #325 | render | editor-free start 11-16 (row 1 probe plan, row 2 prototypes a-d) | render/grass-fields (new off main) | Editor slot on request |
 | R-29 | #320 | render-2 | editor-free start 11-16 (row 1 inventory, electricity design); moved from render | render/effects-kit (new off main, Punchy-release) | Also render/hour-sync-doc@0fb62bf8 + freeze line, PR by supervisor |
+| #400 cull | #400 | fauna | queued after r4/r5/walkin-walls (Job 96 FAIL cause) | fauna/cull-no-stall (new off main) | CreatureRenderSystem: no same-frame Complete of the cull |
+| #400 mesh | #400 | world | queued after M-07 r2b, W-172 r7 | world/chunk-mesh-budget (new off main) | Per-frame chunk-mesh budget by screen size; tunnel-mouth burst |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-45 | #24 | player (fishing agent) | DONE, merged #466 | player/dungeon-pieces@44630e60 | -place piece:hall/deadend/pool, walk 0 falls, sockets checked, design note. Follow-up: 2 temple sockets in walls |
