@@ -318,8 +318,8 @@ namespace Punchy.Items
             var have = 0;
             if (id >= 0)
                 foreach (var s in slots)
-                    if (s.item == id)
-                        have += s.count;
+                    if (s.Row == id)
+                        have += s.Count;
             return $"{q.item} {have}/{math.max(q.count, 1)}";
         }
     }

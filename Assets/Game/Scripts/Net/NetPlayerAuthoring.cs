@@ -14,6 +14,7 @@ namespace Punchy.Net
                 AddComponent<NetPlayer>(entity);
                 AddComponent<NetPlayerCommand>(entity);
                 AddComponent(entity, new NetPlayerLook { Species = -1 });
+                AddComponent<NetPlayerKit>(entity);   // (P-35 r3 row 4: what it has on, the host's word; Items/Kit.cs)
             }
         }
     }

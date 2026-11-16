@@ -29,9 +29,8 @@ namespace Punchy.Items
     public partial class Items
     {
         public const int ContainerSlots = 8, MaxDrops = 256;
-        /// <summary>Container ids: a temple chest is its socket index; room storage RoomBase + door * 4 + k (A-134); a cave or
-        /// ruin room chest <see cref="ChestId"/> (CaveChestBit upwards).</summary>
-        public const int RoomBase = 100_000;
+        // Container ids: a temple chest is its socket index; room storage WorldIds.Storage(door record, k) (A-134, P-35 r3
+        // row 5); a cave or ruin room chest ChestId (CaveChestBit upwards).
 
         class Container
         {
@@ -220,11 +219,10 @@ namespace Punchy.Items
         /// <summary>One of the player's slot into the open container (the host decides where it goes).</summary>
         void Put(int slot)
         {
-            if (openContainer < 0 || slot < 0 || slot >= Capacity || slots[slot].item == 255)
+            if (openContainer < 0 || slot < 0 || slot >= Capacity || slots[slot].IsEmpty)
                 return;
-            var item = slots[slot].item;
-            if (--slots[slot].count <= 0)
-                slots[slot] = (255, 0);
+            var item = slots[slot].Row;
+            slots[slot].TakeOne();
             Debug.Log($"Items: put {ItemTable.Items[item].Name} into container {openContainer}; inventory: {DescribeInventory()}");
             if (Joined)
                 SendToHost(new PutRpc { Container = openContainer, Item = item, Count = 1 });
@@ -290,7 +288,7 @@ namespace Punchy.Items
                     Carry(PlayerId(em, from), m.Item, -m.Count);
                     if (!HostPut(m.Container, m.Item, m.Count, "host, for a client") && em.Exists(from))
                     {
-                        Send(em, from, new GrantRpc { Item = m.Item, Count = m.Count });   // (full: back to them)
+                        Send(em, from, KitGrant(m.Item, m.Count));   // (full: back to them)
                         Carry(PlayerId(em, from), m.Item, m.Count);
                     }
                     em.DestroyEntity(r);
@@ -308,7 +306,7 @@ namespace Punchy.Items
                         Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfContainer(m.Container), PlayerId(em, from), $"{ItemTable.Items[s.item].Name} x{s.count} from {c.Name} {m.Container}");
                         SetSlot(m.Container, m.Slot, 255, 0, "host, for a client");
                         Carry(PlayerId(em, from), s.item, s.count);
-                        Send(em, from, new GrantRpc { Item = s.item, Count = (byte)math.min(s.count, 255) });
+                        Send(em, from, KitGrant(s.item, s.count));
                     }
                     em.DestroyEntity(r);
                 }
@@ -367,7 +365,7 @@ namespace Punchy.Items
             {
                 putArg = false;
                 openContainer = containerArg;
-                var slot = System.Array.FindIndex(slots, s => s.item != 255);
+                var slot = System.Array.FindIndex(slots, s => !s.IsEmpty);
                 Debug.Log($"Items: -putitem: slot {slot} into container {containerArg} ({Describe(containers[containerArg].Slots)})");
                 Put(slot);
             }

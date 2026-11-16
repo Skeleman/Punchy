@@ -10,9 +10,10 @@ namespace Punchy.Interact
 {
     /// <summary>
     /// A-134 row 2: each house's own storage. The room (its walls, furniture and where its shelves and chests stand) is
-    /// still one per house type, but what's in the storage is each door's: container id RoomBase + door * 4 + k (door:
-    /// the Door anchor's index, k: the room's k-th store), filled from the room's seed, k and the door, so every machine
-    /// fills it the same with nothing sent, and it belongs to that door's household (Ownership.OfContainer).
+    /// still one per house type, but what's in the storage is each door's: container id WorldIds.Storage(door record, k)
+    /// (P-35 r3 row 5: the door's record is its kind and baked position, so the id survives the world reordering its
+    /// doors; k: the room's k-th store), filled from the room's seed, k and the door's record, so every machine fills it
+    /// the same with nothing sent, and it belongs to that door's household (Ownership.OfContainer).
     /// Registered lazily, never dropped: the host registers the storage of every house within CullNear of any player,
     /// a joined client or a solo game that of houses near its own player, and anyone registers a door's on going in
     /// by it or on hearing from the host about it (Items.ReceiveContainer, for a chest the host changed before a client
@@ -26,12 +27,56 @@ namespace Punchy.Interact
         int storageCount;
         /// <summary>The doors whose storage is registered.</summary>
         readonly System.Collections.Generic.HashSet<int> storedDoors = new System.Collections.Generic.HashSet<int>();
+        /// <summary>Every room store's container id: (its door's index, k). Built for every door with a room, so a store
+        /// the host names before this machine came near resolves too.</summary>
+        readonly System.Collections.Generic.Dictionary<int, (int door, int k)> storeIds = new System.Collections.Generic.Dictionary<int, (int, int)>();
+        int[] storeIdsFor;
 
         /// <summary>Whether a container id is room storage, and whose door's.</summary>
-        public static bool StorageDoor(int id, out int door)
+        public static bool StorageDoor(int id, out int door) => StorageDoor(id, out door, out _);
+
+        static bool StorageDoor(int id, out int door, out int k)
         {
-            door = (id - Punchy.Items.Items.RoomBase) >> 2;
-            return instance != null && id >= Punchy.Items.Items.RoomBase && door < instance.doorRoom.Length;
+            (door, k) = (-1, -1);
+            if (instance == null || !Punchy.Items.WorldIds.IsStorage(id))
+                return false;
+            instance.IndexStorage();
+            if (!instance.storeIds.TryGetValue(id, out var at))
+                return false;
+            (door, k) = at;
+            return true;
+        }
+
+        /// <summary>A door's record (WorldIds), 0 if it isn't known yet.</summary>
+        static uint DoorRecord(int door) =>
+            Doors.TryGetDoor(door, out var at, out _) ? Punchy.Items.WorldIds.Record(Punchy.Items.RecordKind.Door, at) : 0u;
+
+        /// <summary>Indexes every room store's id once per build of the rooms (doorRoom is new each build). Two stores on one
+        /// id (odds about n^2 / 2^30) are logged and the later one left out.</summary>
+        void IndexStorage()
+        {
+            if (ReferenceEquals(storeIdsFor, doorRoom))
+                return;
+            storeIds.Clear();
+            for (int d = 0; d < doorRoom.Length; d++)
+            {
+                var r = StorageRoom(d);   // (a walk-in house's door too, P-37 r3)
+                var stores = r >= 0 ? rooms[r].Stores : null;
+                if (stores == null)
+                    continue;
+                var record = DoorRecord(d);
+                if (record == 0u)
+                    return;   // (the doors aren't in yet: indexed again next call)
+                for (int k = 0; k < stores.Count; k++)
+                {
+                    var id = Punchy.Items.WorldIds.Storage(record, k);
+                    if (storeIds.TryGetValue(id, out var other))
+                        Debug.LogError($"Interiors: door {d}'s store {k} has container id {id:X8}, as door {other.door}'s store {other.k} does (an id clash): left out");
+                    else
+                        storeIds[id] = (d, k);
+                }
+            }
+            storeIdsFor = doorRoom;
         }
 
         /// <summary>Whether the local player can reach container <paramref name="id"/> from where they are: room storage
@@ -66,10 +111,14 @@ namespace Punchy.Interact
             var stores = rooms[r].Stores;
             if (stores == null)
                 return;
+            IndexStorage();
+            var record = DoorRecord(door);
             for (int k = 0; k < stores.Count; k++)
             {
-                var id = Punchy.Items.Items.RoomBase + door * 4 + k;
-                var seed = math.hash(new uint4(RoomSeed(worldSeed, r), (uint)k, (uint)door, 0x5E1Fu));
+                var id = Punchy.Items.WorldIds.Storage(record, k);
+                if (!storeIds.TryGetValue(id, out var mine) || mine.door != door)
+                    continue;   // (an id clash, logged by IndexStorage, or the doors not in yet)
+                var seed = math.hash(new uint4(RoomSeed(worldSeed, r), (uint)k, record, 0x5E1Fu));
                 Punchy.Items.Items.RegisterContainer(id, stores[k].front, stores[k].shelf ? "shelf" : "chest", seed);
                 storageCount++;
                 Debug.Log($"Interiors: door {door}'s {(stores[k].shelf ? "shelf" : "chest")} {id} (household {(Punchy.Fauna.Ownership.Known ? Punchy.Fauna.Ownership.OfContainer(id).ToString() : "not built yet")}): " +
@@ -87,12 +136,16 @@ namespace Punchy.Interact
         /// </summary>
         void MergeIntoDoorContainer(int door, in WalkIn house, int storeCount)
         {
-            var into = Punchy.Items.Items.RoomBase + door * 4;
+            var record = DoorRecord(door);
+            var into = Punchy.Items.WorldIds.Storage(record, 0);
             var at = WalkInChestAt(house);
             Punchy.Items.Items.MoveContainer(into, at, "chest");
             for (int k = 1; k < storeCount; k++)
-                if (!Punchy.Items.Items.MergeContainer(into + k, into))
-                    Punchy.Items.Items.MoveContainer(into + k, at);
+            {
+                var id = Punchy.Items.WorldIds.Storage(record, k);
+                if (!Punchy.Items.Items.MergeContainer(id, into))
+                    Punchy.Items.Items.MoveContainer(id, at);
+            }
             DrawWalkInChest(at, house.Facing);
             Debug.Log($"Interiors: walk-in door {door}'s chest {into} at {at}: {Punchy.Items.Items.DescribeContainer(into)} ({storeCount} room stores joined)");
         }
