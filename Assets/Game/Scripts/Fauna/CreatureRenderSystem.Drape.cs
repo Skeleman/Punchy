@@ -80,6 +80,30 @@ namespace Punchy.Fauna
                 angle = math.min(angle, math.max(start, 1.2f));
                 return hang * math.cos(angle) + outward * math.sin(angle);
             }
+
+            /// <summary>
+            /// A-128: a loose length of cloth or hide hanging from a point in two pieces (at, at + 1): down, pushed by the
+            /// wind's rolling gusts (the trees' and hair's, CreatureAnimator.Wind) and swung back by the wearer's speed,
+            /// the lower piece more than the upper. Stiff (0..1) holds it closer to hanging straight. Each piece is kept
+            /// outside the wearer's legs and trunk (Drape), so a stride swings it out rather than walking through it.
+            /// </summary>
+            void Hanging(ref CreatureBlob b, int offset, float3 from, float3 face, float width, float widthEnd, float length, in CreatureState state,
+                         float3 forward, float4 color, float faded, SegmentMaterial material, int at, float stiff = 0f)
+            {
+                var w = CreatureAnimator.Wind.Data;
+                var dir = math.normalizesafe(new float2(w.y, w.z), new float2(1f, 0f));
+                var phase = w.w * (0.7f + w.x * 1.1f) - math.dot(state.Position.xz, dir) * 0.04f + (state.Individual % 628u) * 0.01f;
+                var gust = (0.6f + 0.4f * math.sin(phase) * math.sin(phase * 0.37f + 1.3f)) * (0.08f + 0.92f * w.x);
+                var flutter = math.sin(w.w * 6f + state.Individual * 0.1f) * 0.15f * gust;
+                var down = new float3(0f, -1f, 0f);
+                var push = (new float3(dir.x, 0f, dir.y) * (gust * 0.9f + flutter) - forward * math.min(state.Speed * 0.12f, 0.8f)) * (1f - stiff);
+                var widthMid = (width + widthEnd) * 0.5f;
+                var upper = Drape(ref b, offset, ref from, math.normalize(down + push * 0.6f), length * 0.5f, width, width * 0.12f, face, true);
+                var mid = from + upper * length * 0.5f;
+                var lower = Drape(ref b, offset, ref mid, math.normalize(down + push * 1.2f), length * 0.5f, widthMid, widthMid * 0.12f, face, false);
+                Output[at] = Piece(from, upper, face, length * 0.5f, width, widthMid, 0.12f, color, faded, material);
+                Output[at + 1] = Piece(mid, lower, face, length * 0.5f, widthMid, widthEnd, 0.12f, color, faded, material);
+            }
         }
     }
 }
