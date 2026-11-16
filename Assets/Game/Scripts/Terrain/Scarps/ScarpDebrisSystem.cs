@@ -45,6 +45,8 @@ namespace Punchy.Terrain
         {
             RequireForUpdate<TerrainSource>();
             RequireForUpdate<TerrainConfig>();
+            // #259: a world swap frees the terrain blobs before this system is destroyed; finish the job first.
+            Punchy.Net.GameBootstrap.WorldsReplacing += Clear;
         }
 
         protected override void OnUpdate()
@@ -226,6 +228,10 @@ namespace Punchy.Terrain
             shown = System.Array.Empty<bool>();
         }
 
-        protected override void OnDestroy() => Clear();
+        protected override void OnDestroy()
+        {
+            Punchy.Net.GameBootstrap.WorldsReplacing -= Clear;
+            Clear();
+        }
     }
 }

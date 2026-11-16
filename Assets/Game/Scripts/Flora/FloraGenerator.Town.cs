@@ -215,68 +215,8 @@ namespace Punchy.Flora
                 g.Colliders.Add(new Vector4(k * 1f, 0f, 0.55f, height));
         }
 
-        static void Smithy(Grower g)
-        {
-            var s = g.S;
-            var b = g.B;
-            var height = g.Range(s.Height);
-            var half = height * s.Spread * 0.5f;
-            var depth = half * 0.8f;
-            var eaves = height * 0.58f;
-            g.Height = height;
-            g.Width = half * 2.6f;
-            g.TrunkRadius = 0f;
-
-            // An open shed: corner posts under a pyramid roof.
-            b.Wood = true;   // the shed's corner posts (Z-30)
-            foreach (var x in new[] { -1f, 1f })
-            foreach (var z in new[] { -1f, 1f })
-                b.Tube(new List<Vector3> { new Vector3(x * half, -0.05f, z * depth), new Vector3(x * half, eaves, z * depth) },
-                       new List<float> { 0.12f, 0.11f }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
-            b.Wood = false;
-            var roof = b.VertexCount;
-            RoofTube(b, eaves - 0.2f, Mathf.Max(half, depth) * 1.414f * 1.15f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);
-            RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
-
-            // The forge at the back: a stone hearth with its coals sunk in a pit inside a raised rim (Z-40: they sat on top),
-            // glowing embers among dark coals, and its chimney up through the roof.
-            var hearth = new Vector3(0f, 0.55f, -depth * 0.45f);
-            float hearthX = half * 1.1f, hearthZ = depth * 0.8f, bed = 0.85f, rim = 0.15f;
-            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the hearth is stone, not the walls' plaster
-            b.Box(new Vector3(hearth.x, bed * 0.5f, hearth.z), new Vector3(hearthX, bed, hearthZ), Quaternion.identity, Stone(g), FloraPart.Bark);
-            foreach (var side in new[] { -1f, 1f })
-            {
-                b.Box(new Vector3(hearth.x, (bed + 1.1f) * 0.5f, hearth.z + side * (hearthZ - rim) * 0.5f), new Vector3(hearthX, 1.1f - bed, rim),
-                      Quaternion.identity, Stone(g), FloraPart.Bark);
-                b.Box(new Vector3(hearth.x + side * (hearthX - rim) * 0.5f, (bed + 1.1f) * 0.5f, hearth.z), new Vector3(rim, 1.1f - bed, hearthZ - rim * 2f),
-                      Quaternion.identity, Stone(g), FloraPart.Bark);
-            }
-            b.Family = b.BaseFamily;
-            var pit = new Vector2(hearthX * 0.5f - rim - 0.08f, hearthZ * 0.5f - rim - 0.08f);
-            var embers = g.Lod == 0 ? 7 : 3;
-            for (int k = 0; k < embers; k++)
-            {
-                var at = new Vector3(hearth.x + g.Range(-pit.x, pit.x), bed + 0.02f, hearth.z + g.Range(-pit.y, pit.y));
-                var size = g.Range(0.08f, 0.17f);
-                var glowing = k % 3 != 2;
-                b.Blob(at, new Vector3(size, size * 0.6f, size * g.Range(0.8f, 1.2f)), Quaternion.Euler(0f, g.R() * 360f, 0f), 1, 0.3f, g.R() * 50f,
-                       glowing ? AccentAt(g, 0) : g.Bark * 0.25f, glowing ? FloraPart.Glow : FloraPart.Bark);
-            }
-            // W-166 row 3: the forge stack is laid in fired brick (MaterialFamily.Brick, Materials/Brick.hlsl).
-            b.Family = Punchy.Terrain.MaterialFamily.Brick;
-            b.Box(new Vector3(0f, (1.1f + height + 0.8f) * 0.5f, -depth * 0.7f), new Vector3(0.7f, height + 0.8f - 1.1f, 0.6f), Quaternion.identity, Stone(g) * 0.85f, FloraPart.Bark);
-            ChimneyTop(g, new Vector3(0f, height + 0.8f, -depth * 0.7f), 0.3f, Stone(g) * 0.85f);
-            b.Family = b.BaseFamily;
-            g.Perches.Add(Vector3.up * height);
-            g.Perches.Add(new Vector3(0f, height + 0.8f, -depth * 0.7f));
-            // The anvil on its block.
-            var anvil = new Vector3(half * 0.3f, 0f, depth * 0.25f);
-            var iron = new Color(0.06f, 0.06f, 0.07f);
-            b.Wood = true;   // the anvil's block (Z-30)
-            b.Box(anvil + Vector3.up * 0.3f, new Vector3(0.35f, 0.6f, 0.35f), Quaternion.identity, g.Bark * 0.6f, FloraPart.Bark);
-            b.Wood = false;
-            b.Box(anvil + Vector3.up * 0.72f, new Vector3(0.75f, 0.24f, 0.3f), Quaternion.identity, iron, FloraPart.Metal);
-        }
+        // W-175: the smithy is a unit of library parts (FloraGenerator.Units.SmithyUnit).
+        static void Smithy(Grower g) => BuildUnit(g, SmithyUnit);
 
         static void Forum(Grower g)
         {
