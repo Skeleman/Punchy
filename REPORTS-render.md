@@ -759,3 +759,15 @@ with main d95e7ff1); compiles, no suite run yet.
 - Suite: runs at the row 6 tip (one editor close for both rows). No timing (rule 21). BENCH ask: none; the lava kind adds no points today and is one more table row.
 - Shares: FarLightPolicy's one kind table and FarLights.shader (all far points). Parallel not folded: beacon fires are also Fire kind (gated on the forest fire); left alone, not on this card.
 - NEXT: row 6 (warm town far points).
+
+## R-25 row 6 (#302): warm town far points keep their colour (render-2, render/far-lights-2 92253cd3)
+- DONE (verified): town window and street-lamp far points drew at 5-7x HDR and clipped to white under the Neutral tonemap, so the town read white from afar but orange up close. FarLights.shader now eases each point's brightest channel under FarLightPolicy.CoreCap = 1.5 (knee at 0.4 of the cap), scaling the other channels by the same factor. The faint halo is untouched. The cap is divided by the bat-eyes exposure lift so it holds on screen. 3 files, +22/-4.
+- Townfar (1 km, 22:00), town crop: near-white pixels 53 old -> 7 new (cap 2.5 left 30, cap 1.0 left 4 but dimmed). Lit pixel count 615 -> 603, so brightness holds. D:/Unity/PunchyMilestones/R-25/row6/deliver: townfar-old/-off, townfar-old-crop vs townfar-new-crop, fly1000-oc/o1/o0.
+- Fly1000 (1000 m up): the town is tiny either way. The blue Glow-tier points keep their count (501 new vs 512 old bright pixels), so the cap doesn't wash out the cool kinds.
+- Walk-in strip, eye 25 m up, bearing south, 500 m to 100 m: deliver/walkin-strip.png (raw in row6/walk2). There is no colour step at the far-to-near switch. The bright-pixel hue moves gradually (g/r 0.91, 0.91, 0.85, 0.79, 0.75, 0.77, 0.84 from 500 m to 100 m) and the top-200 brightness stays at 226-212. The far dots still read creamier than the near orange ground pools; the remaining drift comes from the halo over the blue night and the tonemap, not a jump.
+- Sparkle probe (rule 24), night, far lights on: 360 frames, 0 marked, other bad 0.
+- Playmode suite at the tip: 50 passed, 1 failed, 17 skipped. The failure is WorldTests.Fauna_Fingerprint. The branch is behind origin/main, and this row only touches far-light drawing (no placement or fauna), so I'm leaving it for a re-run after the merge. The known-flaky CrowFlies and CaveWater tests passed.
+- Row 4 was done 11-14 by the render lane. Row 5 is partly verified (no surface lava to test against).
+- No timing (rule 21). BENCH ask: none; this is a few ALU per far-point pixel.
+- Shares: FarLightPolicy's kind table and FarLights.shader: the cap applies to every far light kind.
+- NEXT: card done; #302 stays open for the lava re-verify.
