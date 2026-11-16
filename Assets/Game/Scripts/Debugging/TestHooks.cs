@@ -1984,6 +1984,15 @@ namespace Punchy.Debugging
         /// <summary>A town's centre: [x, z, radius].</summary>
         public static float[] TownCentre(int landmark) =>
             Whereabouts.Towns.TryGetValue(landmark, out var town) ? new float[] { town.Centre.x, town.Centre.y, town.Radius } : new float[0];
+
+        /// <summary>P-47: every dungeon chest's container id on this island: "" when no two share one, else the clashes.
+        /// Logs "[chests] N chests in M dungeons (...)" for the test's measure line.</summary>
+        public static string ChestIdClashes()
+        {
+            var clashes = Punchy.Items.Items.ChestIdClashes(out var summary);
+            Debug.Log("[chests] " + summary);
+            return clashes;
+        }
     }
 }
 #endif

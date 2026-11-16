@@ -210,8 +210,11 @@ namespace Punchy.Items
 
     /// <summary>Client → host: pick up world item Uid.</summary>
     public struct PickupRpc : IRpcCommand { public int Uid; }
-    /// <summary>Client → host: open temple chest socket Socket.</summary>
-    public struct OpenChestRpc : IRpcCommand { public int Socket; }
+    /// <summary>
+    /// Client → host: open the chest at socket Socket of dungeon Dungeon (DungeonInfo.Id) of type Type (DungeonInfo.Type;
+    /// a chest in a cave's ruin room names its cave). P-47: 8 bytes; it was the temple's socket index alone.
+    /// </summary>
+    public struct OpenChestRpc : IRpcCommand { public uint Dungeon; public ushort Type, Socket; }
     /// <summary>Client → host: drop Count of Item at Pos.</summary>
     public struct DropRpc : IRpcCommand { public byte Item, Count; public float3 Pos; }
     /// <summary>Host → everyone: world item Uid is gone (picked up).</summary>
@@ -220,8 +223,8 @@ namespace Punchy.Items
     public struct ItemSpawnRpc : IRpcCommand { public int Uid; public byte Item, Count; public float3 Pos; }
     /// <summary>Host → the picker: it's yours, into the inventory.</summary>
     public struct GrantRpc : IRpcCommand { public byte Item, Count; }
-    /// <summary>Host → everyone: a chest has been opened.</summary>
-    public struct ChestOpenedRpc : IRpcCommand { public int Socket; }
+    /// <summary>Host → everyone: a chest has been opened (named as in <see cref="OpenChestRpc"/>).</summary>
+    public struct ChestOpenedRpc : IRpcCommand { public uint Dungeon; public ushort Type, Socket; }
 
     /// <summary>
     /// Items in the world, picking up and the inventory (#26, P-11).
@@ -233,19 +236,24 @@ namespace Punchy.Items
     /// decides: it removes the item for everyone (ItemGoneRpc) and grants it to the picker (GrantRpc). Solo decides alone.</item>
     /// <item>Inventory: 16 slots with stacks, this machine's own for the session (no disk save). Tab or I shows it; click a
     /// slot (or select with the arrows and press Use) to drop one of it on the ground in front of the player.</item>
-    /// <item>Temple chests: the sunken temple's Chest sockets (TempleSockets) open with Use; the host lays out 1-3
-    /// items seeded from the socket's seed, so the contents are the same on every machine.</item>
+    /// <item>Dungeon chests: every dungeon's Chest sockets (the sunken temple's, every cave's and the caves' ruin rooms',
+    /// P-47) open with Use; the host lays out 1-3 items seeded from the socket's seed, plus the dungeon loot table's
+    /// chest pick (<see cref="Punchy.Fauna.DungeonSpawner.PickChestLoot"/>), so the contents are the same on every
+    /// machine. A cave's marked chest (DungeonState, the quests' chest) holds at least 2.</item>
     /// </list>
     /// For the animal lane's dungeon spawns: <see cref="Spawn"/> (host or solo) puts an item in the world for everyone.
     /// Test flags: "-pickup N" picks up the N nearest items (any distance) through the same path; "-drop" drops one from
-    /// the first slot afterwards; "-openchest" opens the nearest temple chest; "-inventory" shows the panel.
+    /// the first slot afterwards; "-openchest" opens the nearest temple chest ("-openchest cave,ruin": the first cave
+    /// chest and the first ruin room chest by id, the same pick on every machine); "-takechest cave,ruin" takes what is
+    /// in those chests once they are open; "-badchestrpc" (a joined client) sends the host a chest that isn't one;
+    /// "-inventory" shows the panel.
     /// </summary>
     public partial class Items : MonoBehaviour
     {
         public const float Reach = 2f, DrawRange = 60f;
-        /// <summary>Uids: seeded door items are door*4+k; chest items ChestBase + socket*4+k; drops DropBase upwards; spares
-        /// at the folk's posts SpareBase upwards (Spares.cs).</summary>
-        const int ChestBase = 1_000_000, DropBase = 2_000_000;
+        /// <summary>Uids: seeded door items are door*4+k; drops DropBase upwards; spares at the folk's posts SpareBase
+        /// upwards (Spares.cs). (Chests keep their contents as containers: <see cref="ChestId"/>.)</summary>
+        const int DropBase = 2_000_000;
 
         struct WorldItem { public byte Item, Count; public float3 Pos; }
 
@@ -278,7 +286,9 @@ namespace Punchy.Items
         float3 stickFrom;
         Gamepad testPad;
         int pickupArg, pickupDone;
-        bool dropArg, openChestArg;
+        bool dropArg, openChestArg, badChestArg;
+        /// <summary>"-openchest cave,ruin" / "-takechest cave,ruin": which chests (empty: the nearest temple chest).</summary>
+        string[] openChestKinds = System.Array.Empty<string>(), takeChestKinds = System.Array.Empty<string>();
         float testAt;
         readonly Dictionary<int, GameObject> shown = new Dictionary<int, GameObject>();
         GUIStyle promptStyle, slotStyle;
@@ -314,6 +324,9 @@ namespace Punchy.Items
                 instance.spareOnlyArg = true;
             instance.dropArg = System.Array.IndexOf(args, "-drop") >= 0;
             instance.openChestArg = System.Array.IndexOf(args, "-openchest") >= 0;
+            instance.openChestKinds = Kinds(args, "-openchest");
+            instance.takeChestKinds = Kinds(args, "-takechest");
+            instance.badChestArg = System.Array.IndexOf(args, "-badchestrpc") >= 0;
             // (P-39: the inventory and the quest log are tabs of the in-world menu; "-inventory" opens it there.)
             Punchy.UI.FieldMenu.AddTab(ItemsTab, 0, instance.DrawItemsTab);
             Punchy.UI.FieldMenu.AddTab(QuestsTab, 10, instance.DrawQuestsTab);
@@ -538,52 +551,132 @@ namespace Punchy.Items
             (promptCache, promptCacheFor) = (prompt, promptKey);
         }
 
-        /// <summary>The temple's chest sockets: (index in its DungeonSocket buffer, position). Filled once a frame and reused.</summary>
+        /// <summary>
+        /// P-47: one chest of any dungeon. Temple chests keep their socket index as their id (and container id);
+        /// cave and ruin room chests take <see cref="ChestId"/>'s hashed id.
+        /// </summary>
+        struct ChestRef
+        {
+            public uint Dungeon;
+            public ushort Type, Socket;
+            /// <summary>DungeonState's marked chest of a cave (the quests' chest).</summary>
+            public bool Marked;
+            public DungeonSocket S;
+        }
+
+        /// <summary>Cave and ruin chest ids: this bit, an 18-bit hash of the dungeon, then the socket's 12 bits.</summary>
+        public const int CaveChestBit = 0x40000000, MaxChestSocket = 0xFFF;
+
+        /// <summary>
+        /// A chest's id, also its container id: the socket index for the temple's (as before P-47), else
+        /// CaveChestBit | (Scramble(dungeon ^ type &lt;&lt; 16) &amp; 0x3FFFF) &lt;&lt; 12 | socket. The same on every machine,
+        /// so an RPC's (dungeon, type, socket) names one; WorldTests checks no two of the island's chests share one.
+        /// </summary>
+        public static int ChestId(uint dungeon, ushort type, int socket) =>
+            type == DungeonTypes.SunkenTemple ? socket
+            : CaveChestBit | (int)(Punchy.Fauna.DungeonSpawner.Scramble(dungeon ^ ((uint)type << 16)) & 0x3FFFFu) << 12 | (socket & MaxChestSocket);
+
+        /// <summary>Whether the chest at <paramref name="socket"/> of a dungeon (DungeonInfo Id and Type) is open, as this machine knows it.</summary>
+        public static bool ChestOpened(uint dungeon, ushort type, int socket) =>
+            instance != null && instance.openedChests.Contains(ChestId(dungeon, type, socket));
+
+        readonly Dictionary<int, ChestRef> chestRefs = new Dictionary<int, ChestRef>();
+        readonly List<(int, float3)> chestSockets = new List<(int, float3)>();
+        int chestSocketsFrame = -1;
+        (World world, int count, uint sum) chestsFor;
+
+        /// <summary>
+        /// Every dungeon's chest sockets (the temple's, the caves' and their ruin rooms'): (chest id, position). Rebuilt
+        /// when the dungeon entities change (caves come in over a few frames without the island file), else reused.
+        /// </summary>
         List<(int, float3)> ChestSockets()
         {
             if (chestSocketsFrame == Time.frameCount)
                 return chestSockets;
             chestSocketsFrame = Time.frameCount;
-            chestSockets.Clear();
             var w = World.DefaultGameObjectInjectionWorld;
-            var q = Q(w.EntityManager, ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
-            var temple = Temple(q);
-            if (temple == Entity.Null)
+            if (w == null || !w.IsCreated)
                 return chestSockets;
-            var buffer = w.EntityManager.GetBuffer<DungeonSocket>(temple, true);
-            for (int i = 0; i < buffer.Length; i++)
-                if (buffer[i].Kind == SocketKind.Chest)
-                    chestSockets.Add((i, buffer[i].Pos));
+            var q = Q(w.EntityManager, ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
+            uint sum = 0;
+            using (var infos = q.ToComponentDataArray<DungeonInfo>(Allocator.Temp))
+                foreach (var info in infos)
+                    sum += info.Id ^ info.Hash;
+            var key = (w, q.CalculateEntityCount(), sum);
+            if (key.Equals(chestsFor))
+                return chestSockets;
+            chestsFor = key;
+            CollectChests(w.EntityManager, q, chestRefs, null);
+            chestSockets.Clear();
+            foreach (var kv in chestRefs)
+                chestSockets.Add((kv.Key, kv.Value.S.Pos));
+            chestSockets.Sort((a, b) => a.Item1.CompareTo(b.Item1));
             return chestSockets;
         }
 
-        readonly List<(int, float3)> chestSockets = new List<(int, float3)>();
-        int chestSocketsFrame = -1;
-
-        bool TryChest(int socket, out DungeonSocket s)
+        /// <summary>Each dungeon's chest sockets by chest id; two chests on one id go into <paramref name="clashes"/> (and the log).</summary>
+        static void CollectChests(EntityManager em, EntityQuery q, Dictionary<int, ChestRef> into, List<string> clashes)
         {
-            s = default;
-            var w = World.DefaultGameObjectInjectionWorld;
-            var q = Q(w.EntityManager, ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
-            var temple = Temple(q);
-            if (temple == Entity.Null)
-                return false;
-            var buffer = w.EntityManager.GetBuffer<DungeonSocket>(temple, true);
-            if (socket < 0 || socket >= buffer.Length || buffer[socket].Kind != SocketKind.Chest)
-                return false;
-            s = buffer[socket];
-            return true;
-        }
-
-        /// <summary>The sunken temple's dungeon entity (caves have dungeon entities too, W-115), or Entity.Null.</summary>
-        static Entity Temple(EntityQuery q)
-        {
+            into.Clear();
             using var infos = q.ToComponentDataArray<DungeonInfo>(Allocator.Temp);
             using var entities = q.ToEntityArray(Allocator.Temp);
             for (int i = 0; i < infos.Length; i++)
-                if (infos[i].Type == DungeonTypes.SunkenTemple)
-                    return entities[i];
-            return Entity.Null;
+            {
+                var info = infos[i];
+                var buffer = em.GetBuffer<DungeonSocket>(entities[i], true);
+                var marked = -1;
+                if (info.Type != DungeonTypes.SunkenTemple && Punchy.Fauna.DungeonState.TryGet(info.Id, out var status))
+                    marked = status.MarkedChest;
+                for (int j = 0; j < buffer.Length; j++)
+                {
+                    if (buffer[j].Kind != SocketKind.Chest)
+                        continue;
+                    string clash = null;
+                    var id = ChestId(info.Id, info.Type, j);
+                    if (j > MaxChestSocket)
+                        clash = $"dungeon {info.Id:X8} type {info.Type}: chest socket {j} is past {MaxChestSocket}";
+                    else if (into.TryGetValue(id, out var other))
+                        clash = $"chest id {id:X8}: dungeon {info.Id:X8} type {info.Type} socket {j} and dungeon {other.Dungeon:X8} type {other.Type} socket {other.Socket}";
+                    if (clash != null)
+                    {
+                        clashes?.Add(clash);
+                        Debug.LogError("Items: " + clash + " (that chest won't open)");
+                        continue;
+                    }
+                    into[id] = new ChestRef { Dungeon = info.Id, Type = info.Type, Socket = (ushort)j, Marked = j == marked, S = buffer[j] };
+                }
+            }
+        }
+
+        /// <summary>
+        /// For WorldTests (P-47): every dungeon chest's id on this island, "" when no two share one, else the clashes.
+        /// "N chests in M dungeons" is put in <paramref name="summary"/>.
+        /// </summary>
+        public static string ChestIdClashes(out string summary)
+        {
+            summary = "no world";
+            var w = World.DefaultGameObjectInjectionWorld;
+            if (w == null || !w.IsCreated)
+                return "no world";
+            using var q = w.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<DungeonInfo>(), ComponentType.ReadOnly<DungeonSocket>());
+            var all = new Dictionary<int, ChestRef>();
+            var clashes = new List<string>();
+            CollectChests(w.EntityManager, q, all, clashes);
+            int caves = 0, ruins = 0, temple = 0;
+            foreach (var c in all.Values)
+                if (c.Type == DungeonTypes.SunkenTemple) temple++;
+                else if (c.S.DungeonType == DungeonTypes.Ruin) ruins++;
+                else caves++;
+            summary = $"{all.Count} chests in {q.CalculateEntityCount()} dungeons (temple {temple}, cave {caves}, ruin room {ruins})";
+            return string.Join("; ", clashes);
+        }
+
+        bool TryChest(int id, out DungeonSocket s)
+        {
+            ChestSockets();
+            var found = chestRefs.TryGetValue(id, out var c);
+            s = c.S;
+            return found;
         }
 
         /// <summary>What the local player carries and wears now (kg), for the Status tab.</summary>
@@ -617,16 +710,21 @@ namespace Punchy.Items
                 Grant(it.Item, it.Count);
         }
 
-        void OpenChest(int socket)
+        void OpenChest(int id)
         {
             if (Joined)
             {
-                SendToHost(new OpenChestRpc { Socket = socket });
-                Debug.Log($"Items: asked the host to open chest {socket}");
+                if (!chestRefs.TryGetValue(id, out var c))
+                    return;
+                SendToHost(new OpenChestRpc { Dungeon = c.Dungeon, Type = c.Type, Socket = c.Socket });
+                Debug.Log($"Items: asked the host to open chest {id} ({ChestName(c)})");
                 return;
             }
-            HostOpenChest(socket);
+            HostOpenChest(id);
         }
+
+        static string ChestName(in ChestRef c) =>
+            $"{(c.Type == DungeonTypes.SunkenTemple ? "temple" : c.S.DungeonType == DungeonTypes.Ruin ? "ruin room" : "cave")} {c.Dungeon:X8} socket {c.Socket}{(c.Marked ? ", marked" : "")}";
 
         /// <summary>Into the inventory: onto a stack of the same item with room, else the first empty slot.</summary>
         void Grant(byte item, int count)
@@ -732,16 +830,17 @@ namespace Punchy.Items
         /// Opening a chest (P-14): its lid opens for everyone and it becomes a container; its seeded contents (1-3 items
         /// from the socket's seed, the same everywhere) stay inside to be taken through the inventory screen.
         /// </summary>
-        void HostOpenChest(int socket)
+        void HostOpenChest(int id)
         {
-            if (!openedChests.Add(socket) || !TryChest(socket, out var s))
+            if (!TryChest(id, out var s) || !openedChests.Add(id))
                 return;
             RegisterChests();
-            Debug.Log($"Items: chest {socket} opened (seed {s.Seed:X8}): {(containers.TryGetValue(socket, out var c) ? Describe(c.Slots) : "?")}");
+            var c = chestRefs[id];
+            Debug.Log($"Items: chest {id} ({ChestName(c)}) opened (seed {s.Seed:X8}): {(containers.TryGetValue(id, out var box) ? Describe(box.Slots) : "?")}");
             if (Hosting)
-                Broadcast(new ChestOpenedRpc { Socket = socket });
-            if (containers.ContainsKey(socket))
-                OpenContainer(socket);
+                Broadcast(new ChestOpenedRpc { Dungeon = c.Dungeon, Type = c.Type, Socket = c.Socket });
+            if (containers.ContainsKey(id))
+                OpenContainer(id);
         }
 
         void Serve()
@@ -775,7 +874,14 @@ namespace Punchy.Items
             using (var rs = Q(em, ComponentType.ReadWrite<OpenChestRpc>(), ComponentType.ReadWrite<ReceiveRpcCommandRequest>()).ToEntityArray(Allocator.Temp))
                 foreach (var r in rs)
                 {
-                    HostOpenChest(em.GetComponentData<OpenChestRpc>(r).Socket);
+                    var m = em.GetComponentData<OpenChestRpc>(r);
+                    var id = ChestId(m.Dungeon, m.Type, m.Socket);
+                    ChestSockets();
+                    // (P-47: a chest the host doesn't have, or a hash that names another chest, is dropped, said once.)
+                    if (chestRefs.TryGetValue(id, out var asked) && asked.Dungeon == m.Dungeon && asked.Type == m.Type && asked.Socket == m.Socket)
+                        HostOpenChest(id);
+                    else
+                        Debug.Log($"Items: dropped a bad OpenChestRpc: dungeon {m.Dungeon:X8} type {m.Type} socket {m.Socket} is no chest here");
                     em.DestroyEntity(r);
                 }
             ServeContainers(em);
@@ -788,7 +894,9 @@ namespace Punchy.Items
                         continue;
                     foreach (var uid in gone) Send(em, c, new ItemGoneRpc { Uid = uid });
                     foreach (var kv in added) Send(em, c, new ItemSpawnRpc { Uid = kv.Key, Item = kv.Value.Item, Count = kv.Value.Count, Pos = kv.Value.Pos });
-                    foreach (var s in openedChests) Send(em, c, new ChestOpenedRpc { Socket = s });
+                    foreach (var s in openedChests)
+                        if (chestRefs.TryGetValue(s, out var chest))
+                            Send(em, c, new ChestOpenedRpc { Dungeon = chest.Dungeon, Type = chest.Type, Socket = chest.Socket });
                     SendContainers(em, c);
                 }
         }
@@ -872,8 +980,10 @@ namespace Punchy.Items
 
         void OnChestOpened(ChestOpenedRpc m)
         {
-            if (openedChests.Add(m.Socket))
-                Debug.Log($"Items: chest {m.Socket} opened (from the host)");
+            // (The id comes from the message alone, so a chest whose cave isn't in yet still opens when it is.)
+            var id = ChestId(m.Dungeon, m.Type, m.Socket);
+            if (openedChests.Add(id))
+                Debug.Log($"Items: chest {id} (dungeon {m.Dungeon:X8} type {m.Type} socket {m.Socket}) opened (from the host)");
         }
 
         // ------------------------------------------------------------------ tests, keys, drawing
@@ -912,7 +1022,7 @@ namespace Punchy.Items
         {
             ItemRow(terrain);
             KitLog();
-            if (pickupArg <= 0 && !dropArg && !openChestArg)
+            if (pickupArg <= 0 && !dropArg && !openChestArg && takeChestKinds.Length == 0 && !badChestArg)
                 return;
             testAt = testAt == 0f ? Time.realtimeSinceStartup + 30f : testAt;
             if (Time.realtimeSinceStartup < testAt || !TryPlayer(out var player))
@@ -924,6 +1034,25 @@ namespace Punchy.Items
                     return;
             }
             testAt = Time.realtimeSinceStartup + 1.5f;
+            if (badChestArg && Joined)
+            {
+                badChestArg = false;
+                SendToHost(new OpenChestRpc { Dungeon = 0xDEADBEEFu, Type = DungeonTypes.Cave, Socket = 4095 });
+                Debug.Log("Items: -badchestrpc: sent the host a chest that isn't one");
+                return;
+            }
+            if (openChestArg && openChestKinds.Length > 0)
+            {
+                // (One a step: the first chest of each kind by id, so every machine picks the same.)
+                var kind = openChestKinds[0];
+                openChestKinds = openChestKinds[1..];
+                openChestArg = openChestKinds.Length > 0;
+                var id = FirstChest(kind);
+                Debug.Log(id == int.MinValue ? $"Items: -openchest {kind}: no such chest ({chestRefs.Count} chests)"
+                    : $"Items: -openchest {kind}: chest {id} ({ChestName(chestRefs[id])}), {math.distance(chestRefs[id].S.Pos, player.Position):F0} m away");
+                if (id != int.MinValue) OpenChest(id);
+                return;
+            }
             if (openChestArg)
             {
                 openChestArg = false;
@@ -932,12 +1061,14 @@ namespace Punchy.Items
                 foreach (var (socket, pos) in ChestSockets())
                 {
                     var d = math.distance(pos, player.Position);
-                    if (d < bestD) (bestD, best) = (d, socket);
+                    if (socket < CaveChestBit && d < bestD) (bestD, best) = (d, socket);
                 }
                 Debug.Log($"Items: -openchest: chest {best}, {bestD:F1} m away");
                 if (best >= 0) OpenChest(best);
                 return;
             }
+            if (takeChestKinds.Length > 0 && TakeChestStep())
+                return;
             if (pickupDone < pickupArg)
             {
                 var best = -1;
@@ -960,6 +1091,49 @@ namespace Punchy.Items
                 Debug.Log("Items: -drop: one from slot 0");
                 Drop(0);
             }
+        }
+
+        /// <summary>"-openchest a,b": the words after the flag (none when the next argument is another flag).</summary>
+        static string[] Kinds(string[] args, string flag)
+        {
+            var at = System.Array.IndexOf(args, flag);
+            return at < 0 || at + 1 >= args.Length || args[at + 1].StartsWith("-") ? System.Array.Empty<string>()
+                : args[at + 1].Split(',', System.StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        /// <summary>The lowest chest id of a kind ("temple", "cave", "ruin"; ruin: a cave's ruin room), int.MinValue for none.</summary>
+        int FirstChest(string kind)
+        {
+            foreach (var (id, _) in ChestSockets())
+            {
+                var c = chestRefs[id];
+                var k = c.Type == DungeonTypes.SunkenTemple ? "temple" : c.S.DungeonType == DungeonTypes.Ruin ? "ruin" : "cave";
+                if (k == kind)
+                    return id;
+            }
+            return int.MinValue;
+        }
+
+        /// <summary>
+        /// "-takechest cave,ruin": once the first chest of each kind is open (by anyone), take its slots one a step
+        /// through the usual path (a joined client asks the host); false when there's nothing to do this step.
+        /// </summary>
+        bool TakeChestStep()
+        {
+            var kind = takeChestKinds[0];
+            var id = FirstChest(kind);
+            if (id == int.MinValue || !openedChests.Contains(id) || !containers.TryGetValue(id, out var c))
+                return false;
+            for (int i = ContainerSlots - 1; i >= 0; i--)
+                if (c.Slots[i].item != 255)
+                {
+                    Debug.Log($"Items: -takechest {kind}: chest {id} slot {i} ({ItemTable.Items[c.Slots[i].item].Name} x{c.Slots[i].count})");
+                    TakeFromContainer(id, i);
+                    return true;
+                }
+            takeChestKinds = takeChestKinds[1..];
+            Debug.Log($"Items: -takechest {kind}: chest {id} empty now; inventory: {DescribeInventory()}");
+            return true;
         }
 
         /// <summary>
