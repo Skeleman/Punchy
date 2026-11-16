@@ -90,3 +90,11 @@ Read before changing any shader, material or render setting.
 - Every detail fades with the pixel's footprint (`Punchy<Family>Fade(period, footprint)`: full at 8 pixels per period,
   gone at 3) and is centred on 1, so far away a piece is its vertex colour (rules 20, 25). Inside a branch take the
   footprint from the distance, `distance * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11)`, not from `fwidth`.
+- **Adding a kind** (a new wood, a new stone): add a row to the family's table in `MaterialLibrary.cs` (as `Wood`),
+  which `Push()` sends as globals, and pick it per culture or piece (`WoodFor`). Kinds change tone and scale, never the
+  rules, so a kind needs no shader edit. A piece drawn at its own scale (the sunken temple's 0.55 m courses) calls the
+  family with `p * k` and `footprint * k` instead of copying the pattern.
+- **Adding a family:** a new `Materials/<Family>.hlsl` with `Punchy<Family>Fade` and the look function, a
+  `MaterialFamily` value plus its `FamilyOf` cases, a free bark mark if Flora draws it, and a row in
+  `MaterialLibraryTests.Families` (what defining it by hand looks like, the call, and the shaders that must use it).
+  Upgrading a family's look later is an edit to its include only.
