@@ -943,6 +943,11 @@ namespace Punchy.Fauna
         /// <summary>Half the width of what this player's body carries in its arms (m; 0 for nothing): local, set each
         /// frame on every machine by HeldPoseSystem from the creature carried, so the arms open round it. Not sent.</summary>
         public float CarryWidth;
+        /// <summary>A-119 (#339): the ride it is part of, rider or mount (RidePair; Size 0 = none), as last seated: every
+        /// detail, think-rate, trace and let-go decision reads it, so the pair steps together. Local, never sent.</summary>
+        public RidePair Pair;
+        /// <summary>A-119: the pair written by this frame's seating (Riding.Pair), Pair from the next (RidePairSystem).</summary>
+        public RidePair PairNext;
     }
 
     /// <summary>

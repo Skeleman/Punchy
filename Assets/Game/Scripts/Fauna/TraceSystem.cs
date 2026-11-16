@@ -200,10 +200,11 @@ namespace Punchy.Fauna
                     ref var b = ref Bodies[i].Blob.Value;
                     Positions[i] = s.Position;
                     // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
+                    // (A-119: a riding pair as one, from the mount's position.)
                     var range = math.max(Punchy.Settings.DetailPolicy.ExtraReach(CreatureMotion.ApparentSize(s, ref b),
-                        Punchy.Settings.DetailPolicy.TracePixels, View), b.SeenFrom);
+                        Punchy.Settings.DetailPolicy.TracePixels, View), CreatureMotion.SeenFrom(s, ref b));
                     var swimmer = b.Habitat == Habitat.Swims && !b.LavaDweller && !b.Breaches;
-                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(s.Position, Camera), range,
+                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(CreatureMotion.SeenAt(s), Camera), range,
                             Steps.ContainsKey(Entities[i]) || swimmer && Under.ContainsKey(Entities[i])))
                     {
                         Steps.Remove(Entities[i]);
