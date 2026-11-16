@@ -5348,3 +5348,11 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Gap: there is no innkeeper job in FolkJobs, so the innkeeper exchange is only reachable through the API today. Follow-up idea: an inn post in FolkJobs.VillagePosts.
 - Shares: same talk book (dialogue.json) as every folk line. No parallel found.
 - DONE: A-131 ready for PR (folk/dialogue-options, 2 commits on main a143924d).
+
+## 11-15 landing merges (A-126 #367, A-113 no issue, A-110 #298) - done (verified)
+- fauna/playtest-1114@d3d37437: origin/main merged in. One conflict in CreatureAnimator.cs: kept A-126 row 2's mantle crouch and main's sea-folk upright pitch, one after the other. Checks: ledge lip PASS with the hang prompt, RidePlayer PASS (rider offset 0.00 cm), fingerprint 859112C9 unchanged. Ready for PR.
+- flora/tree-variety@1edb7cd8: origin/main merged in, WorldTests re-pinned to 836A95D6 (main 859112C9 + A-113's 5 temperate tree species in the flora blob). WorldTests 14/14. Ready for PR.
+- fauna/one-population@709c59de: origin/main merged in clean (rows through r7b, incl. the host+client addendum). PlayMode suite 64 total, 47 passed, 0 failed, 17 skipped. Ready for PR.
+- Risk: dune-groves (A-130, pin 9EFF3BCF) and tree-variety (pin 836A95D6) both move the fingerprint; whichever lands second needs a re-pin.
+- Shares: no new system; merges only.
+- NEXT: A-125 row 2 (#360) on a new branch from origin/main (row 1's branch is already in main).

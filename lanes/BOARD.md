@@ -14,10 +14,10 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r3 | #336 | materials | r2 done (verified); r3 next | world/material-library 34783390 (tree Punchy-materials) | Row 3: brick, thatch, plaster, metal, cloth, ice, one commit each |
-| A-126 r2-4 | #367 | fauna | active | fauna/playtest-1114 527e2f14 | Ledge hands, shimmy prompt, steer ridden animals |
+| A-126 r2-4 | #367 | fauna | ready for PR | fauna/playtest-1114 d3d37437 | Main merged in (CreatureAnimator conflict kept both); lip + RidePlayer PASS; fingerprint 859112C9 |
 | A-108 r2 | #298 | fauna | ready for PR | fauna/far-life 1a3a7131 | Main merged in; island cache Format 4 = one rebake; fingerprint 859112C9 |
-| A-113 | no issue | fauna | ready? | flora/tree-variety f92b1fef | Merge main in, re-pin, hand off |
-| A-110 | #298 | fauna | active | fauna/one-population 70d27698 | Rows to r7b |
+| A-113 | no issue | fauna | ready for PR | flora/tree-variety 1edb7cd8 | Main merged in, re-pinned 836A95D6, WorldTests 14/14; re-pin again if dune-groves (9EFF3BCF) lands first |
+| A-110 | #298 | fauna | ready for PR | fauna/one-population 709c59de | Rows through r7b; main merged in clean; PlayMode 64/47 pass/0 fail/17 skip |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
 | R-25 r4-6 | #302 | render | next | - | Row 3 merged #423; rows 4-6 after R-34 lands and R-30 r1 |
