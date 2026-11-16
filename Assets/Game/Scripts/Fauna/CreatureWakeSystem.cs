@@ -9,7 +9,7 @@ namespace Punchy.Fauna
     /// <summary>
     /// Tells the water where things have been swimming, for its wakes and rings (Water.shader). Anything at the surface
     /// near the camera (fish near the top, ducks, animals and folk swimming or wading, players' bodies) drops a ripple
-    /// where it is every half metre it goes, or every half second keeping still. Each ripple stays where it was made,
+    /// where it is every half metre it goes (further apart the quicker it goes), or every half second keeping still. Each ripple stays where it was made,
     /// a ring spreading out from there and dying away over RippleTime. A row of them trailing behind a swimmer is its
     /// wake, left in the water rather than carried round with it as it turns. The 48 nearest the camera go out as
     /// _PunchySwimmers (x world x, y its age 0..1, z world z, w how strongly it was stirred, 0 an empty slot) and
@@ -21,8 +21,9 @@ namespace Punchy.Fauna
     public partial class CreatureWakeSystem : SystemBase
     {
         public const int MaxSwimmers = 48;
-        /// <summary>How long a ripple spreads before it's gone (s); a new one each Spacing metres gone, or each Still
-        /// seconds keeping still.</summary>
+        /// <summary>How long a ripple spreads before it's gone (s); a new one each Spacing metres gone (or 0.15 s of
+        /// travel when that is further, so a fast dolphin's rings don't stack up white), or each Still seconds keeping
+        /// still.</summary>
         const float RippleTime = 3f, Spacing = 0.5f, Still = 0.5f;
         /// <summary>The band round the surface a swimmer is in to count (m: above it, for a duck; below, for a fish near
         /// the top or a swimmer's feet).</summary>
@@ -124,11 +125,12 @@ namespace Punchy.Fauna
                         LastRipple.Remove(e);
                         continue;
                     }
-                    // A ripple where it is, every half metre or half second: stronger the quicker it goes, and the bigger.
-                    if (!LastRipple.TryGetValue(e, out var last) || math.distance(last.xy, s.Position.xz) >= Spacing || Now - last.z >= Still)
+                    // A ripple where it is, every half metre (further when fast) or half second: stronger the quicker
+                    // it goes, and the bigger, capped so a fast big swimmer's rings stay a wake, not a white smear.
+                    if (!LastRipple.TryGetValue(e, out var last) || math.distance(last.xy, s.Position.xz) >= math.max(Spacing, s.Speed * 0.15f) || Now - last.z >= Still)
                     {
                         LastRipple[e] = new float3(s.Position.xz, Now);
-                        var strength = math.clamp(0.3f + s.Speed * 0.35f, 0.3f, 1.6f) * math.clamp(s.Scale * b.FrontRadius * 6f, 0.5f, 1.5f);
+                        var strength = math.min(math.clamp(0.3f + s.Speed * 0.35f, 0.3f, 1.6f) * math.clamp(s.Scale * b.FrontRadius * 6f, 0.5f, 1.5f), 1.2f);
                         Ripples.Add(new Ripple { At = s.Position.xz, Born = Now, Strength = strength });
                     }
                 }
