@@ -26,6 +26,11 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | player/netsim | P-31 | player | Merge main, re-check -netsim. |
 | player/take-items | P-38 (#372) | player | Rows 1-2b DONE but never PR'd (11-15 audit): merge main in, hand off ready for PR. Holds unify-items, items-pick, items-axe, hair, clothing. |
 | world/playtest-1114 | W-172 rows 2+ | world | In flight. |
+| world/ground-edits | W-174 (#406) | world | In flight (design note). |
+| render/foliage-realism | R-30 r1 (#323) | render | In flight. |
+| folk/inn-job | A-132 (#25) | folk | In flight. |
+| player/menus | P-39 (#397) | player-2 | In flight. |
+| lab/set-piece-view | M-08 r2 (#414) | lab | In flight; verify when RAM allows. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.

@@ -130,3 +130,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #430 fauna/one-population (A-110, #298): one population, far figures are a town's real people.
 - #431 fauna/swimmer-droplets (A-125 row 2, #360 closed): dolphin and fish splashes throw droplets, at most 4 at once.
 - #432 render/playtest-1115 (R-39; #401 #402 closed): glows and flames hold on a low glide, Zach's glow option 3 with darker night haze, igloo windows lit at every distance, softer wading rebound (#269).
+- 11-15: #395 merged: release v0.16.0 (bundleVersion 0.16.0). Check: title screen shows 0.16.0.

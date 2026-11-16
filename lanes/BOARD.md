@@ -22,9 +22,9 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | A-133 | #336 | fauna | next | - | Creature.shader includes Materials/Metal.hlsl (then delete the Shaders/Metal.hlsl forwarder) and draws wood through Materials/Wood.hlsl; no look change, pixel-diff |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
-| R-25 r4-6 | #302 | render | next | - | Row 3 merged #423; rows 4-6 after R-30 r1 (R-34 merged #427) |
+| R-25 r4-6 | #302 | render-2 | active | fresh branch from main | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1 | #323 | render | active | render/foliage-realism 9cec43a5 | -leaftrial a/b/c built; next: run trial.txt per option (waiting on 6 GB RAM), sheet + note. Rule 11 merges pushed: cobble-depth 589ceeb6, one-surface 1a3b0f12, audit-fixes fa29fc64 (compile check pending) |
-| R-39 | #401 #402 #302 #269 | render-2 | merged #432 | render/playtest-1115 | #401 #402 closed; #302 and #269 stay open for R-25 r4-6 and R-15. Next: R-30 row 1 |
+| R-39 | #401 #402 #302 #269 | render-2 | merged #432 | render/playtest-1115 | #401 #402 closed; #302 and #269 stay open for R-25 r4-6 and R-15. Next: R-25 r4-6 (R-30 r1 stays with render) |
 | P-38 | #372 | player | in progress | player/take-items 0fa149fd | row 0 merge of main done; next row 1 (A-106 job gear as kit items), then A-128 drape, eyewear items (rule 11 OK), Model Lab PoseKit |
 | P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
