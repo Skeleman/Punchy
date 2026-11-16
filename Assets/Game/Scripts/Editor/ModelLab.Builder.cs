@@ -18,8 +18,9 @@ namespace Punchy.EditorTools
     /// lean. Only what the body data already holds, so the game bakes the same shape from the same fields
     /// (docs/agents/model-lab-builder.md). A limb type used by several slots changes on all of them.
     /// <para>
-    /// Nothing is saved yet: whether a builder edit becomes a new species asset or a tuning entry waits for Zach. An
-    /// untouched work copy bakes byte for byte as the asset does (<see cref="BuilderCheck"/>).
+    /// Builder edits are kept by "Save as new creature" (ModelLab.SaveSpecies.cs), which writes them as a new species;
+    /// the loaded asset never changes. An untouched work copy bakes byte for byte as the asset does
+    /// (<see cref="BuilderCheck"/>).
     /// </para>
     /// </summary>
     public partial class ModelLab
