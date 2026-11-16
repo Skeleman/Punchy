@@ -70,13 +70,18 @@ namespace Punchy.Fauna
                 }
                 DropAvatar();
             }
+            // (A-124: a new build or height from the Character tab, a new body.)
+            else if (PlayerBuild != avatarBuild && avatarSpecies != null)
+                DropAvatar();
             if (PlayerSpecies == null)
                 return;
             if (avatarQuery.CalculateEntityCount() > 0)
                 return;
             if (!avatarBlob.IsCreated)
-                avatarBlob = CreatureBlobBuilder.Build(PlayerSpecies);
+                avatarBlob = CreatureBlobBuilder.Build(PlayerSpecies, build: PlayerBuild >= 0
+                    ? BodyBuilds.Of(PlayerSpecies.BuildRange, BodyBuilds.PlayerBuild((byte)PlayerBuild)) : BodyBuild.Own);
             avatarSpecies = PlayerSpecies;
+            avatarBuild = PlayerBuild;
             ref var b = ref avatarBlob.Value;
             var e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(PlayerAvatar));
             em.SetName(e, "PlayerBody");
@@ -87,8 +92,8 @@ namespace Punchy.Fauna
                 SegmentCount = b.Segments.Length,
                 Coat = b.PickCoat(rng.NextFloat())
             });
-            // (At the species' middle size: a cat body is cat-sized, an osprey osprey-sized.)
-            var size = (b.Size.x + b.Size.y) * 0.5f;
+            // (At the species' middle size: a cat body is cat-sized, an osprey osprey-sized. A-124: or the height picked.)
+            var size = PlayerBuild >= 0 ? BodyBuilds.PlayerScale(b.Size, (byte)PlayerBuild) : (b.Size.x + b.Size.y) * 0.5f;
             em.SetComponentData(e, new CreatureState
             {
                 Position = player.Position,
@@ -101,20 +106,23 @@ namespace Punchy.Fauna
             // What the body can do, for player movement: its pace next to a human's, and flight.
             var human = RoleIndex(DirectorRole.Folk);
             var humanRun = human >= 0 ? blobs[human].Value.RunSpeed * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f : 0f;
+            // (Its climbing skill: the species', or "-climbskill N".)
+            var climbSkill = Climbing.SkillOverride >= 0 ? (byte)math.min(Climbing.SkillOverride, Climbing.Most) : b.ClimbSkill;
             var abilities = new Punchy.Player.PlayerBody
             {
                 SpeedFactor = humanRun > 0f ? math.clamp(b.RunSpeed * size / humanRun, 0.35f, 2.5f) : 1f,
                 Flies = b.Habitat == Habitat.Flies,
                 FlySpeed = PlayerSpecies.PlayerFlySpeed > 0f ? PlayerSpecies.PlayerFlySpeed
                          : PlayerSpecies.Body.PlayerFlySpeed > 0f ? PlayerSpecies.Body.PlayerFlySpeed : b.FlySpeed * 2f,
-                Climbs = b.Hands || b.Climbing > 0f || b.Crawls,
-                ClimbsTrees = b.ClimbsAs != ClimbAbility.None,
-                ClimbsWalls = b.ClimbsAs == ClimbAbility.AnySurface,
+                ClimbSkill = climbSkill,
                 // (A lizard scurries up; a tree climber as nimbly as it's keen: a monkey quick, a cat less, a bear hauling.)
-                ClimbSpeed = b.ClimbsAs == ClimbAbility.AnySurface ? 1.4f : math.min(0.6f + 1.6f * b.Climbing, 1.6f),
+                ClimbSpeed = Climbing.BaseSpeed(climbSkill, b.Climbing),
                 // (A lava swimmer walks on land as a player; only fish swim and flop.)
                 Swims = b.Habitat == Habitat.Swims && !b.LavaDweller,
                 Hovers = b.Haunts,
+                // (A-102: its breath under water, as the same species' creatures have it.)
+                BreathesWater = b.BreathesWater,
+                HoldBreath = b.HoldBreath,
                 Size = human >= 0 && blobs[human].Value.StandHeight > 0f
                     ? math.clamp(b.StandHeight * size / (blobs[human].Value.StandHeight * (blobs[human].Value.Size.x + blobs[human].Value.Size.y) * 0.5f), 0.25f, 3f)
                     : 1f
@@ -122,13 +130,18 @@ namespace Punchy.Fauna
             // (Its jump: the species' own, else as high as it's big next to a human, a climber springier.)
             var jump = PlayerSpecies.PlayerJump > 0f ? PlayerSpecies.PlayerJump : PlayerSpecies.Body.PlayerJump;
             if (jump <= 0f)
-                jump = math.clamp(math.sqrt(math.max(abilities.Size, 0.01f)), 0.45f, 1.4f) * (b.Climbing > 0.5f || b.ClimbsAs != ClimbAbility.None ? 1.25f : 1f);
+                jump = math.clamp(math.sqrt(math.max(abilities.Size, 0.01f)), 0.45f, 1.4f) * (b.Climbing > 0.5f || b.ClimbSkill >= Climbing.Tree ? 1.25f : 1f);
             abilities.JumpFactor = jump;
             using var bodyQuery = em.CreateEntityQuery(typeof(Punchy.Player.PlayerBody));
             if (!bodyQuery.TryGetSingletonEntity<Punchy.Player.PlayerBody>(out var bodyEntity))
                 bodyEntity = em.CreateEntity(typeof(Punchy.Player.PlayerBody));
             em.SetComponentData(bodyEntity, abilities);
         }
+
+        /// <summary>A-124: the local player's build (BodyBuilds.Player), set by NetAvatars from the Character tab; -1 for
+        /// the species' own at its middle size (before NetAvatars has said).</summary>
+        public int PlayerBuild = -1;
+        int avatarBuild = -1;
 
         void DropAvatar()
         {
@@ -165,7 +178,8 @@ namespace Punchy.Fauna
             foreach (var e in ghosts)
             {
                 var net = em.GetComponentData<CreatureNet>(e);
-                var blob = blobs[net.Species];
+                // (A-124: the build its Individual draws, as on the server; its height is in the ghost's Scale.)
+                var blob = BlobFor(net.Species, net.Individual);
                 ref var b = ref blob.Value;
                 var t = em.GetComponentData<LocalTransform>(e);
                 var forward = math.mul(t.Rotation, new float3(0f, 0f, 1f));

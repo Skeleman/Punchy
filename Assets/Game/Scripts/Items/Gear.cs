@@ -508,7 +508,8 @@ namespace Punchy.Items
             var heldLeft = false;
             if (wears && held == HeldItem.None && g.LeftHand != Nothing && HeldFor(g.LeftHand) != HeldItem.None)
                 (held, heldLeft) = (HeldFor(g.LeftHand), true);
-            var bits = wears ? WornBits(g.Head, g.Back) : (byte)0;
+            // (A player's eyewear bits are NetAvatars', kept as they are: A-103 row 5.)
+            var bits = (byte)((wears ? WornBits(g.Head, g.Back) : 0) | (s.Worn & CreatureWorn.Eyes));
             var outfit = wears ? new CreatureOutfit { Head = Look(g.Head), Body = Look(g.Body), Legs = Look(g.Legs), Feet = Look(g.Feet), Back = Look(g.Back), Neck = Look(g.Neck) } : default;
             var weapon = wears && hand != Nothing ? ItemTable.Items[hand].Weapon : CreatureWeapon.None;
             // (Put away, or past the middle of the reach: worn, not in hand; Zach 11-12 row 4.)

@@ -197,6 +197,20 @@ MonoBehaviour:
     - {fileID: 11400000, guid: fa4ebbcc3834f4c47afc7a79abe40ad7, type: 2}
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     Style: 
+  - Role: 9
+    Species: {fileID: 11400000, guid: 203b815692a7a9449ab214fd42e1f7b8, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn: []
+    Style: 
+    MinPlots: 0
+  - Role: 9
+    Species: {fileID: 11400000, guid: f358ef58bbd5844428b5ad6472dae2ab, type: 2}
+    Weight: 1
+    Count: 1
+    OnlyIn: []
+    Style: 
+    MinPlots: 15
   Fixtures:
   - Species: {fileID: 11400000, guid: c5b1fc52dbca7ff499aac0aff7df152b, type: 2}
     Spot: 1

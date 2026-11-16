@@ -170,7 +170,7 @@ MonoBehaviour:
   ColdBlooded: 0
   Role: 0
   Hooves: 0
-  ClimbsAs: 0
+  ClimbSkill: -1
   EmoteReaction: 2
   Voice: 1
   CaveAffinity: 0

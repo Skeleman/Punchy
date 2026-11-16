@@ -64,6 +64,22 @@ namespace Punchy.Flora
         public int CellsPerFrame = 6000;
         [Tooltip("Plants this far outside the view still draw into the shadow maps, so off-screen trees cast shadows.")]
         public float ShadowMargin = 30f;
+
+        /// <summary>W-136 ground contact tunables for one kind of model: how dark the ground gets at its seam and how
+        /// far the darkening spreads. One set for every surface (terrain chunks, cave chunks, room tiles): ContactShade.</summary>
+        [Serializable]
+        public class ContactSettings
+        {
+            [Tooltip("1 darkens the seam to ContactShade.Seam, 0 turns it off, 2 doubles the darkening.")]
+            [Range(0f, 2f)] public float Strength = 1f;
+            [Tooltip("1 spreads the darkening about the contact's width (a trunk's, a wall's, a post's) from its edge.")]
+            [Range(0f, ContactShade.MaxReachScale)] public float Reach = 1f;
+        }
+        [Header("Ground contacts (W-136): darkening where things meet the ground, rock or tiles")]
+        public ContactSettings ContactPlants = new ContactSettings();
+        public ContactSettings ContactRocks = new ContactSettings();
+        public ContactSettings ContactBuildings = new ContactSettings();
+        public ContactSettings ContactProps = new ContactSettings();
         /// <summary>Indirect draws per variant: its 3 LODs for the camera, then LOD 0 and 1 shadow lists (W-102), then its
         /// impostor (R-7: one quad, FloraSystem.Impostors.cs; given no room in a layer without impostors).</summary>
         const int Draws = 6;
@@ -259,20 +275,25 @@ namespace Punchy.Flora
 
         // ------------------------------------------------------------------------------------------- fountains' water
 
-        /// <summary>A basin of water in a plant in a loaded tile (FloraModel.Pools: a fountain's), in the world.</summary>
+        /// <summary>A basin of water in a plant in a loaded tile (FloraModel.Pools: a fountain's or a well's), in the world.</summary>
         struct Basin
         {
             public int Layer;
             public int2 Tile;
             public float3 Centre;
             public float Radius;
-            public int Model;
+            public float Yaw, Scale;
+            public int Model, Pool;
+            public bool Shown;
         }
         readonly List<Basin> basins = new List<Basin>();
-        /// <summary>One water disc per model (its species' water colour baked in), made when first drawn.</summary>
-        readonly Dictionary<int, Mesh> basinMeshes = new Dictionary<int, Mesh>();
-        /// <summary>How far fountains' water is drawn with the terrain's water (at Detail 1); beyond it their models' own discs stand in.</summary>
-        const float BasinRange = 80f;
+        /// <summary>One water polygon per model and pool (its look and depth baked in), made when first drawn.</summary>
+        readonly Dictionary<long, Mesh> basinMeshes = new Dictionary<long, Mesh>();
+        /// <summary>
+        /// A basin's water is drawn with the terrain's water while it is at least this big on screen (reference pixels across,
+        /// at Detail 1, rule 20); smaller, the model's own polygon of the same shape stands in.
+        /// </summary>
+        const float BasinPixels = 16f;
 
         /// <summary>Notes the basins of a newly loaded tile's plants (turned and scaled as the plants are).</summary>
         void AddBasins(Layer l, int2 tile, NativeArray<FloraInstance> plants)
@@ -282,24 +303,30 @@ namespace Punchy.Flora
                 if (plant.Model < 0 || plant.Model >= models.Count || models[plant.Model].Pools.Count == 0)
                     continue;
                 float c = math.cos(plant.Yaw), sn = math.sin(plant.Yaw);
-                foreach (var pool in models[plant.Model].Pools)
+                var pools = models[plant.Model].Pools;
+                for (int p = 0; p < pools.Count; p++)
                 {
-                    var offset = new float2(pool.x * c - pool.z * sn, pool.x * sn + pool.z * c) * plant.Scale;
+                    var pool = pools[p];
+                    var offset = new float2(pool.Centre.x * c - pool.Centre.z * sn, pool.Centre.x * sn + pool.Centre.z * c) * plant.Scale;
                     basins.Add(new Basin
                     {
                         Layer = l.Index,
                         Tile = tile,
-                        Centre = plant.Position + new float3(offset.x, pool.y * plant.Scale, offset.y),
-                        Radius = pool.w * plant.Scale,
-                        Model = plant.Model
+                        Centre = plant.Position + new float3(offset.x, pool.Centre.y * plant.Scale, offset.y),
+                        Radius = pool.Radius * plant.Scale,
+                        Yaw = plant.Yaw,
+                        Scale = plant.Scale,
+                        Model = plant.Model,
+                        Pool = p
                     });
                 }
             }
         }
 
         /// <summary>
-        /// Fountains' water near the camera, drawn as the landmark pools are (CaveSystem): a disc in the terrain's water
-        /// material, so it ripples, reflects and catches the light as all other water does (Z-12; it was a shiny disc).
+        /// Fountains' and wells' water while big enough on screen (BasinPixels), in the terrain's water material, so it
+        /// ripples, reflects and catches the light as all other water does (Z-12; it was a shiny disc). W-148: the polygon
+        /// of the basin's wall, turned as the plant is, not a disc.
         /// </summary>
         void DrawBasins(float3 camPos)
         {
@@ -309,16 +336,27 @@ namespace Punchy.Flora
             var water = configQuery.GetSingleton<TerrainConfig>().WaterMaterial.Value;
             if (water == null)
                 return;
-            foreach (var basin in basins)
+            var view = Punchy.Settings.DetailPolicy.Current.Data;
+            var pixels = BasinPixels / math.max(view.Detail, 0.1f);
+            for (int i = 0; i < basins.Count; i++)
             {
-                if (math.distance(basin.Centre, camPos) > Punchy.Settings.GraphicsSettings.DetailRange(BasinRange) + basin.Radius)
-                    continue;
-                if (!basinMeshes.TryGetValue(basin.Model, out var mesh))
+                var basin = basins[i];
+                var d = math.max(math.distance(basin.Centre, camPos) - basin.Radius, 0f);
+                var shown = Punchy.Settings.DetailPolicy.Holds(
+                    Punchy.Settings.DetailPolicy.ScreenSize(basin.Radius * 2f, d, view.PixelsPerMetre), pixels, basin.Shown);
+                if (shown != basin.Shown)
                 {
-                    var colour = models[basin.Model].Species.Foliage.linear;
-                    mesh = CaveSystem.MakePoolMesh(new float4(colour.r, colour.g, colour.b, 0.1f), 0f);
-                    mesh.name = "Fountain basin";
-                    basinMeshes[basin.Model] = mesh;
+                    basin.Shown = shown;
+                    basins[i] = basin;
+                }
+                if (!shown)
+                    continue;
+                var key = ((long)basin.Model << 8) | (uint)basin.Pool;
+                if (!basinMeshes.TryGetValue(key, out var mesh))
+                {
+                    var pool = models[basin.Model].Pools[basin.Pool];
+                    mesh = CaveSystem.MakeBasinMesh(pool.Radius, pool.Sides, pool.Depth, pool.Look);
+                    basinMeshes[key] = mesh;
                 }
                 var rp = new RenderParams(water)
                 {
@@ -326,7 +364,8 @@ namespace Punchy.Flora
                     shadowCastingMode = ShadowCastingMode.Off,
                     receiveShadows = true
                 };
-                Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(basin.Centre, Quaternion.identity, new Vector3(basin.Radius, 1f, basin.Radius)));
+                // The plant's yaw turns its mesh the other way round the up axis (see AddBasins' offsets).
+                Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.TRS(basin.Centre, Quaternion.AngleAxis(-basin.Yaw * Mathf.Rad2Deg, Vector3.up), Vector3.one * basin.Scale));
             }
         }
 
@@ -348,6 +387,7 @@ namespace Punchy.Flora
             models.Clear();
             thins.Clear();
             species.Clear();
+            Punchy.Terrain.GroundContacts.Withdraw(placement);
             if (placement.IsCreated) placement.Dispose();
             placement = default;
             // Nothing may read the grids once they're gone.
@@ -365,9 +405,18 @@ namespace Punchy.Flora
             built = false;
         }
 
+        /// <summary>Hands the contact tunables to ContactShade; a change re-meshes the loaded terrain, caves and rooms once.</summary>
+        void PushContacts()
+        {
+            var strength = new float4(ContactPlants.Strength, ContactRocks.Strength, ContactBuildings.Strength, ContactProps.Strength);
+            var reach = new float4(ContactPlants.Reach, ContactRocks.Reach, ContactBuildings.Reach, ContactProps.Reach);
+            ContactShade.Set(strength, reach);
+        }
+
         void LateUpdate()
         {
             var cam = Camera.main;
+            PushContacts();
             Shader.SetGlobalFloat(DetailOffId, NoDetail ? 1f : 0f);
             if (cam == null || Material == null || Culling == null || !TryGetWorld(out var source, out var palette))
                 return;
@@ -558,6 +607,8 @@ namespace Punchy.Flora
             }
             built = true;
             obstaclesDirty = true;
+            // W-136: the terrain darkens the ground where these meet it (re-meshes its chunks once).
+            Punchy.Terrain.GroundContacts.Publish(placement, models);
         }
 
         void CreateDrawBuffers(Layer layer)
@@ -728,7 +779,10 @@ namespace Punchy.Flora
             return math.max(2, math.round(config.ViewRadiusChunks * Punchy.Settings.GraphicsSettings.View)) * config.ChunkSize;
         }
 
-        /// <summary>Set when a flora keep-out circle changes (a colossus placed): every streamed tile is dropped once and re-placed.</summary>
+        /// <summary>
+        /// Set when a flora keep-out circle changes (a colossus placed or its loop widened): the streamed tiles under the
+        /// circles that changed are dropped once and re-placed (ChangedKeepOuts, FloraSystem.Jump.cs).
+        /// </summary>
         public static bool Replant;
 
         void Stream(in TerrainSource source, float2 camXZ)
@@ -736,8 +790,8 @@ namespace Punchy.Flora
             // Tiles stream by ground distance on purpose (R-6 row 0): the cull measures 3D distance to each plant,
             // which is never shorter than the ground distance, so the ground ring always holds every plant the cull
             // could draw, and climbing doesn't drop and re-place tiles.
-            // Unload tiles that fell out of range (or every tile once, when a keep-out circle changed: see Replant).
-            var all = Replant;
+            // Unload tiles that fell out of range (or under a keep-out circle that changed: see Replant).
+            var replant = Replant && ChangedKeepOuts();
             Replant = false;
             foreach (var l in layers)
             {
@@ -749,7 +803,7 @@ namespace Punchy.Flora
                 var refar = l.FarTiles.Count > 0 && (ppm > l.FarPpm * 1.1f || ppm < l.FarPpm * 0.8f);
                 foreach (var kv in l.Tiles)
                 {
-                    var gone = all || math.distance(TileCentre(l, kv.Key), camXZ) > keep;
+                    var gone = replant && UnderChangedKeepOut(l, kv.Key) || math.distance(TileCentre(l, kv.Key), camXZ) > keep;
                     if (!gone && l.FarTiles.TryGetValue(kv.Key, out var from))
                     {
                         var d = TileNearest(l, kv.Key, camXZ);
@@ -778,12 +832,16 @@ namespace Punchy.Flora
             // Placement runs in the background: collect each layer's finished batch, then start the next one with the
             // nearest missing tiles, within a shared per-frame budget (near layers first).
             // W-75: larger batches while the world first loads (no frame to protect before the player spawns).
-            var budget = Punchy.Terrain.TerrainStreamingSystem.Loading ? CellsPerFrame * 4 : CellsPerFrame;
+            // W-151: after a jump (the load, or a warp) the trees and buildings go first, with most of a boosted budget
+            // (FloraSystem.Jump.cs); at walking speed the order stays ground, shrubs, trees.
+            var bigFirst = JumpUpdate(camXZ);
+            var budget = Punchy.Terrain.TerrainStreamingSystem.Loading || bigFirst ? CellsPerFrame * 4 : CellsPerFrame;
             // (R-6 row 4: two passes, every layer's tiles inside its radius first, then the far tiles with what's left,
             // so the shrubs' far ring never holds up the trees' near tiles.)
             for (int pass = 0; pass < 2; pass++)
-            foreach (var l in layers)
+            for (int k = 0; k < layers.Length; k++)
             {
+                var l = layers[bigFirst ? layers.Length - 1 - k : k];
                 if (l.ModelCount == 0)
                     continue;
                 var cellsPerSide = (int)math.round(l.Settings.TileSize / l.Settings.CellSize);
@@ -817,7 +875,8 @@ namespace Punchy.Flora
                 tileOrder.TileSize = l.Settings.TileSize;
                 tileOrder.Eye = camXZ;
                 scratch.Sort(tileOrder);
-                var count = math.min(scratch.Count, math.max(1, budget / perTile));
+                var allowed = bigFirst && pass == 0 && k == 0 ? (int)(budget * JumpTreeShare) : budget;
+                var count = math.min(scratch.Count, math.max(1, allowed / perTile));
                 budget -= count * perTile;
 
                 l.PlacingTiles = new NativeArray<int2>(count, Allocator.Persistent);
@@ -1051,6 +1110,7 @@ namespace Punchy.Flora
             {
                 if (l.Count == 0 || l.ModelCount == 0)
                     continue;
+                KeepImpostorMaterial(l);
                 var s = l.Settings;
                 var draws = l.ModelCount * Draws;
                 Culling.SetInt(DrawCountId, draws);
@@ -1310,6 +1370,8 @@ namespace Punchy.Flora
             // W-96 (#35): the blind pygmies' wall niches in the bat folk chambers are solid too.
             BatFolkHomes.AddKitBoxes(lastSource, centres, kitBoxes);
             CaveRoomKit.AddKitBoxes(lastSource, centres, kitBoxes);
+            // W-150: the cliff kit's pieces are stood on and bumped into like any kit.
+            CliffKit.AddKitBoxes(lastSource, centres, kitBoxes);
         }
 
         // ------------------------------------------------------------------------------------------- bolts

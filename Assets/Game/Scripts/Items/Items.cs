@@ -271,6 +271,7 @@ namespace Punchy.Items
             FolkKits.CheckLooks();
             for (int i = 0; i < instance.slots.Length; i++)
                 instance.slots[i].item = 255;
+            instance.StartPack();
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-pickup");
             if (at >= 0 && at + 1 < args.Length)
@@ -342,12 +343,14 @@ namespace Punchy.Items
                     added.Clear();
                     openedChests.Clear();
                     seededFor = default;
+                    rodsFor = default;
                 }
             }
             if (!TryTerrain(out var terrain))
                 return;
             RegisterChests();
             StockPosts();
+            LayRods(terrain);
             if (Hosting)
                 Serve();
             if (client != null && client.IsCreated && client.IsClient())

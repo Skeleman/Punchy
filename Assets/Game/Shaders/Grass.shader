@@ -11,6 +11,9 @@ Shader "Punchy/Grass Blades"
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+            // R-32 row 2: marks blade pixels (a URP user stencil bit) so the flora cache receiver lights them with the
+            // ground's up normal instead of a normal rebuilt from the blades' noisy depth.
+            Stencil { Ref 8 WriteMask 8 Comp Always Pass Replace }
 
             HLSLPROGRAM
             #pragma target 4.5
@@ -23,6 +26,7 @@ Shader "Punchy/Grass Blades"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
             #include "GroundDetail.hlsl"
 
             StructuredBuffer<Blade> _Blades;
@@ -59,8 +63,12 @@ Shader "Punchy/Grass Blades"
                 half3 albedo = input.color.rgb * lerp(0.45, 1.15, t);
                 albedo *= lerp(1, 0.8, PunchyWetnessAt(input.positionWS.xz).r);
 
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // R-32 row 2: the same shadow tiers as the ground under the blades. URP's shadow fade (the ground's
+                // UniversalFragmentPBR fades its real-time shadow the same way), then the wide shadow past it, the darker
+                // of the two winning as on the terrain. The flora cache tier is laid on top by its receiver.
+                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS), input.positionWS, half4(1, 1, 1, 1));
+                half sunShadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0)));
+                half shadow = sunShadow * (1 - PunchyCloudShadow(input.positionWS));
                 half wrap = saturate(dot(n, light.direction) * 0.6 + 0.4);
                 half through = pow(saturate(dot(-v, light.direction)), 4) * t * 0.6;   // sunlight through the blade
                 // Glowing plants and molten pools nearby light the grass round them too.

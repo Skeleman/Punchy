@@ -19,7 +19,11 @@ namespace Punchy.Audio
     /// When a voice is blocked, the nearest few openings (doors and cave mouths within OpeningReach of the ear) are
     /// tried as a way round: if one can see both the ear and the sound, the sound is heard from that opening's
     /// direction, as far away as the way round is long, and muffled only as much as the detour is long (at least
-    /// ShutDoor through a door leaf).
+    /// KnownShut through a shut door's leaf).
+    /// A-122 (#352): which doors stand open (Doors, the host's word) is read on the main thread for each test and
+    /// handed to the job as a short list of the open door anchors' positions; the job never calls Doors. An open
+    /// door's leaf is a gap, for the straight line and for the way round; a shut one blocks the straight line and
+    /// muffles a way round through it strongly. With no Doors (tests, menus) every leaf counts half shut (ShutDoor).
     /// The tests run as a small Burst job, run in place (a managed ground sample costs ~25 us, a Burst one far less).
     /// Under water the water's muffle wins (GameAudioWater) and this fades out. Local only: nothing is sent.
     /// </summary>
@@ -41,9 +45,14 @@ namespace Punchy.Audio
         const int OpeningsTried = 4;
         /// <summary>How far above a door anchor (on the ground just outside the door) the doorway's middle is (m).</summary>
         const float DoorHeight = 1.2f;
-        /// <summary>A box thinner than this (m) is a door leaf: a way round through it is muffled at least ShutDoor (0..1),
-        /// shut or open (whether a door stands open isn't known here yet).</summary>
-        const float DoorLeaf = 0.2f, ShutDoor = 0.5f;
+        /// <summary>A box thinner than this (m) is a door leaf: a way round through it is muffled at least KnownShut (0..1)
+        /// when Doors says it's shut, or ShutDoor when there is no Doors to ask.</summary>
+        const float DoorLeaf = 0.2f, ShutDoor = 0.5f, KnownShut = 0.88f;
+        /// <summary>A leaf within this of an open door's anchor (m, across the ground) is that door's, standing open.</summary>
+        const float LeafNearDoor = 1.5f;
+        /// <summary>How far from the ear doors' open state is looked up (m): past the openings tried, as a straight line
+        /// to a far sound can pass a doorway too.</summary>
+        const float DoorStateReach = 60f;
 
         int checkNext;
         EntityQuery kitQuery;
@@ -52,6 +61,13 @@ namespace Punchy.Audio
         readonly System.Diagnostics.Stopwatch occlusionWatch = new System.Diagnostics.Stopwatch();
         /// <summary>The time the tests took this frame, and averaged over about a second (ms).</summary>
         float occlusionMs, occlusionAverage;
+        /// <summary>A-122: each anchor's door number in Doors (its rank among the Door anchors, -1 for other kinds), for
+        /// the island it was built from; dropped with the island (#259).</summary>
+        int[] doorRank;
+        BlobAssetReference<AnchorSetBlob> doorRanked;
+        /// <summary>Whether a Doors exists (looked for again at most once a second while there is none).</summary>
+        bool doorsFound;
+        float doorsLookedAt = -10f;
 
         /// <summary>The tests' cost (ms per frame, averaged), and how many playing voices are blocked and routed round now.</summary>
         public static (float ms, int blocked, int routed, int playing) Occlusion
@@ -135,12 +151,15 @@ namespace Punchy.Audio
             if (count == 0 || wet > 0f)
                 return;
             var hasKit = Kit(out var kit);
+            var openDoors = OpenDoors(out var doorsKnown);
             var job = new OcclusionJob
             {
                 Ear = Ear,
                 Ground = Terrain,
                 HasGround = HasTerrain,
                 Kit = hasKit ? kit.AsNativeArray() : new NativeArray<KitBox>(0, Allocator.TempJob),
+                OpenDoors = openDoors.AsArray(),
+                DoorsKnown = doorsKnown,
                 At = new NativeArray<float3>(count, Allocator.TempJob),
                 Out = new NativeArray<Heard>(count, Allocator.TempJob),
             };
@@ -156,8 +175,51 @@ namespace Punchy.Audio
             }
             job.At.Dispose();
             job.Out.Dispose();
+            openDoors.Dispose();
             if (!hasKit)
                 job.Kit.Dispose();
+        }
+
+        /// <summary>
+        /// A-122: the open doors near the ear (their anchors' positions), read from Doors here on the main thread; known
+        /// is false (and the list empty) with no Doors or no island. The caller disposes the list.
+        /// </summary>
+        NativeList<float3> OpenDoors(out bool known)
+        {
+            var open = new NativeList<float3>(4, Allocator.TempJob);
+            known = false;
+            if (!HasTerrain || !Terrain.Anchors.IsCreated)
+            {
+                // (No island, or between islands: drop the old one's door numbers, #259.)
+                doorRank = null;
+                doorRanked = default;
+                return open;
+            }
+            if (!doorsFound && Time.unscaledTime - doorsLookedAt > 1f)
+            {
+                doorsLookedAt = Time.unscaledTime;
+                doorsFound = Object.FindAnyObjectByType<Punchy.Interact.Doors>() != null;
+            }
+            if (!doorsFound)
+                return open;
+            known = true;
+            ref var set = ref Terrain.Anchors.Value;
+            if (doorRank == null || !doorRanked.Equals(Terrain.Anchors))
+            {
+                // (Numbered the way Doors numbers them: the Door anchors in anchor order.)
+                doorRanked = Terrain.Anchors;
+                doorRank = new int[set.Anchors.Length];
+                var rank = 0;
+                for (int i = 0; i < set.Anchors.Length; i++)
+                    doorRank[i] = set.Anchors[i].Kind == AnchorKind.Door ? rank++ : -1;
+            }
+            var near = new NativeList<int>(16, Allocator.Temp);
+            Punchy.Terrain.Anchors.Near(ref set, Ear, DoorStateReach, AnchorKind.Door, ref near);
+            for (int i = 0; i < near.Length; i++)
+                if (Punchy.Interact.Doors.IsOpen(doorRank[near[i]]))
+                    open.Add(set.Anchors[near[i]].Position);
+            near.Dispose();
+            return open;
         }
 
         /// <summary>The kit boxes near the player (the buildings' walls, roofs and floors), if there are any.</summary>
@@ -192,6 +254,9 @@ namespace Punchy.Audio
             public bool HasGround;
             [ReadOnly] public NativeArray<KitBox> Kit;
             [ReadOnly] public NativeArray<float3> At;
+            /// <summary>The open doors' anchors near the ear (A-122), and whether Doors was there to ask.</summary>
+            [ReadOnly] public NativeArray<float3> OpenDoors;
+            public bool DoorsKnown;
             public NativeArray<Heard> Out;
             /// <summary>Whether the last ways to an opening tested went through a door leaf.</summary>
             bool leafCrossed;
@@ -211,9 +276,9 @@ namespace Punchy.Audio
                 if (!Opening(at, out var opening, out var path, out var leaf))
                     return heard;
                 // Heard from the opening's direction, as far off as the way round, muffled by how far round it is (and
-                // by a door leaf in the way).
+                // by a shut door's leaf in the way: strongly when Doors says it's shut, half when nobody can say).
                 var detour = path - math.distance(Ear, at);
-                heard.Occluded = math.max(math.lerp(0.2f, 1f, math.saturate(detour / DetourFull)), leaf ? ShutDoor : 0f);
+                heard.Occluded = math.max(math.lerp(0.2f, 1f, math.saturate(detour / DetourFull)), leaf ? (DoorsKnown ? KnownShut : ShutDoor) : 0f);
                 heard.Detour = Ear + math.normalize(opening - Ear) * path - at;
                 heard.Routed = 1;
                 return heard;
@@ -284,10 +349,23 @@ namespace Punchy.Audio
                     }
                     if (!hit)
                         continue;
+                    // (An open door's leaf is a gap, straight through or on the way round: its box stays put when the
+                    // door opens, only its drawing swings.)
+                    if (math.cmin(size) < DoorLeaf && OpenLeaf(box.Centre))
+                        continue;
                     if (!throughLeaves || math.cmin(size) >= DoorLeaf)
                         return true;
                     leafCrossed = true;
                 }
+                return false;
+            }
+
+            /// <summary>Whether a leaf here belongs to a door that stands open (one within LeafNearDoor of it).</summary>
+            bool OpenLeaf(float3 centre)
+            {
+                for (int i = 0; i < OpenDoors.Length; i++)
+                    if (math.distancesq(OpenDoors[i].xz, centre.xz) < LeafNearDoor * LeafNearDoor)
+                        return true;
                 return false;
             }
 

@@ -9,32 +9,26 @@ Shader "Punchy/FloraShadowCache"
     {
         Tags { "RenderType" = "Transparent" "Queue" = "Transparent-60" "RenderPipeline" = "UniversalPipeline" }
 
-        Pass
-        {
-            Name "FloraShadowCache"
-            Tags { "LightMode" = "UniversalForward" }
-            Blend DstColor Zero
-            ZWrite Off
-            ZTest Always
-            Cull Off
-
-            HLSLPROGRAM
-            #pragma target 4.5
-            #pragma vertex Vert
-            #pragma fragment Frag
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
-
+        // The shared receiver; the two passes below differ only in which pixels they take and the normal they use.
+        HLSLINCLUDE
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "../Shaders/WideShadow.hlsl"
 
             TEXTURE2D_FLOAT(_FloraCacheTex);
             SAMPLER(sampler_FloraCacheTex);
             float4 _FloraCacheTex_TexelSize;
             float4x4 _FloraCacheMatrix;   // world to the cache's uv
             float4 _FloraReceiveSun;      // xyz the way the sunlight travelled when the cache was laid
-            float4 _FloraCacheParams;     // xyz the camera, w how dark a cached shadow is
+            float4 _FloraCacheParams;     // xyz the camera, w how much of the direct sunlight a cached shadow takes
             float4 _FloraCacheFade;       // fades in over x..y and out over z..w (m from the camera)
+            // R-16 row 3: the cache before the last redraw, blended out over about a second so shadows slide instead
+            // of jumping each time the cache is laid again. _FloraCacheBlend.x: 1 = done, the old cache isn't read.
+            TEXTURE2D_FLOAT(_FloraCacheOldTex);
+            float4x4 _FloraCacheOldMatrix;
+            float4 _FloraReceiveOldSun;
+            float4 _FloraCacheBlend;
 
             struct Varyings
             {
@@ -48,24 +42,42 @@ Shader "Punchy/FloraShadowCache"
                 return o;
             }
 
-            float Cached(float2 uv)
+            // 0..1: how much of one cache's texels round c stand between this point and the sun (four taps). Four taps
+            // a texel apart soften the edge (the cache's texels are about 26 cm at the 120 m range): the farthest a tap
+            // reads from the pixel is about a third of a metre sideways, hence 0.35 m per unit of slope.
+            float CacheTaps(TEXTURE2D_PARAM(map, mapSampler), float2 c, float3 sun, float3 positionWS, float3 normalWS)
             {
-                return SAMPLE_TEXTURE2D_LOD(_FloraCacheTex, sampler_FloraCacheTex, uv, 0).r;
+                float facing = dot(normalWS, -sun);
+                if (facing < 0.05)
+                    return 0;
+                float slope = min(sqrt(saturate(1 - facing * facing)) / facing, 8);
+                float along = dot(positionWS, sun) - (0.4 + 0.35 * slope);
+                float t = _FloraCacheTex_TexelSize.x * 0.75;
+                return (SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(-t, -t), 0).r < along ? 0.25 : 0)
+                     + (SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(t, -t), 0).r < along ? 0.25 : 0)
+                     + (SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(-t, t), 0).r < along ? 0.25 : 0)
+                     + (SAMPLE_TEXTURE2D_LOD(map, mapSampler, c + float2(t, t), 0).r < along ? 0.25 : 0);
             }
 
-            half4 Frag(Varyings input) : SV_Target
+            // blades (a constant per pass, so it compiles away): the pixel is a grass blade.
+            half4 ReceiveCache(Varyings input, bool blades)
             {
                 float2 uv = input.positionCS.xy / _ScaledScreenParams.xy;
                 float raw = SampleSceneDepth(uv);
+            #if !UNITY_REVERSED_Z
+                raw = lerp(UNITY_NEAR_CLIP_VALUE, 1, raw);
+            #endif
+                float3 positionWS = ComputeWorldSpacePosition(uv, raw, UNITY_MATRIX_I_VP);
+                // R-27: derivatives are taken before any early return; after one they're undefined (a neighbour that
+                // already left the shader feeds them garbage, a likely source of speckle along cache edges).
+                float3 dpdx = ddx(positionWS), dpdy = ddy(positionWS);
             #if UNITY_REVERSED_Z
                 if (raw <= 1e-6)
                     return 1;
             #else
-                raw = lerp(UNITY_NEAR_CLIP_VALUE, 1, raw);
                 if (raw >= 1 - 1e-6)
                     return 1;
             #endif
-                float3 positionWS = ComputeWorldSpacePosition(uv, raw, UNITY_MATRIX_I_VP);
                 float d = distance(positionWS, _FloraCacheParams.xyz);   // 3D, as FloraCull hands trees over (R-6 row 0)
                 float fade = smoothstep(_FloraCacheFade.x, _FloraCacheFade.y, d) * (1 - smoothstep(_FloraCacheFade.z, _FloraCacheFade.w, d));
                 if (fade <= 0)
@@ -73,30 +85,86 @@ Shader "Punchy/FloraShadowCache"
                 float2 c = mul(_FloraCacheMatrix, float4(positionWS, 1)).xy;
                 if (any(c < 0) || any(c > 1))
                     return 1;
+                float2 o = mul(_FloraCacheOldMatrix, float4(positionWS, 1)).xy;
 
                 // Playtest 11-07 (tents striped at mid range): a fixed bias let steep faces, nearly edge-on to the sun,
                 // shade themselves in bands (shadow acne): within a texel and the taps' spread the cached depth changes by
                 // more than 0.4 m there. The surface's normal, rebuilt from the depth across neighbouring pixels, scales the
                 // bias by the slope against the sun; a face turned away from the sun is dark from its own lighting already.
-                float3 normalWS = normalize(cross(ddy(positionWS), ddx(positionWS)));
+                // R-32 row 2: grass blades take the ground's up normal. Rebuilt from the depth of thin, wind-blown
+                // blades the normal flips from pixel to pixel, so the bias and the facing test speckled the shade.
+                float3 normalWS = normalize(cross(dpdy, dpdx));
                 if (dot(normalWS, GetCameraPositionWS() - positionWS) < 0)
                     normalWS = -normalWS;
+                if (blades)
+                    normalWS = float3(0, 1, 0);
                 float facing = dot(normalWS, -_FloraReceiveSun.xyz);
                 if (facing < 0.05)
                     return 1;
-                float slope = min(sqrt(saturate(1 - facing * facing)) / facing, 8);
-                // Four taps a texel apart soften the edge (the cache's texels are about 26 cm at the 120 m range): the
-                // farthest a tap reads from the pixel is about a third of a metre sideways, hence 0.35 m per unit of slope.
-                float along = dot(positionWS, _FloraReceiveSun.xyz) - (0.4 + 0.35 * slope);
-                float t = _FloraCacheTex_TexelSize.x * 0.75;
-                float shade = (Cached(c + float2(-t, -t)) < along ? 0.25 : 0) + (Cached(c + float2(t, -t)) < along ? 0.25 : 0)
-                            + (Cached(c + float2(-t, t)) < along ? 0.25 : 0) + (Cached(c + float2(t, t)) < along ? 0.25 : 0);
+                float shade = CacheTaps(TEXTURE2D_ARGS(_FloraCacheTex, sampler_FloraCacheTex), c, _FloraReceiveSun.xyz, positionWS, normalWS);
+                if (_FloraCacheBlend.x < 1)
+                {
+                    float old = all(o > 0) && all(o < 1)
+                        ? CacheTaps(TEXTURE2D_ARGS(_FloraCacheOldTex, sampler_FloraCacheTex), o, _FloraReceiveOldSun.xyz, positionWS, normalWS) : 0;
+                    shade = lerp(old, shade, _FloraCacheBlend.x);
+                }
                 if (shade <= 0)
                     return 1;
+                // R-16 (shadows darker in the cache band than near or far): the shade takes only the share of the light
+                // that comes straight from the sun, as the real-time and the wide shadows do, so all three tiers keep
+                // the sky's blue in them instead of going brown. Where the real-time or the wide shadow already dims
+                // this point the darker one wins (they never stack). The real-time term fades out as URP fades its own
+                // shadows near their distance, or the band where both had let go was left lit.
                 float realtime = MainLightRealtimeShadow(TransformWorldToShadowCoord(positionWS));
-                float k = shade * fade * realtime * _FloraCacheParams.w;
-                return half4((1 - k).xxx, 1);
+                realtime = lerp(realtime, 1, GetMainLightShadowFade(positionWS));
+                half wide = PunchyWideShadow(positionWS, normalWS);
+                half cached = shade * fade * _FloraCacheParams.w;
+                half sunlit = Luminance(_MainLightColor.rgb) * saturate(facing);
+                half ambient = Luminance(SampleSH(normalWS));
+                half kept = min(realtime, 1 - wide);
+                half before = ambient + sunlit * kept;
+                half after = ambient + sunlit * min(kept, 1 - cached);
+                return half4((after / max(before, 1e-3)).xxx, 1);
             }
+        ENDHLSL
+
+        // Everything but grass blades (Grass.shader marks its pixels with stencil bit 8).
+        Pass
+        {
+            Name "FloraShadowCache"
+            Tags { "LightMode" = "UniversalForward" }
+            Blend DstColor Zero
+            ZWrite Off
+            ZTest Always
+            Cull Off
+            Stencil { Ref 8 ReadMask 8 Comp NotEqual }
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            half4 Frag(Varyings input) : SV_Target { return ReceiveCache(input, false); }
+            ENDHLSL
+        }
+
+        // R-32 row 2: grass blade pixels, lit with the ground's up normal. A second light mode so URP draws both passes.
+        Pass
+        {
+            Name "FloraShadowCacheBlades"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Blend DstColor Zero
+            ZWrite Off
+            ZTest Always
+            Cull Off
+            Stencil { Ref 8 ReadMask 8 Comp Equal }
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex Vert
+            #pragma fragment FragBlades
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            half4 FragBlades(Varyings input) : SV_Target { return ReceiveCache(input, true); }
             ENDHLSL
         }
     }

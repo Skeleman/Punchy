@@ -136,7 +136,10 @@ void BuildBladeVertex(Blade blade, uint instance, uint vertex, out float3 positi
     float3 bend = lean * blade.bend * height + wind + shove;
     positionWS = blade.position + across * width + float3(0, height * t * (1 - 0.35 * push), 0) + bend * (t * t);
 
-    float3 tangent = float3(0, height, 0) + bend * (2 * t);
+    // (R-18, nan-safe: a blade faded to nothing has height 0 and no bend, so its tip vertex - side 0 - would normalize
+    // a zero vector into a NaN normal, drawn as a NaN pixel that bloom spreads into a white circle. The floor keeps it
+    // upright; any visible blade is far taller than 1e-4.)
+    float3 tangent = float3(0, max(height, 1e-4), 0) + bend * (2 * t);
     normalWS = normalize(cross(across, tangent) + across * BladeSide[vertex] * 0.35);
 }
 
