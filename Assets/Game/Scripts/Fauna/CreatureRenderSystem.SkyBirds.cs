@@ -102,12 +102,13 @@ namespace Punchy.Fauna
                 var peak = summit.y >= EagleSummit && summit.y - ground >= EagleRise;
                 for (int lane = 0; lane < SkyLanes; lane++)
                 {
-                    var laneShift = (math.hash(new int3(cell, lane)) % 1000u) / 1000.0 * SkySlot;
+                    // (Scrambled: math.hash of a vector has no final mix, so next-door patches' draws would rise in step.)
+                    var laneShift = (BiomeSampling.Scramble(math.hash(new int3(cell, lane))) % 1000u) / 1000.0 * SkySlot;
                     var slot = (long)math.floor((t + laneShift) / SkySlot);
                     // (This slot's flight and the last one's, which may still be crossing.)
                     for (long n = slot - 1; n <= slot; n++)
                     {
-                        var rng = new Random(math.hash(new int4(cell, lane, (int)n)) | 1u);
+                        var rng = new Random(BiomeSampling.Scramble(math.hash(new int4(cell, lane, (int)n))) | 1u);
                         var start = n * (double)SkySlot - laneShift + rng.NextFloat(0f, SkySlot * 0.4f);
                         var roll = rng.NextFloat();
                         SkyFlight f = default;

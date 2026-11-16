@@ -79,7 +79,8 @@ namespace Punchy.Player
             instance = go.AddComponent<PlayerStats>();
             instance.LoadEarned();
             instance.Load("start");
-            Punchy.UI.MainMenu.AddTab("Stats", 6, DrawTab);
+            // (P-39, #397: an in-world thing, so a tab of Select's menu, not Start's.)
+            Punchy.UI.FieldMenu.AddPanelTab("Status", 20, DrawTab);
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-statgrant");
             if (at >= 0 && at + 2 < args.Length && float.TryParse(args[at + 2], NumberStyles.Float, CultureInfo.InvariantCulture, out var amount))
@@ -251,17 +252,24 @@ namespace Punchy.Player
             return string.Join(", ", parts);
         }
 
-        /// <summary>The Stats tab: each value with what it means, then what the values give.</summary>
+        /// <summary>The in-world menu's Status tab: what's carried against what can be, each value with what it means, then what the values give.</summary>
         static void DrawTab(Punchy.UI.MenuNav nav)
         {
             var title = new GUIStyle(GUI.skin.label) { richText = true };
-            GUILayout.Label("<b>Stats</b>", title);
+            GUILayout.Label("<b>Status</b>", title);
             if (instance == null || instance.file == null)
             {
                 GUILayout.Label("No stats file.");
                 return;
             }
             var file = instance.file;
+            var carried = Punchy.Items.Items.Carried;
+            var limit = Derived("carry");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Carrying", GUILayout.Width(120f));
+            GUILayout.Label(limit > 0f ? $"{carried:0.#} / {limit:0.#} kg" : $"{carried:0.#} kg", title);
+            GUILayout.EndHorizontal();
+            GUILayout.Space(8f);
             for (int i = 0; i < file.stats.Length; i++)
             {
                 GUILayout.BeginHorizontal();

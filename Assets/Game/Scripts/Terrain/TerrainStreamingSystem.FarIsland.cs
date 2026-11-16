@@ -78,8 +78,8 @@ namespace Punchy.Terrain
                 System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : float.NaN;
         }
 
-        /// <summary>Camera far plane out to the sea's edge, and the debug haze edge.</summary>
-        void ApplyFarIsland()
+        /// <summary>The debug haze edge; returns the far plane the island needs (the sea's edge), 0 when off.</summary>
+        float ApplyFarIsland()
         {
             if (!islandFlagsRead)
             {
@@ -90,20 +90,17 @@ namespace Punchy.Terrain
                 farHaze = math.max(0f, ArgValue(args, "-farhaze"));
             }
             if (!islandOn)
-                return;
+                return 0f;
             if (farHaze > DrawDistance)
                 DrawDistance = farHaze;
-            var cam = Camera.main;
-            var reach = math.max(seaReach * 1.5f, 20000f);
-            if (cam != null && cam.farClipPlane < reach)
-                cam.farClipPlane = reach;
+            return math.max(seaReach * 1.5f, 20000f);
         }
 
         /// <summary>Builds the island once (in the background), then each frame hides the tiles the streamed ground covers.</summary>
         void UpdateFarIsland(in TerrainConfig config, in TerrainSource source, float2 focus)
         {
             if (!islandOn)
-                return;
+                return 0f;
             if (islandBuilding)
             {
                 if (!islandHandle.IsCompleted)

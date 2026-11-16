@@ -53,6 +53,13 @@ bakes into fields that already exist (radii, socket, angles) keeps it when left 
 2. The two changes that need a re-pin (`RestPitch` and `Bulge`) wait for Zach's call, one card each.
 3. Material per segment rides on the looks table.
 
+**Row 4 as built.** `LimbSegment.Material` and `CreatureSpecies.BodyMaterial` (both `SegmentMaterial`: Body, Cloth,
+Leather, Metal, Wood, Bone) feed `CreatureBlobBuilder.Materials`, stored in `CreatureLookBlob.Materials` beside the
+look codes. `CreatureRenderSystem.Rest` writes it into `Material.x` unless the animator already chose (golden ones);
+Creature.shader already shades those kinds through the library includes, so no shader change was needed. Fur,
+feathers and scales stay the coat or `Surface` look; horn and shell use Bone. The Lab preview tints by kind as a
+rough hint only.
+
 ## Where the kit limits show (row 5)
 
 - The W-166 library (world/material-library, not on main yet) has Wood, Brick, Stone, Thatch, Plaster, Metal, Cloth,

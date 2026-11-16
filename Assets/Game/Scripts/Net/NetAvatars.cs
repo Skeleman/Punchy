@@ -79,15 +79,9 @@ namespace Punchy.Net
             }
             var code = individual != 0 ? LocalBuildCode : -1;
             if (code != Fauna.PlayerBuild && code >= 0 && buildSpecies != null)
-                Debug.Log($"[look] own {buildSpecies.name} build {BodyBuilds.PlayerBuild((byte)code)} height step {BodyBuilds.PlayerHeightStep((byte)code)}");
+                Debug.Log($"[look] own {buildSpecies.name} build {BodyBuilds.PlayerBuild((byte)code)} height step {BodyBuilds.PlayerHeightStep((byte)code)} gait {GaitStyle.Of(individual, buildSpecies.Upright, buildSpecies.Child).Kind}");
             Fauna.PlayerBuild = code;
         }
-
-        /// <summary>Whether the local player has their eyewear on (G; "-eyewear" starts with it on).</summary>
-        public bool Wearing;
-
-        /// <summary>The local player's eyewear (an Eyewear value): which pair, if Wearing, depends on their body.</summary>
-        public byte LocalEyewear => Wearing ? Eyewear.For(BodyVision) : Eyewear.None;
 
         float BodyVision => Fauna != null && Fauna.PlayerSpecies != null ? Fauna.PlayerSpecies.Vision : 0f;
 
@@ -122,23 +116,10 @@ namespace Punchy.Net
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-body")
                     SetLocalSpecies(PlayableSpecies.FindIndex(s => s != null && s.name == args[i + 1]));
-            Wearing = System.Array.IndexOf(args, "-eyewear") >= 0;
             SyncLocalBuild();
             // (How that sees: the view's exposure, bloom and haze, made at runtime beside this.)
             if (GetComponent<Punchy.CameraRig.BatVision>() == null)
                 gameObject.AddComponent<Punchy.CameraRig.BatVision>();
-        }
-
-        /// <summary>G, when no panel is open, puts the eyewear on or takes it off. (No pad binding yet: the d-pad is the
-        /// emotes'.)</summary>
-        void UpdateEyewearKey()
-        {
-            var keyboard = UnityEngine.InputSystem.Keyboard.current;
-            if (keyboard == null || Punchy.UI.Overlay.AnyOpen || !keyboard.gKey.wasPressedThisFrame)
-                return;
-            Wearing = !Wearing;
-            var pair = Eyewear.For(BodyVision) == Eyewear.Glasses ? "glasses" : "glow goggles";
-            Debug.Log($"NetAvatars: {(Wearing ? "put on" : "took off")} {pair}");
         }
 
         void OnDisable()
@@ -163,10 +144,9 @@ namespace Punchy.Net
 
         void Update()
         {
-            UpdateEyewearKey();
             SyncLocalBuild();
-            var eyewear = LocalEyewear;
-            LocalVision = Eyewear.Vision(BodyVision, eyewear);
+            // (Eyewear is a head item since P-38 row 3: Items' gear puts it on, syncs it and draws it.)
+            LocalVision = Eyewear.Vision(BodyVision, Punchy.Items.Items.OwnHead);
             // The client world, or the local world when playing alone (our own look applies there too).
             var client = NetWorlds.Client;
             if (client == null || !client.IsCreated)
@@ -195,9 +175,9 @@ namespace Punchy.Net
                 Debug.LogWarning($"NetAvatars: the player's species '{Fauna.PlayerSpecies.name}' isn't in Playable Species, so other players see a capsule.");
             }
             if (speciesQuery.IsEmpty)
-                em.CreateSingleton(new LocalPlayerSpecies { Index = local, Eyewear = eyewear, Build = LocalBuildCode }, "LocalPlayerSpecies");
+                em.CreateSingleton(new LocalPlayerSpecies { Index = local, Build = LocalBuildCode }, "LocalPlayerSpecies");
             else
-                speciesQuery.SetSingleton(new LocalPlayerSpecies { Index = local, Eyewear = eyewear, Build = LocalBuildCode });
+                speciesQuery.SetSingleton(new LocalPlayerSpecies { Index = local, Build = LocalBuildCode });
 
             // Our own body wears our look (FaunaDirector respawns it whenever it rebuilds).
             if (individual != 0 && avatarQuery.TryGetSingletonEntity<PlayerAvatar>(out var avatar))
@@ -209,11 +189,9 @@ namespace Punchy.Net
                 var coat = blob.Coats.Length == 0 ? body.Coat
                     : LocalCoat >= 0 ? math.min(LocalCoat, blob.Coats.Length - 1)
                     : blob.PickCoat(((individual * 2654435761u) >> 8) / 16777216f);
-                var worn = (byte)((state.Worn & ~CreatureWorn.Eyes) | Eyewear.WornBits(eyewear));
-                if (state.Individual != individual || body.Coat != coat || state.Worn != worn)
+                if (state.Individual != individual || body.Coat != coat)
                 {
                     state.Individual = individual;
-                    state.Worn = worn;
                     em.SetComponentData(avatar, state);
                     body.Coat = coat;
                     em.SetComponentData(avatar, body);
@@ -238,17 +216,8 @@ namespace Punchy.Net
                 var same = has && remote.Look.Species == look.Species && remote.Look.Coat == look.Coat && remote.Look.Individual == look.Individual &&
                            remote.Look.Build == look.Build;
                 if (wants && same)
-                {
-                    // Their eyewear, as they have it on (the rest of what they wear is each machine's: Items' gear).
-                    var rs = em.GetComponentData<CreatureState>(remote.Puppet);
-                    var rworn = (byte)((rs.Worn & ~CreatureWorn.Eyes) | Eyewear.WornBits(look.Eyewear));
-                    if (rs.Worn != rworn)
-                    {
-                        rs.Worn = rworn;
-                        em.SetComponentData(remote.Puppet, rs);
-                    }
+                    // (What they wear, eyewear too, is Items' gear: P-38 row 3.)
                     continue;
-                }
                 if (has)
                     em.DestroyEntity(remote.Puppet);
                 if (wants)
@@ -293,7 +262,7 @@ namespace Punchy.Net
             });
             em.SetComponentData(e, new RemoteAvatar { Ghost = ghost, Species = Fauna != null ? Fauna.SpeciesIndex(PlayableSpecies[look.Species]) : -1 });
             // (One line per puppet made: host and joined client logs show the same build for the same player.)
-            Debug.Log($"[look] remote player {kind.name} build {build} height step {BodyBuilds.PlayerHeightStep(look.Build)} scale {BodyBuilds.PlayerScale(b.Size, look.Build):F3}");
+            Debug.Log($"[look] remote player {kind.name} build {build} height step {BodyBuilds.PlayerHeightStep(look.Build)} scale {BodyBuilds.PlayerScale(b.Size, look.Build):F3} gait {GaitStyle.Of(ref b, look.Individual).Kind}");
             return e;
         }
     }

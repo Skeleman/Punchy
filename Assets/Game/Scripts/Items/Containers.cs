@@ -105,7 +105,8 @@ namespace Punchy.Items
         }
 
         /// <summary>The nearest open-able container within reach (chests only once opened), for the Use key.</summary>
-        void FindContainer(float3 player, ref float distance)
+        /// <summary>The container the player faces best, if it beats <paramref name="best"/> (UseTarget's score).</summary>
+        void FindContainer(float3 player, float2 forward, float2 look, ref float best, ref float distance)
         {
             targetContainer = -1;
             foreach (var kv in containers)
@@ -113,15 +114,18 @@ namespace Punchy.Items
                 if (kv.Value.IsChest && !openedChests.Contains(kv.Key))
                     continue;
                 var d = math.distance(kv.Value.Pos.xz, player.xz);
-                if (d < distance && d <= Reach && math.abs(kv.Value.Pos.y - player.y) < 1.8f)
-                    (distance, targetContainer) = (d, kv.Key);
+                if (d > Reach || math.abs(kv.Value.Pos.y - player.y) >= 1.8f)
+                    continue;
+                var score = Punchy.Interact.UseTarget.Score(player, forward, look, kv.Value.Pos);
+                if (score < best)
+                    (best, distance, targetContainer) = (score, d, kv.Key);
             }
         }
 
         void OpenContainer(int id)
         {
             openContainer = id;
-            panel = true;
+            Punchy.UI.FieldMenu.Show(ItemsTab, true);
             nav.Reset();
             Debug.Log($"Items: looking in container {id} ({containers[id].Name}): {Describe(containers[id].Slots)}");
         }

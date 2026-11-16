@@ -23,9 +23,9 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). None since
-        // A-133: Creature.shader draws its gear's wood and metal through the includes too.
-        static readonly (string include, string shader)[] Pending = { };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166): TerrainSurface.shader
+        // (render's) reaches stone through the old Shaders/Stone.hlsl forwarder.
+        static readonly (string include, string shader)[] Pending = { ("Stone.hlsl", "TerrainSurface.shader") };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -82,6 +82,7 @@ namespace Punchy.Tests
             Assert.That(used.Any(u => u.Item1 == "Plaster"), "plaster has no slot");
             Assert.That(used.Any(u => u.Item1 == "Brick"), "brick has no slot");
             Assert.That(used.Any(u => u.Item1 == "Ice"), "ice has no slot");
+            Assert.That(used.Any(u => u.Item1 == "Stone"), "built stone has no slot");
         }
 
         // Each family's include: what defining its look by hand looks like, what drawing it looks like, and which
@@ -90,12 +91,35 @@ namespace Punchy.Tests
         {
             ("Wood.hlsl", @"\w*(WoodGrain|LogEnd|Plank|Shingle)\w*", @"PunchyWood\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "Creature.shader" }),
             ("Thatch.hlsl", @"\w*(Thatch|Straw)\w*", @"PunchyThatch\w*\s*\(", new[] { "Flora.shader" }),
-            ("Cloth.hlsl", @"\w*(Linen|Hide|Weave)\w*", @"Punchy(Linen|Hide)\w*\s*\(", new[] { "Flora.shader" }),
+            ("Cloth.hlsl", @"\w*(Linen|Hide|Weave)\w*", @"Punchy(Linen|Hide)\w*\s*\(", new[] { "Flora.shader", "Creature.shader" }),
             ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader", "Creature.shader" }),
             ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
             ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
+            ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader" }),
+            ("Bone.hlsl", @"\w*Bone(Pit|Line|Ivory)\w*", @"PunchyBone\w*\s*\(", new[] { "Creature.shader" }),
         };
+
+        // Gear (W-166 row 3): every creature gear material maps to a family, and Creature.shader is a user of that family's
+        // include in the table above, so SegmentMaterial and the library cannot drift apart.
+        [Test]
+        public void GearDrawsFromTheLibrary()
+        {
+            var segment = Game.GetType("Punchy.Fauna.SegmentMaterial", true);
+            var library = Game.GetType("Punchy.Terrain.MaterialLibrary", true);
+            var familyOf = library.GetMethod("FamilyOf", new[] { segment });
+            Assert.IsNotNull(familyOf, "MaterialLibrary.FamilyOf(SegmentMaterial) is missing");
+            var problems = new List<string>();
+            foreach (var name in Enum.GetNames(segment))
+            {
+                var family = familyOf.Invoke(null, new[] { Enum.Parse(segment, name) }).ToString();
+                if (name == "Body") { if (family != "None") problems.Add($"Body maps to {family}"); continue; }
+                var include = (family == "Leather" ? "Cloth" : family) + ".hlsl";
+                if (!Families.Any(f => f.include == include && f.users.Contains("Creature.shader")))
+                    problems.Add($"gear {name} -> {family}: Creature.shader isn't a user of Materials/{include}");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
 
         [Test]
         public void OnlyTheFamilyIncludeDrawsAFamily()

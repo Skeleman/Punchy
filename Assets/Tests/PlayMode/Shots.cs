@@ -47,6 +47,36 @@ namespace Punchy.Tests
             LastPath = path;
         }
 
+        static Type Tool => AppDomain.CurrentDomain.GetAssemblies().First(a => a.GetName().Name == "Assembly-CSharp").GetType("Punchy.Debugging.ShotTool", true);
+
+        /// <summary>Starts a clip through ShotTool.ClipBegin (A-124): the camera drawing at width x height until <see cref="ClipEnd"/>.</summary>
+        public static void ClipBegin(int width = 854, int height = 480)
+        {
+            var started = (bool)Tool.GetMethod("ClipBegin", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { width, height });
+            Assert.IsTrue(started, "the shot tool is busy, or there is no main camera");
+        }
+
+        /// <summary>
+        /// Yield on this: one ungated clip frame through ShotTool.Clip, a JPG of this frame's render at path. It takes exactly
+        /// two world frames (drawn in the first, written in the second): run the world at twice the clip's frame rate.
+        /// </summary>
+        public static IEnumerator ClipFrame(string path)
+        {
+            var queued = (bool)Tool.GetMethod("Clip", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { path });
+            Assert.IsTrue(queued, "no clip started (Shots.ClipBegin), or the last frame not written yet");
+            yield return null;
+            yield return null;
+        }
+
+        /// <summary>Yield on this: waits for the last clip frame to be written, then ends the clip ClipBegin started.</summary>
+        public static IEnumerator ClipEnd()
+        {
+            var pending = Tool.GetProperty("ClipPending", BindingFlags.Public | BindingFlags.Static);
+            for (int i = 0; i < 30 && (bool)pending.GetValue(null); i++)
+                yield return null;
+            Tool.GetMethod("ClipEnd", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
+        }
+
         /// <summary>
         /// The old immediate render (no ready gate, no written check), kept so existing tests behave as before. New shots
         /// use <see cref="Settled"/>: see "How to take shots" in docs/agents/testing.md.

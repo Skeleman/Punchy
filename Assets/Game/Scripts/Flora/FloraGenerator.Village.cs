@@ -275,52 +275,8 @@ namespace Punchy.Flora
             }
         }
 
-        static void Stall(Grower g)
-        {
-            var s = g.S;
-            var b = g.B;
-            var height = g.Range(s.Height);
-            var width = height * s.Spread;
-            var depth = width * 0.7f;
-            g.Height = height;
-            g.Width = Mathf.Max(width, depth) * 1.3f;
-            g.TrunkRadius = 0f;
-            var post = 0.06f;
-            var frontHeight = height * 0.82f;
-            // Posts and counter are timber, with its grain (Z-30).
-            b.Family = Timber(g);
-            foreach (var x in new[] { -0.5f, 0.5f })
-            foreach (var z in new[] { -0.5f, 0.5f })
-            {
-                var top = z > 0f ? frontHeight : height;
-                b.Tube(new List<Vector3> { new Vector3(x * width, -0.05f, z * depth), new Vector3(x * width, top, z * depth) },
-                       new List<float> { post, post }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
-            }
-            // Counter across the front, and goods laid out on it.
-            b.Box(new Vector3(0f, 0.45f, depth * 0.5f - 0.15f), new Vector3(width * 0.95f, 0.9f, 0.45f), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
-            b.Family = Punchy.Terrain.MaterialFamily.Plaster;   // W-166: the goods, crocks and wares
-            if (g.Lod < 2)
-                for (int k = 0; k < 7; k++)
-                {
-                    var at = new Vector3(Mathf.Lerp(-0.4f, 0.4f, k / 6f) * width, 0.98f, depth * 0.5f - 0.15f + g.Range(-0.08f, 0.08f));
-                    b.Blob(at, Vector3.one * g.Range(0.07f, 0.12f), Quaternion.identity, 0, 0.2f, g.R() * 50f, AccentAt(g, k + 1), FloraPart.Bark);
-                }
-            // A striped awning sloping from the back down over the front, overhanging it.
-            var back = new Vector3(0f, height + 0.05f, -depth * 0.55f);
-            var front = new Vector3(0f, frontHeight - 0.15f, depth * 0.5f + 0.45f);
-            // Cloth held at both bars, so it only ripples between them.
-            var stripes = g.Sides(6, 4, 2);
-            b.Family = Punchy.Terrain.MaterialFamily.Cloth;
-            var awning = b.VertexCount;
-            for (int k = 0; k < stripes; k++)
-            {
-                var x = k / (float)stripes - 0.5f;
-                var colour = k % 2 == 0 ? g.FoliageColor() : AccentAt(g, 0);
-                b.Sheet(back + Vector3.right * x * width * 1.1f, Vector3.right * width * 1.1f / stripes, front - back, 1, g.Sides(5, 2, 1), colour, FloraPart.Bark);
-            }
-            b.Cloth(awning, p => 0.3f * Mathf.Sin(Mathf.Clamp01(Mathf.InverseLerp(back.z, front.z, p.z)) * Mathf.PI), taut: true);
-            b.Family = b.BaseFamily;
-        }
+        // W-175: the market stall is a unit of library parts (FloraGenerator.Units.StallUnit).
+        static void Stall(Grower g) => BuildUnit(g, StallUnit);
 
         static void Inn(Grower g)
         {

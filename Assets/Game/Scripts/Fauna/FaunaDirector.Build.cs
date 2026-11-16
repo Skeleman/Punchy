@@ -400,7 +400,8 @@ namespace Punchy.Fauna
         /// <summary>
         /// M-06: adds each species' Homes to those biomes' Fauna lists (by biome name), marked FromHomes, after the
         /// biome's own entries, so every reader of a biome's animals (spawning, LivesAt, home climate) sees them and
-        /// no existing slot moves. The herd bake and the world signature skip them.
+        /// no existing slot moves. The world signature's biome list skips them; the herd bake takes them through
+        /// HerdBaking.Sources, in the same slots (#412).
         /// </summary>
         void MergeHomes()
         {
