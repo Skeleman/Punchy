@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-176 | #475 | world | active | world/ground-edits | W-174 r2 merged #481. Now: W-176 code (plan in REPORTS), editor may reopen. Then W-174 r3, M-07 r2b, W-172 r7 |
+| W-176 | #475 | world | ready | world/ground-edits | W-176 done @ 81c24572: 0 pits, 0 ledges, 17/17, ready for PR. Next: W-174 r3, M-07 r2b, W-172 r7 |
 | W-174 | #406 | world | next (after W-176) | world/ground-edits | Rows 1-2 merged (#440, #481). Next: row 3 river carves and pools, row 4 seams (#405), row 5 guard |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |

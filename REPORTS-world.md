@@ -8366,3 +8366,12 @@ Plan:
 3. A test in the cave suite: across the 24 test seeds, no two segments of one cave with floors more than 1 m apart and less than 1.5 m of rock between them, and no step over 3 m from a passage node to the next (shafts excluded).
 4. This moves cave layouts: re-pin the cave socket hash FCAA026F, the chest count and the landmark/fingerprint pins if they move, and tell the profiler.
 - Editor-free part done (this plan). The code and test start once the coordinator says the editor may open again.
+
+## W-176 (#475): cave passages no longer cut pits or ledges (2026-11-16)
+
+- Branch world/ground-edits @ 81c24572 (on top of W-174 r2 c3107159; 222d22b1 was the WIP). Pushed. **Ready for PR.**
+- CaveBaking: side passages are checked against every earlier passage of their cave. Only links that share a node or sit one link apart are skipped. The old rule skipped every link at the branch root for the whole branch, so branches dug through big root chambers. Side passages grade at MaxGrade (now public, 0.6), so nothing drops off a ledge into their end chamber. Grade also holds the floor level across a chamber's whole reach: a chamber of r 8-12 overlaps the main passage two or three nodes either side, which cut pits.
+- New test WorldTests.CaveLayout_NoPitsOrLedges (hook TestHooks.CaveLayoutProblems in TestHooks.Caves.cs). It audits every non-tunnel cave for pits (floors >= 1 m apart with < 1.5 m rock between, same rule as the bake) and ledges (steeper than MaxGrade). It names the cave, position and links of each problem. Before the fix: 14 pits; after the grade fix alone: 14 pits, 0 ledges; with the adjacency rule: 3; with chamber levelling: **0 pits, 0 ledges, 23 caves, 735 links, steepest grade 0.60.**
+- WorldTests 17/17 (warm bake). The earlier Harness_WorldUp/Setup timeouts were the cold rebake only (253 s after cave changes). Pins hold: landmarks 114 9786243F, temple hash C41A5BA2, baked vs built every cave the same. No re-pin needed.
+- Moves (measures, not pins): **cave socket hash FCAA026F -> E2AD48D0**, caves 31 dungeons 777 sockets (chest 70); chests 83 in 24 dungeons (temple 13, cave 70, ruin room 0). Profiler note left in REPORTS-profiler. No timing done.
+- The editor is closed (EditorApplication.Exit). Next: W-174 r3 (river banks, falls basin and pool lips through GroundEdits), then M-07 r2b, W-172 r7.

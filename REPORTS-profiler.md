@@ -4018,3 +4018,6 @@ Zach's question: do behaviours, animation and the other creature logic run as la
   BoneGraveyard at -733, -2944 drops, so the landmark count stays 117 with probe hash 547D4E79 (was 689D5348). The fauna
   fingerprint is 01D42225 (was 3DCB5E78). Benches that frame the south Ashlands should re-pin. No new cost line: it's
   one landmark of an existing type.
+- World (W-176 #475, world/ground-edits 81c24572): cave layouts move. Cave socket hash FCAA026F -> E2AD48D0 (31 dungeons,
+  777 sockets, chest 70); chests 83 in 24 dungeons. Landmarks (114 9786243F) and temple (C41A5BA2) unchanged. Benches that
+  pin the cave socket hash or chest count should re-pin. No new cost line: same cave count, slightly fewer links (735).
