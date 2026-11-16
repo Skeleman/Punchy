@@ -5649,3 +5649,18 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Shares (rule 33):** extends W-175 UnitDef/PartLibrary/BuildUnit and the Lab set-piece view (Family.SetPiece). No Lab-only format. Parallel seen, not folded: StructureKit buildings stay coded.
 - Editor closed, Temp/PlayArgs.txt deleted. No timing.
 - NEXT: ready for PR.
+
+## #24 phase two row 1: dungeon spawns design note (2026-11-16) - STOPPED FOR REVIEW
+- Branch fauna/dungeon-spawns f7b85f1b (from main 2f5ae9d8), pushed. One file: docs/design/dungeon-spawns.md. No code, editor not opened, no timing.
+- **Finding:** most of phase two is already on main (A-50, A-80, A-91). Sockets get seeded picks through SpawnTable with Scramble on every draw. Creatures spawn through FaunaDirector.Spawn with a DungeonPost, props carry KitBox collision, loose and chest loot are in place, Drink/Guard behaviours work, and DungeonState serves quests. The note records that design (sections 1-3) and lists what is missing.
+- **Gaps and proposed rows:**
+  - r2: dungeon creatures join the one population (A-110). Today every dungeon on the island (28 dungeons, 208 creature sockets) fills at load, and posts keep those creatures alive all session, outside the tiers. A director rebuild also brings back the dead ones. Fix: spawn by nearness on a Dungeon tier, let them go when players leave, keep a host exceptions record (a bit per creature socket), and have DungeonState read records instead of live entities. No wire change. Fauna_Fingerprint may move. Host cost goes to BENCH-QUEUE.
+  - r3 (**rule 11 ask**): one message per dungeon (id + ulong of dead creature sockets, 12 bytes), sent at join and on change, mirroring population ruling 2. It gives a joined client Cleared.
+  - r4: props drawn instanced with DetailPolicy.Tier screen-size tiers (today about 600 GameObjects drawn at any distance).
+  - r5: the brief's missing behaviours: roost (Ceiling), sleep (Dark), patrol (Passage/Doorway).
+  - r6 (items owner, **rule 11 ask**): cave and ruin chests open. OpenChestRpc is keyed by temple socket only and would need a dungeon id.
+  - later, with M-07: map-editor records. These are socket overrides keyed by kind + position at 25 cm (index fallback, orphans logged), added sockets appended after the generated ones, and a per-dungeon table override. Content is stored by name.
+- **P-46 note:** a pick never reads a socket's position, so moving its two temple sockets keeps their picks unless their tags change. Only the socket hash re-pins. TempleSockets.cs is not touched.
+- Pins: none moved (docs only).
+- Shares (rule 33): follows DESIGN-population.md (records + exceptions + nearness spawning) and the one SpawnTable. Props would use DetailPolicy tiers like every far form.
+- NEXT: wait for the supervisor's review of the note and the rows.
