@@ -16,13 +16,13 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-166 r3-4 | #336 | materials | r4 sweep: rule 11 asks in REPORTS-world (Colossus.shader uv3 family channel; items off URP Lit); Materials/Library.hlsl pushed | world/material-library-3 7b152200 | supervisor: OK the two asks; render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
-| A-119 | #339 | fauna | ready for review | fauna/ride-size d2d408a3 | probe PASS (drawn differently 0, NaN 0); main merged, fauna 4BEFEA91 unchanged; rule 11: PlayerRide.cs 2 Riding.Pair calls |
+| A-119 | #339 | fauna | DONE (PR #464) | fauna/ride-size d2d408a3 merged | probe PASS (drawn differently 0, NaN 0); main merged, fauna 4BEFEA91 unchanged; rule 11: PlayerRide.cs 2 Riding.Pair calls |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r3-4 | #412-414 | fauna (lab agent gone) | r4 merged #459; #413 closed; r5 can start (W-175 r2 merged #462) | fauna/lab-colour b47844c0 | material kind per segment via the looks table; Fauna_Fingerprint E764AAEC, no shader change |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
-| W-175 r1-3 | #415 | materials | ready for PR: r3 tent + fire pit are units, hashes and pixels identical, Landmarks_V3 passes | world/parts-units-2 d4f83dfd | r3b docks + one lantern part (kit adapter, look change); W-166 r4 sweep waits on rule 11 OK |
+| W-175 r1-3 | #415 | materials | r3 merged (PR #465); now W-166 r4 sweep (rule 11 OK 11-16) | world/material-library-3 7b152200 | then r3b docks + one lantern part (kit adapter, look change) |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1-r2c | #323 | render | main merged in (#454); compiles, NaN 0, re-framed look shots OK (merged2); main A/B pending (resumable; two slots stopped on RAM) | render/foliage-realism@161ecc3a | next editor slot: same framings on main (R-30/work/m2.txt); draft PR #457 waits on job 102 |
 | R-22 r1 | #298 | render | resumable: far mesh WIP, main 893d70a0 merged in (far-island reach now feeds the R-15 far-plane setter); Medium on shots done (pre-merge), Medium off + High on/off + NaN check pending (waiting on 9 GB ping) | render/far-island@818ac88b (WIP) | when RAM allows: list2 shot runs, sparkle NaN, seams/coast check, final commit, handoff, BENCH ask |

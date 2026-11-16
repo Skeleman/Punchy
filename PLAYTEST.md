@@ -160,3 +160,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #461 W #259 fix (#259 closed): rejoin no longer crashes; terrain jobs finish before a world swap.
 - 11-16: #462 W-175 r2 (#415 open, rows 3+): stalls and smithy are built from shared standalone parts; they look the same.
 - 11-16: #463 W-172 lava half-row (#365 open, row 7+): a volcano cone now stands in the Ashlands; one bone graveyard there is gone.
+- 11-16: #464 A-119 (#339 closed): a rider and its mount now change detail and vanish together at distance.
+- 11-16: #465 W-175 r3 (#415 open, row 3b+): tents and fire pits are built from shared parts; they look the same.
