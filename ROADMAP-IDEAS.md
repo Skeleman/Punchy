@@ -114,6 +114,7 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - Reference shaders Zach sent (wood grain, cracked plates, wet stone, grass, clouds): D:/Unity/PunchyReferences (local, README lists licence and card).
 - 11-14 (Zach): explore a reference cumulus shader for cheaper or better clouds: R-35, #333.
 - 11-14 (Zach): farm fields outside towns, crops for every biome, e.g. snow potatoes, agave-like ferns (W-165, #335).
+- 11-16 (Zach): harvestable parts on real plants (fruit, flowers, petals, bark, parasitic growths); a picked part vanishes and the plant stays; regrows after a few in-game days, kept in day buckets, not per item (#492). Later: after P-35 ids and W-175 parts.
 - 11-14 (Zach): one material library: every built piece states what it is made of, families share look rules, kinds vary colour (W-166, #336).
 - 11-14 (Zach): towers sized so a stair and rooms could fit, storeys readable from outside (W-167, #337).
 - 11-14 (Zach): household pets; folk pet animals by personality; children carry small animals inside (A-120, #340).
