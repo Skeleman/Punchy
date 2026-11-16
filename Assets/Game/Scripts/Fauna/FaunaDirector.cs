@@ -112,7 +112,7 @@ namespace Punchy.Fauna
 
         /// <summary>Which count a waiting animal goes towards (Despawn's tally). Housed: a town's household members
         /// (A-110 row 3), with a cap of their own.</summary>
-        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake, Housed }
+        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake, Housed, Dungeon }
 
         /// <summary>An animal waiting to be made: where, and what to set up on it once it exists.</summary>
         struct PendingSpawn
@@ -129,7 +129,7 @@ namespace Punchy.Fauna
         public int SpawnsPerFrame = 8;
         readonly Queue<PendingSpawn> pendingSpawns = new Queue<PendingSpawn>();
         /// <summary>How many are waiting, of each tier (counted with those already made, so the caps hold).</summary>
-        readonly int[] pendingTiers = new int[6];
+        readonly int[] pendingTiers = new int[7];
         /// <summary>Critter spots with an animal on its way.</summary>
         readonly HashSet<uint> pendingCritterSpots = new HashSet<uint>();
         EntityArchetype plainArchetype;
@@ -174,6 +174,7 @@ namespace Punchy.Fauna
             critterCells.Clear();
             pendingSpawns.Clear();
             System.Array.Clear(pendingTiers, 0, pendingTiers.Length);
+            ForgetDungeonLive();
             pendingCritterSpots.Clear();
             plainArchetype = default;
             if (simWorld != null && simWorld.IsCreated)
@@ -349,6 +350,7 @@ namespace Punchy.Fauna
                 using (DespawnMarker.Auto())
                 {
                     Despawn();
+                    DespawnDungeons(); // (#24 phase 2: dungeon residents, their own tier)
                     UpdateHerds(source);
                 }
             }
@@ -370,6 +372,7 @@ namespace Punchy.Fauna
                     SpawnWildFolk(source);
                     SpawnCrossingFishers(source);
                     SpawnSeaVisitors(source);
+                    SpawnDungeons();       // (#24 phase 2: each dungeon's residents near a player)
                 }
             }
             using (CrittersMarker.Auto())
@@ -668,6 +671,7 @@ namespace Punchy.Fauna
                 case SpawnTier.Critter: critterCount++; break;
                 case SpawnTier.Lake: lakeCount++; break;
                 case SpawnTier.Housed: housedCount++; break;
+                case SpawnTier.Dungeon: dungeonCount++; break;
                 default: wildCount++; break;
             }
         }
