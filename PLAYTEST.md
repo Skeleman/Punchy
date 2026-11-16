@@ -193,3 +193,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #500 render/hour-sync-doc, testing.md note: set the hour and take frozen shots on the host (from the #494 check).
 - 11-16: #501 folk/innkeeper-test-order, innkeeper PlayMode tests remake town members after setting the hour (test-only).
 - 11-16: #502 player/seamless-2, P-37 r3 (#369): walk-in storm houses with -seamless (host's choice sent on join; old and new builds can't join each other). Playtest: a shut door blocks, and the door works from inside.
+- 11-16: #503 world/ground-edits, W-174 r3 (#406) + W-176 (#475): river banks, falls pools and pool lips on the shared ground-edit profile; cave side passages without pits. No re-pins.
+- 11-16: #504 world/map-edits-bake, M-07 r2b (#260): painted map edits reach the game world; edits change the join signature only when present. One island cache miss on first load.
