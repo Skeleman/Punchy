@@ -1676,3 +1676,11 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - Row 4 still waits on Zach's feel notes. Stopped there.
 - P-44: a row 1 draft written before the park is committed as WIP on its own branch, player/ships 7d95ccbc (docs/agents/ships.md, marked parked). It covers a carrier lookup that generalises ColossusCollision.Carry, hull kit boxes placed at the ship pose, clock-driven motion with nothing sent, a remote-on-deck drift fix with no wire change, masts as climb columns, and cost per step. It is input for the rescoped walk-on-moving-bodies card. Not started further.
 - Logs: Punchy-player Logs/p33/solo.log, host.log, join.log.
+
+## P-39 main merge + #434 ready, P-42 rebased (2026-11-16, player-2)
+- player/menus 762dbbd7 = main ec1ea218 (P-38 #450, then W-172 #451) merged in. One conflict, in MenuNav.cs: P-39's d-pad/arrows-only Direction() is kept, and main's P-32 `-navtest` TestPress now overrides it.
+- Fauna_Fingerprint reads E764AAEC (main's pin), so no re-pin. Editor `-menu Character -navtest D,D,R,R,L,U,U`: focus 5, 9, 10, 11, 10, 6, 1 of 17 (down to the next row, along the row, up to the nearest cell). 0 game exceptions.
+- #434 is marked ready for review.
+- P-42 rebased onto it: its 4 own commits are now player/talk-replies 769a3e0d (force-pushed; the old take-items merge was dropped, since main has it). Compiles. Solo `-talktest 1 replies`: PASS, 0 exceptions.
+- Dev build of 769a3e0d (main + P-39 + P-42) is done. Joined-client runs held up: UDP 7979 is held by another tree's dev build (Punchy-world Builds/Dev, PID 108972), so my editor host can't bind. Waiting for it to free.
+- Shares: MenuNav stays the one focus path for every menu (rule 33).
