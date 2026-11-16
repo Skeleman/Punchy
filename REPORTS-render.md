@@ -1015,3 +1015,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Ground hidden at 3/8/15/25 m (meadow, noon, pinned clouds): today 17.5/39.9/65.5/58.5%, e 69.0/93.7/96.8/73.8%, f 45.0/74.5/89.4/72.0%; both ~168 blades/m2 vs 55; 25 m dip is still FullDensityRange thinning.
 - Dark disc near camera follows the player: moving it 40 m away brightens 21% of px (+14 levels). It is the player's shadow and/or the 0.9 m grass push zone, not the grass itself.
 - Sheet: PunchyMilestones/R-31/R-31-row2-sheet.png. Next: Zach picks e or f; BENCH cost check before it becomes default.
+
+### R-31 disc + row 3 handoff (11-16), render/grass-fields@c55dbd9f
+- Disc: with time frozen, the push zone off (new -grassnopush flag) and the player toggle change 0.0% px (both sit out of frame); with time running the patch grows 7% to 40% of the lower frame over 80 s with the player still, and stays with grass hidden: a sun-moving ground shadow (Zach: a tree), not grass.
+- Row 3: f is the default, today's clumps behind "-grassproto today" (a-d too), e dropped. Meadow pin 1: f 44.9/74.8/89.3/71.9% hidden at 3/8/15/25 m, today 17.7/40.0/65.6/58.5%; 0 compile errors, NaN 0.
+- Merge waits on BENCH 114 (pinned to 14f86b6d, still has all three arms). Shots: PunchyMilestones/R-31/row3 and R-31/disc.
+- PR #487 left as a draft (I briefly marked it ready, then undid that when told to skip).
