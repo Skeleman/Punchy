@@ -8417,3 +8417,12 @@ Plan:
 - **Row 5 files:** FloraGenerator.Parts.cs plus a new FloraGenerator.Parts.Build.cs partial (walls, floors, doors, windows, roof, beams, stairs, rails, signs), StructureKit.Parts.cs adapter for lanterns and crates.
 - **Row 6 files:** UnitDef (nested unit part, snap points), BuildUnit, and placement reading FloraSpecies.Unit / JSON unit by id (world placement lists; will ask before touching Settlements/Landmarks).
 - RAM permitting (play mode only at >= 10 GB free). No timing.
+
+## [materials] W-175 (#415) row 4: part format (2026-11-16) - DONE
+- Branch world/parts-units-4 a83b9c35 (from main cf60b03e), pushed. Files: Flora/UnitDef.cs, FloraGenerator.Parts.cs, FloraGenerator.Units.cs, FloraMeshBuilder.cs (FlipWinding), FloraGenerator.cs (**shared, additive**: Grower.UsePartStream/UseSharedStream; tell fauna/flora owner), Editor/ModelLab.Blueprints.cs (**fauna-authored file**: saves Host, loads it back, tidy JSON), Flora/Units/cookhouse.json, Tests/EditMode/UnitLibraryTests.cs, docs/agents/parts-and-units.md section 9.
+- Closes M-06 r5 gaps 2, 3, 4, 5, 7, 9: Yaw and Mirror per part (about At, colliders/boxes/perches/windows follow, winding flipped on mirror); Span is full size everywhere (pyramid roof, posts, poles, tent, fire ring, logs, embers); centred parts honour At; Bounds opt-in per part; UnitDef Host + Size (metres) + WidthOfHeight; PartStreams (per-part random stream: unit seed, part id, part Seed); tidy JSON (0.7, not 0.699999988).
+- No look change to coded units: W175Probe hashes for Stall, Smithy, CampTent(+Ash), BasaltFirePit etc. (5 species, 15 variants each set) identical to main. Coded units keep PartStreams off (re-pin later if wanted).
+- Intended change, Lab example only: cookhouse.json fire ring and embers now sit at their At (z -0.15) and no longer shrink the cookhouse bounds.
+- Tests: EditMode 13/13 (UnitLibraryTests incl. 4 new: tidy JSON, yaw, mirror winding, part streams; MaterialLibraryTests; UnitBlueprintTests). Landmarks_V3 pass. No shots (no look change). No timing.
+- Gap 6 note: existing posts/counter/roof keep no colliders (adding them would move the coded hashes); row 5's new parts all carry box colliders.
+- NEXT: row 5 (walls, floors, doors, windows, gabled roof, beams, stairs, rails, signs, lantern, crate as unit parts drawn through the kit pieces, so families and box collision come from the one kit path).
