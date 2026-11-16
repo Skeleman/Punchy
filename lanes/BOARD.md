@@ -19,7 +19,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-113 | no issue | fauna | ready? | flora/tree-variety f92b1fef | Merge main in, re-pin, hand off |
 | A-110 | #298 | fauna | active | fauna/one-population 70d27698 | Rows to r7b |
 | A-130 | #404 | fauna | ready for PR | fauna/dune-groves 7b2624eb | Done: desert biomes on the clearing mask, palm groves; fingerprint 9EFF3BCF |
-| M-06 r2 | #412-414 | lab | blocked: Zach's OK on the note | fauna/model-lab-2 8d08d8ed | r1 wobble done, r2 note docs/agents/model-lab-builder.md; rows 3-5 wait |
+| M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
 | A-131 | #25 | folk | active | folk/dialogue-options - | Options data + Choose (no UI), then sample talks |
 | R-38 r2 | #366 | render | blocked | render/playtest-1114 c1b30b46 | Rows 0,1,3,4 merged #409; row 2 needs far-lights 5fe0ce36 |

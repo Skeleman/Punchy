@@ -5283,6 +5283,15 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Questions for Zach: (1) Is one re-pin OK for quadruped RestPitch, and later one for Bulge, or straight tapers and upright-only lean? (2) Should a saved Lab variant be a new species asset or a CreatureTunables entry?
 - Shares: species, limb data and MaterialLibrary only (none changed). Pins untouched.
 - NEXT: blocked on Zach's OK for rows 3-5.
+### 11-15 M-06 row 3 (#413): in-memory body builder, safe parts - done (verified)
+- fauna/model-lab-2 f4415768 (on main 243c7eb1). Editor only: ModelLab.cs (made partial, wired in) plus new ModelLab.Builder.cs.
+- The Lab now edits a work copy: the species, its variant chain and every limb type its slots use, copied in memory, so assets never change. The new Body builder panel edits per segment length, radius start/end (taper), flatten, accent, fixed colour and glow. It can split a segment (halves at the midpoint radius) or remove one, keeping all seven key poses in step. Per slot it edits the rest direction, plus a torso lean (measured from straight up) on upright bodies. Revert builder edits drops them all. It warns when a limb type is shared by several slots, and on legs that segments 0 and 1 measure as thigh and shin.
+- Not built, as ordered: quadruped lean, Bulge, jaw, save to asset. Edits stay in memory until Zach picks species asset vs tuning entry.
+- Fingerprint check: BuilderCheck() bakes all 125 species from the asset and from an untouched work copy and compares the blob bytes the way BuildFingerprint writes them: 0 differ, before and after edits plus revert. No game code touched, so Fauna_Fingerprint and Landmarks_V3 can't move.
+- Eval check: Goblin torso lean +35 bends it forward; Deer thigh taper 0.16 to 0.05, neck split 2 to 3 segments and then one removed, head accent 1 and glow 0.6. All rebuilt live.
+- Shots: D:/Unity/PunchyMilestones/M-06/m06-r3-goblin-a/-b.png (lean before/after), m06-r3-deer-a/-b/-c.png (before, taper+split+colour, after remove, walk).
+- Edge: a split shifts PoseNudges keyed by segment index on that limb (tunables only, not saved).
+- NEXT: row 4 waits on W-166 creature families; save-to-asset and re-pin items wait on Zach.
 
 ## A-108 r2 (#298) far life: main merged in, done (verified)
 - fauna/far-life@1a3a7131 merges origin/main. Rule 11 world-file edits, append-only: IslandCache Format 3 -> 4 (main had already taken 3 for W-168 cave sockets, so herds take 4), Visit(Herds) after CaveSockets; TerrainSource Herds blob, left out of Equals; IslandV2 reset, free and assign lines plus the herd bake as the last bake step. World-file diff vs main: 3 files, +11/-3.
