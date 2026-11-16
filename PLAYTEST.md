@@ -204,3 +204,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #512 world/ground-holes, W-174 r4a (#405): one hole mask for cave mouths, temple entrances and scarp strips. Playtest: no plants standing in the sunken temple's opening or on scarp steps.
 - 2026-11-16: #513 R-40 (#511) soft wide shadows, one shadow per point at the URP hand-off (render).
 - 2026-11-16: #514 P-51 r2 (#337) walk-in elf towers with a climbable stair under -seamless (player-2). Playtest: enter an elf tower, climb to the top floor.
+- 2026-11-16: #515 W-174 r4b-5 (#405) one seam builder: no gaps round cave mouths, temple entrances and scarps (world). Playtest: walk the sunken temple's entrance and a cave mouth edge.
