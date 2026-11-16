@@ -2,6 +2,12 @@
 
 Newest first.
 
+## Job 86: third rebuild attempt, 2026-11-16 (q128d.job): **stopped before the games (its guard worked); the shader cache isn't Library/ShaderCache; q128e.job rehashes the shader**
+- q128d moved Library/ShaderCache aside and rebuilt B (42 min). The log compiles only five built-in shaders (URP Lit, UI, Sprites) and none of the game's, TerrainSurface included. So the player build serves its variants from its own caches, not Library/ShaderCache. B would again have carried the variants from q128b's FXC crash, so before() stopped it, as designed. The old ShaderCache is back in place.
+- **Next, q128e.job (chained last):** B = 5317827, a local bench-only commit (not pushed): ce3ff5a plus one unused `static const` in TerrainSurface.shader's ForwardLit pass. Its preprocessed source is new, so no cache can serve it. It must compile fresh, and if FXC really crashes on this shader, the crash will come back and say so.
+- Updated note for anyone after an FXC crash: clearing Library/ShaderCache isn't enough for a player build. Change the shader's source, or rebuild in a fresh Library.
+
+Cost: laptop total $947 (laptop session e163d8ab; 1 build, 0 games).
 ## Job 96 rerun: v0.16 tunnel entry along the bore (#400; v0.16.0 4e02a1b0), 2026-11-16 (q137b.job): **FAIL (41-62 frames over 33 ms per run, worst 460-514 ms); cause: main thread stalls in CreatureRenderSystem's JobHandle.Complete while terrain chunk meshing fills the workers**
 **Setup:** Profile build of v0.16.0, Medium, 1920x1080, uncapped, 12:00, Clear. The route this time follows W-172's mouth (-2061,263.2,691): from 20 m outside it on the road, through it, past the card's point (-2089,732) and 70 m on to -2128.5,789.8. 140 m at 6 m/s, with only x/z carried (gravity sets y). 3 timed runs, then 1 Profiler run (BProfileTools, every main frame over 33 ms).
 
