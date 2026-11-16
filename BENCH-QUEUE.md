@@ -989,3 +989,5 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Arm: main b04b5432 (B) against b04b5432^1 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds.
 - View: a town with kit stone chimneys and the smithy at noon, low sun, camera 3-15 m from the brick walls. Record CPU main-thread ms and GPU ms.
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms. Ice and plaster are math only; this mainly prices the brick mortar parallax.
+
+## Note (2026-11-15, supervisor): fauna fingerprint on main is 0206544F since #442 (Frostdeer joins the species and Tundra lists; no placement moved). Re-pin any bench check that reads it.
