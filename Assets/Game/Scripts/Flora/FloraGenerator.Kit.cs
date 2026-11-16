@@ -306,6 +306,7 @@ namespace Punchy.Flora
             b.Family = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
                      : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
                      : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
+            b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
             b.Unfounded = p.Afloat;
             if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                 RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close

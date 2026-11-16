@@ -35,7 +35,7 @@ Shader "Punchy/Flora"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
             #include "Flora.hlsl"
-            #include "Stone.hlsl"
+            #include "Materials/Stone.hlsl"
             #include "Grounding.hlsl"
             #include "Materials/Wood.hlsl"
             #include "Materials/Thatch.hlsl"
@@ -197,6 +197,9 @@ Shader "Punchy/Flora"
                 bool plaster = part == 0 && frac(input.extra.x) > 0.095 && frac(input.extra.x) < 0.105;
                 bool brick = part == 0 && frac(input.extra.x) > 0.11 && frac(input.extra.x) < 0.12;
                 bool ice = part == 0 && frac(input.extra.x) > 0.125 && frac(input.extra.x) < 0.135;
+                // Built stone: cut at 0.142, rubble at 0.144 (FloraMeshBuilder.Rubble), both drawn by Materials/Stone.hlsl.
+                bool builtStone = part == 0 && frac(input.extra.x) > 0.137 && frac(input.extra.x) < 0.147;
+                bool rubble = builtStone && frac(input.extra.x) > 0.143;
                 // (Refactor 3.5, measuring a bake: "-nofloradetail" sets _PunchyFloraDetailOff and skips the procedural
                 // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
                 bool detail = _PunchyFloraDetailOff < 0.5;
@@ -206,6 +209,8 @@ Shader "Punchy/Flora"
                     albedo *= PunchyBrick(input.positionWS, n, v, footprint, r);
                 else if (detail && ice)
                     albedo *= PunchyIce(input.positionWS, n, v, footprint, r);
+                else if (detail && builtStone)
+                    albedo *= PunchyStoneBlocks(input.positionWS, n, footprint, rubble, r);
                 else if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
@@ -241,7 +246,7 @@ Shader "Punchy/Flora"
                 bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
                 near *= bark ? 0.35 : 1;
                 // R-34 row 2: boulders and built stone (not timber, not living plants) draw their surface from the shared
-                // stone (Stone.hlsl) in place of the relief here. No marker tells built stone from plaster yet (W-166).
+                // stone (Materials/Stone.hlsl) in place of the relief here; built stone's blocks are laid above (W-166).
                 bool stone = part == 0 && !wood && input.living < 0.5 && _PunchyCaveDetailReady > 0;
                 if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0 && !stone)
                 {

@@ -87,7 +87,7 @@ Shader "Punchy/Cave"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
-            #include "Stone.hlsl"
+            #include "Materials/Stone.hlsl"
 
             Varyings Vert(CaveAttributes input)
             {
@@ -239,38 +239,23 @@ Shader "Punchy/Cave"
                     rock *= lerp(1, 0.75 + 0.5 * coarse.b, bareWall);
                     [branch] if (courses > 0)
                     {
-                        // Rows 0.42 m high, each set off along the wall by its own share of a block, joints where the
-                        // wall crosses the x or z planes it runs across (both on a slanting wall).
-                        const float rowHeight = 0.42, blockLength = 0.95;
-                        float row = floor(p.y / rowHeight);
-                        float fy = frac(p.y / rowHeight);
-                        float joint = min(fy, 1 - fy) * rowHeight;
-                        float offset = frac(row * 0.618) * blockLength;
-                        bool acrossX = abs(shape.x) < 0.75, acrossZ = abs(shape.z) < 0.75;
-                        float bx = (p.x + offset) / blockLength, bz = (p.z + offset) / blockLength;
-                        if (acrossX) joint = min(joint, min(frac(bx), 1 - frac(bx)) * blockLength);
-                        if (acrossZ) joint = min(joint, min(frac(bz), 1 - frac(bz)) * blockLength);
-                        int3 block = int3(row, acrossX ? floor(bx) : 0, acrossZ ? floor(bz) : 0);
-                        float3 blockHash = FacetHash(block);
-                        float blockTone = 0.8 + 0.4 * (blockHash.x + 0.5);
-                        // W-172 row 4 (W-166 brick rule): recessed mortar a little wider, and each block's faces
-                        // rounded into its joints in the normal (light catches the top arrises, the bed under it is
-                        // shaded), each block set a touch off true, so the courses read as stones, not a painted grid.
-                        float mortar = 1 - smoothstep(0.018, 0.034, joint);
-                        float bevel = 1 - smoothstep(0.03, 0.09, joint);
-                        float bed = fy * rowHeight, head = (1 - fy) * rowHeight;
-                        float3 round3 = float3(0, (1 - smoothstep(0.02, 0.08, head)) - (1 - smoothstep(0.02, 0.08, bed)), 0);
-                        if (acrossX) { float f = frac(bx) * blockLength; round3.x = (1 - smoothstep(0.02, 0.08, blockLength - f)) - (1 - smoothstep(0.02, 0.08, f)); }
-                        if (acrossZ) { float f = frac(bz) * blockLength; round3.z = (1 - smoothstep(0.02, 0.08, blockLength - f)) - (1 - smoothstep(0.02, 0.08, f)); }
-                        n = normalize(n + (round3 * 0.55 + blockHash * 0.08) * courses * (1 - mortar) * (1 - capping));
-                        rock = lerp(rock, rock * blockTone * (1 - bevel * 0.25), courses * (1 - capping));
+                        // W-166 row 3: the one built stone (Materials/Stone.hlsl, cut courses), as the towns' fountains
+                        // and plinths. Its footprint from the distance, safe in this branch (rule 24). W-172 row 4's clear
+                        // top edge and capping course stay here: the library draws the courses, the tunnel only its cap.
+                        float footprint = length(_WorldSpaceCameraPos - p) * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11);
+                        half3 cutN = n;
+                        float body = courses * (1 - capping);
+                        rock = lerp(rock, rock * PunchyStoneBlocks(p, cutN, footprint, false, 0), body);
+                        n = normalize(lerp(n, cutN, body));
                         // The capping course: long pale stones, one joint per two blocks, a dark bed joint under them.
-                        float capJoint = acrossX ? frac(bx * 0.5) : frac(bz * 0.5);
+                        const float blockLength = 0.95;
+                        bool acrossX = abs(shape.x) < 0.75;
+                        float capJoint = acrossX ? frac(p.x / blockLength * 0.5) : frac(p.z / blockLength * 0.5);
                         capJoint = min(capJoint, 1 - capJoint) * blockLength * 2;
-                        float capTone = 1.12 + 0.12 * blockHash.y;
+                        float capTone = 1.12 + 0.12 * (FacetHash(int3(floor(p.y / 0.42), floor(p.x / (blockLength * 2)), floor(p.z / (blockLength * 2)))).y);
                         rock = lerp(rock, rock * capTone, capping);
-                        mortar = max(mortar * (1 - capping), max(1 - smoothstep(0.018, 0.034, capJoint), smoothstep(0.35, 0.36, slope) * (1 - smoothstep(0.36, 0.372, slope))) * capping);
-                        rock = lerp(rock, rock * 0.38, mortar * courses);
+                        float capMortar = max(1 - smoothstep(0.018, 0.034, capJoint), smoothstep(0.35, 0.36, slope) * (1 - smoothstep(0.36, 0.372, slope))) * capping;
+                        rock = lerp(rock, rock * 0.38, capMortar * courses);
                     }
                     // The shadow line just over the courses, where the vault's rock stands out over them.
                     rock *= 1 - overhang * 0.55;

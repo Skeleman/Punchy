@@ -76,3 +76,17 @@ Read before changing any shader, material or render setting.
 - The sun's real-time shadow filter is set at run time by `Rendering/SunShadowFilter.cs` (wide at High and above, the
   Shadows setting with four cascades; the scene's own value at Medium and Low; `-sunshadowfilter scene|low|medium|high`). With the narrow filter the cascades'
   edges crawl as the sun turns (R-20, #286). Sunny day types show it; overcast ones hide it, so test under `Sunny`.
+
+## Built materials (W-166, November 2026)
+
+- One look per family, one include each in `Shaders/Materials/`: Wood, Thatch, Cloth (linen and hide), Metal, Plaster,
+  Brick, Ice, Stone (R-34's wet rock, plus built stone as cut courses or rubble) and Bone. A shader that draws a family
+  includes its file and calls it; never write your own grain, bricks or weave. `MaterialLibraryTests` fails on a
+  family drawn outside its include. The kinds (wood kinds so far) are rows of `MaterialLibrary.cs`, pushed as globals.
+  A kit part's family comes from `MaterialLibrary.FamilyOf(KitMaterial, KitSurface)`, a creature's gear from `FamilyOf(SegmentMaterial)`.
+- Flora reads the family from the bark mark (`FloraMeshBuilder.FamilyMark`): wood 0.01-0.035, strata 0.06-0.09,
+  plaster 0.10, brick 0.115, ice 0.13, built stone 0.142 (rubble 0.144), seams over 0.15. A new family needs a free slot
+  at least 0.011 from the others; the test checks.
+- Every detail fades with the pixel's footprint (`Punchy<Family>Fade(period, footprint)`: full at 8 pixels per period,
+  gone at 3) and is centred on 1, so far away a piece is its vertex colour (rules 20, 25). Inside a branch take the
+  footprint from the distance, `distance * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11)`, not from `fwidth`.
