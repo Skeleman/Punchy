@@ -8183,3 +8183,17 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Choices for Zach:** code parts with data units (the Lab composes but doesn't sculpt); unifying crates changes two of today's three looks; BENCH bake check after the first move row.
 - **Shares:** W-166 MaterialFamily, StructureKit KitPart, #399/W-173 r3, AnchorKind.
 - Next: stop for Zach's OK on the proposal.
+
+## W-172 row 6 (#365): main cave paths fit a ridden horse. Done (verified)
+- **Branch:** world/playtest-1114@cb8ea8ac (CaveBaking.cs, CaveBaking.Rooms.cs).
+- **What changed:** main passage, mouth and main branch nodes keep a radius whose top clears RiderHead 2.6 m plus the ceiling's full jagged reach (CeilingDip 1; 0.75 left rocky caves 0.1-0.4 m short). A thin roof sinks the floor instead of squashing the passage. Main-end room doors are 1.6-2.4 m wide and 2-3 m tall where the passage allows, lowered in 0.1 m steps.
+- **Clearance used (walk probe over all 24 caves, floor to lowest ceiling point, width at 1.2 m):**
+  - Reported mouth c0 (-1796,51,-199): head 1.8 -> 3.6 m, width 3.3 -> 6.0 m.
+  - All main paths: min head 2.2 m (c21), min width 2.3 m. Every other cave is 2.6 m or more (most 2.8-5.4).
+  - Main-end room doors: mostly 3.0 x 2.4; min 2.0 tall (c17 lake room).
+- **Known exceptions (not fixed this row):** c21's end chamber (-1392,47,-1177) has a ceiling noise fin down to 2.2 m in a small chamber; the c17 lake-room door is 2.0 m tall because the lake room's roof is low. A rider must duck or dismount at those two. A fix would be a main-end minimum on the noise or on the lake door; it's cheap if wanted.
+- **Test:** WorldTests 13 of 14. The one failure is not mine: GameAudioOcclusion.cs:206 OpenDoors reads Terrain.Anchors after the blob is released (IsCreated still passes), fails every run. For the A-122 / audio owner. Pins unchanged (Landmarks 117 689D5348, Fauna A4A00AFD); cave socket hash B67B8B29.
+- **Shots:** PunchyMilestones/W-172/w172-r6-{mouth,passage}-{before,after}.png.
+- **Lava (render-2's question):** v3 realms leave out the Volcano biome, and VolcanoCone is only in Volcano's Landmarks list, so no lava places. Cheapest fix is adding VolcanoCone to Ashlands' Landmarks (Ashlands already paints volcano ridges): one asset line, rebake, landmark re-pin, a shot, and a note to the profiler, about half a row. Giving Volcano its own realm land costs more (layout, many re-pins). I can add the half-row after W-174 if wanted.
+- **Shares:** CaveBaking.RiderHead is public for any later rider or mount clearance check (rule 33).
+- Next: row 7 (cave wall details).
