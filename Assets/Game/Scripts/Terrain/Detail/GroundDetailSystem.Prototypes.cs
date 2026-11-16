@@ -19,13 +19,13 @@ namespace Punchy.Terrain
     /// </summary>
     public partial class GroundDetailSystem
     {
-        /// <summary>The prototype in use, 0 for none, 1-4 for a-d (-grassproto, or SetProto for the sheet).</summary>
+        /// <summary>The prototype in use, 0 for none, 1-4 for a-d, 5-6 for row 2's e-f (-grassproto, or SetProto for the sheet).</summary>
         static int Proto = ReadProto();
 
         /// <summary>Switches prototype in play (debug, for the R-31 sheet): every tile is rebuilt with the new counts.</summary>
         public void SetProto(int proto)
         {
-            Proto = math.clamp(proto, 0, 4);
+            Proto = math.clamp(proto, 0, 6);
             DropTiles();
         }
 
@@ -37,20 +37,24 @@ namespace Punchy.Terrain
         {
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             for (int i = 0; i < args.Length - 1; i++)
-                if (args[i] == "-grassproto" && args[i + 1].Length == 1 && args[i + 1][0] >= 'a' && args[i + 1][0] <= 'd')
+                if (args[i] == "-grassproto" && args[i + 1].Length == 1 && args[i + 1][0] >= 'a' && args[i + 1][0] <= 'f')
                     return args[i + 1][0] - 'a' + 1;
             return 0;
         }
 
         /// <summary>Blades per instance count, as a multiple of today's.</summary>
-        static float ProtoCount => Proto == 1 || Proto == 4 ? 3f : 1f;
-        static float ProtoHeight => Proto == 2 ? 1.35f : 1f;
-        static float ProtoWidth => Proto == 1 ? 0.8f : Proto == 2 ? 2.2f : Proto == 4 ? 1.6f : 1f;
+        /// Row 2 (Zach): e is a's count with b's height on narrower blades; f is d's curved single blades at a's blade
+        /// count (singles skip the clump halving, so 7.5 instances give a's 3 x 0.5 x 5 blades).
+        static float ProtoCount => Proto == 1 || Proto == 4 || Proto == 5 ? 3f : Proto == 6 ? 7.5f : 1f;
+        static float ProtoHeight => Proto == 2 || Proto == 5 ? 1.35f : 1f;
+        static float ProtoWidth => Proto == 1 ? 0.8f : Proto == 2 ? 2.2f : Proto == 4 || Proto == 6 ? 1.6f : Proto == 5 ? 1.4f : 1f;
+        /// <summary>Curved Bezier single blades (d and f).</summary>
+        static bool ProtoBezier => Proto == 4 || Proto == 6;
         /// <summary>Tuft spread, as a multiple of today's (GroundDetail.hlsl ClumpMember).</summary>
         static float ProtoTuft => Proto == 2 ? 1.6f : 1f;
         /// <summary>Roots take the ground's colour, so a tuft's base doesn't read as a dark spot on lighter ground (b);
         /// half way for d, whose dark root to bright tip is part of its look but sits in a field dense enough to hide it.</summary>
-        static float ProtoRootMatch => Proto == 2 ? 1f : Proto == 4 ? 0.5f : 0f;
+        static float ProtoRootMatch => Proto == 2 || Proto == 5 ? 1f : ProtoBezier ? 0.5f : 0f;
 
         const int BladeVerticesNear = 15, BladeVerticesFar = 9;
 
@@ -60,7 +64,7 @@ namespace Punchy.Terrain
         {
             if (Proto == 1)
                 return BladeVerticesFar;
-            if (Proto == 4 && nearest > BezierNearRange)
+            if ((ProtoBezier || Proto == 5) && nearest > BezierNearRange)
                 return BladeVerticesFar;
             return BladeVerticesNear;
         }
@@ -75,7 +79,7 @@ namespace Punchy.Terrain
 
         void SetProtoGlobals()
         {
-            Shader.SetGlobalFloat(ProtoId, Proto);
+            Shader.SetGlobalFloat(ProtoId, ProtoBezier ? 4 : Proto == 5 ? 2 : Proto);   // the shaders know a-d only
             Shader.SetGlobalVector(ProtoShapeId, new Vector4(ProtoTuft, ProtoRootMatch, ShellHeight, ShellLayers));
         }
 
