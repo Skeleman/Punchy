@@ -956,3 +956,28 @@ with main d95e7ff1); compiles, no suite run yet.
 - **Proposal (needs a tuning slot, about one editor hour):** a visual cover gain (about 2-3x, capped at 1) to match how dense impostors read, plus a darker crown tone, tuned by A/B at the handoff ring. Or, since the far-coast forest read is mostly hidden by haze anyway, merge as is (it is cheap, correct and pop-free) and pair the gain with the row 2 haze work once Zach OKs that. My lean: merge now, tune with row 2.
 - **Flora.hlsl.** Not touched by this branch, so there is no clash with player-2's P-37 r3 edit.
 - **BENCH.** The draft above (arms `-farforest 0` vs as is) is ready to queue. Rebase onto main once #482 merges.
+
+## R-31
+### 2026-11-16 R-31 grass fields (#325): editor-free prep pushed, render/grass-fields @ be206e54 (uncompiled)
+- **Row 1 probe (code ready).** `GrassCoverageProbe.Measure()`, called by script eval: renders the main camera once with post off and blades flat magenta (`_PunchyGrassProbe`, Forward pass only). It counts the magenta share of the screen rows that look at 3, 8, 15 and 25 m on flat ground (middle 60% of each row). `GroundDetailSystem.BladeStats(xz)` reads one tile back: instances and blades per m², stored height, width and bend. Plan: flat temperate meadow, eye height, Detail 1, noon. Run today's grass plus `-grassclumps 0`, then each prototype.
+- **Analytic numbers from the code (before measuring).**
+  - About 70 blades/m² (14 tuft roots × 5 blades). Mean height about 0.25 m, full width 0.022-0.044 m.
+  - A rough random-blade estimate gives about 45% cover at 3 m and 79% at 8 m. Tufts lower it, since blades bunch round roots 0.27 m apart.
+  - Blade spacing is about 0.12 m against 0.24 m height, a ratio near 0.5. Dense-field references sit under 0.2.
+- **Likely causes (to confirm by measurement).**
+  - Roots are drawn at 0.45× albedo against lighter ground, so each tuft reads as a dark spot.
+  - Too few, too thin blades near the camera.
+  - Uniform tufts.
+  - Thinning starts at about 20 m (FullDensityRange).
+- **Row 2 sketch.** `-grassproto a|b|c|d` is read once; without it the grass is unchanged.
+  - (a): 3× the count, 9-vertex blades, width ×0.8.
+  - (b): height ×1.35, width ×2.2, tufts 1.6× wider, roots in the ground's tone and lighter tips.
+  - (c): today's blades over 4 alpha-cut shell layers on the tile's ground lattice (0.12 m tall, 3 cm strands). Shells sink into the ground by the full-density range.
+  - (d): Bezier blades in 0.35 m Voronoi clumps, which share lean, height band and colour. No tufts, 3× the count. Rounded normal and backlit tips. 15 vertices near, 9 past a screen-size reach (rule 20).
+  - The (d) shape code is adapted from altunenes' MIT shader. The copyright line and full MIT notice are in the GrassBezier.hlsl header.
+  - Wind and foot push now come from one shared GrassBladeDisplace, with the same maths as before. All three passes use the same builders, so depth priming keeps the shells.
+- **Files.**
+  - New: GroundDetailSystem.Prototypes.cs (partial), GrassBezier.hlsl, GrassShell.hlsl, Debugging/GrassCoverageProbe.cs.
+  - Edited: GroundDetailSystem.cs (17 lines, CRLF kept), GroundDetail.hlsl, Grass.shader.
+  - No Biome or Surfaces asset and no placement touched. The .meta files come with the first import.
+- **Next.** I need an editor slot (port 7986, at least 6 GB free) to compile, run the row 1 numbers and shoot the prototypes. render/far-forest gets rebased once #482 lands.
