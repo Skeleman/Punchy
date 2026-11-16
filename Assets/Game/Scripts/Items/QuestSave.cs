@@ -29,6 +29,8 @@ namespace Punchy.Items
             public string id, town;
             public int state;
             public bool tracked, visited;
+            /// <summary>A dungeon quest's chest id when saved (P-49); 0 in older saves, taken as still right.</summary>
+            public int chest;
         }
 
         [System.Serializable]
@@ -74,7 +76,8 @@ namespace Punchy.Items
         {
             if (boards.Count == 0 || quests.Length == 0)
                 return;
-            if (!saveLoaded && (!Joined || !Q(client.EntityManager, Unity.Entities.ComponentType.ReadWrite<Unity.NetCode.NetworkId>()).IsEmpty))
+            // (Not before the dungeon chests are in: a dungeon quest's chest is checked against them.)
+            if (!saveLoaded && ChestsSettled() && (!Joined || !Q(client.EntityManager, Unity.Entities.ComponentType.ReadWrite<Unity.NetCode.NetworkId>()).IsEmpty))
                 LoadSave();
             if (saveDirty && saveLoaded)
                 WriteSave();
@@ -175,6 +178,11 @@ namespace Punchy.Items
                 if (Def(board, s).id == q.id)
                 {
                     slot = s;
+                    if (q.chest != 0 && IsDungeon(def) && QuestChest(board, s) != q.chest)
+                    {
+                        why = $"the {DungeonWord(def)} it named is gone";
+                        return false;
+                    }
                     return true;
                 }
             why = "that town no longer asks for it";
@@ -186,7 +194,7 @@ namespace Punchy.Items
             saveDirty = false;
             var list = new List<SavedQuest>();
             foreach (var kv in myQuests)
-                list.Add(new SavedQuest { id = Def(kv.Key.Item1, kv.Key.Item2).id, town = TownKey(kv.Key.Item1), state = kv.Value, tracked = kv.Key == tracked, visited = visited.Contains(kv.Key) });
+                list.Add(new SavedQuest { id = Def(kv.Key.Item1, kv.Key.Item2).id, town = TownKey(kv.Key.Item1), state = kv.Value, tracked = kv.Key == tracked, visited = visited.Contains(kv.Key), chest = SavedChest(kv.Key.Item1, kv.Key.Item2) });
             foreach (var lost in lostQuests)
                 list.Add(lost.Saved);
             try
@@ -197,6 +205,13 @@ namespace Punchy.Items
             {
                 Debug.LogWarning($"Quests: couldn't write the save: {e.Message}");
             }
+        }
+
+        /// <summary>A dungeon quest's chest id for the save (0: not a dungeon quest, or no chest).</summary>
+        int SavedChest(int board, int slot)
+        {
+            var id = QuestChest(board, slot);
+            return id == NoChest ? 0 : id;
         }
 
         void DropLost(LostQuest lost)
@@ -292,6 +307,8 @@ namespace Punchy.Items
                 return visited.Contains((board, slot)) ? $"back to the board in {boards[board].Town}" : $"go to {boards[DestBoard(board, slot)].Town}";
             if (q.type == "deliver")
                 return $"take it to the board in {boards[DestBoard(board, slot)].Town}";
+            if (IsDungeon(q))
+                return DungeonProgress(board, slot);
             if (HasFor(board, slot))
                 return $"hand in at the board in {boards[board].Town}";
             var id = ItemId(q.item);

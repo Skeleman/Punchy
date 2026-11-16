@@ -56,6 +56,11 @@ namespace Punchy.Items
             // (Nothing to carry for a visit: the player's word for having been there, as with what they've seen.)
             if (q.type == "visit")
                 return true;
+            if (IsDungeon(q) && !DungeonChestOpen(board, slot))
+            {
+                Debug.LogWarning($"Quests: refused player {player}'s hand-in of {q.id} at board {board}: its chest {QuestChest(board, slot)} hasn't been opened");
+                return false;
+            }
             var id = ItemId(q.item);
             var need = math.max(q.count, 1);
             var have = id >= 0 ? Carries(player, (byte)id) : 0;
