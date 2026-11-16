@@ -321,16 +321,23 @@ namespace Punchy.Interact
             // (A quest the player already has, or a gift already given: its accept and decline aren't offered again.)
             var fresh = shown.Offer.Kind == OfferKind.Quest && !Items.Items.HasFolkQuest(shown.Offer.Id)
                         || shown.Offer.Kind == OfferKind.Item && !gifted.Contains(who.Individual);
+            var held = false;
             if (shown.Options != null)
                 for (int i = 0; i < shown.Options.Length; i++)
                 {
                     var o = shown.Options[i];
                     var decides = o.Do == OptionDo.Accept || o.Do == OptionDo.Decline;
                     if (decides && !fresh)
+                    {
+                        held = true;
                         continue;
+                    }
                     choices.Add((i.ToString(), o.Say));
                     offering |= o.Do == OptionDo.Accept;
                 }
+            // (Its replies hidden, the line would end on an unanswered offer: say why.)
+            if (held)
+                body = Join(body, shown.Offer.Kind == OfferKind.Quest ? "(You already have this quest.)" : "(You already took this gift.)");
             replying = choices.Count > 0;
             if (!replying)
                 FillTopics(metBefore);
