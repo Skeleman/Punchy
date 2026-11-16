@@ -8116,3 +8116,20 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Shares:** one include per family under Shaders/Materials, plus the FamilyMark slot table (rule 33).
 - **BENCH:** none for plaster (ALU only, no texture reads). The brick parallax cost request will come with the brick row.
 - Next: brick (kit stone chimneys on timber/plaster houses + smithy stack), then ice.
+
+## W-172 row 5 (#262): tunnel side ways. Done (verified)
+- **Branch:** world/playtest-1114@c59f8f03.
+- **What changed:** new partial CaveBaking.TunnelSides. Long road bores get side ways off the road on their own roll:
+  - short uphill dead ends;
+  - chambers wider than the bore, holding a bench (CaveStyle.Bench, set on Mine) or a **tunnel camp socket** (CaveBaking.TunnelCamps, for folk/creature camps to fill);
+  - branches that dig through rock (cover-checked) to the nearest natural cave passage or chamber within 150 m.
+  - Side ways get the biome's floor mushrooms, and hanging roots where rock cover is up to 14 m.
+  - The road keeps its radius, head room and fittings. Portal sight skips side nodes.
+- **Counts (live island):** dead ends 3, branches 3 (t25, t27, t28), chambers 5, benches 2, camp sockets 3, floor plants 127, roots 1.
+- **Road walk end to end:** 0 open-air samples; min head room 3.2 m on every tunnel; max floor step 0.43-0.73 per m, all on stretches graded before this row (t26 has no sides and shows 0.62), so horses still pass.
+  - t24 490 m, t25 617 m, t26 124 m, t27 244 m, t28 705 m, t29 1077 m walked in cave.
+- **Shots:** PunchyMilestones/W-172/w172-r5-{chamber-bench,branch-mouth,deadend,camp-chamber}.png.
+- **Suite:** WorldTests 13/14 on a fresh play session. The failure is Player_CrowFliesOutOfCaveThroughHitches (1 stuck at the cave 0 mouth), the known flake that row 6 targets. On an earlier rerun in the same session Place_PropFindsAndFramesWharf failed only because LogWatch.Last saw the identical line from the previous run; it passes fresh.
+- **Note:** the shared TestResults.xml under LocalLow is overwritten by every editor (it held a Punchy-folk run); read results from the lane's Editor.log instead.
+- **Shares:** tunnel camp socket list (CaveBaking.TunnelCamps) for the folk/animal lanes; CaveStyle.Bench field (Mine set, other styles empty).
+- Next: row 6 (horse-sized cave mouth at -1796,51.2,-199, min clearance over all caves).
