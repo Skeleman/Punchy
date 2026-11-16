@@ -1561,3 +1561,10 @@ Rows:
 2. #397 one in-world menu. A new UI/FieldMenu (Select / Tab / I) shares the tab machinery with MainMenu: one MenuTabs class (tabs, strip, LB/RB or Q/E). Tabs: Items (inventory, worn, open container), Quests (the quest log), Status (stats moved out of MainMenu, plus carried weight). Start keeps Character, Multiplayer and settings. Items/Quests/PlayerStats register tabs, the same as MainMenu.AddTab does now.
 3. #398 one Use-target pick. Interact/UseTarget: every Use-key prompt (door, folk, item, chest, container, notice board, lamp, go outside) scores its candidate with DoorPick.Aim (the facing cone of body or camera, near-and-in-front wins). The lowest score takes the key. Doors get a 0.8 factor so they win ties (doors first). This replaces the raw-distance trade between Doors.FacingDistance / FolkTalk / Items.TargetDistance. Containers, chests and boards ignore facing today, which is how a barrel beside a door steals its prompt. The creature Interact prompt (north button, Fauna/InteractionInputSystem) is a rule 11 ask, not edited.
 Checks: input test with a virtual pad (stick walks while the d-pad moves focus) solo, host and client; shots of each in-world tab, and of a door picked over a nearby barrel.
+
+## P-38 row 0 (#372): merge main into player/take-items - done (verified)
+- Branch player/take-items@0fa149fd (merge 602e4e2b + re-pin). Conflicts fixed in Items, Gear, PoseGuard, PoseGear and CreatureRenderSystem (HatPackCount keeps eyewear; PoseKit/KitParts added for ModelLab). Main's separate Drape file is left unused; A-128 is ported in row 2.
+- Check: batch compile clean. Playmode suite 46/47; the only failure was Fauna_Fingerprint (main pin 9EFF3BCF, branch pin AD723954), now re-pinned to the merged value F3E72B37. No placement moved. Profiler: new fauna fingerprint F3E72B37 on this branch.
+- No shot (merge row).
+- Risks: CreatureRenderSystem.cs is shared with other gear work; whichever branch lands second merges it.
+- Shares: Items/Gear kit system (rule 33); main's job gear post items fold into it in row 1.
