@@ -11,7 +11,8 @@ namespace Punchy.Debugging
 {
     /// <summary>
     /// Test hooks for dungeon life's dead masks (#24 phase 2 row 3): every dungeon's residents fit the 64 bits of its
-    /// mask, and the residents a joined client builds from the seed are the host's records, ordinal for ordinal.
+    /// mask, and the residents a joined client builds from the seed are the host's records, ordinal for ordinal; r5,
+    /// the posts' behaviours from socket tags.
     /// </summary>
     public static partial class TestHooks
     {
@@ -113,6 +114,45 @@ namespace Punchy.Debugging
                 }
             }
             Debug.Log($"[dungeon residents] ordinals: {dungeons} dungeons, {residents} residents compared with the host's records");
+            return problems.ToString();
+        }
+
+        /// <summary>
+        /// #24 phase 2 r5: problems with the posts' behaviours from socket tags, "" when fine. Only bats roost; patrol
+        /// beats run 4 to 20 m; nothing that flies, and no ghost, naps; and on the pinned seed some creature has each of
+        /// the r5 behaviours (roost, patrol, sleep) or the tags never reach them. Logs the count of each behaviour.
+        /// </summary>
+        public static string DungeonPostProblems()
+        {
+            var director = Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null || director.SimWorld == null || !director.SimWorld.IsCreated)
+                return "no animals world";
+            var problems = new System.Text.StringBuilder();
+            var counts = new int[System.Enum.GetValues(typeof(DungeonBehaviour)).Length];
+            foreach (var (key, residents, _) in RebuiltResidents(director))
+                foreach (var r in residents)
+                {
+                    var post = r.Post;
+                    counts[(int)post.Behaviour]++;
+                    var name = post.Name.ToString();
+                    if (post.Behaviour == DungeonBehaviour.Roost && name != nameof(DungeonContent.Bat))
+                        problems.Append($"{key:X8} socket {r.Socket}: {name} roosts; ");
+                    if (post.Behaviour == DungeonBehaviour.Sleep &&
+                        (name == nameof(DungeonContent.Bat) || name == nameof(DungeonContent.GlowMoth) || name == nameof(DungeonContent.Ghost)))
+                        problems.Append($"{key:X8} socket {r.Socket}: {name} naps; ");
+                    if (post.Behaviour == DungeonBehaviour.Patrol)
+                    {
+                        var beat = math.distance(post.Anchor.xz, post.Beat.xz);
+                        if (beat < 4f || beat > 20f)
+                            problems.Append($"{key:X8} socket {r.Socket}: beat {beat:F1} m; ");
+                    }
+                }
+            var line = new System.Text.StringBuilder();
+            for (int i = 0; i < counts.Length; i++)
+                line.Append($"{(DungeonBehaviour)i} {counts[i]} ");
+            Debug.Log($"[dungeon posts] {line}");
+            if (counts[(int)DungeonBehaviour.Roost] == 0 || counts[(int)DungeonBehaviour.Patrol] == 0 || counts[(int)DungeonBehaviour.Sleep] == 0)
+                problems.Append($"some r5 behaviour never picked: {line}");
             return problems.ToString();
         }
 

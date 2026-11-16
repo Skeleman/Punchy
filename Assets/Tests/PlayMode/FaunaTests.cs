@@ -63,6 +63,17 @@ namespace Punchy.Tests
             Assert.AreEqual("", Game.Hook<string>("DungeonPropTiers"));
         }
 
+        /// <summary>
+        /// #24 phase 2 r5: dungeon creatures take their behaviour from their socket's tags (a bat at a ceiling roosts,
+        /// a walker in a passage patrols, one in a dark nook naps), each to the creatures it suits.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Dungeons_PostsFromSocketTags()
+        {
+            yield return AllDungeonsRegistered();
+            Assert.AreEqual("", Game.Hook<string>("DungeonPostProblems"));
+        }
+
         /// <summary>Waits (up to 60 s) until the director has residents for every dungeon (caves come a few per frame).</summary>
         static IEnumerator AllDungeonsRegistered()
         {

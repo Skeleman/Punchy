@@ -116,12 +116,42 @@ namespace Punchy.Fauna
                 // which the director's dungeon tier, not the wild one, makes and lets go.)
                 var post = DungeonPost.From(s, c);
                 post.Dungeon = id;
+                if (post.Behaviour == DungeonBehaviour.Patrol && !Beat(sockets, i, out post.Beat))
+                    // (Nowhere to walk to: a dark nook is still somewhere to nap.)
+                    post.Behaviour = ((SocketTags)s.Tags & SocketTags.Dark) != 0 && DungeonPost.Sleeps(c)
+                        ? DungeonBehaviour.Sleep : DungeonBehaviour.None;
                 into.Add(new DungeonResident
                 {
                     Socket = i, Ordinal = at, Species = species, Position = s.Pos, Yaw = math.atan2(fwd.x, fwd.z), Post = post
                 });
             }
             return ordinal;
+        }
+
+        /// <summary>
+        /// r5: the far end of a patrol beat from socket <paramref name="from"/>: the nearest other Passage or Doorway
+        /// floor socket 4 to 20 m away and at about the same height (not up a shaft), or false when there is none.
+        /// </summary>
+        public static bool Beat(DynamicBuffer<DungeonSocket> sockets, int from, out float3 end)
+        {
+            end = default;
+            var at = sockets[from].Pos;
+            var best = 20f * 20f;
+            var found = false;
+            for (int j = 0; j < sockets.Length; j++)
+            {
+                var tags = (SocketTags)sockets[j].Tags;
+                if (j == from || (tags & (SocketTags.Passage | SocketTags.Doorway)) == 0 || (tags & SocketTags.Ceiling) != 0)
+                    continue;
+                var q = sockets[j].Pos;
+                var d = math.distancesq(q.xz, at.xz);
+                if (d < 4f * 4f || d >= best || math.abs(q.y - at.y) > 2.5f)
+                    continue;
+                best = d;
+                end = q;
+                found = true;
+            }
+            return found;
         }
 
         /// <summary>Picks for a whole dungeon, with a hash of (socket index, content) and counts per socket kind.</summary>
