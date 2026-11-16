@@ -385,12 +385,27 @@ namespace Punchy.Fauna
                 var value = Slot(slot, who, ref rng, depth);
                 if (value == null)
                     return null;
+                Article(sb, value);
                 sb.Append(value);
                 i = close;
             }
             var s = sb.ToString();
             // (A line starting with a filled-in word gets its capital: "{trade}s are..." -> "Smiths are...".)
             return s.Length > 0 && char.IsLower(s[0]) && text.StartsWith("{") ? char.ToUpperInvariant(s[0]) + s.Substring(1) : s;
+        }
+
+        /// <summary>A lone "a" just before a filled-in word that starts with a vowel becomes "an" ("I'm a {trade}" ->
+        /// "I'm an innkeeper"), so line writers can write "a" before any slot.</summary>
+        static void Article(StringBuilder sb, string value)
+        {
+            var n = sb.Length;
+            if (n < 2 || sb[n - 1] != ' ' || (sb[n - 2] != 'a' && sb[n - 2] != 'A') || value.Length == 0)
+                return;
+            if (n > 2 && char.IsLetter(sb[n - 3]))
+                return;
+            if ("aeiouAEIOU".IndexOf(value[0]) < 0)
+                return;
+            sb.Insert(n - 1, 'n');
         }
 
         string Slot(string slot, Speaker who, ref Unity.Mathematics.Random rng, int depth)

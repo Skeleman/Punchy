@@ -27,6 +27,9 @@ namespace Punchy.Fauna
         public int MountGhost;
         public bool Steering;
         public PlayerBody RiderBody;
+        /// <summary>P-43: the abilities we set while steering (Steered); a PlayerBody that differs is the rider's new own
+        /// body (its species or build changed mid-ride), taken into RiderBody.</summary>
+        public PlayerBody Steer;
         public float3 Last;
         public float Yaw, YawRate, Sway, Speed, Phase;
     }
@@ -54,6 +57,10 @@ namespace Punchy.Fauna
     /// ghost, a third player's body, or our own; an id that doesn't resolve (gone, itself, a pair riding each other, a
     /// chain) leaves that body on its own pose, so nothing warps. Network ownership never changes: each player sends its
     /// own pose, the ridden one steering.
+    /// P-43 (#396, was RideFitSystem): bodies change mid-ride. A ridden player's new body (NetAvatars respawns its puppet)
+    /// is found again by its NetPlayer ghost id (PlayerRide.MountGhost); the rider's own new body, while it steers, goes
+    /// into RiderBody (the mount's abilities set again), so getting down gives back the body it has now. Then every frame
+    /// the mass rule of getting on (Riding.Check: TooHeavy, Winged) holds or the rider gets down (RideOff.Size).
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -70,6 +77,10 @@ namespace Punchy.Fauna
         public static int Begun, Ended;
         /// <summary>Tests: the last refusal (RideRefusal, or 100+ for a player's own reasons: 101 rides, 102 ridden, 103 taken).</summary>
         public static int LastRefusal;
+        /// <summary>Tests (-ridefit): rides ended as the bodies no longer fit and the last reason, ridden bodies found
+        /// again, and rider bodies taken in while steering.</summary>
+        public static int Unfit, Refound, Refreshed;
+        public static RideRefusal LastUnfit;
 
         public void OnCreate(ref SystemState state)
         {
@@ -107,6 +118,12 @@ namespace Punchy.Fauna
                     bodies[em.GetComponentData<GhostInstance>(remote.ValueRO.Ghost).ghostId] = e;
             if (me != 0 && avatar != Entity.Null)
                 bodies[me] = avatar;
+            if (em.HasComponent<PlayerRide>(player))
+            {
+                // (First, so any way down this frame has the bodies as they are now.)
+                SystemAPI.TryGetSingletonEntity<PlayerBody>(out var abilities);
+                KeepUp(em, player, bodies, abilities);
+            }
 
             if (em.HasComponent<PlayerRideAsk>(player))
             {
@@ -123,6 +140,49 @@ namespace Punchy.Fauna
 
             SeatOthers(em, bodies, me, player, terrain);
         }
+
+        /// <summary>
+        /// P-43: the ride kept up with changed bodies. A ridden player's body replaced: its new one, by its NetPlayer ghost
+        /// id. Steering, a PlayerBody other than the one we set: the rider's new own body, kept in RiderBody, and the
+        /// mount's abilities set again with its breath.
+        /// </summary>
+        static void KeepUp(EntityManager em, Entity player, NativeHashMap<int, Entity> bodies, Entity abilities)
+        {
+            var ride = em.GetComponentData<PlayerRide>(player);
+            var changed = false;
+            if (!ride.Steering && ride.MountGhost != 0 && !em.HasComponent<CreatureState>(ride.Mount) &&
+                bodies.TryGetValue(ride.MountGhost, out var body) && em.HasComponent<RemoteAvatar>(body))
+            {
+                ride.Mount = body;
+                changed = true;
+                Refound++;
+                Debug.Log($"[ride] mount's body changed: riding its new one (ghost {ride.MountGhost})");
+            }
+            if (ride.Steering && abilities != Entity.Null)
+            {
+                var now = em.GetComponentData<PlayerBody>(abilities);
+                if (!Same(now, ride.Steer))
+                {
+                    ride.RiderBody = now;
+                    if (em.HasComponent<CreatureBody>(ride.Mount) && em.HasComponent<CreatureState>(ride.Mount))
+                    {
+                        var mBody = em.GetComponentData<CreatureBody>(ride.Mount);
+                        ride.Steer = PlayerBodyAbilities.Steered(ref mBody.Blob.Value, em.GetComponentData<CreatureState>(ride.Mount).Scale, now);
+                        em.SetComponentData(abilities, ride.Steer);
+                    }
+                    changed = true;
+                    Refreshed++;
+                    Debug.Log($"[ride] rider's body changed while steering: size {now.Size:F2}, speed {now.SpeedFactor:F2} kept for getting down");
+                }
+            }
+            if (changed)
+                em.SetComponentData(player, ride);
+        }
+
+        static bool Same(in PlayerBody a, in PlayerBody b) =>
+            a.SpeedFactor == b.SpeedFactor && a.JumpFactor == b.JumpFactor && a.Flies == b.Flies && a.FlySpeed == b.FlySpeed &&
+            a.ClimbSkill == b.ClimbSkill && a.Size == b.Size && a.Swims == b.Swims && a.Hovers == b.Hovers &&
+            a.ClimbSpeed == b.ClimbSpeed && a.BreathesWater == b.BreathesWater && a.HoldBreath == b.HoldBreath;
 
         /// <summary>Gets the player on target if it may ride it (logged either way).</summary>
         static void GetOn(EntityManager em, Entity player, Entity avatar, Entity target, int me, in TerrainSource terrain)
@@ -172,7 +232,8 @@ namespace Punchy.Fauna
                 if (abilityQuery.TryGetSingletonEntity<PlayerBody>(out var bodyEntity))
                 {
                     ride.RiderBody = em.GetComponentData<PlayerBody>(bodyEntity);
-                    em.SetComponentData(bodyEntity, PlayerBodyAbilities.Steered(ref mBody.Blob.Value, m.Scale, ride.RiderBody));
+                    ride.Steer = PlayerBodyAbilities.Steered(ref mBody.Blob.Value, m.Scale, ride.RiderBody);
+                    em.SetComponentData(bodyEntity, ride.Steer);
                 }
                 else
                     ride.RiderBody = new PlayerBody { SpeedFactor = 1f, JumpFactor = 1f, Size = 1f };
@@ -249,6 +310,22 @@ namespace Punchy.Fauna
                     why = RideOff.Sleep;
                 else if (look.Mount != 0)
                     why = RideOff.Held;
+            }
+            if (why == RideOff.None)
+            {
+                // P-43: the mass rule of getting on, so a body changed either way puts the rider down once it no longer
+                // holds (Busy is Riding.Reason's to judge: only the bodies here).
+                var fitBody = em.GetComponentData<CreatureBody>(avatar);
+                var fitState = em.GetComponentData<CreatureState>(avatar);
+                var fit = Riding.Check(ref fitBody.Blob.Value, fitState, ref mBody.Blob.Value, m);
+                if (fit == RideRefusal.TooHeavy || fit == RideRefusal.Winged)
+                {
+                    why = RideOff.Size;
+                    Unfit++;
+                    LastUnfit = fit;
+                    Debug.Log($"[ride] player no longer fits its mount ({fit}): rider {fitBody.Blob.Value.WeightAt(fitState.Scale):F1} kg x {Riding.MassRatio}, " +
+                              $"mount {mBody.Blob.Value.WeightAt(m.Scale):F1} kg");
+                }
             }
             if (why != RideOff.None)
             {
