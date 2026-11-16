@@ -264,7 +264,7 @@ Branch player/tower-rooms from origin/main 2354d35d. No code yet.
 - Finding for the movement lane: one 75 run had a 0.31 s frame; PlayerMovementSystem stepped the full dt, carried the body ~1.9 m off a tread, through the tower wall and snapped it 2.3 m down. Not reproduced on rerun. A dt cap or substep would stop wall tunnelling everywhere. The climb test now walks back in and retries (max 2) after a fall.
 - Deferred: balconies. moved.txt strays still untracked in Punchy-docs.
 
-### P-52 (#518) - substep long frames - DONE, branch player/move-substep@8b7608f1
+## P-52 #518 - done (verified) - 2026-11-16 - player/move-substep@8b7608f1
 - PlayerMovementSystem: a frame longer than 0.05 s moves in equal pieces of at most 0.05 s (max 8, so up to the 0.333 s cap). Over 20 fps it is one piece, as before. Jump/crouch presses only in the first piece. Client-authoritative movement, so the step count depends only on the local dt; nothing networked changes. No BENCH line: normal frames do the same work as before.
 - -climbtower test: -stallframe sleeps one frame 0.5 s on the stair (2 m up); -nosubstep turns substeps off. Retry-after-fall removed: a fall now fails the run.
 - Repro: 75 -stallframe -nosubstep FAIL (tunnelled 2 m down through the stair). With substeps: 75 and 74 PASS solo through the stall; host 75 + joiner 74 (port 7983), both stalled, both PASS, 0 exceptions/errors, static Interiors lines match by md5. Joiner 75 without a stall: substeps PASS; -nosubstep FAIL (a natural 0.333 s hitch tunnelled it).
