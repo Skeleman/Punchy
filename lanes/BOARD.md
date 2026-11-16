@@ -18,21 +18,18 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-108 r2 | #298 | fauna | ready for PR | fauna/far-life 1a3a7131 | Main merged in; island cache Format 4 = one rebake; fingerprint 859112C9 |
 | A-113 | no issue | fauna | ready? | flora/tree-variety f92b1fef | Merge main in, re-pin, hand off |
 | A-110 | #298 | fauna | active | fauna/one-population 70d27698 | Rows to r7b |
-| A-130 | #404 | fauna | ready for PR | fauna/dune-groves 7b2624eb | Done: desert biomes on the clearing mask, palm groves; fingerprint 9EFF3BCF |
 | M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
-| A-131 | #25 | folk | done | folk/dialogue-options@d42f64e0 | r1+r2 verified; ready for PR |
 | R-38 r2 | #366 | render | blocked | render/playtest-1114 c1b30b46 | Rows 0,1,3,4 merged #409; row 2 needs far-lights 5fe0ce36 |
 | R-25 r3 | #302 | render | ready? | render/far-lights 5fe0ce36 | Land before R-38 row 2 |
 | R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
 | R-34 r2 | #332 | render | ready for PR | render/stone-trial 550ba9e0 | Verified; BENCH main vs branch asked; squash merge |
 | R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance |
 | P-38 | #372 | player | blocked | player/take-items 487dd137 | option (a) sized at about 15-19 h (over a day), stopped; eyewear needs rule 11 (net look); go/no-go in REPORTS-player |
-| P-33 | #266 | player | blocked | player/fishing 461f138c | Fishing ready for PR via P-41; row 4 waits on Zach's feel notes |
+| P-33 | #266 | player | blocked | merged #419 | Row 4 feel tuning waits on Zach playing fishing |
 | P-31 | no issue | player | ready? | player/netsim b483ec06 | Merge main in, re-check -netsim |
 | P-39 | #397 #398 | player | next | - | Menus d-pad/stick, Start/Select, facing prompts |
-| P-40 | #396 | player-2 (supervisor agent) | ready for PR | player/dismount@6c66a3c6 (tree Punchy-docs) | Verified solo/host/client; supervisor opens PR; rule 11 asks in REPORTS |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
-| P-41 | #266 | player (supervisor agent) | done | player/fishing 461f138c | Ready for PR; suite 40/1/17, the one failure was the rain-shot load flake, which passed when re-run alone |
+| P-41 | #266 | player (supervisor agent) | next | player/take-items | Fishing merged (#419); take-items port go (supervisor 11-15) |
 | M-07 r1 | #260 | lab | r1 done; waits on Zach's OK + W-174 API answer | lab/map-editor 0dea2a94 | docs/agents/map-editor.md: sparse delta before BuildPlaces, empty file keeps pins |

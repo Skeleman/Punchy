@@ -38,6 +38,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Floating islands (#256).** Later. Walkable, some with caves, one with a new kind of town; reached by flying.
 - **World file (#260, #345).** Shipped: the baked island is saved and loaded instead of rebuilt (W-140), start
   ledger (W-168 row 1), cave sockets and the island file in every build (W-168 row 2, PR #407). Next: bake meshes into the shipped file (#345). Hand-editing is far off; rule 22.
+- **Desert groves (#404).** Shipped: palms and palo verde in groves with clearings (A-130, PR #421).
 - **Plant fidelity (#21)** experiments. **Cluster culling (#270)** waits for profiler numbers.
 
 ## Settlements
@@ -65,7 +66,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 
 ## Creatures
 - **Riding (#278, A-104).** Shipped: any creature rides one at least 50% heavier, players ride players, folk ride
-  horses out of town stables (A-117).
+  horses out of town stables (A-117) Shipped: dismount when you no longer fit the mount (P-40, PR #422).
 - **Climbable colossi (#276, A-107).** Shipped: graded climbable sections, carried as the colossus walks.
 - **Sand and snow worms.** Shipped: breaching snow worm and sand worm colossi (A-84, Z-28).
 - **Climbing (A-101).** Shipped: one climbing model, ladders, marked walls, ledge hang. Shipped: brisk ladders

@@ -118,3 +118,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: merged #418 (M-06 row 3, #413): Model Lab body builder edits a species in memory (segments, taper, colour, lean); fingerprint unchanged.
 - 11-15: merged #419 (P-33 rows 1-3, #266): player fishing on main: rods, cast, bite, reel. Feel tuning waits on Zach's playtest.
 - 11-15: merged #420 (A-131, #25): folk talk lines offer replies that branch; guard, hermit and innkeeper have a work exchange (UI to show replies comes next).
+- 11-15: merged #421 (A-130, closes #404): desert biomes get palm and palo verde groves with clearings; fingerprint 9EFF3BCF.
+- 11-15: merged #422 (P-40, closes #396): you dismount when you no longer fit the mount; jump-off tested.
