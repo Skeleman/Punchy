@@ -22,7 +22,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-175 r1 | #415 | materials | next | - | After W-166 r2: parts-and-units audit (stop for Zach) |
 | R-38 r2 | #366 | render | ready for PR | render/far-lights 4b95c112 | Verified by the R-25 r3 walk-in strip; merges with far-lights |
 | R-25 r3 | #302 | render | ready for PR | render/far-lights 4b95c112 | Verified no pop on approach; BENCH job 76 before merge |
-| R-30 r1 | #323 | render | active | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
+| R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
 | R-34 r2 | #332 | render | ready for PR | render/stone-trial 550ba9e0 | Verified; BENCH main vs branch asked; squash merge |
 | R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance |
 | P-38 | #372 | player | blocked | player/take-items 487dd137 | option (a) sized at about 15-19 h (over a day), stopped; eyewear needs rule 11 (net look); go/no-go in REPORTS-player |
