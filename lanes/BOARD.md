@@ -25,7 +25,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-38 r2 | #366 | render | blocked | render/playtest-1114 c1b30b46 | Rows 0,1,3,4 merged #409; row 2 needs far-lights 5fe0ce36 |
 | R-25 r3 | #302 | render | ready? | render/far-lights 5fe0ce36 | Land before R-38 row 2 |
 | R-30 r1 | #323 | render | resumable | render/foliage-realism 54a8172b | WIP leaf look; continue, verify |
-| R-34 r2 | #332 | render | ready | render/stone-trial 298f2084 | Base rock from the stone function, wet adds shine (Zach 11-15) |
+| R-34 r2 | #332 | render | ready for PR | render/stone-trial 550ba9e0 | Verified; BENCH main vs branch asked; squash merge |
 | R-39 | #401 #402 #302 #269 | render-2 | active | render/playtest-1115 (new, tree Punchy-release) | Row 1 true 3D distance |
 | P-38 | #372 | player | ready | player/take-items 487dd137 | Merge main in, hand off, supervisor PRs |
 | P-33 | #266 | player | blocked | player/fishing ef77443b | Fishing playtest build; row 4 waits on Zach's feel notes |
