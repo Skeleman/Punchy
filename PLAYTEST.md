@@ -166,3 +166,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #467 rule 35: `-port N` launch flag (default 7979) and `-join ip:port` now works (it fell back to solo before).
 - 11-16: #468 P-42 (#25): talking to folk lists their replies; pick one, and offers get Accept/Decline.
 - 11-16: #469 M-06 r5 (#414 closed): Model Lab builds blueprint buildings from shared parts and saves them (example: cookhouse); editor only, no change in play.
+- 11-16: #470 #24 phase 2 r1: dungeon spawns design note (docs only); r2 near-player dungeon creatures next.

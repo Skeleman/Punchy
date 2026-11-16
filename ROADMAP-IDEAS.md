@@ -80,7 +80,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 
 ## Dungeons, items, quests
 - **Dungeons (#24).** Shipped: texturing, bigger caves and ruins, a dungeon state API, collision (A-91 row 1,
-  A-95). Shipped: A-91 rows 2-4 (PR #249). Shipped: set-piece placement on the shared temple rules (P-45, PR #466). Next: spawn sockets (animal lanes); new rooms wait on W-174/W-175.
+  A-95). Shipped: A-91 rows 2-4 (PR #249). Shipped: set-piece placement on the shared temple rules (P-45, PR #466). In flight: spawn sockets phase 2 (design merged PR #470; r2 creatures on a near-player tier next, animal lanes); new rooms wait on W-174/W-175.
 - **Items and inventory (#26).** Shipped: first items and doors (P-28), pocket reach (A-114). Shipped: hand
   actions, per-item block and folk gear kits (P-38, PR #450). Next: one item definition and saved state (P-35, design first).
 - **Quests (#27).** Shipped: first quests (P-28). Later: more objective types, tracking, dungeon quests.
