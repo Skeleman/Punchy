@@ -226,7 +226,19 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
   blueprint in `Assets/Game/Flora/Units`. The Model Lab's Save calls `Reload` so nested copies pick up the edit.
 - **JSON units at runtime:** `FloraSpecies.UnitJson` (a TextAsset) is read on the main thread in OnEnable/OnValidate
   into `JsonUnit`, which `GrowParts` uses when `Unit` is empty. Wherever that species is placed, it grows the
-  blueprint. Placing units into settlements is still world's to do.
+  blueprint. Settlements place them as of section 12.
 - **Snapping:** `UnitDef.Snap(grid, join)` moves a metre-only point onto an earlier part's point when it is within
   `join` of it, then rounds metres to `grid`. The Lab's "Snap joins" button uses 5 cm / 12 cm. The Lab shows a
   "Unit id" field when a part is `unit`.
+
+## 12. Units in settlements (W-175 world part)
+
+- **A Lab blueprint in a town:** make a species for it (copy a building species such as `Stall`, give it its own
+  `Seed`), set `UnitJson` to the saved JSON in `Flora/Units` and leave `Unit` empty. Then list that species where it
+  should stand: a landmark prop (fixed `Count`, `Ring`, `Angle`, `FaceCentre`, `Clearance`) or a settlement layout
+  building (`Role`, `Weight`). Placement and drawing come from the species as for any other; its own `Solid` decides collision.
+- **First one:** `Cookhouse` (cookhouse.json) is a HumanVillage prop at ring 0.6, angle 70, between the inn and the
+  smithy, facing the square.
+- **Guard:** WorldTests `Blueprints_PlacedInSettlements` (hook `BlueprintPlacements`) fails when a species' JSON reads
+  no parts, a filled `Unit` hides it, no landmark lists it, or it stands in none of the landmarks that list it.
+- **Still to do:** converting the older code-built buildings to units (#415).
