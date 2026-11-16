@@ -1008,3 +1008,5 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Arms: main (A) against render/one-surface-3 (B), editor on each tree with ShaderCache (Library/ShaderCache) cleared first.
 - Record: full shader import time after the cache clear, variant count per changed shader (Sky, Water, TerrainSurface, Creature, Flora, Grass), and player build shader-compile time.
 - Report only; nothing fails. A frame-time check isn't needed unless the variant counts change.
+
+## Note (2026-11-16, supervisor): #463 moved placement: landmarks 117 547D4E79 (VolcanoCone takes an Ashlands spot at (-891,-2021), one Ashlands BoneGraveyard drops), fauna fingerprint 4BEFEA91. Re-baseline any Ashlands view and re-pin checks that read either.

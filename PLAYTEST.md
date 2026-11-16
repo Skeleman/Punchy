@@ -159,3 +159,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #434 P-39 (#397 #398 closed): menus on d-pad, Start/Select split with field menu tabs, nearest Use target in front wins.
 - 11-16: #461 W #259 fix (#259 closed): rejoin no longer crashes; terrain jobs finish before a world swap.
 - 11-16: #462 W-175 r2 (#415 open, rows 3+): stalls and smithy are built from shared standalone parts; they look the same.
+- 11-16: #463 W-172 lava half-row (#365 open, row 7+): a volcano cone now stands in the Ashlands; one bone graveyard there is gone.

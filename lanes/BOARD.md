@@ -9,7 +9,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r7+ | #365 | world | active | world/ashlands-lava 99fd4710; world/ground-edits | #259 done (PR #461 merged). Lava half-row rebased on main, 117 547D4E79, fauna 4BEFEA91, WorldTests 14/14: ready to merge. Now: W-174 r2 (natural cutaways). Then: row 7 |
+| W-172 r7+ | #365 | world | active | world/ground-edits | #259 done (PR #461). Lava half-row merged (PR #463; 117 547D4E79, fauna 4BEFEA91). Now: W-174 r2 (natural cutaways). Then: row 7 |
 | W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
