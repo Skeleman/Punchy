@@ -140,3 +140,6 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: #440 merged (W-174 row 1, #406): design note for one ground-edit system (docs/design/DESIGN-ground-edits.md). Nothing to check in game.
 - 11-15: #441 merged (P-43, #396): a ride keeps up when the rider or ridden player changes body mid-ride, and the rider gets down once it no longer fits. Check: ride a player, then change either body.
 - 11-15: #442 merged (M-06 row 3b, #413): the Model Lab saves a new creature with home biomes; first Lab species Frostdeer roams the Tundra. Fingerprint now 0206544F. Check: Model Lab > Save as new creature; visit a Tundra.
+- 11-15: #443 merged (A-125, #360): fast dolphins leave spaced, lighter wake rings. Check: swim beside dolphins.
+- 11-15: #444 merged (A-108 r4, #298): far eagle over summits, dust behind far herds, fish rings on far lakes at dawn. Check: dawn at a lake, look across.
+- 11-15: #445 merged (#352): audio no longer reads a released terrain copy after a rebuild. Check: rebuild the world in play, listen near doors.
