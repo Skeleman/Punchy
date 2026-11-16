@@ -221,6 +221,18 @@ namespace Punchy.Items
         /// <summary>The item on the local player's head (255: nothing), for what the view makes of it (Eyewear.Vision).</summary>
         public static byte OwnHead => instance != null ? instance.worn[(int)GearSlot.Head] : Nothing;
 
+        /// <summary>P-37 row 2: the light in the local player's hands (ItemDef.Light of a held torch or lantern, the
+        /// brighter hand; 0 for none), for the cave lantern (Zach 11-14: characters don't glow, they carry a torch).</summary>
+        public static float OwnHeldLight => instance != null ? HandsLight(instance.worn[(int)GearSlot.Hand], instance.worn[(int)GearSlot.LeftHand]) : 0f;
+
+        /// <summary>P-37 row 2: the light in another player's hands, by network id, from the gear the host sent
+        /// (gearOf); 0 when nothing is known.</summary>
+        public static float HeldLight(int networkId) =>
+            instance != null && instance.gearOf.TryGetValue(networkId, out var g) ? HandsLight(g.Hand, g.LeftHand) : 0f;
+
+        static float HandsLight(byte right, byte left) =>
+            Mathf.Max(right < ItemTable.Items.Length ? ItemTable.Items[right].Light : 0f, left < ItemTable.Items.Length ? ItemTable.Items[left].Light : 0f);
+
         bool eyewearArg;
 
         /// <summary>
