@@ -130,6 +130,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<AnchorSetBlob> Anchors;
         /// <summary>Bat folk settlements (#35, baked after caves, read by nothing else): their chambers and which cave pools are white.</summary>
         public BlobAssetReference<BatFolkSetBlob> BatFolk;
+        /// <summary>W-168: every cave's dungeon sockets (baked last, kept in the island file); unset on v1, where CaveSocketSystem builds them.</summary>
+        public BlobAssetReference<CaveSocketSetBlob> CaveSockets;
         /// <summary>Icebergs off the cold coasts (W-28, baked last, scenery with its own seed stream) and the one berg's ice cave.</summary>
         public BlobAssetReference<IcebergSetBlob> Icebergs;
         /// <summary>W-150: the cliff kit pieces on sea cliff and mesa faces (CliffKitBaking), built after every place.</summary>
