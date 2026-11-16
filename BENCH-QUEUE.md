@@ -1029,3 +1029,10 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Arms: main (A) against fauna/dungeon-spawns (B), same seed, Profile builds, 1920x1080, High, uncapped, ABBA, 3 rounds; host (-host) so the host-side tier runs.
 - Record: time to world ready; live creature entity count after 60 s at the island start; CPU main-thread ms standing at sunken temple chest 1 (3512, 19, 368) after the tier fills; the worst frame while walking from 200 m out into that temple (spawn burst).
 - Pass (rule 23): High at most +0.5 ms at the temple; the worst spawn frame within +2 ms of A's worst frame on the same walk. Expected: world ready and the start view get a little cheaper (fewer live creatures).
+
+## Job 107 (2026-11-16, QUEUED; render lane, R-22 row 1, #298, branch render/far-island 3d03c3cb): whole-island far mesh cost
+- The far island mesh (TerrainStreamingSystem.FarIsland.cs) draws the whole island past the streamed ground on every preset and pushes the far plane to max(1.5 x sea reach, 20 km). `-farisland 0` turns it off on the same build.
+- Arms: (A) render/far-island with `-farisland 0`; (B) the same build as is. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames per arm.
+- Views: (a) a ground walk in open country; (b) summit view `-goto -3460,2425` looking west at noon, clear; (c) flights at 300 m and 1000 m over land toward the coast (R-22 list2 fly300/fly1000).
+- Record: whole-frame GPU, CPU and render-thread ms, draw calls and triangles, plus the shadow pass (the far plane moved). Also the island bake/build time at load.
+- Pass: B within 0.5 ms GPU of A at (a), within 1.5 ms at (b) and (c); no new hitch over 2x median. Report the numbers otherwise. It overlaps world/far-lite (job 56), so note which arm main is on at the time.

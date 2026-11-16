@@ -894,3 +894,13 @@ with main d95e7ff1); compiles, no suite run yet.
 ## 11-16 render: b/fix-maxqueued-clamp verified, ready for PR
 - b/fix-maxqueued-clamp@edc256b2 (main merged in, pushed). One play start with `-maxqueued 0` logged "FrameRateCap: vSyncCount 0, maxQueuedFrames 1". It compiled clean with 0 console errors at editor start.
 - Added a BENCH-QUEUE note that `-maxqueued 0` now means 1. Ready for PR.
+
+## 11-16 render: R-22 row 1 done, ready for PR (#298)
+- render/far-island@3d03c3cb (pushed; merge-tree with current origin/main clean). Net diff: TerrainStreamingSystem.FarIsland.cs (new) and 12 lines in TerrainStreamingSystem.cs. No placement, landmark, river, ProjectSettings or renderer changes.
+- list2 (10 shots, noon, Clear), each run on and off (`-farisland 0`), in PunchyMilestones/R-22/row1/: m-on, m-off, h-on, h-off, plus ab-high-on-vs-off.jpg.
+  - With it on, fly300 and fly1000 show the whole island out to the coast. With it off, the same shots show only haze.
+  - Summit and pan shots show no seams or holes where the streamed ground meets the far mesh.
+  - At High the coast is a smooth shoreline with a beach band. There is a faint comb pattern in the sand band from 1000 m, but no stepped sawtooth.
+- Sparkle probe at High with it on: 360 frames, 0 with markers (rule 24).
+- BENCH ask: job 107 (on against off, Medium and High). It overlaps world/far-lite (job 56).
+- Lava far-light re-check (#302) is running now in the same editor.
