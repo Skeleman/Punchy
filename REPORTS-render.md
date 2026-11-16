@@ -981,3 +981,19 @@ with main d95e7ff1); compiles, no suite run yet.
   - Edited: GroundDetailSystem.cs (17 lines, CRLF kept), GroundDetail.hlsl, Grass.shader.
   - No Biome or Surfaces asset and no placement touched. The .meta files come with the first import.
 - **Next.** I need an editor slot (port 7986, at least 6 GB free) to compile, run the row 1 numbers and shoot the prototypes. render/far-forest gets rebased once #482 lands.
+
+### 2026-11-16 R-31 row 2 shot list for Zach's sheet (ready, waiting for the editor slot)
+- **Setup, the same for every shot.**
+  - One flat temperate meadow with no trees in frame, picked during row 1 and pinned by position and seed.
+  - Detail 1 and 1920×1080. Post on as in play, haze as on main.
+  - Time pinned with the sun fixed: noon (12:00), then evening (18:30).
+- **Variants, one column each.** Today's grass, then (a), (b), (c) and (d), all from the same camera pins.
+- **Camera pins, one row each.**
+  - 1 Eye height (1.7 m) looking 10° down, so the frame shows ground from about 3 m out to past 25 m.
+  - 2-4 Eye height, centred on ground at 3, 8 and 25 m.
+  - 5 From 30 m up, looking 35° down across the meadow.
+  - 6 Reach edge: eye height looking along the ground to where the blades stop (screen-size reach). This checks the far fill tone against the blades.
+- **Noon:** all 6 pins × 5 variants, 30 shots. **Evening:** pins 1 and 5 × 5 variants, 10 shots.
+- **Walk:** a 6-frame walk across the meadow at eye height for the leading prototype and today's grass, frames 0.5 s apart. This checks for flicker, pop and how tufts read in motion.
+- **Numbers per variant:** the probe's coverage at 3, 8, 15 and 25 m (target at least 90% at 3-20 m) and the blades-per-m² line. For (d), also the spacing-to-height ratio. NaN count 0.
+- **Output.** Shots go to PunchyMilestones/R-31/ as `<variant>-<time>-<pin>.png`. The sheet is one grid per time of day, with coverage under each column. It goes to you for Zach. The cost check goes to BENCH-QUEUE as a separate request (rule 21).
