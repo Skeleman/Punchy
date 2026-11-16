@@ -9,10 +9,9 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 |---|---|---|---|---|---|
 | W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
-| W-172 r7+ | #365 | world | active | world/ground-edits | W-174 r2 ready for PR (c3107159; 114 9786243F, temple C41A5BA2, fauna 4BEFEA91). Editor closed for render R-22. W-176 plan in REPORTS. Then: W-176 code, row 7 |
-| W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
+| W-176 | #475 | world | active | world/ground-edits | W-174 r2 merged #481. Now: W-176 code (plan in REPORTS), editor may reopen. Then W-174 r3, M-07 r2b, W-172 r7 |
+| W-174 | #406 | world | next (after W-176) | world/ground-edits | Rows 1-2 merged (#440, #481). Next: row 3 river carves and pools, row 4 seams (#405), row 5 guard |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
-| W-176 | #475 | world | next (after W-174 r2) | - | Cave side branches cut pits through each other (P-48 find): CutsMain checks branches vs main only; test branches vs each other and dead ends that drop 13-20 m into a chamber. Re-pin cave hashes, tell the profiler |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r3-4 | #336 | materials | r4 sweep DONE: r4a gate 0 px, r4b salt tower stone, r4c ground items on the library (colours in vertex colours: MPB on Colossus loses the sun under Forward+); Landmarks_V3 pass | merged PR #476 | DONE; fauna sets colossus uv3 |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
@@ -57,6 +56,6 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-50 | #24 | player (fishing agent) | DONE, merged PR #479 | main | Setup_SpawnRainAndShot: swap Shots.Take for yield return Shots.Settled(...) like the other shot tests (P-48 row 2); run the suite on main, report pass/fail counts |
 | P-37 r1-2 | #369 | player (fishing agent) | assigned 11-16 | player/no-loading (new, port 7982) | No loading screen (sky hold or fade); no body glow for players, a starting torch. Row 3 seamless interiors later |
 | P-49 | #24 #27 | player-2 | row 1 approved 11-16 (heirloom = existing Key; host/client same-chest test); row 2 building | player/dungeon-quests (new, from main 7d0e415c) | Dungeon quests: a notice-board quest that names one cave or ruin and asks the player to bring back what its chest holds. Row 1: short design in REPORTS-player-2 (objective kind on the existing quest system, how it names a dungeon chest by the P-47 {Dungeon, Type, Socket} id, how a joiner sees progress); no network table change without asking (rule 11). Row 2: build, EditMode test, solo + joiner + late-joiner on 7983. QuestSave.cs: folk adds an additive thefts array (A-134 r3); keep your save edit additive and re-check after whichever lands first |
-| M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); Zach 11-15: towns and roads may be rebuilt/refit around edits; r2b bake hook waits only on W-174 | merged #425 | r2b blocked on W-174; world takes r2b after W-174 r2 (lab agent gone) |
+| M-07 r2a | #260 | lab | r2a done (editor-only window, brushes, edits file); Zach 11-15: towns and roads may be rebuilt/refit around edits; r2b bake hook waits only on W-174 | merged #425 | r2b unblocked (W-174 r2 merged #481); world takes it after W-174 r3 |
 | M-08 | #414 | lab | merged #435 | lab/set-piece-view | rows 1-3 shipped; #414 stays open for M-06 row 5 blueprints |
 | M-06 r3b | #413 | lab | merged #442 (Lab species herds moved to fauna, who own Herds.cs; lab blocked on W-166 / Zach) | lab/new-species 3c1ee5f1 | Homes merge, Lab species index group (after 124 built-ins), Save as new panel, KitParts field; Frostdeer (Tundra) verified solo + host; Fauna_Fingerprint 0206544F; temple Ruin ctor dropped (public static offered) |

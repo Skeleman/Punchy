@@ -176,3 +176,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #478 (#424 review): -maxqueued 0 now means 1 frame queued (bench and test flag only).
 - 11-16: #479 P-50 (#24): the rain test shot waits for a settled frame; suite 57 pass, 0 fail.
 - 11-16: #480 #24 p2 r2: dungeon creatures appear near players at their posts and stay dead once killed (host; joiners in r3).
+- 11-16: #481 W-174 r2 (#406, closes #403): one natural ground-edit profile for pass gullies, beds, pads and paddies; landmarks 114 9786243F (campsites moved, the small fungal grotto at -1796,-201 is gone).
