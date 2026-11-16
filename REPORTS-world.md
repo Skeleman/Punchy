@@ -8207,3 +8207,13 @@ Branch `world/puddle-edges`, be76ab85 (BuildChunkMeshJob.cs, TerrainSurface.hlsl
 - **Not yet:** before/after close-ups and the NaN check. Editor RAM was down to 1 GB free, so I closed my editor; both go in with the gear row.
 - **BENCH:** the stone branch costs about the same as brick (a 3x3 Voronoi for rubble). Suggest adding a built-stone close-up to job 101 instead of opening a new job.
 - **Gear WIP (next):** world/material-library-2@1bf93cce, built on A-133 (fauna/material-library, merged into my branch). Merge order: A-133 first, then mine. On top of A-133: cloth and leather use Cloth.hlsl, bone uses a new Materials/Bone.hlsl, MaterialLibrary.FamilyOf(SegmentMaterial) gets its own test, and Cave tunnel courses use PunchyStoneBlocks (cut). They are cut stone (0.42 x 0.95 m), not brick, so they use Stone.hlsl rather than Brick.hlsl.
+
+## W-172 rows 2-6 (#365): ready for PR (c21/c17 fixed, main merged). Done (verified)
+- **Branch:** world/playtest-1114@1ba1ec3e. Fix commit 6b17d907 (CaveBaking.cs, CaveBaking.Rooms.cs, CaveData.cs); merge 1ba1ec3e brings in origin/main.
+- **What changed:** the row 6 exceptions are fixed. Wall noise can no longer dip below 0.35 m over the floor slope (CaveData.WallNoise cap). The horse radius adds the wall's full facet reach (WallDip 0.6). Main-end room doors now pick the widest width from 2.4 down to 1.6 m that still clears RiderHead.
+- **Clearance (walk probe, all 24 caves):** every main path has at least 2.7 m head (min c18) and 2.2 m width (min c9). c21 end chamber 2.2 -> 3.1 m. Main-end room doors at least 2.6 m tall (c17 room 5) and 2.4 m wide. No exceptions left.
+- **Merge:** origin/main merged cleanly after the conflict fix. Re-pin fauna A4A00AFD -> 3DCB5E78 (row 3 camps with main's A-113 trees). Landmarks stay 117 689D5348; cave socket hash D74CD402.
+- **Test:** WorldTests 14/14 (the GameAudioOcclusion test passed this run as well).
+- **Note:** local untracked Assets/GlobalEntitiesDependencies/ came from clearing a stale SubScene import. It is not committed.
+- **Shares:** CaveBaking.RiderHead and WallDip, for any later rider or mount clearance check (rule 33).
+- Next: lava half-row (VolcanoCone in Ashlands), then W-174 row 2, then row 7.
