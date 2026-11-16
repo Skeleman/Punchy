@@ -192,3 +192,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-16: #498 A-134 r5 (#460): steal while you are inside a room and the guard waits, then walks to the door and says "Halt!" when you step out.
 - 11-16: #500 render/hour-sync-doc, testing.md note: set the hour and take frozen shots on the host (from the #494 check).
 - 11-16: #501 folk/innkeeper-test-order, innkeeper PlayMode tests remake town members after setting the hour (test-only).
+- 11-16: #502 player/seamless-2, P-37 r3 (#369): walk-in storm houses with -seamless (host's choice sent on join; old and new builds can't join each other). Playtest: a shut door blocks, and the door works from inside.
