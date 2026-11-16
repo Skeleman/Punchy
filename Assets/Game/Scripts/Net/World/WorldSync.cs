@@ -450,7 +450,7 @@ namespace Punchy.Net
                 Add(b != null ? b.name : null);
                 if (b != null)
                     foreach (var f in b.Fauna)
-                        if (f.Species != null) species.Add(f.Species.name);
+                        if (f.Species != null && !f.FromHomes) species.Add(f.Species.name);
             }
             foreach (var l in palette.Landmarks ?? System.Array.Empty<LandmarkType>())
             {
@@ -468,6 +468,10 @@ namespace Punchy.Net
                     if (d.Species != null && d.Kind == (int)Punchy.Fauna.OverworldSlot.Domestic) species.Add(d.Species.name);
             foreach (var s in species)
                 Add(s);
+            // M-06: the Model Lab's species, in their index order (after the built-ins). Their Homes entries in the biomes
+            // are skipped above: they're there only once the fauna build has run, which may not have happened yet.
+            foreach (var s in Punchy.Fauna.LabSpeciesList.All())
+                Add(s != null ? "lab " + s.name : null);
             if (Avatars != null)
                 foreach (var s in Avatars.PlayableSpecies)
                     Add(s != null ? s.name : null);

@@ -220,6 +220,7 @@ namespace Punchy.Fauna
             blobs.Clear();
             species.Clear();
             speciesByName.Clear();
+            StripHomes();   // (M-06: the biome assets lose the Homes entries this build added.)
             occupied.Clear();
             ClearMarshPads();
             occupiedCaves.Clear();

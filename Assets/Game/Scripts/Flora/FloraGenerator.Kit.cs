@@ -153,6 +153,8 @@ namespace Punchy.Flora
             b.Shell = FarShells && g.Lod >= 2 && !ruined && (shape == Punchy.Terrain.KitShape.House || shape >= Punchy.Terrain.KitShape.AshHouse && shape <= Punchy.Terrain.KitShape.SandHouse);
             b.ShellMin = new Vector3(-halfIn.x, 0f, -halfIn.z);
             b.ShellMax = new Vector3(halfIn.x, eaves, halfIn.z);
+            if (g.Lod == 0)
+                g.KitParts = parts;   // (M-06/M-08: kept for the Model Lab's parts list, FloraModel.KitParts.)
             for (int i = 0; i < parts.Count; i++)
             {
                 var p = parts[i];
