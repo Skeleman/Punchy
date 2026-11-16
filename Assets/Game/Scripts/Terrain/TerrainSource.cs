@@ -1010,8 +1010,8 @@ namespace Punchy.Terrain
             return glow.y;
         }
 
-        /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f || TempleCut(xz) < 0f;
+        /// <summary>Whether the ground surface here is removed: the one hole mask (GroundHoles.Removed; cave mouths, temple entrances, scarp strips).</summary>
+        public bool IsCaveHole(float2 xz) => GroundHoles.Removed(this, xz);
 
         /// <summary>
         /// W-56: signed distance (m) to the sunken temple's entrance cut (its open ruin rooms), negative inside: the

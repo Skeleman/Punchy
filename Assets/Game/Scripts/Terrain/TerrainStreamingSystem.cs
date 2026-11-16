@@ -406,7 +406,6 @@ namespace Punchy.Terrain
             }
         }
 
-        /// <summary>Starts building the first <paramref name="count"/> wanted chunks in the background.</summary>
         /// <summary>How many times its vertices a chunk over a cave is charged against the batch budget (#400).</summary>
         const int CaveCostScale = 5;
 
@@ -424,6 +423,7 @@ namespace Punchy.Terrain
             return CaveSampling.NearRect(ref source.Caves.Value, min, min + config.ChunkSize) ? vertices * CaveCostScale : vertices;
         }
 
+        /// <summary>Starts building the first <paramref name="count"/> wanted chunks in the background.</summary>
         void StartBuild(in TerrainConfig config, in TerrainSource source, int count)
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();

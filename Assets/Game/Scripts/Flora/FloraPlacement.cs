@@ -2330,8 +2330,8 @@ namespace Punchy.Flora
                 if (c.w > 0f && math.distancesq(xz, c.xy) < c.z * c.z)
                     return none;
             }
-            // W-150: nor under or through a cliff kit piece.
-            if (CliffKit.Covered(source, xz))
+            // W-150/W-174: nor under a cliff kit piece or on removed ground (the one hole mask).
+            if (GroundHoles.Blocked(source, xz))
                 return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
