@@ -648,6 +648,9 @@ namespace Punchy.EditorTools
             try
             {
                 var s = State(ref b);
+                // (P-38: post items are kit items now, so fill the kit as FolkKitSystem does, or a worker shows none.)
+                if (b.Upright && b.Hands)
+                    s.Kit = Punchy.Items.FolkKits.Fill(in s, ref b);
                 CreatureAnimator.Evaluate(ref b, in s, 0, in flat, output, 0);
                 CreatureRenderSystem.PoseKit(ref b, in s, output, b.Segments.Length);
                 modelMesh = Capsules(output, modelMesh, out bounds);
