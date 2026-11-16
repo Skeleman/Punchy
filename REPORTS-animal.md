@@ -5414,3 +5414,12 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - Append-at-end doesn't hold: the species index is all species sorted by asset name (FaunaDirector.Build.cs, the species.Sort with CompareOrdinal), so a new species renumbers every species whose name sorts after it. That is network-visible renumbering, not pre-approved. Fix options for fauna: index new (Lab-made) species after the built-ins (two sorted groups), or a stable id stored on the species.
 - NEXT: M-08 row 3 (cheaper side list: cave rooms by part group from CaveRoomKit Parts; kit buildings need a flora hook exposing KitStructure's KitPart list, rule 11 ask).
 
+## 11-15 A-132 (#25) innkeeper [folk] - row 2 done (verified), branch ready for PR
+- Branch folk/inn-job@b80f3206. Files: CreatureAnimator.cs (CRLF kept), CreatureRenderSystem.PoseGear.cs, DialogueArchive.cs, TestHooks.Inn.cs, FolkConversationTests.cs.
+- Idle chores: at its post the innkeeper eases between two chores every half minute or so (offset per keeper). Wiping: leans in, head down, right hand circles on the counter top, left hand flat. Stacking mugs: upright, each hand lifts in turn to chest height. The Tend bucket is hidden for an innkeeper.
+- Verified in play: Innkeeper_ChoreShots (explicit) passes (stage 10, mode 10, 0.5 m from its spot). Shots a132-chore-a/-b/-c-20261115-2023xx in the folk tree's Assets/Temp/shots: the pose changes between them, no bucket. Subtle, since there is no counter model yet.
+- Grammar fix: DialogueArchive.Fill turns a lone "a" before a slot that fills with a vowel word into "an", for every slot and culture word list. Fill_ArticleFitsTheWord passes: "I'm an innkeeper." / "A baker, from here." / "An elder, from here." (No exception list, so "a unicorn"-style words would wrongly become "an".)
+- Arrival: a keeper can take 60-100 s to reach its post (Work/Pause rhythm), so the shot test waits up to 90 s and once missed it.
+- Not run: WorldTests (the row 1 Counter anchors may move an anchor pin). No timing done (rule 21).
+- Shares: extends the Tend pose family (TaskPose/TendBody) and the PoseGear Tend gear (rule 33); the a/an fix sits in the one shared fill path.
+- NEXT: lanes don't open PRs, so the coordinator opens folk/inn-job.
