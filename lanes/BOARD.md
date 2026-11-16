@@ -34,7 +34,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-31 | no issue | player | merged #446 | | -netsim / -rttlog / -rejoin on main; Relay + 2nd machine untested |
 | P-39 | #397 #398 | player-2 (supervisor agent) | merged #434; #397 #398 closed | player/menus@762dbbd7 (tree Punchy-docs, main ec1ea218 merged) | Rows 1-3 verified; ready to merge. Follow-up: creature Interact prompt (fauna file) joins UseTarget |
 | P-42 | #25 | player-2 | DONE, merged #468 | - | Talk UI shows A-131 replies |
-| P-43 | #396 | player-2 | merged #441; joined-client pair PASS (11-16, -join 127.0.0.1:7986) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
+| P-43 | #396 | player-2 | DONE: fold + RiderBody refresh already on main (a980ae54, #441); re-verified on main fd90e634 11-16: solo + joined pair on -port 7983 PASS | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
 | B-port | - | player-2 | DONE, merged #467 | - | -port N flag (default 7979) and -join ip:port; two hosts plus joiners side by side verified |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
 | A-134 | #460 | folk | active: r0 audit pushed (REPORTS-animal); r1 starting; rows 2-3 wait on rule 11 OK (Items.cs, Containers.cs, Interiors.cs, QuestSave.cs, new Items/Thefts.cs + TheftRpc) | folk/ownership@8c98fc7d | r1: lodgers only use doors no household owns, more kin lines, 20-folk night-door probe |

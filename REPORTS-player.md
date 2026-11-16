@@ -1719,3 +1719,9 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 - P-42 joined client (`-port 7983 -talktest 1 replies`): replies => PASS (wave gesture, berries gift, cap, goodbye). P-43 joined pair (`-ridefit rider/mount` over 7986): both PASS.
 - P-42 is rebased on main 82c9de1c (#434 in) as player/talk-replies@adfd3327, pushed. It is ready for PR.
 - Shares: GameBootstrap.cs, NetMenu.cs, NetRejoinTest.cs (Net, shared), docs/agents/multiplayer.md. Port table per supervisor: world 7981, fishing/player 7982, player-2 7983, folk 7984, fauna 7985.
+
+## P-43 follow-up rows 1-2: already on main, re-verified (2026-11-16, player-2)
+- No code needed. a980ae54 (#441, on main) already folded RideFitSystem into PlayerRideSystem (no RideFitSystem class remains; Carry gets down with RideOff.Size by the mass rule) and refreshes RiderBody: KeepUp finds a ridden player's respawned body by MountGhost, and while steering takes a changed PlayerBody into RiderBody and sets the mount's abilities again.
+- Re-verified on a fresh dev build of main fd90e634: solo `-ridefit` => PASS (cat on dog, Monkey swap kept, Human down TooHeavy, own abilities back, jump steers, button gets down). Joined pair on `-port 7983` (host `-ridefit mount -body Human`, joiner `-ridefit rider -body Cat`): mount PASS, rider PASS (found again after growing, down after shrinking with Size). 0 exceptions, players 2.
+- Branch player/ride-fold made no commits and was dropped. BOARD P-43 marked DONE.
+- Shares: none.
