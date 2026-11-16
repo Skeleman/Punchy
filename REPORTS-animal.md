@@ -5724,3 +5724,20 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **For the supervisor:** the batch build timeout probably counts as a forced editor stop. The next editor start showed "Recovering Scene Backups", which I closed with its window's close button. No timing (rule 21).
 - Shares (rule 33): it uses the one owner lookup (Ownership), HomeSign, FolkTalkSystem.Shown/Walled and the one quest save. No new spawner, and nothing in the guard brain. Parallel not folded in: town exceptions could carry a "guard sent" mode one day, instead of a Wander with a timer.
 - NEXT: the supervisor's review and PR. The editor is closed.
+
+## #24 phase two row 3: DungeonExceptionsRpc, the host's dead masks reach joiners (2026-11-16) - DONE (verified)
+- Issue #24. Branch fauna/dungeon-spawns 744de53f (r3 in bce589bd, then origin/main merged in with #484-#486; main's fauna files matched my pre-r3 commit exactly, so every conflict took the r3 side). Pushed.
+- **What changed:** new partial FaunaDirector.DungeonExceptions.cs. `DungeonExceptionsRpc { uint Dungeon; ulong Dead }` (12 bytes) goes host to client: at join, every nonzero mask; on a change, the dirty masks to every connection. Whole mask, so it is idempotent. A joined client now registers each dungeon's residents from the seed (DungeonSpawner.Residents, the same loop the host uses) and applies the masks, so DungeonState.Left and Cleared read the host's kills. New TestHooks.Dungeon.cs (editor only).
+- **Condition 1:** FaunaTests.Dungeons_ResidentsFitDeadMask passes: 24 dungeons, most 17 residents (876B823B), the mask holds 64. At runtime more than 64 logs one error and leaves bits 64 and up unset (counted as present).
+- **Condition 2:** FaunaTests.Dungeons_ClientOrdinalsMatchHost passes: 24 dungeons, all 158 residents' ordinals match the host's SimWorld records (species, socket, post, behaviour, name, dungeon).
+- **Condition 3:** a mask for a dungeon the client doesn't have is held up to 30 s (the client builds cave sockets a few per frame), then dropped with one warning. No run hit it: 0 drop warnings on either joiner.
+- **Condition 4:** docs/agents/multiplayer.md, under wire changes, names the RPC and the known difference (a resident driven off its post counts as there on a joiner).
+- **Condition 5 (player builds, port 7985):**
+  - Solo: killed resident 0 (CaveSalamander) of temple 9E3779DF, dead mask 0000000000000001, tier emptied 1.0 s after leaving, back with 9/10 at their posts. PASS. Records: 24 dungeons, 158 residents, 1 dead, hash 275F38C5.
+  - Host + joiner: host "dead mask 0000000000000001 sent to 1 clients" on the kill, then "sent 1 dungeons' dead masks to a joining client". Joiner: "dead mask ... from the host, 1 dead; 9/10 at their posts here", PASS. Same records hash 275F38C5.
+  - Late joiner: the host finished its kill and trip alone, then the joiner joined, got the mask at join and passed (9/10 here). Same hash.
+  - Left per dungeon (DungeonState.Describe, all 24) is identical on host, joiner and late joiner, and matches solo. No driven-off residents came up in these runs.
+- **Tests:** FaunaTests 3/3 (both new, plus Species_BuiltInIndicesUnchanged). No fingerprint change (nothing about placement moved).
+- **Editor note:** the pipeline `test run` finds 0 play-mode tests in this project and `unity test` refuses to run while the editor is open, so tests ran in batch. The update-callback Exit took several minutes because of Hub IPC write timeouts, but it closed by itself.
+- No timing (rule 21). Shares (rule 33): the same exception pattern as the towns (DESIGN-population.md, P-25 TownExceptionsRpc): records on every machine, the host's per-group bitmask sent at join and on change.
+- NEXT: r4 (instanced props on DetailPolicy screen-size tiers), then r5 (roost/sleep/patrol). r6 stays a note.
