@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using Punchy.Fauna;
 using Punchy.Terrain;
 using Unity.Collections;
@@ -93,3 +94,4 @@ namespace Punchy.Debugging
         }
     }
 }
+#endif
