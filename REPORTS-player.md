@@ -1711,3 +1711,11 @@ Checks: input test with a virtual pad (stick walks while the d-pad moves focus) 
 ## P-45 row 3: design note (#24, 2026-11-16, fishing agent)
 - Done. player/dungeon-pieces 44630e60, docs/design/dungeon-pieces.md: the pieces are the rooms we already have (temple halls, dead ends, chambers; cave Lake and other CaveRoomKit rooms); W-115 cave chambers and the buried ruin reuse them on the one FloorUnder ground; new free-standing rooms wait for W-174 (carved-field edits) and W-175 (parts); M-08 doesn't show temple pieces because the mesher is private (later, after W-175, not made public now).
 - Stopped for review. The branch has rows 1 and 3 (row 0 and 2 had no code). Ready for PR.
+
+## b/fix-port-flag ready for PR, P-42/P-43 joined-client runs PASS (2026-11-16, player-2)
+- b/fix-port-flag@28e00037 (from origin/main): `GameBootstrap.Port` is now a static read from `-port N`, default `DefaultPort` 7979. Hosting, Listen, loopback Connect, NetMenu and NetRejoinTest all use it. Wire format and default port are unchanged. Documented in docs/agents/multiplayer.md.
+- Found and fixed a bug: `-join ip:port` did not work. NetworkEndpoint.TryParse takes no port in the string, so `-join 127.0.0.1:7986` fell back to solo. The new `GameBootstrap.TryParseAddress` handles ip or ip:port and is shared by -join, the Multiplayer tab and -rejoin.
+- Verified with a dev build of player/talk-replies plus the fix. 4 instances ran side by side: hosts on 7983 and 7986, a joiner with `-port 7983` and one with `-join 127.0.0.1:7986`. All reached players 2 with 0 exceptions, and the world lane's 7979 host was untouched.
+- P-42 joined client (`-port 7983 -talktest 1 replies`): replies => PASS (wave gesture, berries gift, cap, goodbye). P-43 joined pair (`-ridefit rider/mount` over 7986): both PASS.
+- P-42 is rebased on main 82c9de1c (#434 in) as player/talk-replies@adfd3327, pushed. It is ready for PR.
+- Shares: GameBootstrap.cs, NetMenu.cs, NetRejoinTest.cs (Net, shared), docs/agents/multiplayer.md. Port table per supervisor: world 7981, fishing/player 7982, player-2 7983, folk 7984, fauna 7985.

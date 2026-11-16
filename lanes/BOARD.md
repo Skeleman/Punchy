@@ -32,8 +32,9 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | P-33 | #266 | player | blocked | merged #419; rows 1-3 re-checked on main ec1ea218 (11-16) | Row 4 feel tuning waits on Zach playing fishing |
 | P-31 | no issue | player | merged #446 | | -netsim / -rttlog / -rejoin on main; Relay + 2nd machine untested |
 | P-39 | #397 #398 | player-2 (supervisor agent) | merged #434; #397 #398 closed | player/menus@762dbbd7 (tree Punchy-docs, main ec1ea218 merged) | Rows 1-3 verified; ready to merge. Follow-up: creature Interact prompt (fauna file) joins UseTarget |
-| P-42 | #25 | player-2 | rows 1-2 done, verified solo + host (client runs owed: port 7979 busy) | player/talk-replies@769a3e0d (rebased on player/menus 762dbbd7) | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); after P-39 |
-| P-43 | #396 | player-2 | merged #441 (joined-client pair run still owed) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
+| P-42 | #25 | player-2 | rows 1-2 done; solo, host and joined client verified (replies PASS on -port 7983) | player/talk-replies@adfd3327 (rebased on main 82c9de1c) | Talk UI shows A-131 replies (FolkTalk uses Answer.Options/Choose); ready for PR |
+| P-43 | #396 | player-2 | merged #441; joined-client pair PASS (11-16, -join 127.0.0.1:7986) | - | Fold RideFitSystem into PlayerRideSystem (RideOff.Size); refresh RiderBody on body change |
+| B-port | - | player-2 | ready for PR | b/fix-port-flag@28e00037 | -port N flag (default 7979) and -join ip:port; two hosts plus joiners side by side verified |
 | A-132 | #25 | folk | merged #438 | folk/inn-job@4b9a681a | r1+r2 done (verified), main merged, WorldTests 14/14: innkeeper works the inn porch Counter by day, wipes it and stacks mugs; a/an fix in dialogue fill |
 | A-134 | #460 | folk | active: r0 audit pushed (REPORTS-animal); r1 starting; rows 2-3 wait on rule 11 OK (Items.cs, Containers.cs, Interiors.cs, QuestSave.cs, new Items/Thefts.cs + TheftRpc) | folk/ownership@8c98fc7d | r1: lodgers only use doors no household owns, more kin lines, 20-folk night-door probe |
 | A-124 r2 | #358 | folk | merged #458; #358 closed | folk/gait@7aa37dc3 | Per-person gait styles (verified solo + host/client, 28 clips, pins held); BENCH crowd-cost request in REPORTS-animal |
