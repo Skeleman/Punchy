@@ -155,7 +155,9 @@ namespace Punchy.Items
 
         int Capacity => BaseSlots + (worn[(int)GearSlot.Back] != Nothing ? math.min(ItemTable.Items[worn[(int)GearSlot.Back]].Slots, MaxExtraSlots) : 0);
 
-        static HeldItem HeldFor(byte item) => item == ItemTable.Torch ? HeldItem.Torch : item == ItemTable.Staff ? HeldItem.Staff :
+        // A row based on the Staff (ItemDef.Base, e.g. the Elder staff quest item) is held like the Staff.
+        static HeldItem HeldFor(byte item) => item == ItemTable.Torch ? HeldItem.Torch :
+            item == ItemTable.Staff || (item < ItemTable.Items.Length && ItemTable.Items[item].Base == "Staff") ? HeldItem.Staff :
             item == ItemTable.Lantern ? HeldItem.Lantern : HeldItem.None;
 
         static byte WornBits(byte head, byte back) => (byte)((head == ItemTable.Hat ? CreatureWorn.Hat : 0) | (back == ItemTable.Pack ? CreatureWorn.Pack : 0));
