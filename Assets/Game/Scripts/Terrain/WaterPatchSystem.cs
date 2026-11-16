@@ -324,7 +324,7 @@ namespace Punchy.Terrain
             public NativeArray<int> Stats;
 
             /// <summary>Presses and splashes share the list's MaxSources slots.</summary>
-            bool Room => Presses.Length + Room;
+            bool Room => Presses.Length + Splashes.Length < MaxSources;
 
             public void Execute()
             {
