@@ -163,3 +163,18 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
 - **Docks and lanterns wait for row 3b.** Wharf crates, shore baskets and the six lanterns are `StructureKit`
   boxes, not flora builders, so they need a kit adapter (a new partial beside `StructureKit`, which is over
   the 2500-line limit). Unifying them changes how most of them look, so 3b is a look-change row with a pixel-diff.
+
+## 8. What row 3b built (kit crates, baskets, lanterns)
+
+- `StructureKit.Parts.cs` (a partial; `StructureKit` became `partial`) holds the kit's small parts, each defined
+  once: `Crate` (body and lid band, the band turning with the crate), `Basket` (net body and wooden rim) and
+  `LanternHead` (cap at 45 degrees, glass, drip tray; `Lamp` or `Flame` glass, a scale and a roll).
+- Sites moved: wharf crate stacks, sunken trade-goods crates, sea raft baskets, and all six hung lanterns
+  (wharf house door, shore post, fixture lantern, pier lamp, cave wall lantern, inn door). Each site keeps its own
+  hanger or arm, glass centre and seeded draws (same calls in the same order), so only the parts themselves change.
+- Intended look changes: every hung lantern now has a cap and a drip tray (before only the fixture lantern had a
+  cap and only the wall lantern both); inn and pier glass grew from 0.22 x 0.30 to the shared 0.24 x 0.32; the wall
+  lantern is the same head at 0.7 scale (glass 0.17 x 0.22, was 0.15 x 0.24); wharf lid bands now turn with their
+  crate (they stayed square to the dock before); sunken crates and raft baskets gained the band and rim.
+- Not moved: the alpine sled's lashed bundle (a bundle, not a basket), sconces, braziers, candelabra and beacons
+  (other lights, not hung lanterns). Shore baskets did not exist as a site: the crab pot is its own cage.
