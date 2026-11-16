@@ -70,3 +70,39 @@ Same method as r4: the metre numbers stay, but each fade reads PunchyReferenceDi
   - frame time at fov 60 and at fov 90, standing at the village (117,-470) with deer spawned, at a cliff face with a cave mouth in view, and at a lakeshore at noon in rain (puddles, ripples);
   - one fov 40 sample at the cliff, for the rock-grain reach.
 - Expect fov 60 to be within noise of A, and fov 90 to be equal or cheaper. Report only; nothing fails.
+
+## R-35 row 1 (#333) 11-16: reference cumulus vs our clouds, audit and plan (editor-free, no code)
+Compared the reference (MIT @freeborn, PunchyReferences: a full-res, 500-step analytic march) with our cloud system on main fce56e84: PunchyCloudMarch (Sky.hlsl), PunchyCloudDensityFine and PunchyCloudShadow (Clouds.hlsl), the low-res buffer (CloudsLowRes.shader), and the baked 3D noise (CloudNoise.cs: r shape, g Worley detail, b wispy fBm, **a unused**). Cost baseline is job 79: clouds take 0.0-0.4 ms GPU at Medium and 0.4-0.8 at Ultra. That is small, so this row is mostly about look; the cost ideas mainly matter as the price of the look picks.
+
+| Reference feature | Ours today | Cost to us | Kind | Verdict |
+|---|---|---|---|---|
+| Cauliflower lobes: hemisphere caps on Worley points, added outward, 2-3 sizes, smoother lower body | Worley `g` *carves* edges (erosion), so tops read eroded rather than domed | Live: 8 hashes x 3 octaves per sample, too costly. Baked into CloudNoise `a`: 0 extra reads, because the erosion fetch is already float4 | look | **Pick A** (baked) |
+| Billowed fine lumps, drifting up so the detail boils | The `fine` octave (uvwFine) near the camera, 2.5-6 km | Folded into A (bake \|n\| billow into the same channel's mix) | look | in A |
+| Multiple-scattering octaves (3 Beer terms, flatter phase) | One floor: `max(beer, exp(-0.25 sigma od) * 0.55)` | 2 exp per lit step, no reads | look | **Pick B** |
+| Dual-lobe phase / silver lining | Have it: HG(-0.2)/HG(0.65) blend plus `silver` and `lining` | - | - | already have |
+| Sky ambient from a short upward occlusion test | Height ramp `lerp(0.6, 1.1, height)`, so overhangs and gaps between towers can't darken | 1 extra detail-0 density sample per lit step, under the same reuse gate as the light samples (`lastOpticalDepth`) | look | **Pick C** (trial; price it) |
+| First sun step at full detail (lumps shade each other) | All 4 light samples at detail 0 | +1 erosion read on the 90 m sample, near clouds only (`fine > 0`) | look | **Pick D** (small) |
+| Octave count from pixel footprint | Detail fades in **fixed metres** (full to 3.5 km, gone 17.5 km; fine 2.5-6 km), against rule 20 | 1 mul + 1 div; same at the tuning view, moves with fov/Detail | rule 20 / cost | **Pick E** (on regardless, like R-23 r4/r5) |
+| Geometric sun steps | Have it: 90/360/810/1440 m, merged with distance (R-8) | - | - | already have |
+| Hierarchical empty-space skipping | Have it: empty-air and thin strides plus back-up (job 32) | - | - | already have |
+| Early exit at low transmittance | Have it: 0.02 | - | - | already have |
+| One tower per jittered cell, wide base narrowing up | Weather/shape maps drive cover; towers come from the profile and the R-12 warp | 9-cell loop per sample, and it would fight the weather maps | look | **Pushback:** skip; A gives the turret look within our maps |
+| Highlight-compressing tonemap | URP tonemap for the whole frame | - | - | skip (global look, Zach's call) |
+
+- Rule 33 (one cloud system): A and D only touch the detail>0 path of PunchyCloudDensityFine, so the ground cloud shadow and reflection cover (detail 0) stay matched. B and C only change the march light. Nothing forks.
+- MIT: any adapted code (the cap formula in CloudNoise.cs) keeps the reference's copyright line and MIT notice in that file's header.
+- Ownership to confirm: CloudNoise.cs (Scripts/Weather) has no listed owner. Switches use new free `-skyoff` bits (4096 A, 8192 B, 16384 C, 32768 D, default off). DebugControls passes the mask through, so no fauna file is touched.
+
+| Row | Do | Done when |
+|---|---|---|
+| 1 | This audit, with picks A-E | Supervisor confirms the picks |
+| 2 | Trial on render/cloud-ideas (new off main): bake A into CloudNoise `a`; B, C and D in Sky.hlsl/Clouds.hlsl, each behind its bit; E on (fixed metres move to PunchyReferenceDistance, exact at fov 60 Detail 1) | Compile 0 failed, NaN 0. Sheet: cumulus clear sky, towering cloud, low sun into the light, overcast; current vs each pick vs all, ground and peak; 6-frame fly-through. BENCH below. Zach picks |
+| 3 | Ship Zach's picks on by default, E kept | Before/after; BENCH at or under today's cloud cost or Zach accepts the added cost; NaN 0 |
+
+### DRAFT BENCH request, R-35 row 2 (for the coordinator to file when row 2 lands; not in BENCH-QUEUE)
+#### Job (render-2 lane, R-35 r2 #333, branch render/cloud-ideas <sha>): cloud look picks, cost per pick
+- Arms (all on the branch build, by `-skyoff` mask): base 0; A 4096; B 8192; C 16384; D 32768; all 61440; clouds off 3 (the cloud share, as job 79). Also main for the E check (E is always on in the branch).
+- Profile build, 1920x1080, Medium and Ultra, uncapped, noon, arms rotated, 3 rounds, 300 frames.
+- Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
+- Record: GPU ms per arm and view; cloud share = arm minus clouds-off; main vs branch base, to confirm E is within noise at fov 60.
+- Expect A, B and D within noise. C is the one to price (one extra density sample per lit step). Report only.
