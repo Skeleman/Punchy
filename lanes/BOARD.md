@@ -47,7 +47,8 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | fauna/lab-herds | #412 | fauna | merged #453 11-16; host+join check in next playtest build | fauna/lab-herds | stale comments: CreatureSpecies.FromHomes, FaunaDirector.Build MergeHomes |
 | R-28 r2 | #312 | render-2 | merged #454 (R-23 r2), #455 (R-15 r1-3); cobble-depth held for job 86 | render/cobble-depth@ce3ff5a7 ready for PR (BC1091 fixed, job 86 unblocked); render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); render/one-surface@5c25c3fd ready for PR (R-23 r2, job 82 pass) | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | R-23 r4 | #298 | render-2 | editor-free done (WIP 3fefa203); editor after world W-176 and render plume | render/one-surface-4 (new off main) | r3 merged PR #483. Row 4: Creature close-detail and bark relief fades by screen size (rule 20) |
-| R-23 r5 | #298 | render-2 | later (after r4) | - | TerrainSurface (sheen, cobble, steep, mouth, grain, rain), Water rippleNear, HeatHaze shimmer/mirage fades by screen size (rule 20). LandmarkEffects is in render's plume-reach |
+| R-23 r4+r5 | #298 | render-2 | DONE in editor 11-16 (HeatHaze kept in metres: physical effect, pushback accepted) | render/one-surface-5@9701f8a3, draft PR #494 | Waits on BENCH job 109 plus a frozen-time drift pair and colossus clouds on/off pair (next editor turn) |
+| R-35 | #333 | render-2 | editor-free study 11-16 | - | Reference cumulus shader vs ours: look, cost, what to borrow; plan + BENCH draft in REPORTS |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
 | P-45 | #24 | player (fishing agent) | DONE, merged #466 | player/dungeon-pieces@44630e60 | -place piece:hall/deadend/pool, walk 0 falls, sockets checked, design note. Follow-up: 2 temple sockets in walls |

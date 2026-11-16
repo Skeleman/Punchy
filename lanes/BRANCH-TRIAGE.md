@@ -24,6 +24,7 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | player/ships | P-44 r1 draft | player | Parked (Zach 11-16); input for the moving-bodies card. |
 | render/far-island | R-22 r1 | render | Draft PR #482; verified, waits on BENCH job 107. |
 | render/plume-reach | R-25 plume | render | Draft PR #487; verified, waits on BENCH job 108 (sparkle probe, gather cost). |
+| render/one-surface-5 | R-23 r4+r5 (#298) | render-2 | Draft PR #494; verified, waits on BENCH job 109 and the drift pair. |
 
 ## Bench only (never merge)
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
