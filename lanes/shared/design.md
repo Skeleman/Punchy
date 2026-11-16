@@ -39,5 +39,8 @@ code, assets and definitions. An improvement to the system then reaches every pl
 - Design the first member for the family: data-driven kinds, not hard-coded cases. A card that finds a parallel
   it can't fold in reports it in its handoff (rule 28's "report, don't add a third").
 
+## Push back on cost (Zach 11-15)
+If a row would take far more work than its result is worth, say so in the handoff with a cheaper version that gets most of the look, and stop at that row. The supervisor takes it to Zach.
+
 ## Every feature works solo, as host and as a joined client
 Decide which kind of state it is with `docs/agents/multiplayer.md` (main). New wire data is a rule 11 ask.
