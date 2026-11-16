@@ -601,7 +601,7 @@ Shader "Punchy/Flora"
                         if (dot(d.xz, d.xz) < 0.81 && d.y > -1.0 && d.y < 0.7)
                             on *= _PunchyLamps[lamp].w;
                     }
-                    color += windowLight * on * 2.2;
+                    color += windowLight * on * 1.5;   // R-38 row 1: was 2.2, read as too strong
                 }
 
                 // A waxy sheen on cacti and egg shells (and on anything wet), from the sun and, near it, the lantern.

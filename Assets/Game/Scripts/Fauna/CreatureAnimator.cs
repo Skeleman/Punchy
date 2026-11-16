@@ -262,6 +262,10 @@ namespace Punchy.Fauna
 
             // Idle actions that move the whole body: a shake rolls it, lizard push-ups bob it, sniffing dips it.
             var act = ActionEnvelope(s.ActionTime);
+            // A-120 row 2: one of the folk crouched to pet an animal, hips down over its folded legs (PetCrouch; the
+            // legs below, ActionPose the stroking arm). Keyed on synced fields only, so a joined client sees it too.
+            var crouch = b.Upright && s.Mode == CreatureMode.Idle && s.Stage == PetCrouch && s.Action == IdleAction.Pet ? act : 0f;
+            height = math.lerp(height, 0.4f * b.StandHeight * scale, crouch);
             var roll = onFold && b.Hooves ? -lieSide * CreatureBlob.LieTip * s.Lie : 0f;
             if (s.Action == IdleAction.Shake)
                 roll += act * 0.45f * math.sin(s.Clock * 28f);
@@ -294,9 +298,10 @@ namespace Punchy.Fauna
                 pitch += act * 1.45f;
                 height = math.lerp(height, 0.16f * scale, act);
             }
-            // A-103 row 2b: a sea folk out of the water stoops, more as it walks (it trudges, uncomfortable).
+            // A-103 row 2b, A-127 row 2: a sea folk out of the water stands upright, with only a slight forward
+            // set as it walks (it trudges, uncomfortable). In the water it leans into its swim as before.
             if (b.Upright && FolkState.OutOfWater(s.Position, b.WalksBed, terrain))
-                pitch += 0.14f + 0.08f * move;
+                pitch += 0.03f * move;
 
             // A player's roll: a forward somersault (a full turn of the body), tucked up off the ground as it goes over.
             if (s.Roll > 0f)
@@ -638,6 +643,12 @@ namespace Punchy.Fauna
                             a += (j == 0 ? new float3(-1.4f, 0f, -0.12f) : new float3(-0.25f, 0f, 0f)) * raise;
                         }
                     }
+                    // A-120 row 2: one who can't abide animals shooing one off, both arms flapping out and down at it.
+                    if (b.Upright && part.Role == LimbRole.Arm && j <= 1 && s.Mode == CreatureMode.Idle && s.Stage == PetShoo)
+                    {
+                        var flap = math.sin(s.Clock * 9f + part.Side * 0.8f);
+                        a = j == 0 ? new float3(-1.1f + 0.45f * flap, 0f, part.Side * 0.25f) : new float3(-0.35f - 0.3f * flap, 0f, 0f);
+                    }
                     // One of the folk at a hive: the stick hand up over the head jabbing at the comb, the other half up
                     // to shield the face; running off with it, that free arm flapping at the bees.
                     if (b.Upright && part.Role == LimbRole.Arm && s.Mode == CreatureMode.Work && j <= 1)
@@ -704,6 +715,9 @@ namespace Punchy.Fauna
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SwimPose(ref part, in s, j, under), swimming);
                     if (b.Upright && s.Sit > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + SitPose(ref part, in s, j), s.Sit);
+                    if (crouch > 0f && part.Role == LimbRole.Leg && j <= 2)
+                        a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] +
+                            (j == 0 ? new float3(-1.45f, 0f, part.Side * 0.12f) : j == 1 ? new float3(2.3f, 0f, 0f) : new float3(-0.85f, 0f, 0f)), crouch);
                     if (b.Upright && s.Lie > 0f)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle] + LiePose(ref part, in s, j), s.Lie);
                     if (b.Upright && up > 0f)
@@ -724,7 +738,7 @@ namespace Punchy.Fauna
                         a.x = math.clamp(a.x, -2.6f, 0f);
                     // An upright body's ankle only bends so far either way from standing (toes down to push off, up in the swing),
                     // however long the stride, run and pose add up: past that the foot folds against the shin.
-                    if (b.Upright && part.Role == LimbRole.Leg && part.SegmentCount >= 3 && j == part.SegmentCount - 1 && s.Sit + s.Lie < 0.3f)
+                    if (b.Upright && part.Role == LimbRole.Leg && part.SegmentCount >= 3 && j == part.SegmentCount - 1 && s.Sit + s.Lie + crouch < 0.3f)
                     {
                         var stand = b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle].x;
                         a.x = stand + math.clamp(a.x - stand, -AnkleBend, AnkleBend);
@@ -780,7 +794,7 @@ namespace Punchy.Fauna
                 }
 
                 if (part.Role == LimbRole.Leg && part.Parent < 0 && part.SegmentCount >= 2 && part.FirstSegment + part.SegmentCount <= MaxSegments &&
-                    detail && !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && s.Mode != CreatureMode.Ride && (!b.Upright || s.Sit + s.Lie < 0.3f))
+                    detail && !busyLeg && s.Fly < 0.5f && up < 0.5f && !crawling && s.Mode != CreatureMode.Ride && (!b.Upright || s.Sit + s.Lie + crouch < 0.3f))
                 {
                     // Where the ground would be under this foot if it were the flat, sloped plane the body is
                     // standing on, versus where it really is: bend the leg by the difference.
@@ -965,6 +979,7 @@ namespace Punchy.Fauna
                 endPos.Add(pos);
                 endRot.Add(rot);
             }
+            FollowLegs(ref b, ref segPos, ref segRot, ref segHidden);
 
             var golden = Golden(ref b, in s);
             for (int seg = 1; seg < b.Segments.Length && seg < MaxSegments; seg++)
@@ -989,6 +1004,42 @@ namespace Punchy.Fauna
             }
             if (seams && NoSeams.Data == 0)
                 MarkJoints(ref b, output, offset);
+        }
+
+        /// <summary>
+        /// A-127: clothing over the legs (a turtle folk's robe panels, CreaturePart.FollowsLeg) moves with them: each
+        /// panel segment is put where the same segment of the body's leg on its side is (its last segment past the
+        /// leg's end), so a stride swings the panel with the thigh instead of the leg walking through it. Run after
+        /// every part is posed, so it takes the leg's final pose (foot placement, sitting, lying).
+        /// </summary>
+        static void FollowLegs(ref CreatureBlob b, ref FixedList4096Bytes<float3> segPos, ref FixedList4096Bytes<quaternion> segRot,
+                               ref FixedList512Bytes<bool> segHidden)
+        {
+            for (int i = 0; i < b.Parts.Length; i++)
+            {
+                ref var panel = ref b.Parts[i];
+                if (!panel.FollowsLeg)
+                    continue;
+                // The body's leg on the same side.
+                var leg = -1;
+                for (int k = 0; k < b.Parts.Length && leg < 0; k++)
+                    if (b.Parts[k].Role == LimbRole.Leg && b.Parts[k].Parent < 0 && b.Parts[k].Side == panel.Side)
+                        leg = k;
+                if (leg < 0)
+                    continue;
+                ref var l = ref b.Parts[leg];
+                for (int j = 0; j < panel.SegmentCount; j++)
+                {
+                    var seg = panel.FirstSegment + j;
+                    var from = l.FirstSegment + math.min(j, l.SegmentCount - 1);
+                    if (seg >= segPos.Length || from >= segPos.Length)
+                        break;
+                    segPos[seg] = segPos[from];
+                    segRot[seg] = segRot[from];
+                    if (seg < segHidden.Length && from < segHidden.Length && segHidden[from])
+                        segHidden[seg] = true;
+                }
+            }
         }
 
         /// <summary>
@@ -1328,6 +1379,10 @@ namespace Punchy.Fauna
         public const byte MessageWait = 60, MessageTake = 61, MessageRead = 62;
         /// <summary>Idle stages: two folk stopped to talk, the one talking (hands going) and the one listening (nodding). A-26.</summary>
         public const byte ChatTalk = 70, ChatListen = 71;
+        /// <summary>Idle stages of one of the folk and an animal (A-120 row 2): going over to it, crouched petting it
+        /// (Partner the animal, or Focus a player in an animal's body), shooing it off; and (row 3) a child going over to
+        /// its own pet to pick it up and carry it indoors.</summary>
+        public const byte PetGo = 72, PetCrouch = 73, PetShoo = 74, PetFetch = 75;
         /// <summary>Work-mode stages of a bear raiding a wild hive: on its way, reared up at the comb, making off.
         /// (The bees mob it while it's at the comb: CreatureRenderSystem's Swarm.)</summary>
         public const byte RaidWalk = 150, RaidAtComb = 151, RaidLeave = 152, RaidLick = 153;

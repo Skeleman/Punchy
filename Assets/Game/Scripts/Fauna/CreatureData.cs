@@ -191,8 +191,11 @@ namespace Punchy.Fauna
             math.hash(new uint2(individual, (uint)trait * 2654435761u + 17u)) / (float)uint.MaxValue * 2f - 1f;
 
         /// <summary>Which option of a style group an individual shows.</summary>
+        /// <remarks>Scrambled before the modulo: individuals are odd and math.hash keeps the low bit, so with an even
+        /// option count the raw hash only ever drew every other option.</remarks>
         public static int Style(uint individual, int group, int count) =>
-            (int)(math.hash(new uint2(individual, (uint)group * 40503u + 101u)) % (uint)math.max(count, 1));
+            (int)(SpawnTable.Scramble(math.hash(new uint2(individual, (uint)group * 40503u + 101u)))
+                  % (uint)math.max(count, 1));
 
         /// <summary>An individual's hair colour (rgb), or the segment's own if the species has none.</summary>
         public float4 HairColor(uint individual, float4 fallback) =>
@@ -334,6 +337,9 @@ namespace Punchy.Fauna
         public float JointPhaseStep;
         /// <summary>Segments bend to lie on the ground.</summary>
         public bool FollowGround;
+        /// <summary>A-127: clothing over a leg (a robe's panels). Each segment is drawn where the same segment of the
+        /// body's leg on its side is (CreatureAnimator.FollowLegs), so the leg can't poke through it.</summary>
+        public bool FollowsLeg;
         /// <summary>Style option group (0 = always shown), this part's option in it, and how many options it has.</summary>
         public int StyleGroup, StyleIndex, StyleCount;
         /// <summary>A leg's give: how much further its hip-to-ankle span can stretch beyond the standing pose (m, at
@@ -748,8 +754,9 @@ namespace Punchy.Fauna
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
         /// <summary>Who is petting or carrying it, or what it rides (A-104). Positive: its holder (Interactions.HolderId).
-        /// Negative: it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world, which has no
-        /// ghosts). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
+        /// Negative: in Mode Ride, it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world,
+        /// which has no ghosts); in Mode Held or Petted, one of the folk has it, and this is minus that folk's ghost id
+        /// (Interactions.FolkHolder; A-120). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
@@ -949,10 +956,13 @@ namespace Punchy.Fauna
         /// <param name="prey">Indices of the species it hunts.</param>
         /// <param name="hunted">Whether any species hunts it.</param>
         /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
+        /// <param name="build">A-124: one individual's build (BodyBuilds.Of); null for the species' own. The species' own
+        /// multiplies by exactly 1, so the shared blobs (and the fauna fingerprint) bake byte for byte as before.</param>
         public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
                                                              IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
-                                                             Vector2? home = null)
+                                                             Vector2? home = null, BodyBuild? build = null)
         {
+            var bb = build ?? BodyBuild.Own;
             var species = variant.Body;
             var parts = Expand(species);
             // M-05: the Model Lab's adjustments for this species (null: none). Every multiplier defaults to 1 and is
@@ -977,9 +987,9 @@ namespace Punchy.Fauna
             root.LeapingRun = species.Gallop == GallopStyle.Leap;
             // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
             var own = variant != species;
-            var headScale = (own ? variant.VariantHead : 1f) * (tune?.Head ?? 1f);
-            var thickness = (own ? variant.VariantThickness : 1f) * (tune?.Thickness ?? 1f);
-            var legScale = (own ? variant.VariantLegs : 1f) * (tune?.Legs ?? 1f);
+            var headScale = (own ? variant.VariantHead : 1f) * (tune?.Head ?? 1f) * bb.Head;
+            var thickness = (own ? variant.VariantThickness : 1f) * (tune?.Thickness ?? 1f) * bb.Girth;
+            var legScale = (own ? variant.VariantLegs : 1f) * (tune?.Legs ?? 1f) * bb.Limbs;
             root.FrontRadius = species.BodyRadius * thickness;
             root.RearRadius = species.BodyRadius * species.BodyTaper * thickness;
             root.BodyFlatten = species.BodyFlatten;
@@ -1108,6 +1118,12 @@ namespace Punchy.Fauna
             var cursor = 1;
             // (Whether each part is the head or on it: those all take the head's scale, sockets on it too.)
             var onHead = new bool[parts.Count];
+            // (A-124: an upright body's shoulders are the top of the part its arms hang from; the build widens it there.)
+            var shoulders = new bool[parts.Count];
+            if (root.Upright && bb.Shoulders != 1f)
+                for (int i = 0; i < parts.Count; i++)
+                    if (parts[i].Slot.Limb.Role == LimbRole.Arm && parts[i].Parent >= 0 && parts[parts[i].Parent].Slot.Limb.Role == LimbRole.Feature)
+                        shoulders[parts[i].Parent] = true;
             for (int i = 0; i < parts.Count; i++)
             {
                 var e = parts[i];
@@ -1119,7 +1135,8 @@ namespace Punchy.Fauna
                 if (e.Parent >= 0 && onHead[e.Parent])
                     socket *= headScale;
                 var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale
-                                : limb.Role == LimbRole.Neck ? neckScale : limb.Role == LimbRole.Tail ? tailScale : 1f;
+                                : limb.Role == LimbRole.Neck ? neckScale : limb.Role == LimbRole.Tail ? tailScale
+                                : limb.Role == LimbRole.Arm ? bb.Limbs : 1f;
                 var radiusScale = onHead[i] ? headScale : thickness;
                 // (The head's own neck, before its last segment, only thickens: a big head, not a long neck.)
                 var neck = limb.Role == LimbRole.Head ? limb.Segments.Count - 1 : 0;
@@ -1131,7 +1148,7 @@ namespace Punchy.Fauna
                 }
                 var dir = (float3)slot.Direction;
                 if (root.Upright && limb.Role == LimbRole.Arm && e.Parent >= 0 && parts[e.Parent].Slot.Limb.Role == LimbRole.Feature)
-                    FitShoulder(segArray, partArray[e.Parent], limb, slot.Scale * slot.Thickness * radiusScale, slot.Scale,
+                    FitShoulder(segArray, partArray[e.Parent], limb, slot.Scale * slot.Thickness * radiusScale, slot.Scale * lengthScale,
                                 ref socket, ref dir);
                 socket.x *= side;
                 partArray[i] = new CreaturePart
@@ -1146,6 +1163,7 @@ namespace Punchy.Fauna
                     Spring = limb.Spring,
                     JointPhaseStep = limb.JointPhaseStep,
                     FollowGround = limb.FollowGround,
+                    FollowsLeg = limb.FollowsLeg,
                     Side = side,
                     StyleGroup = slot.StyleGroup,
                     StyleIndex = StyleIndex(species, e.SlotIndex),
@@ -1160,7 +1178,8 @@ namespace Punchy.Fauna
                     {
                         Length = seg.Length * slot.Scale * (s < neck ? 1f : lengthScale),
                         RadiusStart = seg.RadiusStart * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
-                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
+                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale)
+                                  * (shoulders[i] && s == limb.Segments.Count - 1 ? bb.Shoulders : 1f),
                         Flatten = seg.Flatten,
                         Accent = seg.Accent,
                         Fixed = seg.UseFixedColor ? 1 : 0,

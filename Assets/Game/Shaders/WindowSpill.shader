@@ -96,10 +96,18 @@ Shader "Punchy/Window Spill"
                 fall *= fall;
                 // Out through the opening, widening as it goes: a pool, brightest straight out and below.
                 float cone = saturate(1 - abs(x) / (z * 0.75 + 1.1 * s));
+                // R-38 row 1: down to nothing at the box's top and sides, so no hard line where it ends (two panes
+                // stacked showed the lower one's top edge across the wall), and little above the pane (a roof or eave
+                // above it, or a lower house's roof in front, was lit as if the light went up through it).
+                float rise = max(dot(v, float3(0, 1, 0)), 0) / (Above * s);
+                float edges = saturate(1 - rise) * saturate(1 - abs(x) / (Across * s));
+                edges *= edges;
                 float3 n = normalize(cross(ddy(world), ddx(world)));
-                float facing = saturate(dot(n, -v / max(d, 1e-3))) * 0.8 + 0.2;
+                // Lit by facing the pane; the halo on the wall it sits in (facing it edge-on) only close round the pane.
+                float halo = saturate(1 - d / (1.5 * s));
+                float facing = saturate(dot(n, -v / max(d, 1e-3))) * 0.85 + 0.15 * halo;
                 float fade = 1 - smoothstep(_SpillParams.z, _SpillParams.w, distance(world, _WorldSpaceCameraPos));
-                float light = fall * cone * facing * behind * fade * _SpillParams.x * _SpillParams.y;
+                float light = fall * cone * edges * facing * behind * fade * _SpillParams.x * _SpillParams.y;
                 return half4(p.light.rgb * light, 0);
             }
             ENDHLSL
