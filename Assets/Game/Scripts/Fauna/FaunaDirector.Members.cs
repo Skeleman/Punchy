@@ -379,7 +379,7 @@ namespace Punchy.Fauna
                 return 0;
             TownPlan plan = null;
             foreach (var p in Whereabouts.Towns.Values)
-                if (plan == null || math.distancesq(p.Centre.xz, at.xz) < math.distancesq(plan.Centre.xz, at.xz))
+                if (plan == null || math.distancesq(p.Centre, at.xz) < math.distancesq(plan.Centre, at.xz))
                     plan = p;
             var seeds = new HashSet<uint>();
             foreach (var r in plan.Residents)
