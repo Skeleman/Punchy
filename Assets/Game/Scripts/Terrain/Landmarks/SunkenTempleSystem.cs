@@ -317,6 +317,26 @@ namespace Punchy.Terrain
                 }
             }
 
+            /// <summary>W-174 r6: a wall on room i's edge e from y0 up to a top running straight from top0 (at s0) to top1 (at s1).</summary>
+            void Wall(Builder b, int sm, int i, int e, float s0, float s1, float y0, float top0, float top1)
+            {
+                if (math.max(top0, top1) - y0 < 1e-3f)
+                    return;
+                var r = Rooms[i];
+                switch (e)
+                {
+                    case 0: b.Panel(sm, 0, r.U0, s0, s1, y0, top0, top1, Vector3.right); break;
+                    case 1: b.Panel(sm, 0, r.U1, s0, s1, y0, top0, top1, Vector3.left); break;
+                    case 2: b.Panel(sm, 1, r.V0, s0, s1, y0, top0, top1, Vector3.forward); break;
+                    default: b.Panel(sm, 1, r.V1, s0, s1, y0, top0, top1, Vector3.back); break;
+                }
+            }
+
+            /// <summary>W-174 r6: the walls' top on room r's edge e at s, in the temple frame (SunkenTempleShape.WallTop,
+            /// which the terrain's collars meet).</summary>
+            float Top(RuinRoom r, int e, float s) =>
+                SunkenTempleShape.WallTop(source, layout, e, e == 0 ? r.U0 : e == 1 ? r.U1 : e == 2 ? r.V0 : r.V1, s) - layout.Base;
+
             float FloorOn(RuinRoom r, int e, float s0, float s1) => e >= 2 ? r.FloorAt(0.5f * (s0 + s1)) : r.FloorAt(e == 0 ? r.U0 : r.U1);
 
             static readonly List<float> Pair = new List<float>(2);
@@ -338,15 +358,14 @@ namespace Punchy.Terrain
                 return list;
             }
 
-            /// <summary>The entrance cut (LOD0 only: floor, walls up to the ground, coping) and the boxes standing outside.</summary>
+            /// <summary>The entrance cut (floor and walls up to the ground at LOD 0-2, coping and corner blocks at LOD0) and
+            /// the boxes standing outside. W-174 r6: drawn at LOD2 too, since the terrain is cut to the rim at its LOD 0-2.</summary>
             public void Exterior(Builder b, int lod, uint key)
             {
                 var sides = lod == 0 ? 12 : lod == 1 ? 8 : 6;
                 foreach (var box in Boxes)
                     if (box.Outside != 0)
                         b.Solid(0, box.UV, box.Y, box.Draw, sides);
-                if (lod == 2)
-                    return;
                 var rng = new Unity.Mathematics.Random(RuinKit.Scramble(key ^ 0xC0B1u) | 1u);
                 for (int i = 0; i < Rooms.Length; i++)
                 {
@@ -357,8 +376,9 @@ namespace Punchy.Terrain
                     Edges(i, (e, s0, s1, n) =>
                     {
                         float f = FloorOn(r, e, s0, s1), m = 0.5f * (s0 + s1);
-                        float gu = e == 0 ? r.U0 - 0.3f : e == 1 ? r.U1 + 0.3f : m, gv = e == 2 ? r.V0 - 0.3f : e == 3 ? r.V1 + 0.3f : m;
-                        var top = Ground(gu, gv) + 0.05f;
+                        // W-174 r6: the walls' top follows SunkenTempleShape.WallTop (straight between half-metre knots, so
+                        // each piece's ends land on it), the line the terrain chunks' collars come down to.
+                        float top0 = Top(r, e, s0), top1 = Top(r, e, s1), top = 0.5f * (top0 + top1);
                         // Coping: a kerb of stone blocks on the rim, a little uneven, hiding the terrain's cut edge. W-172
                         // row 3: over a door into a closed room too. W-174 row 4: the cut is exact now and the seam builder
                         // puts the terrain's edge on the rim, so the kerb only dresses the edge; it no longer covers a slot.
@@ -374,7 +394,7 @@ namespace Punchy.Terrain
                         }
                         if (n < 0)
                         {
-                            Wall(b, 0, i, e, s0, s1, f, top);
+                            Wall(b, 0, i, e, s0, s1, f, top0, top1);
                             return;
                         }
                         var o = Rooms[n];
@@ -382,7 +402,7 @@ namespace Punchy.Terrain
                         if (of > f)
                             Wall(b, 0, i, e, s0, s1, f, of);  // a riser up to the next step
                         if (o.Kind == 0)
-                            Wall(b, 0, i, e, s0, s1, math.max(f, o.Ceil), top);  // above the door, up to the ground
+                            Wall(b, 0, i, e, s0, s1, math.max(f, o.Ceil), top0, top1);  // above the door, up to the ground
                     });
                     // W-172 row 3 (#365): a block on each outer corner, where the edges' kerbs stop (the old widened cut
                     // left a quarter-round hole there; W-174 row 4 snaps the terrain onto the exact corner).
@@ -577,6 +597,15 @@ namespace Punchy.Terrain
                         if (!cut)
                             Quad(sm, P(axis, c, a, e), P(axis, c, b, e), P(axis, c, b, f), P(axis, c, a, f), normal);
                     }
+            }
+
+            /// <summary>W-174 r6: a rectangle at c on axis (0 u, 1 v) over s0..s1 from t0 up to a top running straight from
+            /// top0 (at s0) to top1 (at s1).</summary>
+            public void Panel(int sm, int axis, float c, float s0, float s1, float t0, float top0, float top1, Vector3 normal)
+            {
+                if (s1 - s0 < 1e-4f || math.max(top0, top1) - t0 < 1e-4f)
+                    return;
+                Quad(sm, P(axis, c, s0, t0), P(axis, c, s1, t0), P(axis, c, s1, math.max(top1, t0)), P(axis, c, s0, math.max(top0, t0)), normal);
             }
 
             /// <summary>A smooth heightfield over the grid lines us x vs, skipping cells whose centre 'skip' rejects.</summary>
