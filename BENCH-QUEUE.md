@@ -957,3 +957,5 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - Build: v0.16.0 (main 40478293 + bump). 1920x1080, Medium, uncapped.
 - View: start at -goto -2089,259.3,732 facing the tunnel; run in. Record the worst frames and what spikes (cave streaming, mesh builds, lights, GC).
 - Pass: no frame over 33 ms on entry. Report the cause and the owning system; the supervisor cards the fix.
+
+- 11-15 note (supervisor): #419-#422 merged to main (61588fae). A-130 (#421) re-pinned the world fingerprint to 9EFF3BCF: desert biomes now place palm and palo verde groves with clearings, so desert flora counts moved. Fishing (#419), dialogue options (#420) and dismount (#422) add no placement. Re-baseline any desert view.
