@@ -147,3 +147,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: #447 merged (A-108 follow-up, #298): dawn/dusk lake rings no longer rise in step across next-door patches.
 - 11-15: #448 merged (A-133, #336): creature gear wood and metal use the shared material library (spear shafts show the new grain).
 - 11-15: #449 merged (A-108 follow-up, #298): sky birds in next-door patches no longer fly over in step.
+- 11-15: #450 merged, P-38 (#372 closed): take items from folk, per-item block (lantern held high), shared gear kits, eyewear as a head item. #259 rejoin still crashes (terrain mesh job on leave), world lane.
