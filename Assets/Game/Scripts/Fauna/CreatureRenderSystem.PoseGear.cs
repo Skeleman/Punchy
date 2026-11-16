@@ -722,9 +722,9 @@ namespace Punchy.Fauna
                     var guy = eave - stake;
                     Output[at + k++] = Piece(stake, Unity.Mathematics.math.normalize(guy), right, Unity.Mathematics.math.length(guy), 0.012f * scale, 0.012f * scale, 1f, rope, faded, SegmentMaterial.Cloth);
                 }
-                else if (atWork && offHand >= 0 && state.Task == CreatureTask.Tend && job != FolkJob.FireTender)
+                else if (atWork && offHand >= 0 && state.Task == CreatureTask.Tend && job != FolkJob.FireTender && job != FolkJob.Innkeeper)
                 {
-                    // A bucket hanging from the other hand.
+                    // A bucket hanging from the other hand. (A-132: not an innkeeper's, whose hands are both at its counter.)
                     var h = Output[offset + offHand];
                     var grip = h.Position + Unity.Mathematics.math.mul(h.Rotation, new Unity.Mathematics.float3(0f, 0f, h.Length * 0.8f));
                     var bucket = new Unity.Mathematics.float4(0.42f, 0.3f, 0.18f, 0f);
