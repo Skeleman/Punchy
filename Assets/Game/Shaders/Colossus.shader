@@ -39,6 +39,9 @@ Shader "Punchy/Colossus"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Atmosphere.hlsl"
+            #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
+            #include "Surface.hlsl"
 
             struct Attributes
             {
@@ -74,7 +77,9 @@ Shader "Punchy/Colossus"
                 inputData.normalWS = normalize(input.normalWS);
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-                inputData.bakedGI = SampleSH(inputData.normalWS);
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, inputData.normalWS);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                inputData.bakedGI = lit.ambient;
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
@@ -83,9 +88,10 @@ Shader "Punchy/Colossus"
                 surface.occlusion = 1;
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
-                color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
+                // The cloud and wide shadows dim only the share of the light that came straight from the sun (Surface.hlsl).
+                color = PunchySurfaceSunDim(color, ps, lit, inputData.bakedGI);
                 color += input.albedo * (input.glow * _GlowStrength); // self-lit: no shadow, still hazed below
-                return half4(PunchyAtmosphere(color, input.positionWS), 1);
+                return half4(PunchySurfaceFinish(color, ps), 1);
             }
             ENDHLSL
         }
