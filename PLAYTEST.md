@@ -149,3 +149,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-15: #449 merged (A-108 follow-up, #298): sky birds in next-door patches no longer fly over in step.
 - 11-15: #450 merged, P-38 (#372 closed): take items from folk, per-item block (lantern held high), shared gear kits, eyewear as a head item. #259 rejoin still crashes (terrain mesh job on leave), world lane.
 - 11-15: #451 merged, W-172 rows 2-6 (#365): cave water source, tunnel mouths and sides, tunnel variety, horse-size passages, camp layouts. Fauna fingerprint E764AAEC, landmarks 117 689D5348.
+- 11-16: #452 merged, W-166 row 3 (#336): built stone (ruins, fountains, forums, cave linings) and creature cloth and bone use the material library.
+- 11-16: #453 merged, M-06 row 3b (#412): Lab species such as Frostdeer form herds in their biomes. Host+joiner check owed in the next playtest build.

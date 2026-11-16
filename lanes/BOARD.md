@@ -13,15 +13,15 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | next | world/ground-edits | Row 1 note merged #440 (approved). Next: row 2 natural cutaways |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
-| W-166 r3 | #336 | materials | stone + gear + tunnel verified (NaN 0, diffs, sheets in PunchyMilestones/W-166); main merged, tests 4/4; ready for PR | world/material-library-2 0f99276b (tree Punchy-materials) | built stone close-up into BENCH 101; render: drop the Stone.hlsl forwarder; next row 4 sweep |
+| W-166 r3 | #336 | materials | merged #452 11-16; row 4 sweep (items, colossi) later | world/material-library-2 | render: point TerrainSurface at Materials/Stone.hlsl, drop forwarder |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
 | A-113 | #313 | fauna | merged #433 | flora/tree-variety | pin 0654C913 on main; #313 closed |
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
-| M-06 r3 | #412-414 | lab | r3 done; r4 waits on W-166, save/re-pins on Zach | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
+| M-06 r3-4 | #412-414 | fauna (lab agent gone) | r3 done; r4 (colour + material per segment) now, W-166 r3 merged #452 | fauna/model-lab-2 f4415768 | in-memory body builder, 125 species bake identical untouched |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
-| W-175 r1-2 | #415 | materials | r1 done (audit doc); Zach 11-15 OK'd the proposal: row 2 (stalls + smithy) after W-166 r3 handoff | world/material-library 14429012 (docs/agents/parts-and-units.md) | Row 2 pixel-diff shows no look change; Landmarks_V3 kept or re-pinned |
+| W-175 r1-2 | #415 | materials | r1 done (audit doc); Zach 11-15 OK'd the proposal: row 2 (stalls + smithy) now, W-166 r3 merged #452 | world/material-library 14429012 (docs/agents/parts-and-units.md) | Row 2 pixel-diff shows no look change; Landmarks_V3 kept or re-pinned |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches |
 | R-30 r1-r2c | #323 | render | r2c done: Pine/Spruce 1.4; ready for PR | render/foliage-realism@326437af | sheet R-30/row2c/sheet-backlit.png; merge-tree vs main ec1ea218 clean. Fir/WhitePine 1.4 after W-166. Shells-as-default = R-30 r3 only if 'option b' meant shells |
 | R-39 | #401 #402 #302 #269 | render-2 | merged #432 | render/playtest-1115 | #401 #402 closed; #302 and #269 stay open for R-25 r4-6 and R-15. Next: R-25 r4-6 (R-30 r1 stays with render) |
@@ -36,7 +36,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | b/fix-audio-doors | #352 | fauna | merged #445 | | |
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
 | b/fix-lake-ring-hash | #298 | fauna | merged #447, #449 | | lake ring and sky-bird seeds scrambled |
-| fauna/lab-herds | #412 | fauna | done, ready for PR | fauna/lab-herds@d058e36a | Frostdeer 137 Tundra herds + far form; fingerprint E764AAEC unchanged; host+join not run (RAM); IslandCache stamp +LabSpecies (world file) |
+| fauna/lab-herds | #412 | fauna | merged #453 11-16; host+join check in next playtest build | fauna/lab-herds | stale comments: CreatureSpecies.FromHomes, FaunaDirector.Build MergeHomes |
 | R-28 r2, R-15 land | #312 | render-2 | active | render/cobble-depth@ce3ff5a7 ready for PR (BC1091 fixed, job 86 unblocked); render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); one-surface next | Main merges; R-15 WaterPatchSystem merge approved (rule 11). Render WIP goes to render/audit-fixes-wip |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
