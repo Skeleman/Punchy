@@ -41,34 +41,47 @@ float2 PunchyLibraryPlane(float3 p, half3 n)
 /// Metal shades through the light (PunchyMetalShade) and stays with the caller; families with no look keep the colour.
 half3 PunchyLibraryAlbedo(int family, int kind, float3 p, inout half3 n, float3 v, float footprint, half r, half3 albedo)
 {
+    // One exit: FXC rejects a switch whose cases all return ("not all control paths return a value").
+    half3 result = albedo;
     [branch] switch (family)
     {
         case PUNCHY_FAMILY_WOOD:
-            return PunchyWoodAlongAxis(albedo, p, 0.5, footprint, kind);
+            result = PunchyWoodAlongAxis(albedo, p, 0.5, footprint, kind);
+            break;
         case PUNCHY_FAMILY_BRICK:
-            return albedo * PunchyBrick(p, n, v, footprint, r);
+            result = albedo * PunchyBrick(p, n, v, footprint, r);
+            break;
         case PUNCHY_FAMILY_STONE:
-        {
             if (kind > 0)
-                return albedo * PunchyStoneBlocks(p, n, footprint, kind == 2, r);
-            half crevice;
-            PunchyStoneSurface(p, footprint, 0, 0, albedo, n, crevice);
-            return albedo;
-        }
+            {
+                result = albedo * PunchyStoneBlocks(p, n, footprint, kind == 2, r);
+            }
+            else
+            {
+                half crevice;
+                PunchyStoneSurface(p, footprint, 0, 0, result, n, crevice);
+            }
+            break;
         case PUNCHY_FAMILY_THATCH:
-            return albedo * PunchyThatch(p, n, footprint);
+            result = albedo * PunchyThatch(p, n, footprint);
+            break;
         case PUNCHY_FAMILY_PLASTER:
-            return albedo * PunchyPlaster(p, n, footprint, r);
+            result = albedo * PunchyPlaster(p, n, footprint, r);
+            break;
         case PUNCHY_FAMILY_CLOTH:
         case PUNCHY_FAMILY_LEATHER:
-            return albedo * (family == PUNCHY_FAMILY_LEATHER || kind == 1 ? PunchyHide(p, n, footprint) : PunchyLinen(p, n, footprint));
+            result = albedo * (family == PUNCHY_FAMILY_LEATHER || kind == 1 ? PunchyHide(p, n, footprint) : PunchyLinen(p, n, footprint));
+            break;
         case PUNCHY_FAMILY_ICE:
-            return albedo * PunchyIce(p, n, v, footprint, r);
+            result = albedo * PunchyIce(p, n, v, footprint, r);
+            break;
         case PUNCHY_FAMILY_BONE:
-            return PunchyBone(albedo, PunchyLibraryPlane(p, n), footprint);
+            result = PunchyBone(albedo, PunchyLibraryPlane(p, n), footprint);
+            break;
         default:
-            return albedo;
+            break;
     }
+    return result;
 }
 
 #endif
