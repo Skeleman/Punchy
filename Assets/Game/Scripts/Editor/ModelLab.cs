@@ -31,7 +31,7 @@ namespace Punchy.EditorTools
     /// the preview scene, in edit mode only, since builders set their kind's static rig fields.
     /// </para>
     /// </summary>
-    public class ModelLab : EditorWindow
+    public partial class ModelLab : EditorWindow
     {
         enum Family { Creature, Colossus }
         enum Gait { Idle, Walk, Run }
@@ -52,6 +52,7 @@ namespace Punchy.EditorTools
         GameObject colossus;
         Transform trunk;
         Bounds bounds;
+        Bounds frameBounds;   // M-06 (#412): the idle pose's bounds, set per load or slider change; the camera frames these, so it holds still while the model walks
         float ground;
         TerrainSource flat;   // default: no baked world; the samplers return flat ground (see TerrainSource.ShapeHeight)
 
@@ -159,6 +160,16 @@ namespace Punchy.EditorTools
             rt.Release();
             DestroyImmediate(rt);
             return true;
+        }
+
+        Vector3 lastCentre;
+        float lastDist;
+
+        /// <summary>M-06 (#412): the camera centre and distance of the last drawn frame, for the steadiness check.</summary>
+        public static string CameraFrame()
+        {
+            var w = Open();
+            return $"{w.lastCentre.x:0.0000},{w.lastCentre.y:0.0000},{w.lastCentre.z:0.0000} d {w.lastDist:0.0000} yaw {w.orbitYaw:0.0}";
         }
 
         /// <summary>Renders only the turntable at the given size to a PNG.</summary>
@@ -450,9 +461,10 @@ namespace Punchy.EditorTools
             if (guid != null)
             {
                 family = Family.Creature;
-                species = AssetDatabase.LoadAssetAtPath<CreatureSpecies>(AssetDatabase.GUIDToAssetPath(guid));
+                source = AssetDatabase.LoadAssetAtPath<CreatureSpecies>(AssetDatabase.GUIDToAssetPath(guid));
+                species = WorkCopy(source);   // (the body builder edits this copy, never the asset)
                 loadedName = name;
-                nudgeSlot = nudgeSegment = 0;
+                nudgeSlot = nudgeSegment = buildSlot = buildSegment = 0;
                 Rebuild();
                 Frame();
                 return;
@@ -503,6 +515,7 @@ namespace Punchy.EditorTools
             bounds = new Bounds(colossus.transform.position, Vector3.one);
             foreach (var r in colossus.GetComponentsInChildren<Renderer>(true))
                 bounds.Encapsulate(r.bounds);
+            frameBounds = bounds;
             ApplySway();
         }
 
@@ -512,6 +525,8 @@ namespace Punchy.EditorTools
                 blob.Dispose();
             blob = default;
             species = null;
+            source = null;
+            DestroyWorkCopy();
             if (colossus != null)
             {
                 foreach (var mf in colossus.GetComponentsInChildren<MeshFilter>(true))
@@ -622,9 +637,12 @@ namespace Punchy.EditorTools
                 if (blob.IsCreated)
                     blob.Dispose();
                 blob = CreatureBlobBuilder.Build(species);
+                frameBounds = default;
             }
             ground = flat.SampleHeight(float2.zero);
             ref var b = ref blob.Value;
+            if (frameBounds.size == Vector3.zero)
+                frameBounds = IdleBounds(ref b);
             // (A-128: room after the body for a guard's kit or a worker's gear, when posed at that task.)
             var output = new NativeArray<SegmentInstance>(b.Segments.Length + CreatureRenderSystem.KitParts, Allocator.Temp);
             try
@@ -642,6 +660,28 @@ namespace Punchy.EditorTools
             {
                 output.Dispose();
             }
+        }
+
+        /// <summary>M-06 (#412): the bounds of the idle pose at clock 0 (no task or mode override), which the camera frames.</summary>
+        Bounds IdleBounds(ref CreatureBlob b)
+        {
+            var box = new Bounds(new Vector3(0f, ground, 0f), Vector3.one);
+            var output = new NativeArray<SegmentInstance>(b.Segments.Length, Allocator.Temp);
+            try
+            {
+                var s = new CreatureState { Position = new float3(0f, ground, 0f), Scale = 1f, Mode = CreatureMode.Idle, Seed = 1u };
+                CreatureAnimator.Evaluate(ref b, in s, 0, in flat, output, 0);
+                box = SegmentBounds(output);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Model Lab: idle pose of {loadedName} failed: {e.Message}");
+            }
+            finally
+            {
+                output.Dispose();
+            }
+            return box;
         }
 
         CreatureState State(ref CreatureBlob b)
@@ -700,7 +740,7 @@ namespace Punchy.EditorTools
         {
             zoom = 1f;
             orbitYaw = 90f;
-            var size = bounds.size.magnitude;
+            var size = frameBounds.size.magnitude;
             gridStep = size > 40f ? 5f : size > 8f ? 1f : 0.25f;
             gridExtent = math.max(4f, math.ceil(size * 0.9f / gridStep) * gridStep);
             gridMesh = Grid(gridMesh, gridStep, gridExtent);
@@ -713,10 +753,12 @@ namespace Punchy.EditorTools
             var cam = preview.camera;
             // Frame the model and the person together, so the scale reference is never cut off.
             // Behind a creature's tail; in front of a colossus (tiny beside it, and its rubble would hide it behind).
+            // M-06 (#412): from the idle pose's bounds, not this frame's pose, so walking never moves the camera or the person.
+            var fb = frameBounds;
             var person = family == Family.Creature
-                ? new Vector3(bounds.center.x, ground, bounds.min.z - 0.6f)
-                : new Vector3(bounds.min.x - 2f, ground, bounds.center.z);
-            var framed = bounds;
+                ? new Vector3(fb.center.x, ground, fb.min.z - 0.6f)
+                : new Vector3(fb.min.x - 2f, ground, fb.center.z);
+            var framed = fb;
             framed.Encapsulate(person + new Vector3(0f, 1.8f, -0.3f));
             var centre = framed.center;
             var radius = math.max(framed.extents.magnitude, 1.2f);
@@ -730,6 +772,8 @@ namespace Punchy.EditorTools
             var rot = Quaternion.Euler(orbitPitch, orbitYaw, 0f);
             cam.transform.position = centre - rot * Vector3.forward * dist;
             cam.transform.rotation = rot;
+            lastCentre = centre;
+            lastDist = dist;
             cam.farClipPlane = dist * 4f + 100f;
 
             if (gridMesh != null)
@@ -755,7 +799,10 @@ namespace Punchy.EditorTools
             if (!string.IsNullOrEmpty(loadedName))
             {
                 if (family == Family.Creature)
+                {
                     DrawCreatureSliders();
+                    DrawBuilder();
+                }
                 else
                     DrawColossusSliders();
                 DrawSaveReset();
@@ -797,7 +844,7 @@ namespace Punchy.EditorTools
                     DrawScene();
                     GUI.DrawTexture(scene, preview.EndPreview(), ScaleMode.StretchToFill, false);
                     var info = $"{loadedName}   grid {gridStep:0.##} m   person 1.8 m   " +
-                               (family == Family.Creature ? $"length {bounds.size.z:0.00} m  height {bounds.max.y - ground:0.00} m" : $"height {bounds.max.y - ground:0} m");
+                               (family == Family.Creature ? $"length {frameBounds.size.z:0.00} m  height {frameBounds.max.y - ground:0.00} m" : $"height {frameBounds.max.y - ground:0} m");
                     GUI.Label(new Rect(scene.x + 10f, scene.y + 8f, scene.width - 20f, 20f), info, EditorStyles.whiteBoldLabel);
                 }
             }
@@ -1001,22 +1048,18 @@ namespace Punchy.EditorTools
 
         // ---------- meshes ----------
 
-        /// <summary>One mesh of all posed segments: each a capsule tapered from its start to its end radius and flattened, as Creature.shader draws it.</summary>
-        static Mesh Capsules(NativeArray<SegmentInstance> segs, Mesh mesh, out Bounds box)
+        static bool Skip(in SegmentInstance s) => s.Length <= 0f && s.RadiusStart <= 0f || math.max(s.RadiusStart, s.RadiusEnd) <= 0f;
+
+        /// <summary>The box around every drawn segment (start and end spheres at their radii).</summary>
+        static Bounds SegmentBounds(NativeArray<SegmentInstance> segs)
         {
-            var verts = new List<Vector3>();
-            var normals = new List<Vector3>();
-            var colors = new List<Color>();
-            var tris = new List<int>();
-            box = new Bounds();
+            var box = new Bounds();
             var first = true;
             for (int i = 0; i < segs.Length; i++)
             {
                 var s = segs[i];
-                if (s.Length <= 0f && s.RadiusStart <= 0f || math.max(s.RadiusStart, s.RadiusEnd) <= 0f)
+                if (Skip(s))
                     continue;
-                var c = new Color(s.Color.x, s.Color.y, s.Color.z, 1f);
-                AddCapsule(verts, normals, colors, tris, s.Position, s.Rotation, s.Length, s.RadiusStart, s.RadiusEnd, math.max(s.Flatten, 0.05f), c);
                 var p0 = (Vector3)s.Position;
                 var p1 = (Vector3)(s.Position + math.mul(s.Rotation, new float3(0f, 0f, s.Length)));
                 var r = math.max(s.RadiusStart, s.RadiusEnd);
@@ -1028,6 +1071,25 @@ namespace Punchy.EditorTools
                 box.Encapsulate(new Bounds(p0, Vector3.one * s.RadiusStart * 2f));
                 box.Encapsulate(new Bounds(p1, Vector3.one * r * 2f));
             }
+            return box;
+        }
+
+        /// <summary>One mesh of all posed segments: each a capsule tapered from its start to its end radius and flattened, as Creature.shader draws it.</summary>
+        static Mesh Capsules(NativeArray<SegmentInstance> segs, Mesh mesh, out Bounds box)
+        {
+            var verts = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var colors = new List<Color>();
+            var tris = new List<int>();
+            for (int i = 0; i < segs.Length; i++)
+            {
+                var s = segs[i];
+                if (Skip(s))
+                    continue;
+                var c = new Color(s.Color.x, s.Color.y, s.Color.z, 1f);
+                AddCapsule(verts, normals, colors, tris, s.Position, s.Rotation, s.Length, s.RadiusStart, s.RadiusEnd, math.max(s.Flatten, 0.05f), c);
+            }
+            box = SegmentBounds(segs);
             if (mesh == null)
                 mesh = new Mesh { name = "ModelLabCreature", hideFlags = HideFlags.HideAndDontSave, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             mesh.Clear();

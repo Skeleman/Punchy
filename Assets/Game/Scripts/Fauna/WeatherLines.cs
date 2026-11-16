@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Newtonsoft.Json.Linq;
 using Punchy.Terrain;
 using UnityEngine;
@@ -9,7 +8,7 @@ namespace Punchy.Fauna
 {
     /// <summary>
     /// What folk say when the weather gets to them (A-71 row 4), read from StreamingAssets/weather-lines.json (edited by
-    /// hand, read again whenever the file changes, like DialogueArchive). Lines are keyed by complaint (a ComfortKind
+    /// hand, read again whenever the file changes: LiveJsonFile). Lines are keyed by complaint (a ComfortKind
     /// name, or Relief on reaching shelter), then by race (a FolkRace asset name), demeanor (Cheerful, Grumpy, Timid, Proud,
     /// Dramatic) or Any. A race with its own strong voice (ownVoice) says only its own lines; the rest mix their race's
     /// pool, their demeanor's and the generic one. Local only: each machine picks its own lines, nothing is sent.
@@ -25,70 +24,64 @@ namespace Punchy.Fauna
         public readonly HashSet<string> OwnVoice = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         public readonly Dictionary<string, string> Alias = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        static WeatherLines loaded;
-        static DateTime loadedTime;
-        static float nextCheck;
-        static string error;
+        static readonly LiveJsonFile<WeatherLines> file = new LiveJsonFile<WeatherLines>(FileName, "WeatherLines", Parse, l => l.Summary());
 
-        public static string Path => System.IO.Path.Combine(Application.streamingAssetsPath, FileName);
+        /// <summary>Where it's read from (JsonFiles.PathOf: beside the exe in a build, if there's a copy there).</summary>
+        public static string Path => file.Path;
 
-        /// <summary>The lines, read again if the file has changed (checked once a second); null if there's no file.</summary>
-        public static WeatherLines Current
+        /// <summary>Why the newest weather-lines.json was turned down (each bad entry named), or null.</summary>
+        public static string Error => file.Error;
+
+        /// <summary>The lines, read again if the file has changed (checked once a second); null if there's no file. A
+        /// version with a bad entry is turned down whole and the last good one kept (LiveJsonFile, A-129).</summary>
+        public static WeatherLines Current => file.Current;
+
+        /// <summary>Reads the set (throws only on broken JSON); bad entries go in problems, none if null.</summary>
+        public static WeatherLines Parse(string json, JsonProblems problems = null)
         {
-            get
-            {
-                // (The clock restarts with each play session but this static doesn't: a check more than a second
-                // away is a stale one from the last session, so check now.)
-                if (loaded == null || Time.realtimeSinceStartup >= nextCheck || nextCheck - Time.realtimeSinceStartup > 1f)
-                {
-                    nextCheck = Time.realtimeSinceStartup + 1f;
-                    try
-                    {
-                        var path = Path;
-                        if (File.Exists(path))
-                        {
-                            var time = File.GetLastWriteTimeUtc(path);
-                            if (loaded == null || time != loadedTime)
-                            {
-                                loadedTime = time;
-                                loaded = Parse(File.ReadAllText(path));
-                                error = null;
-                                Debug.Log($"WeatherLines: read {FileName}: {loaded.Summary()}");
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        // (A typo mid-edit: keep the last good set, and say what's wrong once.)
-                        if (error != e.Message)
-                            Debug.LogWarning($"WeatherLines: couldn't read {FileName}, keeping the last good one: {e.Message}");
-                        error = e.Message;
-                    }
-                }
-                return loaded;
-            }
-        }
-
-        public static WeatherLines Parse(string json)
-        {
+            problems ??= new JsonProblems();
             var root = JObject.Parse(json);
             var set = new WeatherLines();
-            if (root["ownVoice"] is JArray own)
+            if (problems.Strings(root["ownVoice"], "ownVoice") is string[] own)
                 foreach (var v in own)
-                    set.OwnVoice.Add((string)v);
+                    set.OwnVoice.Add(v);
             if (root["alias"] is JObject alias)
+            {
                 foreach (var pair in alias)
-                    set.Alias[pair.Key] = (string)pair.Value;
+                    if (pair.Value.Type == JTokenType.String)
+                        set.Alias[pair.Key] = (string)pair.Value;
+                    else
+                        problems.Add(pair.Value, $"an alias should be a race's name, not {JsonProblems.Kind(pair.Value)}");
+            }
+            else if (root["alias"] != null)
+                problems.Add(root["alias"], "\"alias\" should be an object of race: race");
             if (root["lines"] is JObject kinds)
+            {
                 foreach (var kind in kinds)
                 {
+                    if (kind.Key.StartsWith("_"))
+                        continue;
+                    if (kind.Key != Relief && !Enum.TryParse(kind.Key, true, out ComfortKind _))
+                        problems.Add(kind.Value, $"no complaint called \"{kind.Key}\" (a ComfortKind name or {Relief})");
                     var pools = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
                     if (kind.Value is JObject keys)
+                    {
                         foreach (var key in keys)
-                            if (key.Value is JArray arr && arr.Count > 0)
-                                pools[key.Key] = arr.ToObject<string[]>();
+                            if (!key.Key.StartsWith("_") && problems.Strings(key.Value, key.Key) is string[] pool && pool.Length > 0)
+                            {
+                                foreach (var line in pool)
+                                    if (line.Trim().Length == 0)
+                                        problems.Add(key.Value, "an empty line");
+                                pools[key.Key] = pool;
+                            }
+                    }
+                    else
+                        problems.Add(kind.Value, "a complaint should be an object of race, demeanor or Any: [ lines ]");
                     set.Lines[kind.Key] = pools;
                 }
+            }
+            else if (root["lines"] != null)
+                problems.Add(root["lines"], "\"lines\" should be an object of complaint: { pools }");
             return set;
         }
 

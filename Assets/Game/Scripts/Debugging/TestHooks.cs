@@ -21,7 +21,7 @@ namespace Punchy.Debugging
     /// float[], string, Vector3) so the tests need no game types. Editor only: nothing here reaches a player build.
     /// Mid-session changes (weather, time, place, spawns) go through DebugControls.RunOptions, the same test flags as PlayArgs.
     /// </summary>
-    public static class TestHooks
+    public static partial class TestHooks
     {
         static EntityManager EM => World.DefaultGameObjectInjectionWorld.EntityManager;
 
@@ -505,6 +505,113 @@ namespace Punchy.Debugging
                     r[FolkPersona.Count * 2] += 1f / n;
             }
             return r;
+        }
+
+        /// <summary>
+        /// The bad entries named in the shipped dialogue.json and weather-lines.json, as they'd be logged (A-129): none
+        /// expected. Each comes as "file: path (line n): what's wrong".
+        /// </summary>
+        public static string[] ArchiveProblems()
+        {
+            var found = new List<string>();
+            foreach (var (name, parse) in new (string, System.Action<string, JsonProblems>)[]
+                     {
+                         (DialogueArchive.FileName, (j, p) => DialogueArchive.Parse(j, p)),
+                         (WeatherLines.FileName, (j, p) => WeatherLines.Parse(j, p)),
+                     })
+            {
+                var problems = new JsonProblems();
+                try
+                {
+                    parse(System.IO.File.ReadAllText(JsonFiles.PathOf(name)), problems);
+                }
+                catch (System.Exception e)
+                {
+                    problems.Add(e.Message);
+                }
+                foreach (var problem in problems.All)
+                    found.Add($"{name}: {problem}");
+            }
+            return found.ToArray();
+        }
+
+        /// <summary>
+        /// The live reload (LiveJsonFile, A-129) on a scratch copy of the shipped dialogue.json in Temp: read it, then
+        /// break one culture line, one talk line and one word list and read it again. [first read's line count, line
+        /// count after the bad version (the kept one), the bad version's problems, line count after the fix];
+        /// ReloadError holds the bad version's logged problems.
+        /// </summary>
+        public static float[] ArchiveReload()
+        {
+            var path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", "Temp", "dialogue-reload-test.json");
+            var good = System.IO.File.ReadAllText(DialogueArchive.Path);
+            var file = new LiveJsonFile<DialogueArchive>(path, "DialogueTest", DialogueArchive.Parse, a => $"{a.Count} lines");
+            var r = new float[4];
+            try
+            {
+                System.IO.File.WriteAllText(path, good);
+                r[0] = file.Current?.Count ?? -1;
+                var bad = Newtonsoft.Json.Linq.JObject.Parse(good);
+                foreach (var culture in (Newtonsoft.Json.Linq.JObject)bad["cultures"])
+                {
+                    // (A line with no text, a "when" that isn't a time, a word list holding a number, and an unknown talk key.)
+                    var lines = (Newtonsoft.Json.Linq.JArray)culture.Value["lines"];
+                    lines.Add(new Newtonsoft.Json.Linq.JObject { ["txet"] = "Typo." });
+                    lines.Add(new Newtonsoft.Json.Linq.JObject { ["text"] = "Late, isn't it?", ["when"] = "midnight" });
+                    culture.Value["words"]["broken_list"] = new Newtonsoft.Json.Linq.JArray("fine", 7);
+                    break;
+                }
+                foreach (var culture in (Newtonsoft.Json.Linq.JObject)bad["conversation"])
+                    if (!culture.Key.StartsWith("_") && culture.Key != "topics" && culture.Key != "quests" && culture.Value is Newtonsoft.Json.Linq.JObject topics)
+                    {
+                        foreach (var topic in topics)
+                            if (topic.Value is Newtonsoft.Json.Linq.JArray talk)
+                            {
+                                talk.Add(new Newtonsoft.Json.Linq.JObject { ["text"] = "Hm {trade.", ["moood"] = "Grumpy" });
+                                break;
+                            }
+                        break;
+                    }
+                System.IO.File.WriteAllText(path, bad.ToString());
+                file.Reload();
+                r[1] = file.Current?.Count ?? -1;
+                ReloadError = file.Error;
+                r[2] = string.IsNullOrEmpty(file.Error) ? 0 : file.Error.Split('\n').Length;
+                System.IO.File.WriteAllText(path, good);
+                file.Reload();
+                var fixedCount = file.Current?.Count ?? -1;
+                r[3] = file.Error == null ? fixedCount : -1;
+            }
+            finally
+            {
+                System.IO.File.Delete(path);
+            }
+            return r;
+        }
+
+        public static string ReloadError;
+
+        /// <summary>
+        /// The words that come from dialogue.json's conversation.quests and beastTalk.topics (A-129 row 2), next to the
+        /// file's own entries: [find, clear, bring, bringMany, other, beast meet label, beast bye label] as said, then the
+        /// same seven as the file has them (null where it leaves one out).
+        /// </summary>
+        public static string[] ArchiveWords()
+        {
+            var archive = DialogueArchive.Current;
+            var beast = FolkConversation.Topics(new FolkTalker { Beast = true });
+            string Label(string id) => System.Array.Find(beast, t => t.Id == id).Label;
+            string File(Dictionary<string, string> d, string key) => d != null && d.TryGetValue(key, out var v) ? v : null;
+            var quests = archive?.Talk?.Quests;
+            var labels = archive?.BeastTalk?.Labels;
+            return new[]
+            {
+                FolkConversation.QuestWords("find", "SilverKey", null, 1), FolkConversation.QuestWords("clear", null, "Crow", 1),
+                FolkConversation.QuestWords("bring", "Berry", null, 1), FolkConversation.QuestWords("bring", "Berry", null, 5),
+                FolkConversation.QuestWords("chat", null, null, 1), Label("meet"), Label("bye"),
+                File(quests, "find"), File(quests, "clear"), File(quests, "bring"), File(quests, "bringMany"), File(quests, "other"),
+                File(labels, "meet"), File(labels, "bye"),
+            };
         }
 
         /// <summary>

@@ -570,6 +570,102 @@ namespace Punchy.Fauna
         public const byte Glasses = 4, Goggles = 8, Eyes = Glasses | Goggles;
     }
 
+    /// <summary>How the body draws a player's weapon (P-28; the item table's ItemDef.Weapon). 0 for none.</summary>
+    public static class CreatureWeapon
+    {
+        public const byte None = 0, Club = 1, Spear = 2, Sword = 3, Bow = 4;
+        /// <summary>Item row (Zach 11-10, never idle): a one-handed axe.</summary>
+        public const byte Axe = 5;
+        /// <summary>Item row: a one-handed war hammer.</summary>
+        public const byte Hammer = 6;
+        /// <summary>P-33: a fishing rod (cast, not swung; the line and bobber are drawn by Items).</summary>
+        public const byte Rod = 7;
+    }
+
+    /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,
+    /// then 1..255 through one swing (raised, then brought down; a bow drawn, then loosed).</summary>
+    public struct CreatureOutfit : System.IEquatable<CreatureOutfit>
+    {
+        public byte Weapon, Swing;
+        /// <summary>P-28 row 2: the armour on, place by place (CreatureArmour; 0 for none).</summary>
+        public byte Head, Body, Legs, Feet;
+        /// <summary>P-28 row 3: a cloak on the back, a scarf at the neck (CreatureArmour; 0 for none).</summary>
+        public byte Back, Neck;
+        /// <summary>P-29: the hairstyle and its colour (CreatureHair; style 0 for none).</summary>
+        public byte Hair, HairColour;
+        /// <summary>P-29: a player's body that wears gear: its hair is Hair / HairColour (bald included), drawn in place of
+        /// the species' own hair parts, which are hidden. False for folk, who keep their species' hair.</summary>
+        public bool OwnHair;
+
+        public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
+
+        public bool Equals(CreatureOutfit o) =>
+            Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair;
+    }
+
+    /// <summary>
+    /// Hairstyles and hair colours (P-29), as CreatureOutfit.Hair and HairColour carry them: a player's pick on the
+    /// Character tab, saved and sent like gear. Ids only ever grow (a saved pick and a joined player's must keep meaning
+    /// the same style). Style 0 is none, a bald head.
+    /// </summary>
+    public static class CreatureHair
+    {
+        public const byte Bald = 0, Short = 1, Long = 2, Braid = 3, Ponytail = 4, Topknot = 5, Curls = 6, Crest = 7,
+                          ShortBeard = 8, LongBeard = 9, LongAndBeard = 10, TopknotBeard = 11;
+        public static readonly string[] Names =
+            { "Bald", "Short", "Long", "Braid", "Ponytail", "Topknot", "Curls", "Crest", "Short, beard", "Long beard", "Long, beard", "Topknot, beard" };
+        public static readonly string[] ColourNames = { "Black", "Dark brown", "Brown", "Auburn", "Ginger", "Fair", "Grey", "White" };
+        public const byte DefaultStyle = Short, DefaultColour = 1;
+
+        /// <summary>Whether a style has hair on the scalp, and a beard.</summary>
+        public static bool Scalp(byte style) => style != Bald && style != LongBeard;
+        public static bool Beard(byte style) => style >= ShortBeard && style <= TopknotBeard;
+
+        /// <summary>A colour, linear as the shader takes it.</summary>
+        public static Unity.Mathematics.float4 Colour(byte colour) => colour switch
+        {
+            0 => new Unity.Mathematics.float4(0.012f, 0.011f, 0.01f, 0f),    // black
+            1 => new Unity.Mathematics.float4(0.035f, 0.02f, 0.012f, 0f),    // dark brown
+            2 => new Unity.Mathematics.float4(0.09f, 0.05f, 0.025f, 0f),     // brown
+            3 => new Unity.Mathematics.float4(0.16f, 0.045f, 0.02f, 0f),     // auburn
+            4 => new Unity.Mathematics.float4(0.35f, 0.11f, 0.03f, 0f),      // ginger
+            5 => new Unity.Mathematics.float4(0.5f, 0.36f, 0.16f, 0f),       // fair
+            6 => new Unity.Mathematics.float4(0.25f, 0.24f, 0.23f, 0f),      // grey
+            _ => new Unity.Mathematics.float4(0.62f, 0.61f, 0.58f, 0f),      // white
+        };
+    }
+
+    /// <summary>How the body draws a player's armour (P-28 row 2; the item table's ItemDef.Look), by place.</summary>
+    public static class CreatureArmour
+    {
+        public const byte Cap = 1, Helm = 2, Hood = 3, Woolcap = 4, Brimhat = 5;
+        public const byte Jerkin = 1, Chain = 2, Tunic = 3, Robe = 4;
+        public const byte Greaves = 1;
+        public const byte Boots = 1;
+        public const byte Cloak = 1;
+        public const byte Scarf = 1;
+
+        /// <summary>Cloth (row 3) is dyed by the wearer's folk: its main colour and its trim, linear, by GuardKit.</summary>
+        public static Unity.Mathematics.float4 ClothMain(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => new Unity.Mathematics.float4(0.1f, 0.16f, 0.05f, 0f),    // moss
+            GuardKit.Elf => new Unity.Mathematics.float4(0.04f, 0.2f, 0.16f, 0f),      // teal
+            GuardKit.Goblin => new Unity.Mathematics.float4(0.2f, 0.15f, 0.04f, 0f),   // mustard
+            GuardKit.Ogre => new Unity.Mathematics.float4(0.15f, 0.06f, 0.12f, 0f),    // plum
+            _ => new Unity.Mathematics.float4(0.32f, 0.06f, 0.04f, 0f),                // madder red
+        };
+
+        public static Unity.Mathematics.float4 ClothTrim(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => new Unity.Mathematics.float4(0.35f, 0.2f, 0.05f, 0f),
+            GuardKit.Elf => new Unity.Mathematics.float4(0.6f, 0.6f, 0.52f, 0f),
+            GuardKit.Goblin => new Unity.Mathematics.float4(0.07f, 0.045f, 0.025f, 0f),
+            GuardKit.Ogre => new Unity.Mathematics.float4(0.25f, 0.19f, 0.1f, 0f),
+            _ => new Unity.Mathematics.float4(0.55f, 0.42f, 0.18f, 0f),
+        };
+    }
+
     public enum HeldItem : byte
     {
         None,
@@ -762,6 +858,9 @@ namespace Punchy.Fauna
         public HeldItem Held;
         /// <summary>What a player's body has on besides (CreatureWorn bits, P-23). Not sent: each machine sets it (Items.ApplyGear).</summary>
         public byte Worn;
+        /// <summary>What a player's body has on besides that (P-28): its weapon and where it is in a swing. Not sent:
+        /// each machine sets it (Items.ApplyGear).</summary>
+        public CreatureOutfit Outfit;
 
         /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
         /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>

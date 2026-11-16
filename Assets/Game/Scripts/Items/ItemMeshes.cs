@@ -28,6 +28,43 @@ namespace Punchy.Items
             return meshes[item] = mesh;
         }
 
+        static Mesh bobber;
+
+        /// <summary>P-33: a fishing line's float, a ball red below and white above, with a short stem; its origin at the
+        /// waterline (part 0 red, part 1 white).</summary>
+        public static Mesh Bobber()
+        {
+            if (bobber != null)
+                return bobber;
+            var k = new Kit();
+            k.Blob(0, new Vector3(0f, -0.005f, 0f), new Vector3(0.045f, 0.035f, 0.045f), 1u, 4, 8);
+            k.Blob(1, new Vector3(0f, 0.03f, 0f), new Vector3(0.04f, 0.03f, 0.04f), 2u, 4, 8);
+            k.Tube(1, new Vector3(0f, 0.05f, 0f), new Vector3(0f, 0.1f, 0f), 0.006f, 0.004f, 4);
+            bobber = k.ToMesh();
+            bobber.name = "Bobber";
+            bobber.hideFlags = HideFlags.DontSave;
+            return bobber;
+        }
+
+        static Mesh splash;
+
+        /// <summary>P-33 row 2: a bite's splash, a ring of eight droplets 0.12 m out on the water (scaled out as it grows).</summary>
+        public static Mesh Splash()
+        {
+            if (splash != null)
+                return splash;
+            var k = new Kit();
+            for (int i = 0; i < 8; i++)
+            {
+                var a = i * Mathf.PI * 2f / 8f;
+                k.Blob(0, new Vector3(Mathf.Cos(a) * 0.12f, 0.02f + (i % 2) * 0.02f, Mathf.Sin(a) * 0.12f), new Vector3(0.022f, 0.03f, 0.022f), (uint)i, 3, 5);
+            }
+            splash = k.ToMesh();
+            splash.name = "Splash";
+            splash.hideFlags = HideFlags.DontSave;
+            return splash;
+        }
+
         /// <summary>This item's icon, 64 px with a clear background (made the first time it's asked for).</summary>
         public static Texture2D Icon(byte item)
         {
@@ -53,6 +90,27 @@ namespace Punchy.Items
                 case "Torch": k.Tube(0, new Vector3(0f, 0.03f, -0.3f), new Vector3(0f, 0.03f, 0.2f), 0.025f, 0.035f); k.Blob(1, new Vector3(0f, 0.04f, 0.26f), new Vector3(0.055f, 0.05f, 0.09f), 5u); break;
                 case "Staff": k.Tube(0, new Vector3(0f, 0.03f, -0.55f), new Vector3(0f, 0.03f, 0.5f), 0.02f, 0.028f); k.Blob(1, new Vector3(0f, 0.035f, 0.54f), new Vector3(0.05f, 0.05f, 0.05f), 7u); break;
                 case "Hat": k.Dome(1, new Vector3(0f, 0.02f, 0f), 0.22f, 0.02f); k.Dome(0, new Vector3(0f, 0.03f, 0f), 0.12f, 0.13f); break;
+                case "Club": k.Tube(0, new Vector3(0f, 0.035f, -0.32f), new Vector3(0f, 0.045f, 0.14f), 0.024f, 0.042f); k.Blob(0, new Vector3(0f, 0.055f, 0.22f), new Vector3(0.07f, 0.065f, 0.11f), 3u); k.Tube(1, new Vector3(0f, 0.035f, -0.32f), new Vector3(0f, 0.035f, -0.22f), 0.03f, 0.03f); break;
+                case "Spear": k.Tube(0, new Vector3(0f, 0.025f, -0.9f), new Vector3(0f, 0.025f, 0.68f), 0.018f, 0.018f); k.Tube(1, new Vector3(0f, 0.025f, 0.68f), new Vector3(0f, 0.025f, 0.94f), 0.038f, 0.003f, 4); break;
+                case "Sword": Sword(k); break;
+                case "Bow": Bow(k); break;
+                case "Axe": Axe(k); break;
+                case "Rod": k.Tube(1, new Vector3(0f, 0.03f, -0.85f), new Vector3(0f, 0.03f, -0.55f), 0.022f, 0.02f, 6); k.Tube(0, new Vector3(0f, 0.03f, -0.55f), new Vector3(0f, 0.025f, 0.95f), 0.014f, 0.004f, 5); k.Tube(0, new Vector3(0.03f, 0.03f, -0.5f), new Vector3(0.03f, 0.03f, -0.44f), 0.028f, 0.028f, 6); break;
+                case "Hammer": k.Tube(0, new Vector3(0f, 0.035f, -0.32f), new Vector3(0f, 0.035f, 0.3f), 0.02f, 0.024f, 6); k.Tube(1, new Vector3(-0.09f, 0.045f, 0.3f), new Vector3(0.09f, 0.045f, 0.3f), 0.045f, 0.045f, 6); k.Tube(0, new Vector3(0f, 0.035f, -0.34f), new Vector3(0f, 0.035f, -0.24f), 0.028f, 0.028f, 6); break;
+                case "Arrow": k.Tube(0, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, 0.3f), 0.008f, 0.008f, 5); k.Tube(1, new Vector3(0f, 0.012f, 0.3f), new Vector3(0f, 0.012f, 0.37f), 0.016f, 0.002f, 4); k.Tube(1, new Vector3(0f, 0.012f, -0.32f), new Vector3(0f, 0.012f, -0.2f), 0.026f, 0.012f, 3); break;
+                case "Cap": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.11f, 0.09f); k.Tube(1, new Vector3(-0.1f, 0.015f, 0.04f), new Vector3(0.1f, 0.015f, 0.04f), 0.012f, 0.012f, 4); break;
+                case "Helm": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.13f, 0.14f); k.Tube(1, new Vector3(0f, 0.12f, 0.12f), new Vector3(0f, 0.02f, 0.135f), 0.014f, 0.01f, 4); k.Tube(1, new Vector3(-0.13f, 0.02f, 0f), new Vector3(0.13f, 0.02f, 0f), 0.014f, 0.014f, 4); break;
+                case "Jerkin": k.Blob(0, new Vector3(0f, 0.05f, 0f), new Vector3(0.2f, 0.05f, 0.24f), 4u, 4, 8); k.Tube(1, new Vector3(-0.2f, 0.07f, -0.08f), new Vector3(0.2f, 0.07f, -0.08f), 0.015f, 0.015f, 4); break;
+                case "Chainmail": k.Blob(0, new Vector3(0f, 0.05f, 0f), new Vector3(0.21f, 0.05f, 0.26f), 9u, 5, 9); k.Tube(1, new Vector3(-0.2f, 0.06f, 0.2f), new Vector3(0.2f, 0.06f, 0.2f), 0.02f, 0.02f, 5); break;
+                case "Greaves": k.Tube(0, new Vector3(-0.07f, 0.04f, -0.2f), new Vector3(-0.07f, 0.04f, 0.18f), 0.045f, 0.04f); k.Tube(0, new Vector3(0.07f, 0.04f, -0.2f), new Vector3(0.07f, 0.04f, 0.18f), 0.045f, 0.04f); k.Tube(1, new Vector3(-0.12f, 0.04f, 0.1f), new Vector3(0.12f, 0.04f, 0.1f), 0.01f, 0.01f, 4); break;
+                case "Boots": k.Tube(0, new Vector3(-0.07f, 0.12f, 0f), new Vector3(-0.07f, 0.03f, 0f), 0.04f, 0.045f); k.Tube(0, new Vector3(-0.07f, 0.03f, -0.02f), new Vector3(-0.07f, 0.03f, 0.13f), 0.04f, 0.035f); k.Tube(0, new Vector3(0.07f, 0.12f, 0f), new Vector3(0.07f, 0.03f, 0f), 0.04f, 0.045f); k.Tube(0, new Vector3(0.07f, 0.03f, -0.02f), new Vector3(0.07f, 0.03f, 0.13f), 0.04f, 0.035f); break;
+                case "Tunic": k.Blob(0, new Vector3(0f, 0.04f, 0f), new Vector3(0.19f, 0.04f, 0.22f), 6u, 4, 8); k.Tube(1, new Vector3(-0.19f, 0.06f, -0.02f), new Vector3(0.19f, 0.06f, -0.02f), 0.012f, 0.012f, 4); break;
+                case "Robe": k.Blob(0, new Vector3(0f, 0.04f, 0f), new Vector3(0.2f, 0.04f, 0.34f), 8u, 4, 8); k.Tube(1, new Vector3(-0.2f, 0.06f, 0.05f), new Vector3(0.2f, 0.06f, 0.05f), 0.014f, 0.014f, 4); break;
+                case "Cloak": k.Blob(0, new Vector3(0f, 0.03f, 0f), new Vector3(0.28f, 0.03f, 0.3f), 12u, 3, 9); k.Tube(1, new Vector3(-0.1f, 0.05f, 0.27f), new Vector3(0.1f, 0.05f, 0.27f), 0.02f, 0.02f, 5); break;
+                case "Scarf": k.Tube(0, new Vector3(-0.2f, 0.02f, -0.05f), new Vector3(0.2f, 0.02f, 0.02f), 0.03f, 0.03f, 5); k.Tube(1, new Vector3(0.2f, 0.02f, 0.02f), new Vector3(0.24f, 0.02f, 0.03f), 0.032f, 0.02f, 5); break;
+                case "Hood": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.14f, 0.15f); k.Tube(0, new Vector3(0f, 0.04f, -0.12f), new Vector3(0f, 0.02f, -0.26f), 0.08f, 0.04f); break;
+                case "Woolcap": k.Dome(0, new Vector3(0f, 0.01f, 0f), 0.11f, 0.1f); k.Blob(1, new Vector3(0f, 0.12f, 0f), new Vector3(0.04f, 0.04f, 0.04f), 4u, 4, 6); break;
+                case "Brimhat": k.Dome(1, new Vector3(0f, 0.015f, 0f), 0.26f, 0.02f); k.Dome(0, new Vector3(0f, 0.03f, 0f), 0.11f, 0.12f); break;
                 case "Pack": k.Blob(0, new Vector3(0f, 0.15f, 0f), new Vector3(0.17f, 0.15f, 0.11f), 0u, 5, 8); k.Blob(1, new Vector3(0f, 0.25f, 0.01f), new Vector3(0.16f, 0.05f, 0.11f), 0u, 4, 8); k.Tube(1, new Vector3(-0.12f, 0.02f, 0.1f), new Vector3(-0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); k.Tube(1, new Vector3(0.12f, 0.02f, 0.1f), new Vector3(0.12f, 0.25f, 0.1f), 0.018f, 0.018f, 4); break;
                 default: k.Blob(0, new Vector3(0f, 0.1f, 0f), new Vector3(0.1f, 0.1f, 0.1f), 3u); break;
             }
@@ -108,6 +166,52 @@ namespace Punchy.Items
             k.Tube(0, centre + new Vector3(0f, 0f, ring), new Vector3(0f, y, 0.16f), 0.014f, 0.014f, 5);
             k.Tube(0, new Vector3(0f, y, 0.14f), new Vector3(0.06f, y, 0.14f), 0.012f, 0.012f, 4);
             k.Tube(0, new Vector3(0f, y, 0.1f), new Vector3(0.045f, y, 0.1f), 0.012f, 0.012f, 4);
+        }
+
+        /// <summary>A flat blade with a raised middle (a diamond across), a crossguard, a wrapped grip and a pommel.</summary>
+        static void Sword(Kit k)
+        {
+            const float y = 0.03f, w = 0.032f, ridge = 0.009f;
+            Vector3 l = new Vector3(-w, y, -0.24f), r = new Vector3(w, y, -0.24f), tip = new Vector3(0f, y, 0.42f);
+            Vector3 top = new Vector3(0f, y + ridge, -0.24f), under = new Vector3(0f, y - ridge, -0.24f);
+            Vector3 topTip = new Vector3(0f, y + ridge * 0.3f, 0.36f), underTip = new Vector3(0f, y - ridge * 0.3f, 0.36f);
+            k.Tri(0, l, top, topTip); k.Tri(0, l, topTip, tip); k.Tri(0, top, r, topTip); k.Tri(0, topTip, r, tip);
+            k.Tri(0, l, underTip, under); k.Tri(0, l, tip, underTip); k.Tri(0, under, underTip, r); k.Tri(0, underTip, tip, r);
+            k.Tube(0, new Vector3(-0.09f, y, -0.25f), new Vector3(0.09f, y, -0.25f), 0.014f, 0.014f, 5);
+            k.Tube(1, new Vector3(0f, y, -0.38f), new Vector3(0f, y, -0.26f), 0.017f, 0.017f, 6);
+            k.Blob(0, new Vector3(0f, y, -0.395f), new Vector3(0.025f, 0.025f, 0.025f), 2u, 4, 6);
+        }
+
+        /// <summary>An axe lying flat: a haft, and at its head a flat iron blade widening out to the edge on one side
+        /// (thicker by the haft, thin at the edge), a short poll on the other.</summary>
+        static void Axe(Kit k)
+        {
+            const float y = 0.03f, t = 0.012f;
+            k.Tube(0, new Vector3(0f, y, -0.34f), new Vector3(0f, y, 0.34f), 0.02f, 0.024f, 6);
+            Vector3 n0 = new Vector3(0.02f, y + t, 0.21f), n1 = new Vector3(0.02f, y + t, 0.33f);
+            Vector3 m0 = new Vector3(0.02f, y - t, 0.21f), m1 = new Vector3(0.02f, y - t, 0.33f);
+            Vector3 e0 = new Vector3(0.16f, y, 0.15f), e1 = new Vector3(0.16f, y, 0.39f);
+            k.Tri(1, n0, n1, e1); k.Tri(1, n0, e1, e0);
+            k.Tri(1, m0, e1, m1); k.Tri(1, m0, e0, e1);
+            k.Blob(1, new Vector3(-0.03f, y, 0.27f), new Vector3(0.035f, 0.022f, 0.045f), 2u, 4, 6);
+        }
+
+        /// <summary>A bow lying strung: its two limbs curving back from the grip, the string tip to tip.</summary>
+        static void Bow(Kit k)
+        {
+            const int segments = 8;
+            const float y = 0.03f, half = 0.6f, depth = 0.17f;
+            var last = new Vector3(-depth * 0.35f, y, -half);
+            for (int i = 1; i <= segments; i++)
+            {
+                var t = -1f + 2f * i / segments;
+                var at = new Vector3(depth * (1f - t * t) - depth * 0.35f, y, half * t);
+                var r = Mathf.Lerp(0.024f, 0.011f, Mathf.Abs(t));
+                k.Tube(0, last, at, Mathf.Lerp(0.024f, 0.011f, Mathf.Abs(-1f + 2f * (i - 1) / segments)), r, 5);
+                last = at;
+            }
+            k.Tube(1, new Vector3(depth * 0.6f, y, -0.07f), new Vector3(depth * 0.6f, y, 0.07f), 0.03f, 0.03f, 6);
+            k.Tube(1, new Vector3(-depth * 0.35f, y, -half), new Vector3(-depth * 0.35f, y, half), 0.004f, 0.004f, 3);
         }
 
         /// <summary>Triangles being put together, by part, each with its own flat normal.</summary>
