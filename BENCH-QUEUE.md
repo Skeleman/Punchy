@@ -1066,3 +1066,10 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Views: (a) standing in a town with walk-in houses with deer and folk about; (b) open country as a control.
 - Record: CreatureBrainSystem job ms (worker), the footprint bake ms at load, whole-frame CPU ms.
 - Pass: B within 0.2 ms brain job and no change at (b). Report the numbers otherwise.
+
+## Job 111 (2026-11-16, QUEUED after 109; render-2 lane, R-35 r2 #333, branch render/cloud-picks b7a1f7cc, carries #494): cloud look picks, cost per pick
+- Arms (all on the branch build, by `-skyoff` mask): base 0; A 4096; B 8192; C 16384; D 32768; all 61440; clouds off 3 (the cloud share, as job 79); E off 65536 (fades in metres, the branch with E taken out). Also main for the E check. The branch carries #494 (merged in for ScreenSize.hlsl), so main vs branch base also includes #494's fades; the 0 vs 65536 pair isolates E.
+- Profile build, 1920x1080, Medium and Ultra, uncapped, noon, arms rotated, 3 rounds, 300 frames.
+- Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
+- Record: GPU ms per arm and view; cloud share = arm minus clouds-off; main vs branch base, to confirm E is within noise at fov 60.
+- Expect A, B and D within noise. C is the one to price (one extra density sample per lit step). Report only.
