@@ -7,7 +7,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 
 | Card | Issue | Lane | Status | Branch@sha | Next step |
 |---|---|---|---|---|---|
-| W-153 | #301 | world | ready | water/truth eaaab67f | Conflicts with main (IslandCache, IslandV2, TerrainSource): world merges main in |
+| W-153 | #301 | world | done, awaiting PR | water/truth 4eb0f654 | Main merged in (39b31049); WorldTests 20/20; landmarks unmoved |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
 | W-175 | #415 | world | merged #516 (world part), fungi caps #521 | - | Cookhouse blueprint in human villages; fungi-cap brightness |
 | W-177 | #522 | world | merged #527 | - | Cave mushrooms: clusters from the flora Mushroom grower on Fungi/GlowFungi patches, wall-grown form, LOD by screen size; tests 19/19; BENCH requested; next for world: open |

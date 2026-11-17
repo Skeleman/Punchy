@@ -8593,3 +8593,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Checks: (1) roads 0 cuts, so roads and slopes walk the same; (2) the system queries PlayerTag only, so AI is unaffected; (3) prediction is unaffected (client-side, deterministic, no ghost fields); (4) at an 8 m grid, 100.0% of cells and 114/114 landmarks are still reached. WorldTests 19/19, NaN 0.
 - Not done yet: the W-144 routes rebuilt as CaveHangings, plus grade 2 for vines and roots. It's a ~300-line salvage of the route finding from origin/world/cave-climbs. Do you want it as row 3b, or as its own card?
 - Update: the routes are now W-181, not started. Row 4 was already done (2f8b15be), so world/rock-walls is ready for its PR (rows 2-4). I checked frame cliff-skill3/f08: the body is standing at the cliff's foot, so the refusal shows on screen, not just in the log.
+
+## W-153 (#301) main merge - DONE, ready for PR (water/truth 4eb0f654)
+- Merged origin/main (39b31049): W-162 and W-174 kept; old stepped-pool block dropped from TerrainSource (lives in TerrainSource.Paddies.cs, now on W-174's GroundEdits falloff); IslandCache Format 6; paddies bake after scarps, before cliff kit/sockets/herds.
+- WorldTests 20/20. Landmarks unmoved (114 9786243F), temple sockets pin holds, so no re-pin or profiler note needed.
+- Water truth re-based (4eb0f654): main's river changes raised graph-only bend 80->82 and uphillGraph 31->62 (plus deep/step/fallFoot +1..5); dryRun, wall, tilt, fallHead fell. River turns max 121.2, p99 103.4.
+- Editor closed.
