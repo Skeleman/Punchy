@@ -150,6 +150,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<Punchy.Fauna.HerdSetBlob> Herds;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
+        /// <summary>W-153: set only while the bake looks for river notches, to see the ground as the later passes left it.</summary>
+        public bool RiverNotchOff;
         /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>
         public bool RiverRoughOn;
         /// <summary>
@@ -647,15 +649,20 @@ namespace Punchy.Terrain
             var h = ShapeHeight(xz, shape);
             if (Archipelago.IsCreated)
                 h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
+            var river = default(RiverQuery);
             if (Rivers.IsCreated)
-                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h, xz);
+            {
+                river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
+                h = RiverSampling.Carve(river, RiverSettings, h, xz);
+            }
+            var carved = h;
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
                 h = Punchy.Terrain.GrandFalls.Shape(ref GrandFalls.Value, xz, h, out _, out _, out _, out _);
             if (Scarps.IsCreated)
                 h = ScarpSet.Shape(ref Scarps.Value, xz, h);
-            return Settle(xz, Ponds(xz, shape, h));
+            return Notch(xz, river, carved, Settle(xz, Ponds(xz, shape, h)));
         }
 
         /// <summary>
@@ -727,12 +734,16 @@ namespace Punchy.Terrain
             const float farAbove = -50f;
             var ruleDepth = World.SeaLevel - g.Height;
 
+            var notchRiver = default(RiverQuery);
+            var carved = g.Height;
             if (Rivers.IsCreated)
             {
                 var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
+                notchRiver = river;
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height, xz);
+                carved = g.Height;
                 g.River = RiverSampling.ChannelMask(river);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
@@ -861,8 +872,13 @@ namespace Punchy.Terrain
             }
             else if (dug > g.Height)
                 g.Height = dug;   // a stepped pool's bank, a little above the ground
-            // Settlements keep clear of water, so their levelling doesn't change the water rules above.
-            g.Height = Beds(xz, Settle(xz, g.Height));
+            // Settlements keep clear of water, so their levelling doesn't change the water rules above. A river notch
+            // (W-153) only cuts ground back down towards the channel, so the water there is that much deeper.
+            var settled = Settle(xz, g.Height);
+            var notched = Notch(xz, notchRiver, carved, settled);
+            if (notched < settled)
+                ruleDepth += settled - notched;
+            g.Height = Beds(xz, notched);
 
             g.WaterSurface = water;
             g.Flow = flow;

@@ -116,7 +116,10 @@ namespace Punchy.Tests
         // fallFoot 4 -> 5; dryRun 10 -> 9, wall 988 -> 972, tilt 31 -> 29, fallHead 47 -> 46. Re-based here.
         // uphillGraph 62 -> 10: 52 of the 62 were lake edges, where a lake cell's Bed holds the lake surface (flat water,
         // uphillSampled 0), so the probe no longer compares beds across a lake edge. The 10 left are bed rises under 0.25 m.
-        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 9, 10, 0, 972, 43, 29, 964, 46, 5 };
+        // W-153 row 3 (river notches + small falls): notches cut rises left by later ground passes (dryRun 9 -> 7);
+        // channel water held to a fall's lip (dryRun 7 -> 3, wall 972 -> 930, fallFoot 5 -> 2) makes each step a small
+        // fall, which the probe counts as step 970 -> 1013, deep 43 -> 45 and tilt 29 -> 30 at the lips. Re-based here.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 3, 10, 0, 930, 45, 30, 1013, 46, 2 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8

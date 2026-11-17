@@ -55,6 +55,8 @@ namespace Punchy.Terrain
         public float Length, MaxDrop, LayerSpan;
         public BlobArray<ScarpNode> Nodes;
         public BlobArray<ScarpLayer> Layers;
+        /// <summary>Shaped after settlement plots are levelled (a river notch's bank, W-153), not with the other scarps.</summary>
+        public bool Late;
     }
 
     public struct ScarpSetBlob
@@ -85,14 +87,14 @@ namespace Punchy.Terrain
         static bool Inside(float4 bounds, float2 xz) => math.all(xz >= bounds.xy) && math.all(xz <= bounds.zw);
 
         /// <summary>The ground with every scarp cut into it.</summary>
-        public static float Shape(ref ScarpSetBlob set, float2 xz, float h)
+        public static float Shape(ref ScarpSetBlob set, float2 xz, float h, bool late = false)
         {
             if (!Inside(set.Bounds, xz))
                 return h;
             for (int i = 0; i < set.Scarps.Length; i++)
             {
                 ref var sc = ref set.Scarps[i];
-                if (Inside(sc.Bounds, xz))
+                if (sc.Late == late && Inside(sc.Bounds, xz))
                     h = Shape(ref sc, xz, h);
             }
             return h;
