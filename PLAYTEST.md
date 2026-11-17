@@ -216,3 +216,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-16: #527 W-177 (#522) cave fungi patches grow real mushroom clusters, glowing caps on GlowFungi, caps turned up on walls (world). Playtest: find a fungal cave or glowing wall patch.
 - #530 W-180 (#529): cave mouths showing sky was a shot artifact (cull lags a camera move by one frame); docs gotcha only, no game change.
 - #531 W-178 r1 (#523): glowing cave tendrils over glow fungi, sway and part on touch; shared local ChainSim.
+- #532 W-179 r1 (#528): one shared cave haze; fungi, tendrils, bats and creatures now sit in the cave's air.
