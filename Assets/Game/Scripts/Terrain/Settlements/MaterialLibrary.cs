@@ -60,14 +60,21 @@ namespace Punchy.Terrain
     {
         /// <summary>One kind of wood. Base: its reference colour (also the hue its late wood and knots darken to).
         /// RingSpacing: metres between growth rings. Contrast: how dark the late wood gets (1 oak). Knots: 0..1, how
-        /// many half-metre cells hold a knot. Grey: 0..1, how silver its wear bands go. Pores: fine streak strength.</summary>
+        /// many knot cells hold a knot. Grey: 0..1, how silver its wear bands go. Pores: fine streak strength.
+        /// BoardScale: painted board and shingle width (1 = 21 cm boards, 30 cm shingles; laid geometry keeps its size).
+        /// KnotSpacing: metres per knot cell. Figure: how far the grain wanders (1 oak). Wear: dirt band strength.</summary>
         public readonly struct WoodRow
         {
             public readonly Color Base;
-            public readonly float RingSpacing, Contrast, Knots, Grey, Pores;
+            public readonly float RingSpacing, Contrast, Knots, Grey, Pores, BoardScale, KnotSpacing, Figure, Wear;
 
-            public WoodRow(Color baseColour, float ringSpacing, float contrast, float knots, float grey, float pores)
+            public WoodRow(Color baseColour, float ringSpacing, float contrast, float knots, float grey, float pores,
+                float boardScale = 1f, float knotSpacing = 0.55f, float figure = 1f, float wear = 0.22f)
             {
+                BoardScale = boardScale;
+                KnotSpacing = knotSpacing;
+                Figure = figure;
+                Wear = wear;
                 Base = baseColour;
                 RingSpacing = ringSpacing;
                 Contrast = contrast;
@@ -81,10 +88,10 @@ namespace Punchy.Terrain
         public static readonly WoodRow[] Wood =
         {
             new WoodRow(new Color(0.36f, 0.24f, 0.15f), 0.011f, 1.0f, 0.45f, 0.0f, 1.0f),    // oak: warm, open rings
-            new WoodRow(new Color(0.46f, 0.33f, 0.20f), 0.007f, 1.25f, 0.9f, 0.0f, 0.7f),    // pine: pale, tight, knotty
-            new WoodRow(new Color(0.52f, 0.47f, 0.40f), 0.014f, 0.7f, 0.2f, 0.85f, 1.4f),    // driftwood: washed, silver
-            new WoodRow(new Color(0.27f, 0.18f, 0.12f), 0.009f, 0.6f, 0.3f, 0.0f, 0.8f),     // dark: walnut-brown, quiet
-            new WoodRow(new Color(0.48f, 0.42f, 0.34f), 0.012f, 0.8f, 0.4f, 0.5f, 1.2f),     // bleached: sun-greyed
+            new WoodRow(new Color(0.46f, 0.33f, 0.20f), 0.007f, 1.25f, 0.9f, 0.0f, 0.7f, 0.8f, 0.38f, 0.6f, 0.18f),    // pine: pale, tight, knotty; narrow straight boards
+            new WoodRow(new Color(0.52f, 0.47f, 0.40f), 0.014f, 0.7f, 0.2f, 0.85f, 1.4f, 1.2f, 0.8f, 1.6f, 0.35f),    // driftwood: washed, silver; wide twisted boards
+            new WoodRow(new Color(0.27f, 0.18f, 0.12f), 0.009f, 0.6f, 0.3f, 0.0f, 0.8f, 1.1f, 0.7f, 0.8f, 0.12f),     // dark: walnut-brown, quiet; kept clean
+            new WoodRow(new Color(0.48f, 0.42f, 0.34f), 0.012f, 0.8f, 0.4f, 0.5f, 1.2f, 1f, 0.55f, 1.2f, 0.34f),     // bleached: sun-greyed; worn
         };
 
         /// <summary>How one kind of stone breaks as a bare wall (W-166 #336). Roughness: lumps (0 smooth, 1 rock).
@@ -134,16 +141,20 @@ namespace Punchy.Terrain
         public const int MaxWoodKinds = 8;
         static readonly int GrainKinds = Shader.PropertyToID("_PunchyWoodGrainKinds");
         static readonly int ToneKinds = Shader.PropertyToID("_PunchyWoodToneKinds");
+        static readonly int FormKinds = Shader.PropertyToID("_PunchyWoodFormKinds");
 
-        /// <summary>Pushes the table to the shaders (Wood.hlsl's _PunchyWoodGrainKinds and _PunchyWoodToneKinds).</summary>
+        /// <summary>Pushes the table to the shaders (Wood.hlsl's _PunchyWoodGrainKinds, _PunchyWoodToneKinds and
+        /// _PunchyWoodFormKinds).</summary>
         public static void Push()
         {
             var grain = new Vector4[MaxWoodKinds];
             var tone = new Vector4[MaxWoodKinds];
+            var form = new Vector4[MaxWoodKinds];
             for (int i = 0; i < MaxWoodKinds; i++)
             {
                 var row = Wood[Mathf.Min(i, Wood.Length - 1)];
                 grain[i] = new Vector4(row.RingSpacing, row.Contrast, row.Knots, row.Grey);
+                form[i] = new Vector4(row.BoardScale, row.KnotSpacing, row.Figure, row.Wear);
                 // The base colour's hue at luminance 1, so tinting the late wood by it keeps its brightness.
                 var lum = Mathf.Max(0.05f, row.Base.r * 0.299f + row.Base.g * 0.587f + row.Base.b * 0.114f);
                 var hue = new Vector3(row.Base.r, row.Base.g, row.Base.b) / lum;
@@ -152,6 +163,7 @@ namespace Punchy.Terrain
             }
             Shader.SetGlobalVectorArray(GrainKinds, grain);
             Shader.SetGlobalVectorArray(ToneKinds, tone);
+            Shader.SetGlobalVectorArray(FormKinds, form);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
