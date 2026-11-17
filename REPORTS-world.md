@@ -8521,3 +8521,9 @@ Plan:
 - Pose first, let a frame pass, then shoot: the mouth is dark at 20 m on both cameras and reads dark at 150 m. With the skip turned off, the same pose looked the same.
 - In play this can only show for one frame after a camera cut. Gotcha added to docs/agents/editor-and-assets.md.
 - Shots: D:/Unity/PunchyMilestones/W-180 w180-flat-before/-after, w180-steep-before/-after, w180-steep-150m-y95 (-y80 is blocked by trees).
+
+## W-178 (#523) row 1 cave tendrils - verified, branch world/cave-tendrils 27879651 (code 3f8bd7a0)
+- New shared ChainSim (Ambience, local only, nothing networked) drives glowing tendrils beside GlowFungi, built from the wall-detail placement in CaveSystem.Tendrils (partial).
+- Play: 20 tendrils in fungal cave 2 hang to their length and part around the player. LOD by DetailPolicy.ScreenSize. WorldTests 19/19.
+- Glow reads dim under the cave haze: same wall-detail material path as the black fungi, fixed in W-179 r1.
+- Shots: D:/Unity/PunchyMilestones/W-178 tendrils-3m, tendrils-wide. Cost check queued in BENCH-QUEUE.

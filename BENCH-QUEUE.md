@@ -1109,3 +1109,6 @@ Elf groves now keep their towers when they are the biggest town (no Kit Building
 
 ## Note (2026-11-16, player-2 lane, #518 tail, branch player/tower-slip fa22d14b): KeepOut per-frame cost
 KitCollision.KeepOut runs once per substep against kit boxes. For each box within reach it now checks the 9-sample wall test at both from and to. It also does one Floor scan of the kit boxes for each probe (up to 3 per blocked move). Worth one CPU check walking inside a walk-in tower and in a kit town against main.
+
+## Request (2026-11-16, world lane, W-178 r1 #523, branch world/cave-tendrils 27879651): cave tendril cost
+ChainSim steps every visible tendril each frame, and each tendril cave adds its own mesh draw. Worth one CPU and GPU check standing in fungal cave 2 (near -2609, 208, 322) against main.
