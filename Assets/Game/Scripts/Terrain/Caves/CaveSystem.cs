@@ -73,6 +73,8 @@ namespace Punchy.Terrain
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
             public NativeList<float4> Data;
+            /// <summary>W-162: rgb the country rock round a mouth, a its share (UV1, see MeshJob.Look).</summary>
+            public NativeList<float4> Rock;
             public NativeList<int> Indices;
             public bool Pending;
             /// <summary>Whether its walls cast sun shadows: only chunks reaching up near the surface can shade anything the sun lights.</summary>
@@ -132,6 +134,7 @@ namespace Punchy.Terrain
                 if (Positions.IsCreated) Positions.Dispose();
                 if (Normals.IsCreated) Normals.Dispose();
                 if (Colors.IsCreated) Colors.Dispose();
+                if (Rock.IsCreated) Rock.Dispose();
                 if (Indices.IsCreated) Indices.Dispose();
                 if (Mesh != null) Destroy(Mesh);
             }
@@ -1684,6 +1687,7 @@ namespace Punchy.Terrain
                 if (ShardProbe)
                     LogShards(b);
                 mesh.SetUVs(0, b.Data.AsArray());
+                mesh.SetUVs(1, b.Rock.AsArray());
                 mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
                 var min = (float3)key * chunkSize;
                 // Room for the apron and the skirts (each within two of its voxels outside the chunk).
@@ -1717,6 +1721,7 @@ namespace Punchy.Terrain
             b.Normals.Dispose();
             b.Colors.Dispose();
             b.Data.Dispose();
+            b.Rock.Dispose();
             b.Indices.Dispose();
             b.Opening.Dispose();
             b.Gap.Dispose();
@@ -1934,6 +1939,7 @@ namespace Punchy.Terrain
                 Positions = new NativeList<float3>(Allocator.Persistent),
                 Normals = new NativeList<float3>(Allocator.Persistent),
                 Colors = new NativeList<float4>(Allocator.Persistent),
+                Rock = new NativeList<float4>(Allocator.Persistent),
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Opening = new NativeArray<float3>(2, Allocator.Persistent),
                 Gap = new NativeArray<float>(1, Allocator.Persistent),
@@ -1951,7 +1957,7 @@ namespace Punchy.Terrain
             {
                 Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
-                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
+                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Rock = b.Rock, Indices = b.Indices,
                 Opening = b.Opening, Gap = b.Gap, Contacts = b.Contacts,
                 ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
             }.Schedule(field);
@@ -2044,7 +2050,7 @@ namespace Punchy.Terrain
         }
 
         [BurstCompile]
-        struct MeshJob : IJob
+        partial struct MeshJob : IJob
         {
             public TerrainSource Source;
             /// <summary>Global grid index of the first point (world position = index × Voxel).</summary>
@@ -2055,7 +2061,7 @@ namespace Punchy.Terrain
             [ReadOnly] public NativeArray<float> Field, CaveField;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
-            public NativeList<float4> Data;
+            public NativeList<float4> Data, Rock;
             public NativeList<int> Indices;
             /// <summary>"-caveshards": walls no cave owns drawn magenta (the grey shards at cave mouths, style 0).</summary>
             public bool ShardProbe;
@@ -2150,12 +2156,13 @@ namespace Punchy.Terrain
                     edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
                     Normals.Add(Gradient(p));
-                    var color = Look(p, out var data, out var open);
+                    var color = Look(p, out var data, out var open, out var country);
                     // W-135 row 4: darkened round the things standing here (through the rib shade; openness left alone).
                     if (Contacts.Length > 0 && !ShardProbe)
                         data.w = SeamRib(data.w, SeamShade(p));
                     Colors.Add(color);
                     Data.Add(data);
+                    Rock.Add(country);
                     // Walls the sky can see (the terrain cut away above them, generously): only through these can
                     // anyone outside see into the cave.
                     if (open > 0f)
@@ -2228,6 +2235,7 @@ namespace Punchy.Terrain
                     Normals.Add(Normals[v]);
                     Colors.Add(Colors[v]);
                     Data.Add(Data[v]);
+                    Rock.Add(Rock[v]);
                 }
                 return skirtOf[v];
             }
@@ -2259,109 +2267,6 @@ namespace Punchy.Terrain
                     RockAt(p + new float3(e, 0f, 0f)) - RockAt(p - new float3(e, 0f, 0f)),
                     RockAt(p + new float3(0f, e, 0f)) - RockAt(p - new float3(0f, e, 0f)),
                     RockAt(p + new float3(0f, 0f, e)) - RockAt(p - new float3(0f, 0f, e))), new float3(0f, 1f, 0f));
-            }
-
-            /// <summary>
-            /// A road tunnel's floor (its road's level) under p: along the nearest of its passages; axis is the point
-            /// on that passage's centre line (xz) nearest p.
-            /// </summary>
-            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p, out float2 axis)
-            {
-                var best = 1e9f;
-                var floor = p.y;
-                axis = p.xz;
-                for (int s = c.FirstSegment; s < c.FirstSegment + c.SegmentCount; s++)
-                {
-                    var a = set.Nodes[set.Segments[s].A];
-                    var b = set.Nodes[set.Segments[s].B];
-                    var ab = b.Position.xz - a.Position.xz;
-                    var t = math.saturate(math.dot(p.xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
-                    var d = math.distancesq(p.xz, a.Position.xz + ab * t);
-                    if (d < best)
-                    {
-                        best = d;
-                        floor = math.lerp(a.Position.y, b.Position.y, t) - math.lerp(a.Radius, b.Radius, t) * c.Profile.y * 0.45f;
-                        axis = a.Position.xz + ab * t;
-                    }
-                }
-                return floor;
-            }
-
-            /// <summary>
-            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
-            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
-            /// (negative: lighter) ribs make it here. In a road tunnel z also carries 32 x a tunnel code (1 + paved +
-            /// 2 if built, see Cave.shader) and w the road's share of the floor here (negative: a fallen stone's share).
-            /// </summary>
-            float4 Look(float3 p, out float4 data, out float open)
-            {
-                var surface = Source.SampleHeight(p.xz);
-                // Daylight from the mouth of whichever cave this wall belongs to.
-                ref var set = ref Source.Caves.Value;
-                CaveSampling.Distance(ref set, p, out var cave);
-                var fromMouth = cave >= 0 ? math.saturate(1f - (math.distance(p, set.Caves[cave].Mouth) - 3f) / 14f) : 0f;
-                // A road tunnel (W-110) has a portal at each end: daylight comes in at both.
-                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
-                {
-                    var far = FarPortal(ref set, set.Caves[cave]);
-                    fromMouth = math.max(fromMouth, math.saturate(1f - (math.distance(p, far) - 3f) / 14f));
-                }
-                var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
-                // Open to the sky (the terrain is cut away above: a trench or crater at a mouth): it's outside ground,
-                // so it takes the land's look and daylight however far below the uncut surface height it lies. Generous
-                // (up to 2 m of clearance): the terrain's cut is interpolated between its vertices, and wherever the
-                // terrain stays it hides this skin anyway.
-                open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
-                var ground = Source.SampleGround(p.xz);
-                var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                // A road tunnel's floor carries its road through (W-110): the road's own colour, as painted on the
-                // centre line outside, so it reads as the same road from portal to portal. W-138 row 4b: no longer
-                // taken as the terrain look (that shaded it as daylit ground, a pale smear deep inside); the shader
-                // draws it as its own surface (cobbles or packed grit) in the cave's light, and fallen stones in their
-                // own pale grey.
-                var tunnelCode = 0;
-                var tunnelFloor = 0f;
-                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
-                {
-                    var floorY = TunnelFloor(ref set, set.Caves[cave], p, out var axis);
-                    if (p.y < floorY + 1.2f)
-                    {
-                        var props = new SurfaceProps { Albedo = albedo };
-                        if (Source.TunnelRoadSurface(axis, ref props) > 0f)
-                        {
-                            // Never brighter than worn stone: a pale road paint would glare under a lamp.
-                            var lum = math.dot(props.Albedo, new float3(0.3f, 0.59f, 0.11f));
-                            albedo = props.Albedo * math.min(1f, 0.32f / math.max(lum, 1e-3f));
-                            tunnelFloor = 1f - math.smoothstep(floorY + 0.35f, floorY + 0.8f, p.y);
-                        }
-                        tunnelCode = 1 + (props.Paving > 0.4f ? 1 : 0);
-                    }
-                    else
-                        tunnelCode = 1;
-                    if (set.Caves[cave].Tunnel >= 2)
-                        tunnelCode += 2;
-                    var stone = 1f - math.smoothstep(0.05f, 0.25f, CaveSampling.StoneDistance(ref set, p));
-                    tunnelFloor = tunnelFloor * (1f - stone) - stone;
-                }
-                // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
-                // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
-                // the cave opens to the sky, so mouths still match the terrain.
-                var ribShade = 0f;
-                if (cave >= 0 && set.Caves[cave].Wall.z > 0f)
-                {
-                    var rib = CaveSampling.Rib(set.Caves[cave], p);
-                    ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
-                }
-                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
-                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
-                                  (cave >= 0 ? set.Caves[cave].Style : 0) + 32 * tunnelCode, tunnelCode > 0 ? tunnelFloor : ribShade);
-                if (ShardProbe && cave < 0)
-                {
-                    data.x = 1f;
-                    return new float4(1f, 0f, 1f, 1f);
-                }
-                return new float4(albedo, math.max(math.max(fromMouth, nearSurface), open));
             }
         }
 
