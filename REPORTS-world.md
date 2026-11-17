@@ -8611,3 +8611,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - WaterTruth 4 m: dryRun 9->3, wall 972->930, fallFoot 5->2. Step 964->1013, deep 43->45, tilt 29->30 come from the new lips (checked by turning the rule off), so re-based with a comment. WorldTests 20/20. The 3 dryRuns left are wide rivers or under 0.5 m, not raised by any pass.
 - Rule 20: no new visual reach; the notch is ground shape and the banks use the scarp skin's existing LOD. Shots: PunchyMilestones/W-153/row3-{notch,fall-a,fall-b}-{before,after}.png.
 - Local main in the world tree is far behind origin/main (checking it out set off a full reimport). Use origin/main for before shots.
+
+## W-153 revert + rework doc (2026-11-17)
+- world/river-revert f264f40a: #538 channel water reverted, notches kept; WaterTruth back to 82,0,0,0,7,10,0,972,43,29,970,46,5; WorldTests 20/20. Ready to merge.
+- 636a8c01 (same branch): docs/agents/river-rework.md, with one profile per segment, the wall gate at 0, about 6 rows, and a 2-row clamp as the cheaper option.
+- Row 4 WIP paused on world/river-profiles 5123e42c (every bed step a fall + no carve past the lip: wall 930->634, step 1013->594, fallHead 46->10); not verified.
