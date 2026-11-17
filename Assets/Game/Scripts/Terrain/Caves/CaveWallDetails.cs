@@ -265,7 +265,7 @@ namespace Punchy.Terrain
     /// One cave's wall details being built: Step runs one placement a frame or so, then turns each kind's geometry into
     /// a mesh. Placements and their order come only from the cave set and the cave's key.
     /// </summary>
-    public class CaveWallBuild
+    public partial class CaveWallBuild
     {
         public readonly int Cave;
         /// <summary>The cave's style slot, carried in the meshes so they take the style's everywhere light (W-179).</summary>
@@ -283,10 +283,10 @@ namespace Punchy.Terrain
         public readonly List<(float3 position, float yaw, float scale, int model, float random)> Mushrooms =
             new List<(float3, float, float, int, float)>();
         /// <summary>
-        /// W-178: glowing tendrils hanging from the ceiling over a GlowFungi patch (hash stream 10, so no other draw moves).
-        /// CaveSystem.Tendrils swings them on the shared ChainSim; anchor is on the rock, length is the rest length.
+        /// W-178: things hung in the cave that swing on the shared ChainSim (CaveSystem.Hangings): glowing tendrils over a
+        /// GlowFungi patch (hash stream 10), then root curtains, vine drapes and mine ropes (CaveHangings.cs, stream 11).
         /// </summary>
-        public readonly List<(float3 anchor, float length, float random)> Tendrils = new List<(float3, float, float)>();
+        public readonly List<CaveHanging> Hangings = new List<CaveHanging>();
         /// <summary>Every place made: kind, where and the wall's normal (for shots and tests).</summary>
         public readonly List<(CaveWallKind kind, float3 position, float3 normal)> Placed = new List<(CaveWallKind, float3, float3)>();
 
@@ -359,6 +359,12 @@ namespace Punchy.Terrain
                 var (kind, index) = jobs[next++];
                 if (Place(source, kind, index))
                     Counts[(int)kind]++;
+                return false;
+            }
+            if (!hung)
+            {
+                hung = true;
+                PlaceHangings(source);
                 return false;
             }
             done = true;
@@ -676,7 +682,7 @@ namespace Punchy.Terrain
                 var length = math.min(1.6f + CaveWallDetails.U(hc, 3) * 2.6f, gap - 1.1f - CaveWallDetails.U(hc, 5) * 0.6f);
                 if (length < 0.5f)
                     continue;
-                Tendrils.Add((q + new float3(0f, 0.03f, 0f), length, CaveWallDetails.U(hc, 4)));
+                Hangings.Add(new CaveHanging(CaveHangingKind.Tendril, q + new float3(0f, 0.03f, 0f), default, length, CaveWallDetails.U(hc, 4)));
             }
         }
 
