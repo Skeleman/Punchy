@@ -111,7 +111,10 @@ namespace Punchy.Tests
         // W-153 row 2 (still water last): dryRun 21 -> 10, uphillSampled 7 -> 0, wall 1987 -> 988, tilt 35 -> 31, step 1186 -> 959.
         // No stepped pool is left in a wall or a step: the 109 'pool' walls still counted are fall and landmark
         // head pools, which stand with ponds off (rows 3-6).
-        static readonly int[] WaterTruthBaseline = { 80, 0, 0, 0, 10, 31, 0, 988, 42, 31, 959, 47, 4 };
+        // Main merge (W-174 rivers and cave mouths, M-07 painted edits, W-162): the river graph changed under the probe,
+        // so the graph-only kinds moved (bend 80 -> 82, uphillGraph 31 -> 62) with deep 42 -> 43, step 959 -> 964 and
+        // fallFoot 4 -> 5; dryRun 10 -> 9, wall 988 -> 972, tilt 31 -> 29, fallHead 47 -> 46. Re-based here.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 9, 62, 0, 972, 43, 29, 964, 46, 5 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
