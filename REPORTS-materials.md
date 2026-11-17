@@ -61,3 +61,11 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Fix: FloraMeshBuilder.DarkenBelow darkens rgb only; the four footing passes use it. Mesh probe after: dock, wharf, boardwalk, shore, stilt house, sea-folk pier decode only looks 0/1/3. Boardwalk railings sit above 0.5 m, so they were never affected.
 - Beach-glare pose before/after (viewed after): dock planks plain grain, no shingle rows. Edit-mode 43/43.
 - Stairs NOT done: StructureKit.Stair builds solid Stone blocks to the ground; open treads need geometry in world's file. Proposal waiting for OK (see handoff).
+
+
+## 11-17 #550 pier stairs, b/pier-stairs 2d8e0828
+- Stair moved to StructureKit.Stairs.cs (StructureKit.cs 16 lines smaller) with an optional material, default Stone. Wood: 0.05 m plank treads overlapping 4 cm in plan, on two stringers at +-0.45 width. Stilt house and marsh walk pass Wood. Houses pick stone when the culture has quoins (dwarf, human) and wood otherwise (elf, the 0.2 culture). Cave code untouched.
+- The landing started 15 cm past the top tread, which left a hole in the walk support. It now starts at the tread's edge (stone stairs too).
+- New StairSupportTests: every tread holds a capsule (middle and +-0.25 m) for stilt house and marsh walk, variants 0-2. It also checks the bottom tread is in step reach and the support reaches the landing. Support cells are 0.35-0.53 m, wider than a tread, so a cell reads the neighbouring tread: the tolerance is one rise. Edit-mode 45/45.
+- Found, not fixed (outside the card): Platform deck planks have 8% gaps (W-58), so some support cells on stilt walkways read empty.
+- Beach-glare same-pose after shot viewed: open treads and stringers on the stilt house stair. Editor reached via --project-path; --pid and --port still fail discovery.
