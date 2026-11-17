@@ -2,6 +2,27 @@
 
 Newest first.
 
+## Job 96b: #400 tunnel entry with the chunk-mesh budget (#509, main d2ac9d1c = B vs its parent 9533f61b = A), 2026-11-16 (q143.job): **WORSE with #509: more slow frames and lower fps; the worst stalls stay at 0.6-0.9 s, now from LandmarkEffectSystem and the colossi**
+world/chunk-mesh-budget isn't on origin; it landed as #509, so this is #509 against the commit before it. q137b's route unchanged (20 m outside W-172's mouth, through the bore, 140 m at 6 m/s, noon Clear), Medium, 1920x1080, uncapped, -hitchms 33, 3 timed rounds alternated, then one Profiler run per arm analysed for every main frame over 33 ms.
+
+| arm | avg fps (rounds) | frames over 33 ms (rounds) | worst frame ms (rounds) | main thread ms | GPU ms |
+|---|---|---|---|---|---|
+| A (9533f61b) | 26.3, 26.0, 17.9 | 70, 80, 84 | 639, 869, 712 | 31.3, 30.7, 40.9 | 16.17 |
+| B (#509) | 17.6, 20.2, 16.6 | 125, 133, 113 | 786, 895, 808 | 43.6, 40.7, 45.1 | 17.60 |
+
+- **What #509 does fix:** the job wait. In the Profiler runs' frames over 33 ms after load, BuildChunkMeshJob on the workers drops from a mean of 1300 ms a frame (max 19.9 s) to 400 ms (max 1.4 s). The main thread's wait for it (Idle < WaitForJobGroupID) drops from a mean of 159 ms (max 2.8 s) to 38 ms (max 0.23 s): 36.0 s of waiting in 99 frames becomes 10.6 s in 175 frames.
+- **But it spreads the meshing over more frames:** more of them go over 33 ms, and the timed games are slower overall (B averages 18.1 fps against A's 23.4).
+- **What sets the worst frames now (both arms):** main-thread self time in frames over 33 ms after load:
+
+| main-thread work | A | B |
+|---|---|---|
+| LandmarkEffectSystem.Update | 3.5 s in 7 frames | 4.5 s in 8 frames (575-616 ms each) |
+| StoneColossi.Update + ColossusWalker.Update | 5.3 s in about 40 frames | 4.6 s in about 42 frames (up to 343 ms) |
+| CaveSystem.Update | 1.8 s in 66 frames | 1.7 s in 95 frames |
+| DXGI.WaitOnSwapChain | 7.5 s | 5.8 s |
+
+- **Context:** A is already far better than Job 96's v0.16.0 (26 fps vs 4.6-8.5 fps on the same route), so most of #400 was fixed before #509.
+- **Owners:** world (#509: the budget trades a few long stalls for many medium frames; a time budget per frame rather than a batch count may work better), ambience (LandmarkEffectSystem.Update: 0.6 s spikes on the main thread at the tunnel), and fauna (StoneColossi/ColossusWalker: up to 0.34 s a frame; the separate c400 cull change wasn't in either arm).
 ## Job 86: R-28 row 2 cobble parallax (render/cobble-depth ce3ff5a7), 2026-11-16 (q128e.job): **BLOCKED: FXC crashes compiling the branch's terrain shader, every time it compiles fresh**
 q128e built ce3ff5a7 plus one unused constant in TerrainSurface.shader's ForwardLit pass (bench-only local commit 5317827, not pushed). The constant changes the shader's source hash, so no cached variant could be reused; earlier rebuilds (q128c, q128d) had quietly reused the variants left by the first crash.
 - **Result:** "Punchy/Terrain Surface" compiled for the first time since q128b, and FXC crashed 15 times: `Compile Punchy/Terrain Surface - ForwardLit, Fragment Program: Lost connection with shader compiler process. Suspected crash in FXC` (d3d11; 24 fragment variants after stripping; Unity restarts the compiler and retries, then gives up on the shader). The build reports Succeeded but ships without the terrain pass, as q128b did (flat blue ground). The guard stopped the job before any timed game.
