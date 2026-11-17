@@ -8499,3 +8499,10 @@ Plan:
 - Fix: paler cap colours (CaveWallDetails.Colours), and a new Cave.shader _OwnLight that feeds the slot-0 glow term (default 0, so the cave and room-kit materials are unchanged). The fungi material gets a soft warm (0.34, 0.27, 0.17) through CaveWallDetails.OwnLight.
 - Rendering only: no fingerprint or collision change. WorldTests 19/19.
 - Shots: PunchyMilestones/W-172-fungi fungi-before-c2 and fungi-after-c2. The second placement (cave 4) never loaded in a probe shot, so it was dropped.
+
+## W-174 r6 row 2: cave mouth collars, option A (#405), world/mouth-collars @ e083e2ca
+- The inner ring of the mouth collar sits on the walls' own field along the 0.4 m depth line, falling back to 0.1 m and then to a vertical search, with a Newton snap onto the wall (OntoWall). Feet are computed in world space with a canonical edge direction, so neighbouring chunks share them bit for bit. Chords that bow into the cave's air get breadth-first splits. Code: BuildChunkMeshJob.Mouths.cs (new partial), Collars.cs; CaveSystem.cs is net -3 lines.
+- Guard (Seams_NoOpenRims), mouths 0-4 at LOD0-1: feet off the field by at most 0.002 m; shared cross-chunk feet identical; slot 0.00 lip 0.00 everywhere; temple unchanged. Guard changes: chord tolerance 0.03 -> 0.08 m (air-side chords stand proud of the wall, measured up to 0.074); creases (feet under 3 cm apart) and foot jumps across a break in the wall field (no wall within half the edge of its middle) count as steps, not bows (1 edge at mouth 0 LOD1, 0.10 m over 0.29 m); the shared check covers only cross-chunk pairs; test timeout 480 -> 1200 s (the hook takes about 770 s, unbursted on the main thread).
+- Fingerprints unchanged, no re-pin. WorldTests 19/19 after rebasing on main 08ec39c9.
+- Shots (unviewed, the guard is the check): D:/Unity/PunchyMilestones/W-174 w174r2-mouth0-20m(-b), w174r2-mouth0-150m, w174r2-mouth3-steep(-b), w174r2-mouth4-steep(-b).
+- Next for world: W-177 cave mushrooms (#522) on world/cave-mushrooms.
