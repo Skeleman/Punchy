@@ -21,6 +21,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-162 | #327 | world | merged #535 | world/rock-walls | W-144 routes split to W-181 |
 | W-181 | #534 | world | later | - | Cave climb routes from W-144 on W-162 grades + W-178 hangings |
 | W-166 r3-4 | #336 | materials | r4 sweep DONE: r4a gate 0 px, r4b salt tower stone, r4c ground items on the library (colours in vertex colours: MPB on Colossus loses the sun under Forward+); Landmarks_V3 pass | merged PR #476 | DONE; fauna sets colossus uv3 |
+| W-166 caves | #336 | materials | rock-wall row 1 (caves) merged #542 | materials/cave-surface | Next: row 2 scarps + river notches on MaterialLibrary.Stone after W-153 rework frees ScarpSet/TerrainSource; meanwhile wood row (lane queue) |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
 | A-119 | #339 | fauna | DONE (PR #464) | fauna/ride-size d2d408a3 merged | probe PASS (drawn differently 0, NaN 0); main merged, fauna 4BEFEA91 unchanged; rule 11: PlayerRide.cs 2 Riding.Pair calls |

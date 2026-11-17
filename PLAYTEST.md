@@ -224,3 +224,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #538 W-153 row 3 (#301): rivers cut steep notches through rises left by later passes (scarp-kit banks); channels above falls run to the lip as small falls.
 - #539 W-153 (#301): small-fall channel water from #538 reverted (it made standing water mesas); notches kept; river rework design doc.
 - 11-17 #541 W-153 (#301): river rework rows 1-3 (segment profiles, join blending, falls with foot pools; 138 falls). Landmarks_V3 re-pinned 114 9113464F.
+- 11-17 #542 W-166 row 1 (#336): cave walls take their relief from the general stone table (granite, sandstone, tuff tuned; detail fades by screen size).
