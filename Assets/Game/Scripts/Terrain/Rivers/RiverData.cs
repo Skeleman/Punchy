@@ -319,6 +319,18 @@ namespace Punchy.Terrain
                 distance = math.distance(xz, a + ab * t);
             }
 
+            // W-153 row 4: the segment below a fall carves nothing behind its start past the fall's lip. Its round end and
+            // valley reached back over the lip on any river wider than half a segment, digging the lower level under the
+            // upper pool (water deep behind the lip, a wall of upper water beside the dug bank). The fall's own segment
+            // shapes the ground from its upper bed to the lip and its plunge below it.
+            var feeder = map.Up[start];
+            if (s.FallDrop > 0f && feeder >= 0 && map.Bed[feeder] - map.Bed[start] >= s.FallDrop && down >= 0)
+            {
+                var raw = b - a;
+                var behind = -math.dot(xz - a, math.normalizesafe(raw));
+                if (behind > math.distance(map.Point(feeder), a) * 0.4f)
+                    return;
+            }
             var endLevel = down >= 0 ? map.Bed[down] : map.Bed[start];
             var endWidth = down >= 0 && map.Width[down] > 0f ? map.Width[down] : map.Width[start];
             // A waterfall is a step in the bed half way along the segment.

@@ -119,7 +119,11 @@ namespace Punchy.Tests
         // W-153 row 3 (river notches + small falls): notches cut rises left by later ground passes (dryRun 9 -> 7);
         // channel water held to a fall's lip (dryRun 7 -> 3, wall 972 -> 930, fallFoot 5 -> 2) makes each step a small
         // fall, which the probe counts as step 970 -> 1013, deep 43 -> 45 and tilt 29 -> 30 at the lips. Re-based here.
-        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 3, 10, 0, 930, 45, 30, 1013, 46, 2 };
+        // W-153 row 4 (profiles on the finished ground): every bed step is a described fall (75 -> 138 falls) and the
+        // segment below a fall no longer digs back past its lip: wall 930 -> 634, deep 45 -> 22, tilt 30 -> 28,
+        // step 1013 -> 594, fallHead 46 -> 10. fallFoot 2 -> 3: one new cascade fall lands in lower water than its
+        // landing (a fall into a pool below). Re-based here.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 3, 10, 0, 634, 22, 28, 594, 10, 3 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
