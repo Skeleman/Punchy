@@ -56,7 +56,7 @@ Shader "Punchy/Terrain Surface"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
-            #include "Materials/Stone.hlsl"
+            #include "Materials/RockWall.hlsl"
             // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
             float2 _PunchyWindDirection;
             half _PunchyWind;
@@ -474,56 +474,24 @@ Shader "Punchy/Terrain Surface"
                     normalWS = normalize(normalWS + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
                     rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
                 }
-                // R-19: the rock on steep faces. Strata: a thick and a thin set of beds by height, wandering slowly
-                // along the face so they aren't contour lines, each bed's top a ledge (the normal tips up where the beds
-                // step out). The surface on them is the shared stone (Materials/Stone.hlsl, R-34 row 2: it replaced the old 2 m grain and
-                // 12 m mottle, so there is no double noise). Every part fades by its own
-                // on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans), never by metres.
+                // R-19: the rock on steep faces, from the one rock wall (Materials/RockWall.hlsl, W-162): a thick and a
+                // thin set of beds by height, wandering slowly along the face, each bed's top a ledge; and slabs of lighter
+                // and darker stone. The surface on them is the shared stone (Materials/Stone.hlsl, R-34 row 2). Every part
+                // fades by its own on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans).
                 half rockBand = 0, rockBlock = 0, rockLedge = 0;
                 [branch] if (rockFace > 0.001)
                 {
                     float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
                     float pxm = ppm / max(distance, 0.01);
-                    half thickF = saturate((6.0 * pxm - 2) / 2), thinF = saturate((1.4 * pxm - 2) / 2);
                     bool rockNoise = _PunchyRockCost.x < 0.5, rockTwo = _PunchyRockCost.y < 0.5;
-                    float y = input.positionWS.y;
+                    // Row 2's cost switches: no beds (and no slabs) at all, or the thick set and one slab read only.
                     [branch] if (rockNoise)
                     {
-                        y += (PunchyValueNoise(p * 0.013 + 5.1) - 0.5) * 8;
-                        [branch] if (rockTwo)
-                            y += (PunchyValueNoise(p * 0.07 + 1.7) - 0.5) * 1.6;
-                        const float ey = 0.2;
-                        float2 bed = (float2(PunchyValueNoise(float2(y / 6.0, 19.7)), PunchyValueNoise(float2((y + ey) / 6.0, 19.7))) - 0.5) * thickF;
-                        [branch] if (rockTwo)
-                            bed += (float2(PunchyValueNoise(float2(y / 1.4, 23.1)), PunchyValueNoise(float2((y + ey) / 1.4, 23.1))) - 0.5) * 0.5 * thinF;
-                        rockBand = bed.x;
-                        half rise = (bed.y - bed.x) / ey;
-                        normalWS = normalize(normalWS + half3(0, saturate(rise) * 0.5 * rockFace, 0));
-                        rockLedge = saturate(-rise * 0.5);   // the underside of a bed lip sits in its own shade
-                    }
-                    // Slabs (1c): patches of lighter and darker stone, wide along the beds and short across them, of
-                    // mixed sizes. Soft-thresholded value noise on a warped domain, so there are no cell edges, no grid
-                    // and no straight seams (cells read as brickwork). Read along x and along z with the bed height,
-                    // so a face of any heading gets them. Softer far off: at distance they are mottling, not blocks.
-                    // Row 2: the slabs show once a 2.5 m slab spans slabPx reference pixels, full at twice that.
-                    half slabPx = _PunchyRockCost.z > 0 ? _PunchyRockCost.z : 2;
-                    half blockF = rockNoise ? saturate((2.5 * pxm - slabPx) / slabPx) : 0;
-                    [branch] if (blockF > 0.001)
-                    {
-                        float2 xz = input.positionWS.xz;
-                        half s;
-                        [branch] if (rockTwo)
-                        {
-                            float wy = y + (PunchyValueNoise(xz * 0.21 + 2.9) - 0.5) * 1.2;
-                            half sA = PunchyValueNoise(float2(xz.x * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, wy * 0.75));
-                            half sB = PunchyValueNoise(float2(xz.y * 0.22 + PunchyValueNoise(xz * 0.09 + 4.1) * 2.5, wy * 0.75 + 31.7));
-                            half sC = PunchyValueNoise(float2((xz.x + xz.y) * 0.5, wy * 1.6 + 9.3));
-                            s = (sA + sB) * 0.35 + sC * 0.3;
-                        }
-                        else   // one read across both headings, one warp: 2 noise reads instead of 6
-                            s = PunchyValueNoise(float2((xz.x + xz.y) * 0.22 + PunchyValueNoise(xz * 0.09) * 2.5, y * 0.75));
-                        half far = lerp(0.45, 1, saturate((1.0 * pxm - 2) / 3));
-                        rockBlock = (smoothstep(0.36, 0.64, s) - 0.5) * 0.9 * blockF * far;
+                        float3 rockN = normalWS;
+                        float wy;
+                        PunchyRockBeds(p, input.positionWS.y, 1, pxm, rockTwo, rockFace, rockN, rockBand, rockLedge, wy);
+                        normalWS = rockN;
+                        rockBlock = PunchyRockSlabs(input.positionWS.xz, wy, pxm, rockTwo, _PunchyRockCost.z > 0 ? _PunchyRockCost.z : 2);
                     }
                 }
 
@@ -596,8 +564,7 @@ Shader "Punchy/Terrain Surface"
                     half luma = dot(albedo, half3(0.3, 0.5, 0.2));
                     half3 rock = lerp(albedo, luma.xxx * half3(1.03, 0.98, 0.92), 0.6 * input.extra.y);
                     half lessOnStrata = 1 - 0.6 * input.strata;
-                    rock *= (1 + rockBand * 1.0 * lessOnStrata) * (1 + rockBlock * 0.7 * lessOnStrata)
-                          * (1 - rockLedge * 0.45);
+                    rock = PunchyRockShade(rock, rockBand, rockBlock, rockLedge, lessOnStrata);
                     albedo = lerp(albedo, rock, rockFace);
                 }
                 // R-34 row 2: steep faces (and the cliff kit pieces, drawn with this material) take their surface from the

@@ -53,6 +53,7 @@ Shader "Punchy/Cave"
             float3 normalOS : NORMAL;
             float4 color : COLOR;
             float4 data : TEXCOORD0;   // x terrain blend, y rock tint, z style slot (+ 32 x tunnel code), w rib shade / road share
+            float4 rock : TEXCOORD1;   // W-162: rgb the country rock round a mouth, a its share (no stream: 0)
         };
         ENDHLSL
 
@@ -81,6 +82,7 @@ Shader "Punchy/Cave"
                 float4 color : TEXCOORD2;
                 float3 data : TEXCOORD3;   // x terrain blend, y rock tint, z rib shade (a tunnel: road share, negative a stone's)
                 nointerpolation float style : TEXCOORD4;
+                half4 country : TEXCOORD5;   // W-162: rgb the country rock, a its share (1 at a mouth, 0 deep inside)
             };
 
             // Nine vectors per style slot (CaveStyle.Pack): rock rgb + strata, dark rgb + strata frequency,
@@ -96,7 +98,7 @@ Shader "Punchy/Cave"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
-            #include "Materials/Stone.hlsl"
+            #include "Materials/RockWall.hlsl"
 
             Varyings Vert(CaveAttributes input)
             {
@@ -107,6 +109,8 @@ Shader "Punchy/Cave"
                 o.color = input.color;
                 o.data = input.data.xyw;
                 o.style = input.data.z;
+                // A mesh with no rock stream (kit pieces, hangings) may read (0, 0, 0, 1): no colour, no share.
+                o.country = half4(input.rock.rgb, input.rock.a * step(1e-4, dot(input.rock.rgb, 1)));
                 return o;
             }
 
@@ -186,7 +190,12 @@ Shader "Punchy/Cave"
                     s6 = _PunchyCaveStyles[i + 6]; s7 = _PunchyCaveStyles[i + 7];
                     s8 = _PunchyCaveStyles[i + 8];
                 }
-                float terrain = saturate(input.data.x);
+                // W-162 row 4: the ground's share round a mouth ends in the cliff toe's ragged band (as ScarpPaint's toe),
+                // not on one depth line: its edge wanders along the rim and is torn finer, and ground that lies back (a
+                // floor or a ledge) keeps it a little further in. Full at the surface and gone deep in, whatever the rag.
+                float toeRag = (PunchyValueNoise(p.xz * 0.4 + p.y * 0.3) - 0.5) * 0.7 + (PunchyValueNoise(p.xz * 1.7 + p.y * 1.3 + 7.3) - 0.5) * 0.35;
+                float toeEdge = clamp(0.5 + toeRag - 0.2 * smoothstep(0.55, 0.85, shape.y), 0.2, 0.8);
+                float terrain = smoothstep(toeEdge - 0.12, toeEdge + 0.12, saturate(input.data.x));
                 // Floor: ground that faces up, by its shape (not its fine detail), away from the terrain-coloured mouth.
                 float floorShare = smoothstep(0.55, 0.8, shape.y) * (1 - terrain);
                 float gloss = lerp(s3.x, s6.w, floorShare);
@@ -224,10 +233,26 @@ Shader "Punchy/Cave"
 
                 // Rock: two tones in blotches and strata, darker in the hollows (rgb carries a per-vertex tint). Raised
                 // detail takes the light tone (frost on ice), sunken detail the dark one (deep blue in its recesses).
+                // W-162 row 2: the strata are the one rock wall's beds (Materials/RockWall.hlsl), the thick set at the
+                // style's strata period, each bed's top a ledge with its lip in shade, as on the cliffs outside; faded by
+                // on-screen size. Not on floors, the terrain-coloured mouth, slick ice or crystal facets.
                 float blotch = PunchyValueNoise(p.xz * 0.35 + p.y * 0.2) * 0.6 + PunchyValueNoise(p.xy * 1.3 + p.z) * 0.4;
-                float strata = 0.5 + 0.5 * sin(p.y * s1.w * 6.2832 + PunchyValueNoise(p.xz * 0.2) * 4);
+                float bedPxm = 1 / max(length(fwidth(p)), 1e-4);
+                half bedFace = (1 - floorShare) * (1 - terrain) * (1 - slick) * (1 - facets) * (1 - smoothstep(0.4, 0.85, abs(shape.y)));
+                half bedBand, bedLedge;
+                float bedY;
+                PunchyRockBeds(p.xz, p.y, clamp(1 / (6 * max(s1.w, 0.01)), 0.25, 2), bedPxm, true, bedFace, n, bedBand, bedLedge, bedY);
+                float strata = saturate(0.5 + bedBand * 1.4);
                 float tone = saturate(blotch * 0.8 + strata * s0.w + (detail.b - 0.5) * detailStrength * (1 - stoneShare));
-                half3 rock = lerp(s1.rgb, s0.rgb, tone) * input.data.y;
+                // W-162 row 2: the colour from the country rock round the mouth (baked per vertex from the ground's own
+                // steep rock, as the cliffs outside draw it), fading to the style's own two tones with depth. Glassy,
+                // metallic and faceted styles (ice, ore, crystal) keep their own colour.
+                half3 pale = s0.rgb, dark = s1.rgb;
+                half3 country = input.country.rgb;
+                country = lerp(country, dot(country, half3(0.3, 0.5, 0.2)) * half3(1.03, 0.98, 0.92), 0.6);
+                PunchyRockCountry(country, input.country.a * (1 - saturate(max(s3.y, max(s3.z, s3.w)) * 2)), pale, dark);
+                half3 rock = lerp(dark, pale, tone) * input.data.y;
+                rock = PunchyRockShade(rock, 0, 0, bedLedge * bedFace, 0);
                 // The floor: its own two tones with grit (sand, gravel, ash, frost crust).
                 half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
                 floorTone *= lerp(1, 0.6 + 0.8 * detail.a, s5.w);
