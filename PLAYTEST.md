@@ -228,3 +228,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #543 W-153 row 3b (#301): waterfalls get a curtain mesh of the water itself (arc out and down, ragged edges), detail by screen size.
 - 11-17 #540 R-29 (#320): one shared electricity effect; spire and golem arcs re-jag erratically with a soft glow.
 - 11-17 #544 W-166 wood (#336): each wood kind has its own board size, knot spacing, grain figure and wear (pine, driftwood, dark, bleached tuned).
+- 11-17 #545 W-166 (#336): MaterialLibrary tests follow includes; Cookhouse roofs plaster, door mats cloth, camp fire rings now stone.
