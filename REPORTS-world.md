@@ -8515,3 +8515,9 @@ Plan:
 - Play check: fungal cave 2 had 13 clusters, all drawn up close, with caps facing up on the patch.
 - Shots: D:/Unity/PunchyMilestones/W-177 fungi-floor, glowfungi-wall (viewed), glowfungi-wide.
 - BENCH request in REPORTS-profiler.
+
+## W-180 (#529) cave mouth holes - DONE (no game change), branch world/mouth-holes 503d1b1e
+- Cause: a shot artefact, not the collars. WorldProbe.Shot poses Camera.main and renders in the same eval, but the cave surface skip (CaveSystem.GatherOpenings, W-135 r1, older than v0.16.0 and #520) culled the wall chunks for the previous frame's pose. So no passage was drawn behind the cut.
+- Pose first, let a frame pass, then shoot: the mouth is dark at 20 m on both cameras and reads dark at 150 m. With the skip turned off, the same pose looked the same.
+- In play this can only show for one frame after a camera cut. Gotcha added to docs/agents/editor-and-assets.md.
+- Shots: D:/Unity/PunchyMilestones/W-180 w180-flat-before/-after, w180-steep-before/-after, w180-steep-150m-y95 (-y80 is blocked by trees).
