@@ -18,7 +18,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Cliffs (#281 closed, #327; DESIGN-cliffs.md). Top concern (Zach 11-15).** Cliffs built as the ground itself. Shipped: steep ground reads as layered
   rock (R-19), mountain tunnels (W-138). Shipped: the scarp builder W-155 (big cliffs and river banks, PR #377), the cliff kit on sea cliffs and mesas (W-150, PR #386); walk and climb (row 3) and the shared rock wall with
   caves (W-162, #327) come after; caves climb by the same method (W-144's routes fold into W-162). Shelves with homes, ruins and flora are later.
-- **Rivers (#301, W-153).** No kinks, dead ends or water walls. Rows 1-2 done; rows 3-6 next (one course map,
+- **Rivers (#301, W-153).** No kinks, dead ends or water walls. Rows 1-2 shipped #536 (uphillGraph 31->62 to trace); rows 3-6 next (one course map,
   profiles and lakes on the finished ground). Shorelines that wander (W-160, #324) next.
 - **Waterfalls (#284, R-21).** One builder for every shape of fall, a subdivided curved sheet. Shipped: deforming
   water, river falls and rapids (R-9), one builder with curved curtain sheets (R-21, PR #411).
