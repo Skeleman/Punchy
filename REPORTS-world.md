@@ -8527,3 +8527,10 @@ Plan:
 - Play: 20 tendrils in fungal cave 2 hang to their length and part around the player. LOD by DetailPolicy.ScreenSize. WorldTests 19/19.
 - Glow reads dim under the cave haze: same wall-detail material path as the black fungi, fixed in W-179 r1.
 - Shots: D:/Unity/PunchyMilestones/W-178 tendrils-3m, tendrils-wide. Cost check queued in BENCH-QUEUE.
+
+## W-179 (#528) row 1 one shared cave haze - verified, branch world/fungi-fog e8bbb26f (contains world/cave-tendrils: merge that first or only this)
+- Where it was: the cave haze is each style's everywhere light (GlowColor x Glow x GlowEverywhere, only Crystal purple and Ice blue are non-zero), added in Cave.shader for walls only. Fog/atmosphere fades out by openness, so deep inside it is ~0.
+- Now: one global _PunchyCaveAir (camera's cave air, faded over the last metres to the mouth) added in PunchySurfaceFinish (Surface.hlsl), so every surface-path shader takes it: creatures/bats, cave flora and fungi, pebbles, colossus, temple, cave pools. Walls, wall details, props and tendrils take their own cave's air from the style table. Grass, impostors and terrain opt out. Creature.shader untouched.
+- Still skips: items (ItemMaterial is URP Lit, belongs to W-166), and transparent/emissive shaders (drips, mist, glow, flame, particles, plumes, waterfall, window spill, far lights), which is intended.
+- Stark look is the colours, not missing haze: haze-off the tendrils and bat look the same; the teal own glow against the purple Crystal wash is what reads stark. Density and glow emission unchanged. WorldTests 19/19.
+- Shots: D:/Unity/PunchyMilestones/W-179 tendrils-bat-before/-after/-hazeoff (same camera), fungi-before/-after/-plain.
