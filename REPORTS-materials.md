@@ -30,3 +30,11 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Retake 11-17: same seed and frames, weather pinned Clear, time 12:00, ground wetness zeroed, 25 s settle. Skies clear in all 6. Lum before/after: Granite 73.8/69.2, Sandstone 51.4/58.9, Fungal 82.6/84.7.
 - Landmarks_V3 and the 3 cave tests pass on 968da515. Shots: PunchyMilestones/W-166/cave/before and after (Granite, Sandstone, Fungal).
 - Row 2 (scarps, notches) plan above; waits for the OK.
+
+## W-166 wood row: per-kind board scale, knot spacing, figure, wear (#336), done 11-17
+- Branch materials/wood-kinds: c585ce62 (4 new WoodRow columns -> _PunchyWoodFormKinds; every row keeps the old shader constants, so the math is identical), 4db070ed (tuning).
+- Tuned pine (narrow straight boards, close knots), driftwood (wide, twisted, worn), dark (clean, sparse knots), bleached (more figure and wear); oak unchanged. Laid shingle/siding courses keep their geometry height; only width varies.
+- Untuned check: main vs untuned shots differ no more than two runs of the same code (fog, water, NPCs move between runs), so pixel diffs can't prove identity; the shader math is the proof.
+- Shots (Clear, 12:00, dry ground, 25 s settle): PunchyMilestones/W-166/wood/before and after (Oak town house, Pine snow shelter, Driftwood stilt house and log, Dark ramada and marsh hut, Bleached palisade). The change is subtle at these distances.
+- Landmarks_V3 passes. MaterialLibraryTests: 2 of 4 fail on things this branch doesn't touch (Cookhouse stall bark has no family; Cave/TerrainSurface Stone include check). Likely already failing on main.
+- Wood needs no edits to Cave.shader or TerrainSurface.hlsl.
