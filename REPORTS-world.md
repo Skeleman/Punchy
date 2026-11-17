@@ -8650,3 +8650,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Water.shader: small additive TEXCOORD5 "fall" stream; curtain skips the patch/curtain clips and swell, steep = max(steep, fall.x) across the arc.
 - WorldTests 20/20, WaterTruth unchanged (no terrain change). Shots W-153/fall-a,b-3b-before/after: sheet now has a water body and a clear arc (viewed fall-b).
 - Next: row 4 (lake step merge).
+
+## W-174 row 3 (cave-mouth seams), 11-17: plan sent, waiting on approval
+- Cause: Cave's terrain share shades smoother and without speckle, so a material line shows round the rim; stray thin cut slots show dark collar faces; small stray cut islands open onto the walls. A clamp test ruled out the skin poking through.
+- Plan: cave walls give a boundary loop on a shared MouthRing; the temple Collar path stitches the rim to it; a band weight blends Cave.shader and TerrainSurface. Hashes will be re-pinned.
+- Before shots: PunchyMilestones/world/W-174r3-mouth-seam/before (3 mouths, 5 m and 20 m, 12:00 Clear). No code on world/cave-seam yet.
