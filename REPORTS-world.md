@@ -8540,3 +8540,10 @@ Plan:
 - glowfungi-wide is Crystal (cave 2). The purple is the style itself: RockColor lavender, DarkColor deep violet, GlowColor violet, authored in 2a72fccc (glassy crystals, Zach). Intended. With the haze off it is still violet-blue, so the haze is only a small part of it.
 - Haze is per style: only Crystal (0.08) and Ice (0.55) have GlowEverywhere above 0. The other 8 styles get no cave air.
 - #377/#386/#440 touched no cave files. What changed the walls is R-34 row 2 (#427, wet stone as the base rock). On plain, non-faceted, non-slick rock: Detail and DetailScale no longer nudge the normal or the tone; Gloss gives way to the stone's wet lobes; RockColor, DarkColor and Strata are greyed at the stone's edges and browned in its crevices. Every packed field is still read. Facets, Slick, Moss, Ice and floor fields are untouched. Folding these into one stone look is W-166 work.
+
+## W-178 (#523) r2 cave set pieces - verified, branch world/cave-setpieces 0fa7c8a3
+- New CaveHangings.cs: root curtains (forest or wet ground, 5-24 m in), vine drapes (wettest country, 2-10 m in), ropes strung wall to wall across mine passages (ChainSim PinEnd). Placed on hash stream 11 after wall details, so tendrils (62 in 6 caves) and details keep their places. CaveSystem.Tendrils.cs renamed CaveSystem.Hangings.cs: one look and swing table per kind, reach per kind via DetailPolicy ScreenSize.
+- This seed: roots 53 in 6 caves, vines 14 in 1 (island wet places are all cool, so vines are rare), ropes 6 in 4.
+- Pushed in play: roots part around the player, rope belly moves 0.25 m. Tests 19/19. Shots in PunchyMilestones/W-178 (roots-push, rope-push, vines, tendrils-crystal).
+- Tendril glow and rock are tinted toward each style's GlowColor (Crystal tendrils now violet, not off-hue).
+- Rope bridges pushed back: they need chasm data the cave set doesn't have. Strung mine ropes are the cheaper version on the same PinEnd path. No PR opened (standing rule: lanes don't open PRs); branch is ready for the supervisor.
