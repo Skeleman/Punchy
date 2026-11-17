@@ -18,7 +18,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-135 | #405 | fauna | merged #525 | - | Creatures respect the W-174 hole mask: CreatureMotion.cs (~306/362) and TraceSystem.cs (~300) use GroundHoles not MouthCut only; DungeonSpawner and FaunaDirector spawns reject GroundHoles.Removed ground (goblin in temple cut) |
 | W-174 | #406 | world | merged rows 1-5 (#440 #481 #503 #512 #515), r6 (#520 #526), A-135 #525 | - | Done |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
-| W-162 | #327 | world | active (rows 2, 3, 4 done; 6b126884) | world/rock-walls | Left: W-144 routes as CaveHangings (row 3b or own card?) |
+| W-162 | #327 | world | done (rows 2-4; 6b126884), awaiting PR | world/rock-walls | W-144 routes split to W-181 (not started) |
 | W-181 | #534 | world | later | - | Cave climb routes from W-144 on W-162 grades + W-178 hangings |
 | W-166 r3-4 | #336 | materials | r4 sweep DONE: r4a gate 0 px, r4b salt tower stone, r4c ground items on the library (colours in vertex colours: MPB on Colossus loses the sun under Forward+); Landmarks_V3 pass | merged PR #476 | DONE; fauna sets colossus uv3 |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
