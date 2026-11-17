@@ -49,3 +49,15 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - MaterialLibrary.Coat: one row per Fauna.CoatKind (fur, feathers, scales, skin, chitin), pushed as globals. New Materials/Coat.hlsl, PunchyCoat(), carries the A-97/A-123 patterns unchanged; default rows match the inline values.
 - Fauna hand-off: switch Creature.shader's coat block (surf 0-4) to PunchyCoat(), then drop ("Coat.hlsl","Creature.shader") from Pending in MaterialLibraryTests and add Creature.shader as Coat's user.
 - Tests: MaterialLibraryTests 5/5 (new EveryCoatKindHasARow), edit-mode suite 43/43. A probe shader compiled Coat.hlsl clean (no warnings). No look change, no image reads.
+
+## 11-17 coat switch (fauna hand-off), materials/coat-switch f22f5f49
+- Creature.shader surfaces 0-4 now call PunchyCoat() from Materials/Coat.hlsl (CRLF kept, 739 -> 640 lines). MaterialLibraryTests: Pending emptied, Creature.shader listed as Coat.hlsl's user.
+- Edit-mode 43/43. Shader compile: 3 warnings in Atmosphere/Material/RealLights, none in Coat code.
+- Same-pose shots (RedFox, Chicken, GilaMonster, Frog, Scorpion; 11:00 Clear, spin off), pixel diff vs two before runs: fur/scales/skin/chitin within noise. Feathers was above noise; viewed one pair: only the cast shadow and mountain haze differ, the plumage matches.
+
+
+## 11-17 #550 pier planks, b/fix-pier-planks 6bfde9c9
+- Cause: the darker-footing recolour (Kit x3, Village x1) multiplied the whole vertex colour below 0.5 m, alpha too. Wood alpha holds grain axis + look, so low decks decoded to stray looks (-2, -5, 6) that Wood.hlsl falls through to shingles. Not the roof surface: deck planks were look 0 all along.
+- Fix: FloraMeshBuilder.DarkenBelow darkens rgb only; the four footing passes use it. Mesh probe after: dock, wharf, boardwalk, shore, stilt house, sea-folk pier decode only looks 0/1/3. Boardwalk railings sit above 0.5 m, so they were never affected.
+- Beach-glare pose before/after (viewed after): dock planks plain grain, no shingle rows. Edit-mode 43/43.
+- Stairs NOT done: StructureKit.Stair builds solid Stone blocks to the ground; open treads need geometry in world's file. Proposal waiting for OK (see handoff).
