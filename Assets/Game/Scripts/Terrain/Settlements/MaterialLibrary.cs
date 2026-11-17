@@ -128,7 +128,7 @@ namespace Punchy.Terrain
             new StoneRow(0.8f, 1.6f, 1f, 0.5f, 0f, 1.6f, 0.7f, 1.8f, 0.12f, 2f),       // crystal: faceted
             new StoneRow(0.3f, 1.2f, 0.35f, 0.1f, 0f, 1.6f, 1f, 2.2f, 0.08f, 1.8f),    // ore: hard faces, worked
             new StoneRow(0.6f, 1.0f, 0.35f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // shale: soft, crumbly
-            new StoneRow(1.2f, 1.8f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.5f, 2.5f),     // tuff: soft, pitted
+            new StoneRow(1.2f, 1.5f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.4f, 1.8f),     // tuff: soft, pitted
         };
 
         public const int MaxWoodKinds = 8;
