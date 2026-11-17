@@ -1046,7 +1046,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Record: CPU ms in LandmarkEffectSystem's gather, plume draw GPU ms (transparent pass), whole-frame GPU/CPU ms. Also run `-sparkleprobe plume` once on B at High (rule 24, NaN 0; render could not run it for lack of RAM).
 - Pass: B within 0.2 ms CPU and 0.5 ms GPU of A at (a) and (b), no change at (c), sparkle NaN 0. Report the numbers otherwise.
 
-## Job 109 (2026-11-16, BLOCKED 11-17: same Burst BC1091 as Job 111 (DetailPolicy.cs:75-76, from 329aebad); QUEUED after 108; render-2 lane, R-23 r4+r5, #298, branch render/one-surface-5 9701f8a3, includes one-surface-4): detail fades on screen size
+## Job 109 (2026-11-16, UNBLOCKED 11-17: BC1091 fixed on render/one-surface-5 5939a4e0 (ids looked up inline), rerun with B = 5939a4e0; earlier BLOCKED 11-17 on DetailPolicy.cs:75-76; QUEUED after 108; render-2 lane, R-23 r4+r5, #298, includes one-surface-4): detail fades on screen size
 - r4: the Creature fur/pattern and Flora relief/leaf/sheen/glow/cell fades read PunchyReferenceDistance (each camera's projection x Detail). The Flora.hlsl breath, twitch and flutter read PunchyMainReferenceDistance (`_PunchyViewPpm`). DetailPolicy sets `_PunchyDetail` and `_PunchyViewPpm` from beginContextRendering each frame. r5: TerrainSurface sheen/cobble/rock-face/cave-mouth/grain/rain and Water rippleNear do the same. Per-pixel cost added: one multiply and one divide per fade. At fov 60 the fade distances match main; elsewhere they move. Rule 21: the lane did not time it.
 - Reach note: at a narrow fov (zoom) the gated branches reach further, at a wide fov less far. Cobbles (`cobbleFade > 0.001`) and the rock-face/cave-mouth grain (`steep > 0.01`, cave detail sampling) are the costly ones. At fov 90 the rock-face grain ends at 52 m instead of 90 m; at fov 40 it reaches about 141 m.
 - Arms: main (A) against render/one-surface-5 (B), editor on each tree, ShaderCache (Library/ShaderCache) cleared first, -fpscap 0.
@@ -1067,12 +1067,12 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Record: CreatureBrainSystem job ms (worker), the footprint bake ms at load, whole-frame CPU ms.
 - Pass: B within 0.2 ms brain job and no change at (b). Report the numbers otherwise.
 
-## Job 111 (2026-11-16, BLOCKED 11-17: player build fails, Burst BC1091 on DetailPolicy.cs static ids; spec q149 ready; QUEUED after 109; render-2 lane, R-35 r2 #333, branch render/cloud-picks b7a1f7cc, carries #494): cloud look picks, cost per pick
-- Arms (all on the branch build, by `-skyoff` mask): base 0; A 4096; B 8192; C 16384; D 32768; all 61440; clouds off 3 (the cloud share, as job 79); E off 65536 (fades in metres, the branch with E taken out). Also main for the E check. The branch carries #494 (merged in for ScreenSize.hlsl), so main vs branch base also includes #494's fades; the 0 vs 65536 pair isolates E.
+## Job 111 (2026-11-16, UNBLOCKED 11-17 and cut to E only: Zach keeps the base clouds, A-D dropped; BC1091 fixed (5939a4e0 merged in); render-2 lane, R-35 r3 #333, branch render/cloud-e 25fbc044, carries #494 = one-surface-5; QUEUED after 109): cloud edge fade by screen size, cost
+- Arms (branch build, by `-skyoff` mask): base 0; E off 65536 (cloud edge detail fades in fixed metres, as before E); clouds off 3 (the cloud share, as job 79). Plus main, for the E check. main vs branch base also includes #494's fades; the 0 vs 65536 pair isolates E.
 - Profile build, 1920x1080, Medium and Ultra, uncapped, noon, arms rotated, 3 rounds, 300 frames.
 - Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
-- Record: GPU ms per arm and view; cloud share = arm minus clouds-off; main vs branch base, to confirm E is within noise at fov 60.
-- Expect A, B and D within noise. C is the one to price (one extra density sample per lit step). Report only.
+- Record: GPU ms per arm and view; cloud share = arm minus clouds-off.
+- Expect 0 within noise of 65536 at fov 60. Report only.
 
 ## Job 112 (2026-11-16, QUEUED after 107 and once #482 is on main; render lane, R-22 r3 #298, branch render/far-forest 864cbb46): far forest canopy cost
 - Arms: (A) render/far-forest with `-farforest 0`; (B) the same build as is. Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 300 frames per arm.
@@ -1125,3 +1125,6 @@ Cliff faces (TerrainSurface steep rock) and cave walls now draw beds and slabs f
 
 ## Request (2026-11-17, supervisor, W-153 r3 #538, merged on main): river notch sampling cost
 SampleHeight now ends with TerrainSource.Notch (reuses the river query, adds one late ScarpSet.Shape). One CPU check of terrain sampling vs the commit before #538: island start (60 s) and a 1 km flight along a river, High.
+
+## Request (2026-11-17, render-2, R-29 row 3 #320, branch render/effects-kit 87426738): spire bolt pairing cost
+FloraSystem.DrawBolts now gathers spires by screen size (ElectricitySystem.Reach) instead of a fixed 160 m, so on High it pairs more spires (N squared; editor view: 20 bolts, reach 281 m). One CPU check vs main: the DrawBolts / EffectsDriver main-thread ms and whole-frame GPU ms, standing near an ArcSpire grove (`-place tree:ArcSpire`) at Medium and High, uncapped, 300 frames. Report only.
