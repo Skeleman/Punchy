@@ -1135,3 +1135,6 @@ Rivers now have 138 falls (was 75) and Landmarks_V3 is re-pinned to 114 9113464F
 
 ## Request (2026-11-17, render-2, R-29 #320, merged on main via #540): golem arc ribbon cost
 The electricity ribbon now has joint-shared sides and round caps (16 spine segments, about 4 m wide on golem links). One GPU check against the commit before #540: whole-frame GPU ms close to a golem with its arcs on, at night, Medium and High, uncapped, 300 frames. Report only.
+
+## Request (2026-11-17, world, W-174 r3 #365, branch world/cave-seam 82caa471): cave-mouth collar and ring-clip cost
+Near chunks round a cave mouth now build collars to the cave walls (BuildChunkMeshJob.Collars, plus DropSpecks: one flood fill per collared chunk), and the cave mesh drops wall vertices onto the mouth ring (CaveSystem.MeshJob.OntoRing, one MouthCutAt per vertex near a mouth). One CPU check vs main: terrain chunk build ms and cave mesh job ms while standing at a cave mouth (-goto -3132,1039) and flying past 3 mouths, High, uncapped, 300 frames. Report only.
