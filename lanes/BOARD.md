@@ -13,8 +13,8 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 r6 | #405 | world | row 1 merged #520, row 2 (cave mouths) active | - | Entrance collars: row 1 temple collar in the chunk mesh at LOD0-2, rim on the grid, shared edges canonical, guard clean. Row 2: cave mouths (inner ring = cave wall 0.4 m level set) (option A: inner ring on the true wall field) |
 | W-177 | #522 | world | queued after W-174 r6 row 2 | world/cave-mushrooms (new off main) | Cave Fungi/GlowFungi patches grow real mushroom clusters from the flora Mushroom grower (rule 33); glowing caps for GlowFungi; ScreenSize LOD; BENCH for cost |
 | W-178 | #523 | world | queued after W-177 | world/cave-tendrils (new off main) | Shared local chain sim (nothing sent over the network); row 1 glowing cave tendrils beside GlowFungi, parting on touch; ScreenSize LOD; BENCH for cost |
-| A-135 | #405 | fauna | verified 11-16, pushed fauna/ground-holes 6de1463c, ready for PR | - | Creatures respect the W-174 hole mask: CreatureMotion.cs (~306/362) and TraceSystem.cs (~300) use GroundHoles not MouthCut only; DungeonSpawner and FaunaDirector spawns reject GroundHoles.Removed ground (goblin in temple cut) |
-| W-174 | #406 | world | merged rows 1-5 (#440 #481 #503 #512 #515) | - | Tail: A-135 (fauna) |
+| A-135 | #405 | fauna | merged #525 | - | Creatures respect the W-174 hole mask: CreatureMotion.cs (~306/362) and TraceSystem.cs (~300) use GroundHoles not MouthCut only; DungeonSpawner and FaunaDirector spawns reject GroundHoles.Removed ground (goblin in temple cut) |
+| W-174 | #406 | world | merged rows 1-5 (#440 #481 #503 #512 #515) + A-135 #525 | - | Tail: W-174 r6 (collars, #405) |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | next | - | Shared rock wall; aligns with W-174 seams |
 | W-166 r3-4 | #336 | materials | r4 sweep DONE: r4a gate 0 px, r4b salt tower stone, r4c ground items on the library (colours in vertex colours: MPB on Colossus loses the sun under Forward+); Landmarks_V3 pass | merged PR #476 | DONE; fauna sets colossus uv3 |

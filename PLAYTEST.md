@@ -211,3 +211,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-16: #520 W-174 r6 row 1 (#405) the sunken temple entrance meets the ground with no gaps or lips at any distance (world). Playtest: walk the temple rim and view it from 150 m.
 - 2026-11-16: #521 W-172 (#365) cave fungi caps are paler with a soft warm glow, no longer black deep in caves (world). Playtest: go more than 8 m into a cave.
 - 2026-11-16: #524 P-52 tail (#518) a joiner no longer slips out through tower 75's wall on a slow frame on the stair (player). Playtest: join a host, climb a walk-in tower while the game hitches.
+- 2026-11-16: #525 A-135 (#405, #406) creatures keep off removed ground: no goblins in the temple entrance cut, none walk over scarp holes (fauna). Playtest: visit the sunken temple entrance.
