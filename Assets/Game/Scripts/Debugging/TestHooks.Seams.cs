@@ -34,6 +34,9 @@ namespace Punchy.Debugging
         /// and how far the midpoint of an edge between two feet may bow into the cave's air (the wall curves between
         /// feet a few centimetres apart; the edge then sits in front of the wall skin, never behind a slot; up to 0.07).</summary>
         public const float CollarFootTolerance = 0.01f, CollarChordTolerance = 0.08f;
+        /// <summary>How far (m) a mouth's collar foot may stand above CaveSampling.MouthRing, the height the cave walls are clipped to
+        /// (W-174 r3): a foot above it hangs over the walls' clipped top and opens a gap.</summary>
+        public const float RingFootTolerance = 0.02f;
         /// <summary>W-174 r6 row 2: feet closer than this (m) are the collar's finest split; a bow between them is a crease.</summary>
         const float CollarCrease = 0.03f;
         /// <summary>Widest overhang (terrain drawn where the ground is removed: a lip over the hole) as a share of a quad.
@@ -306,8 +309,8 @@ namespace Punchy.Debugging
                 // Mouth collar feet: world xz -> height and chunk, the first chunk's (a foot two chunks share must match;
                 // within one chunk two feet may stand one above the other on a sheer wall).
                 var feetSeen = new Dictionary<long, (float y, int chunk)>();
-                int rims = 0, collars = 0, feet = 0, offFeet = 0, stepFeet = 0, stepChords = 0, badChords = 0, orphans = 0, footless = 0, sharedFeet = 0, strayFeet = 0;
-                float riser = 0f, footOff = 0f, chordOff = 0f, chordSpan = 0f, rockBow = 0f;
+                int rims = 0, collars = 0, feet = 0, offFeet = 0, stepFeet = 0, stepChords = 0, badChords = 0, orphans = 0, footless = 0, sharedFeet = 0, strayFeet = 0, highFeet = 0;
+                float riser = 0f, footOff = 0f, chordOff = 0f, chordSpan = 0f, rockBow = 0f, ringOver = float.NegativeInfinity;
                 var why = "";
                 for (int i = 0; i < count; i++)
                 {
@@ -324,6 +327,10 @@ namespace Punchy.Debugging
                         {
                             var w = verts[k].Position + new float3(origin.x, 0f, origin.y);
                             feet++;
+                            var over = w.y - CaveSampling.MouthRing(job.Source.MeshHeight(w.xz, step), job.Source.AcrossSlope(w.xz));
+                            ringOver = math.max(ringOver, over);
+                            if (over > RingFootTolerance)
+                                highFeet++;
                             var off = math.abs(BuildChunkMeshJob.WallFieldAt(job.Source, w, footStep));
                             if (off > CollarFootTolerance && FieldStep(job.Source, w, footStep))
                                 stepFeet++;   // on a step in the walls' own field (the walls break there too)
@@ -517,9 +524,11 @@ namespace Punchy.Debugging
                         problems.Add($"{where} LOD{lod}: {badChords} collar foot edges bowing into the cave's air at their middle (worst {chordOff:F3} m over {chordSpan:F3} m, max {CollarChordTolerance:F2})");
                     if (orphans + footless > 0)
                         problems.Add($"{where} LOD{lod}: {orphans + footless} edges of the hole with no collar ({footless} with no foot under an end{why})");
+                    if (highFeet > 0)
+                        problems.Add($"{where} LOD{lod}: {highFeet} of {feet} collar feet above the walls' clipped top, the MouthRing (worst {ringOver:F3} m, max {RingFootTolerance:F2})");
                     if (strayFeet > 0)
                         problems.Add($"{where} LOD{lod}: {strayFeet} of {sharedFeet} feet shared across chunks differ");
-                    notes.Add($"LOD{lod} {rims} rim, {collars} collar tris, {feet} feet (off {footOff:F3}, {stepFeet} on field steps, chord {chordOff:F3} (into rock {rockBow:F3}), {stepChords} chords over steps, shared {sharedFeet}), " +
+                    notes.Add($"LOD{lod} {rims} rim, {collars} collar tris, {feet} feet (off {footOff:F3}, {stepFeet} on field steps, chord {chordOff:F3} (into rock {rockBow:F3}), {stepChords} chords over steps, shared {sharedFeet}, ring {ringOver:F3}), " +
                               $"riser {riser:F2} m, slot {slot:F2} lip {lip:F2}");
                 }
                 else
