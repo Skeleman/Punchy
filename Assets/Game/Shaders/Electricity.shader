@@ -78,12 +78,13 @@ Shader "Punchy/Electricity"
     };
 
     // Point i (0..segments) along the path.
+    // Both are worked out and one is picked (no branch: FXC's D3D11 backend fails on the branchy form).
     float3 PathPoint(ArcPath P, uint i)
     {
-        if (!P.fork)
-            return SpinePoint(P.from, P.to, P.sideA, P.sideB, P.jag, i / (float)SPINE_SEGMENTS, P.pathKey);
+        float3 spine = SpinePoint(P.from, P.to, P.sideA, P.sideB, P.jag, i / (float)SPINE_SEGMENTS, P.pathKey);
         float s = i / (float)FORK_SEGMENTS;
-        return lerp(P.root, P.tip, s) + P.forkSideA * Noise1(s, 7.0, P.forkKey) * P.forkJag * sin(s * PI);
+        float3 fork = lerp(P.root, P.tip, s) + P.forkSideA * Noise1(s, 7.0, P.forkKey) * P.forkJag * sin(s * PI);
+        return P.fork ? fork : spine;
     }
 
     // The live path's index and start time at clock t: path k starts at (k + 0.85 h_k) / rate (ElectricitySystem.PathAt).
@@ -200,19 +201,29 @@ Shader "Punchy/Electricity"
         bool right = corner == 2u || corner == 4u || corner == 5u;
         uint i = atB ? i0 + 1u : i0;
         float3 p = atB ? b : a;
-        float3 tangent = atB ? (i < segments ? PathPoint(P, i + 1u) : b) - a
-                             : b - (i > 0u ? PathPoint(P, i - 1u) : a);
+        // The neighbour past this joint (clamped: at the path's ends it is the joint itself).
+        float3 beyond = PathPoint(P, atB ? min(i + 1u, segments) : max(i, 1u) - 1u);
+        // Selects below are arithmetic: FXC's D3D11 backend emits an invalid negated movc for "c ? x : -y".
+        float fb = atB ? 1.0 : 0.0;
+        float3 tangent = lerp(b - beyond, beyond - a, fb);
         tangent = normalize(tangent + 1e-5);
+        // A ribbon much wider than its segments (a colossus's short fat arcs) would swing a tall quad at every jag
+        // and fan into streaks again, so its side follows the path's straight axis instead, more so the shorter
+        // the segments are against the half width.
+        float halfWidth = _PunchyArcShape.x * _PunchyArcShape.y * width * thin;
+        // (By the path's mean segment, so both quads at a joint agree on its side.)
+        float3 axis2 = P.fork ? normalize(P.tip - P.root + 1e-4) : dir;
+        float meanSegment = (P.fork ? length(P.tip - P.root) : arcLength) / (float)segments;
+        tangent = normalize(lerp(axis2, tangent, saturate(meanSegment / max(halfWidth, 1e-5))) + 1e-5);
         float3 toCamera = GetCameraPositionWS() - p;
         float3 side = normalize(cross(tangent, toCamera) + 1e-6);
-        float halfWidth = _PunchyArcShape.x * _PunchyArcShape.y * width * thin;
-        float across = right ? 1.0 : -1.0;
+        float across = (right ? 2.0 : 0.0) - 1.0;
         float segment = length(b - a) / max(halfWidth, 1e-5);
         float capStart = -1.0, capEnd = -1.0;
-        if (i0 == 0u) capStart = atB ? -segment : 1.0;
-        if (i0 + 1u == segments) capEnd = atB ? 1.0 : -segment;
-        if (i == 0u) p -= tangent * halfWidth;
-        if (i == segments) p += tangent * halfWidth;
+        float startQuad = i0 == 0u ? 1.0 : 0.0, endQuad = i0 + 1u == segments ? 1.0 : 0.0;
+        capStart = lerp(-1.0, lerp(1.0, -segment, fb), startQuad);
+        capEnd = lerp(-1.0, lerp(-segment, 1.0, fb), endQuad);
+        p += tangent * (halfWidth * ((i == segments ? 1.0 : 0.0) - (i == 0u ? 1.0 : 0.0)));
         p += side * (across * halfWidth);
 
         o.positionCS = TransformWorldToHClip(p);

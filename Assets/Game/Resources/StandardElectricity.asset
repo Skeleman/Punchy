@@ -32,8 +32,8 @@ MonoBehaviour:
   Jag: 0.12
   JagMax: 2.5
   CoreWidth: 0.05
-  GlowWidth: 12
-  GlowStrength: 1.5
+  GlowWidth: 9
+  GlowStrength: 1
   ForkChance: 0.55
   ForkLength: 0.3
   ForkMiss: 0.7
