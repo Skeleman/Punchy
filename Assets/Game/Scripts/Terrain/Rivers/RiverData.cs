@@ -171,7 +171,7 @@ namespace Punchy.Terrain
         public float Width;
         public float Carve;      // carved height of the nearest river's profile, blended with others near joins
         public float Water;      // water surface of the same profiles, blended the same way
-        public float FallWater;  // upper surface of a waterfall whose channel covers this point above its lip (else MinValue)
+        public float FallWater;  // upper water of a fall whose channel covers this point above its lip line (else MinValue)
         public float2 Flow;      // downstream direction at the closest point
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
     }
@@ -312,6 +312,10 @@ namespace Punchy.Terrain
         /// <summary>Over this many metres of edge distance, a further profile still shares the carve and water (joins).</summary>
         public const float JoinBlend = 2f;
 
+        /// <summary>How far past a fall's lip line its upper water still reaches (m): the lip holds the upper water.</summary>
+        public const float LipHold = 0.9f;
+        public const float FootPoolDepth = 0.2f;  // a fall's foot pool sinks this share of its drop (at most 2.5 m)
+
         /// <summary>
         /// W-153 row 2: the carve and water of the nearby profiles, weighted by how close each one's edge is (the
         /// nearest weighs 1, one JoinBlend further 1/e). Inside a channel its own profile rules; where two segments
@@ -386,9 +390,31 @@ namespace Punchy.Terrain
             var carve = Profile(distance, level, width, Depth(baseWidth, s), bank);
 
             // Carve and water come from the same profile, so water and banks agree.
-            blend.Add(distance - width * 0.5f, carve, profile.Water(tl));
-            if (fall && tl < 0.5f && distance < width * 0.5f)
-                q.FallWater = math.max(q.FallWater, profile.Water(tl));
+            // A fall's water steps on its lip line, straight across the channel at the curve's middle (where FallShape
+            // and the curtain put it), so both banks agree at the lip; a little past it so the lip itself holds the upper water.
+            // Inside its channel above the lip the fall owns the water outright (a river doubling back beside its own
+            // fall would otherwise blend its lower water in across the bank).
+            // Below the lip line the bed sinks into a foot pool, deeper than the channel for about a channel width, so
+            // the curtain lands in a plunge pool rather than on a dry step. It keeps the channel's own width: a wider
+            // basin spilled the lower water out against the banks beside the lip.
+            var water = profile.WaterAt(t);
+            if (fall && s.Smooth && down >= 0)
+            {
+                var lip = CurveMid(ref map, start, out var lipFlow);
+                var past = math.dot(xz - lip, lipFlow);
+                var above = past <= LipHold;
+                water = above ? profile.WaterA : profile.WaterB;
+                if (above && distance < width * 0.38f)
+                    q.FallWater = math.max(q.FallWater, profile.WaterA);
+                if (!above)
+                {
+                    var drop = math.max(profile.BedA - profile.BedB, 0f);
+                    var sink = math.smoothstep(LipHold, LipHold + 2f, past)
+                             * (1f - math.smoothstep(LipHold + width * 0.6f, LipHold + width * 1.2f, past));
+                    carve = Profile(distance, level, width, Depth(baseWidth, s) + math.min(drop * FootPoolDepth, 2.5f) * sink, bank);
+                }
+            }
+            blend.Add(distance - width * 0.5f, carve, water);
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
             {
                 q.Found = true;

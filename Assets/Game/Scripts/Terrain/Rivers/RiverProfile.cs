@@ -31,8 +31,13 @@ namespace Punchy.Terrain
         public RiverProfileKind Kind;
 
         public bool Falls => (Kind & RiverProfileKind.Fall) != 0;
-        /// <summary>How far along the bed and water have gone at curve parameter t: a fall steps half way along.</summary>
-        public float Along(float t) => Falls ? math.smoothstep(0.46f, 0.54f, t) : t;
+        /// <summary>
+        /// How far along the bed has gone at curve parameter t. A fall's bed holds its upper level to the lip, half way
+        /// along, then plunges just below it (rework row 3: the step starts at the lip, never under the upper water).
+        /// </summary>
+        public float Along(float t) => Falls ? math.smoothstep(0.505f, 0.55f, t) : t;
+        /// <summary>The water at curve parameter t: a fall's upper water runs to the lip and drops there in one step.</summary>
+        public float WaterAt(float t) => Falls ? (t <= 0.505f ? WaterA : WaterB) : Water(t);
         public float Bed(float along) => math.lerp(BedA, BedB, along);
         public float Water(float along) => math.lerp(WaterA, WaterB, along);
         public float Width(float t) => math.lerp(WidthA, WidthB, t);
