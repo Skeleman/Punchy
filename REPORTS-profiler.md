@@ -2,6 +2,23 @@
 
 Newest first.
 
+## Job 106 (fauna #24 phase 2 row 2): dungeon creatures by nearness, MIXED (temple PASS; walk-in fails on one round; no load saving)
+
+fauna/dungeon-spawns ba6a6c90 (B: eca2aaec with main merged) vs its merge-base main 53cc5e36 (A). High, 1920x1080, uncapped,
+noon Clear, `-host`, 3 rounds alternated. Laptop GTX 1060 Max-Q. Spec q146.job.
+
+| view | A GPU by round | A mean | B GPU by round | B mean | B vs A | A CPU | B CPU |
+|---|---|---|---|---|---|---|---|
+| start (60 s at island start) | 25.7, 25.3, 26.8 | 25.93 | 25.9, 26.6, 26.7 | 26.40 | +0.47 | 42.8 | 47.2 |
+| temple (chest 1, 3512,19,368) | 29.1, 22.1, 24.1 | 25.10 | 24.3, 25.4, 25.4 | 25.03 | **-0.07 PASS** | 47.9 | 43.5 |
+| walkin (200 m west to chest) | 20.9, 20.6, 23.4 | 21.63 | 21.1, 26.3, 21.5 | 22.97 | +1.33 | 35.9 | 40.4 |
+
+- **Temple (the card's +0.5 ms bar): passes**, -0.07 ms GPU and 4 ms less CPU mean. A's rounds spread 22-29 ms, so treat the CPU gain as noise.
+- **Walk-in: +1.33 ms comes from one B round** (26.3 ms; that game streamed 987 chunks against 882 for the others). B's other two rounds match A (21.1 and 21.5 vs 20.6-23.4). I'd call it noise, but it is not a clean pass.
+- **Worst walk frame (spawn burst):** A 663 / 671 / 815 ms, B 791 / 652 / 660 ms. Same range. The walk starts where the game loads, so these worst frames are load frames in both arms, not a spawn burst. The bench can't separate a 2 ms spawn cost from them. A walk that starts after a settle, or a `[dungeon]` spawn-timing line, would.
+- **No load saving.** The card expected world ready and the start view to get cheaper. World ready, rounds 2-3 (round 1 rebuilt caches): A 41.0 / 45.1 s, B 43.0 / 45.0 s. In both arms, DungeonSpawnSystem still has one frame of about 0.7-1.15 s on ClientWorld (A 1006 / 973 / 729 ms, B 1153 / 938 / 984 ms) plus about 0.3 s on ServerWorld. Both arms log the same dungeon socket and loot lines (creatures 10, chests 11, hash 0x24b8f93f). Either the load frame is mostly sockets, chests and decor rather than creatures, or the branch still spawns at load. Fauna lane: please check which one.
+- **Live creature count after 60 s:** neither build logs a census line, so I couldn't record it. A `[fauna]` live-entity count at the end of `-benchlong` would give it next time.
+- Start view: B +0.47 ms GPU and +4 ms CPU; within the 0.5 ms bar but the wrong direction for "fewer live creatures".
 ## Job 114 (R-31 row 2, #325): grass today / e / f, DONE (report only)
 
 render/grass-fields@14f86b6d, one build, arms by `-grassproto` (today = no flag). `-place meadow -benchstops here`, noon, Clear,

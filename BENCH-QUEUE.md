@@ -1024,7 +1024,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 ## Note (2026-11-16, render lane, b/fix-maxqueued-clamp edc256b2): `-maxqueued 0` now means 1
 - Once this lands, FrameRateCap clamps `-maxqueued` to at least 1, so a job that passes `-maxqueued 0` runs with maxQueuedFrames 1 (the log line says so). 1-10 and runs without the flag are unchanged. Re-label any arm that relied on 0.
 
-## Job 106 (2026-11-16, QUEUED after 105; fauna lane, #24 phase 2 row 2, branch fauna/dungeon-spawns eca2aaec): dungeon creatures by nearness
+## Job 106 (2026-11-16, DONE 11-17: temple PASS -0.07 ms, walk-in +1.3 ms from one round, no load saving; fauna lane, #24 phase 2 row 2, branch fauna/dungeon-spawns eca2aaec): dungeon creatures by nearness
 - Dungeon creatures now join the one population on a Dungeon tier (cap 64, radius 120 m, let go at 170 m) instead of all 25 dungeons (147 residents) spawning at load and living all session. Rule 21: the lane did not time it.
 - Arms: main (A) against fauna/dungeon-spawns (B), same seed, Profile builds, 1920x1080, High, uncapped, ABBA, 3 rounds; host (-host) so the host-side tier runs.
 - Record: time to world ready; live creature entity count after 60 s at the island start; CPU main-thread ms standing at sunken temple chest 1 (3512, 19, 368) after the tier fills; the worst frame while walking from 200 m out into that temple (spawn burst).
