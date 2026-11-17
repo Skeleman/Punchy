@@ -214,3 +214,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-16: #525 A-135 (#405, #406) creatures keep off removed ground: no goblins in the temple entrance cut, none walk over scarp holes (fauna). Playtest: visit the sunken temple entrance.
 - 2026-11-16: #526 W-174 r6 row 2 (#405) cave mouths: the ground meets the cave walls with no gap or lip, even on steep slopes (world). Playtest: walk into a cave on a hillside and look back at the rim.
 - 2026-11-16: #527 W-177 (#522) cave fungi patches grow real mushroom clusters, glowing caps on GlowFungi, caps turned up on walls (world). Playtest: find a fungal cave or glowing wall patch.
+- #530 W-180 (#529): cave mouths showing sky was a shot artifact (cull lags a camera move by one frame); docs gotcha only, no game change.
