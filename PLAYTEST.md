@@ -220,3 +220,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #533 W-178 r2 (#523): cave set pieces (root curtains, vine drapes, mine ropes) pushed by player/creatures; tendril glow tinted per cave style.
 - #535 W-162 (#327): one shared rock wall for cliffs and caves; climb grades (craggy 4, smooth 5); cliffs over 60 deg stop non-climbers; cave mouth toes.
 - #536 W-153 (#301): water/truth landed: paddies bake in IslandV2, steep cells rejected at bake, water truth counts in WorldTests.
+- #537 W-153 (#301): uphillGraph probe skips lake edges, 62 -> 10; probe only, no change in play.

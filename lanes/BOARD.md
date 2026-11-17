@@ -7,7 +7,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 
 | Card | Issue | Lane | Status | Branch@sha | Next step |
 |---|---|---|---|---|---|
-| W-153 | #301 | world | uphillGraph fix ready (62->10, probe artifact at lake edges) | world/uphill-graph b85e1fe8 | Supervisor: merge; then rows 3-6 |
+| W-153 | #301 | world | rows 1-2 merged #536, uphill probe fix merged #537 | - | Row 3 next: river notch cuts (W-162 banks, small falls); then rows 4-6 |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
 | W-175 | #415 | world | merged #516 (world part), fungi caps #521 | - | Cookhouse blueprint in human villages; fungi-cap brightness |
 | W-177 | #522 | world | merged #527 | - | Cave mushrooms: clusters from the flora Mushroom grower on Fungi/GlowFungi patches, wall-grown form, LOD by screen size; tests 19/19; BENCH requested; next for world: open |
