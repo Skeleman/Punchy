@@ -8675,3 +8675,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Marked band block in TerrainSurface.shader lines 622-633 (begin/end comments "W-174 row 3: mouth collar band weight"): the collar darkens (albedo x0.8, occlusion 0.55) from rim (0.001) to foot (0.002), faded by on-screen size (rule 20).
 - Cave.shader not touched: its terrain share (data.x) is already about 0.96 at the ring, so the walls take the terrain look there.
 - Shader has no errors after a forced reimport and Refresh. c6 5 m shot viewed: the collar shades into the walls with no gap. Next: guard plus hash re-pin.
+
+### W-174 r3 step 4 (#365) - BLOCKED, world/cave-seam WIP (guard commit after 37987f96)
+- WorldTests 19/20: Seams_NoOpenRims fails. It passed at #541 (20/20), so the cause is on this branch.
+- Regressions vs r6 (slot 0, lip 0, every edge collared): mouths 0-4 now have slots up to 0.69 m and lips up to 1.67 m, and mouths 0 and 3 have 2-10 hole edges with no foot. Likely cause: the MouthCutKept speck gate (62d2474a, ApronRise b3117cad) makes the cut field too fine for the 0.5-1 m grid to follow.
+- The new ring-foot guard fails too: 1-183 feet per mouth/LOD stand above MouthRing (worst 0.11 m LOD0, 0.61 m LOD1). Partly by design (shallow fallback sheets 0.1-0.3 m; LOD1 reads MeshHeight at its own step while the walls use the LOD0 step). The guard needs a sheet-aware form.
+- Decision needed: keep the speck gate and widen the hook (specks vs seam truth), or drop the gate and remove the c6 speck another way. Hashes not re-pinned yet. Steps 5-6 wait.

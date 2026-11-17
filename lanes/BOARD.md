@@ -11,7 +11,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
 | W-175 | #415 | world | merged #516 (world part), fungi caps #521 | - | Cookhouse blueprint in human villages; fungi-cap brightness |
 | W-177 | #522 | world | merged #527 | - | Cave mushrooms: clusters from the flora Mushroom grower on Fungi/GlowFungi patches, wall-grown form, LOD by screen size; tests 19/19; BENCH requested; next for world: open |
-| W-174 r3 | #365 | world | WIP | world/cave-seam 37987f96 | Steps 1, B, C done (band block TerrainSurface 622-633); now guard, hashes |
+| W-174 r3 | #365 | world | BLOCKED | world/cave-seam | Steps 1, B, C done; step 4 guard fails (speck gate opened slots/lips), needs a decision, see REPORTS |
 | W-174 r6 | #405 | world | merged #520 (temple), #526 (cave mouths) | - | Entrance collars: row 1 temple collar in the chunk mesh at LOD0-2, rim on the grid, shared edges canonical, guard clean. Row 2: cave mouths (inner ring = cave wall 0.4 m level set) (option A: inner ring on the true wall field) |
 | W-180 | #529 | world | merged #530 | world/mouth-holes (docs only) | Shot artefact: the surface skip culled walls for the last frame's pose; posed a frame ahead, mouths are dark at 20 m and 150 m. Not #520 |
 | W-178 | #523 | world | merged #531, #533 | world/cave-setpieces |
