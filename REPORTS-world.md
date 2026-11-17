@@ -8644,3 +8644,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Every bed step >= 1 m is a described fall (#42 thinning dropped): 75 -> 138 falls. WaterTruth wall 457->397, deep 11->10, tilt 18->17, step 610->225, others unchanged. WorldTests 20/20 after re-pin Landmarks_V3 9113464F.
 - Shots: W-153/notch-r3, fall-a-r3, fall-b-r3 (unviewed). Profiler bench spots near rivers may move; re-check after row 6.
 - 3b fits one row: the R-9 fine sheet already sends per-fall lip/axis uniforms, so the chosen fall needs no vertex flag; curtains on all 138 falls would need one (will ask render before adding).
+
+## W-153 row 3b (2026-11-17) world/river-curtain 7a9af48e
+- Fall curtain mesh of the water itself (FallCurtain.cs, one builder for river/grand/landmark falls), drawn under the white sheet; rows from DetailPolicy.ScreenSize (14 px/row, 4..40), ragged hashed edges.
+- Water.shader: small additive TEXCOORD5 "fall" stream; curtain skips the patch/curtain clips and swell, steep = max(steep, fall.x) across the arc.
+- WorldTests 20/20, WaterTruth unchanged (no terrain change). Shots W-153/fall-a,b-3b-before/after: sheet now has a water body and a clear arc (viewed fall-b).
+- Next: row 4 (lake step merge).
