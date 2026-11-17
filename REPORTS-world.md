@@ -8616,3 +8616,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - world/river-revert f264f40a: #538 channel water reverted, notches kept; WaterTruth back to 82,0,0,0,7,10,0,972,43,29,970,46,5; WorldTests 20/20. Ready to merge.
 - 636a8c01 (same branch): docs/agents/river-rework.md, with one profile per segment, the wall gate at 0, about 6 rows, and a 2-row clamp as the cheaper option.
 - Row 4 WIP paused on world/river-profiles 5123e42c (every bed step a fall + no carve past the lip: wall 930->634, step 1013->594, fallHead 46->10); not verified.
+
+## W-153 row 1 (2026-11-17) - river profile struct and bake
+- world/river-profile-r1 49a807d1: RiverProfile.cs (profile struct + bake: pit fill, bank lows, segment kinds); sampling reads profiles.
+- Neutral: WaterTruth {82,0,0,0,7,10,0,972,43,29,970,46,5} and 75 falls identical to main; WorldTests 20/20. No visual change, no shots.
+- Bank clamp deferred to row 2: under lowest-carve sampling every clamp variant raised dryRun (7 -> 11-31). 450 cells sit over their bank low.
+- Row 3b (fall curtain) noted; I'll say in the row 3 handoff whether it fits one row. Starting row 2 (nearest-profile sampling with join blending).
