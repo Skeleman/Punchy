@@ -268,6 +268,8 @@ namespace Punchy.Terrain
     public class CaveWallBuild
     {
         public readonly int Cave;
+        /// <summary>The cave's style slot, carried in the meshes so they take the style's everywhere light (W-179).</summary>
+        public readonly int Style;
         public readonly CaveWallSite Site;
         public readonly int Mask;
         public readonly Mesh[] Meshes = new Mesh[CaveWallDetails.Kinds];
@@ -299,6 +301,7 @@ namespace Punchy.Terrain
             var c = set.Caves[cave];
             key = c.Key;
             mouth = c.Mouth;
+            Style = c.Style;
             for (int n = c.FirstNode; n < c.FirstNode + c.NodeCount; n++)
                 nodes.Add(n);
             var site = CaveWallDetails.SiteOf(source, palette, styles, cave);
@@ -373,7 +376,7 @@ namespace Punchy.Terrain
                 }
         }
 
-        CaveWallMesh Geometry(CaveWallKind kind) => geometry[(int)kind] ??= new CaveWallMesh(mouth);
+        CaveWallMesh Geometry(CaveWallKind kind) => geometry[(int)kind] ??= new CaveWallMesh(mouth, Style);
 
         // ------------------------------------------------------------------------------------------- places
 
@@ -919,15 +922,16 @@ namespace Punchy.Terrain
         readonly List<Color> colours = new List<Color>();
         readonly List<int> indices = new List<int>();
         readonly float3 mouth;
+        readonly float style;
         static readonly float NoRib = CaveSystem.SeamRib(0f, 1f);
 
-        public CaveWallMesh(float3 mouth) { this.mouth = mouth; }
+        public CaveWallMesh(float3 mouth, int style) { this.mouth = mouth; this.style = style; }
 
         int Vertex(float3 p, float3 n, float tint)
         {
             positions.Add(p);
             normals.Add(math.normalizesafe(n, new float3(0f, 1f, 0f)));
-            data.Add(new Vector4(0f, tint, 0f, NoRib));
+            data.Add(new Vector4(0f, tint, style, NoRib));
             // Colour alpha is the openness the cave walls take: daylight near the mouth, none deep in.
             colours.Add(new Color(0.5f, 0.5f, 0.5f, math.saturate(1f - math.distance(p, mouth) / 18f)));
             return positions.Count - 1;

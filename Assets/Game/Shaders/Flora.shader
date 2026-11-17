@@ -365,6 +365,7 @@ Shader "Punchy/Flora"
                 PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
                 ps.wideNormalWS = half3(0, 1, 0);
                 ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                ps.caveAir = _FloraInCave; // W-179: cave plants sit in the cave's air, surface plants never
                 ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
                 // Past the far map: the island's static glow and distant towns' light (R-10 row 4), not in caves
                 // (profiler pricing: -floraglowworld 0 skips it).

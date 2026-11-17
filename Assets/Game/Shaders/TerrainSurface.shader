@@ -534,6 +534,7 @@ Shader "Punchy/Terrain Surface"
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 // Skirts take their shadowing from the surface edge they hang from.
                 PunchySurface ps = PunchySurfaceAt(input.positionWS, normalWS);
+                ps.caveAir = 0; // the ground outside, seen through a mouth, keeps its own colour
                 ps.shadowPositionWS = input.positionWS + float3(0, max(input.extra.w, 0), 0);
                 ps.positionCS = input.positionCS;
                 PunchyLit lit = PunchySurfaceLight(ps);
