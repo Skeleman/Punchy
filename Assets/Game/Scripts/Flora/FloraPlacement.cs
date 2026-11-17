@@ -2173,6 +2173,14 @@ namespace Punchy.Flora
                 var v = Punchy.Terrain.StructureKit.FixtureLight(s.FixtureStyle);
                 return new float4(v.x, v.y, v.z, -(FixtureGlowBase + v.w));
             }
+            // A fishing village's walkways (dock, shore, wharf, boardwalk) carry lanterns as glowing accents. They lit the
+            // ground as an always-on plant glow (three times a lamp, orange, 14 m), which washed the beach and the boats
+            // yellow-white at noon: they are pier lamps, so they light like one, after dark only (street lights).
+            if (s.Form == FloraForm.KitBuilding && s.GlowingAccents && WalkwayLanterns(s.KitShape))
+            {
+                var v = Punchy.Terrain.StructureKit.FixtureLight(Punchy.Terrain.FixtureStyle.PierLamp);
+                return new float4(v.x, v.y, v.z, -(FixtureGlowBase + v.w));
+            }
             // W-127: a lived-in kit house has lit windows (FloraGenerator.Kit), so its light is a lamp inside it: indoor,
             // night only (negative), like a hut's. Its glowing accents are lamps in it too, which used to light the
             // street through its walls.
@@ -2209,6 +2217,11 @@ namespace Punchy.Flora
                 return new float4(lin.r * 0.6f, lin.g * 0.6f, lin.b * 0.6f, -math.min(reach, 9f));
             return new float4(lin.r * strength, lin.g * strength, lin.b * strength, reach);
         }
+
+        /// <summary>Kit walkways whose glowing accents are lanterns (see GlowLight).</summary>
+        static bool WalkwayLanterns(Punchy.Terrain.KitShape k) =>
+            k == Punchy.Terrain.KitShape.Dock || k == Punchy.Terrain.KitShape.Shore || k == Punchy.Terrain.KitShape.Wharf ||
+            k == Punchy.Terrain.KitShape.Boardwalk;
 
         /// <summary>
         /// The grid spacing a layer really uses: its tiles hold a whole number of cells, so the cell size is rounded
