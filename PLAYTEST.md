@@ -229,3 +229,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #540 R-29 (#320): one shared electricity effect; spire and golem arcs re-jag erratically with a soft glow.
 - 11-17 #544 W-166 wood (#336): each wood kind has its own board size, knot spacing, grain figure and wear (pine, driftwood, dark, bleached tuned).
 - 11-17 #545 W-166 (#336): MaterialLibrary tests follow includes; Cookhouse roofs plaster, door mats cloth, camp fire rings now stone.
+- 11-17 #546 W-166 (#336): creature coverings (fur, feathers, scales, skin, chitin) in the material library; no look change yet.

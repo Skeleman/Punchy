@@ -124,7 +124,7 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): no one walks through a campfire; every fire gives heat that comfort uses (A-121, #342).
 - 11-14 (Zach): move more generation into a one-time bake shipped with the game so starts are faster (W-168, #345).
 - 11-14 (Zach): gear, dropped items and animal parts (horn, shell, hide) share the material library (W-166, #336).
-- 11-14 (Zach): one material library for everything, fur, feathers, scales and skin included, so furniture and gear can use them later (W-166, #336).
+- 11-14 (Zach): one material library for everything, fur, feathers, scales and skin included, so furniture and gear can use them later (W-166, #336). Coverings rows shipped #546 (11-17); Creature.shader switch next.
 - 11-17 (Zach): cave wall surface geometry is a function of the rock material; the per-style cave surface comes back through the library, not a cave card (W-166, #336). Shipped #542 (row 1, 11-17), wood row #544 (11-17), lib tests + Cookhouse families #545 (11-17).
 - 11-17 (Zach): the same per-material rules cover every rock wall (cliff scarps, river notches): one rock-wall rule set by material. Caves first (materials row 1), scarps row 2 after the river rework frees ScarpSet/TerrainSource (W-166 #336, W-162 #327). Next.
 - 11-15 (Zach): every building from kit pieces so collision is predictable (#399, W-173 row 3 note first).

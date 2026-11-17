@@ -43,3 +43,9 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Both failures reproduced on main. MaterialLibraryTests 4/4 now, edit-mode suite 42/42.
 - Stone: the test now follows #include chains. Cave and TerrainSurface reach Materials/Stone.hlsl through Materials/RockWall.hlsl (#327). No shader edits.
 - Cookhouse: its blueprint's parts take their form's family, and Stall has none. The pyramid roof falls back to plaster (like the smithy's), the door mat is cloth, the fire ring is stone (so camp fire pit stones now draw as stone too).
+
+## materials/coverings (a6218b6d) - DONE (W-166 #336, roadmap line 127)
+- A-133 had only moved gear wood and metal; coverings were still inline in Creature.shader.
+- MaterialLibrary.Coat: one row per Fauna.CoatKind (fur, feathers, scales, skin, chitin), pushed as globals. New Materials/Coat.hlsl, PunchyCoat(), carries the A-97/A-123 patterns unchanged; default rows match the inline values.
+- Fauna hand-off: switch Creature.shader's coat block (surf 0-4) to PunchyCoat(), then drop ("Coat.hlsl","Creature.shader") from Pending in MaterialLibraryTests and add Creature.shader as Coat's user.
+- Tests: MaterialLibraryTests 5/5 (new EveryCoatKindHasARow), edit-mode suite 43/43. A probe shader compiled Coat.hlsl clean (no warnings). No look change, no image reads.
