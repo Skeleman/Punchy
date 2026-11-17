@@ -250,7 +250,7 @@ namespace Punchy.Flora
             }
             if (perch.y > 1f)
                 g.Perches.Add(perch);
-            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            b.DarkenBelow(first, 0.5f, 0.82f);   // darker footing
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
             g.Height = Mathf.Max(height, top);
 

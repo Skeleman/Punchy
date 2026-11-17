@@ -263,6 +263,21 @@ namespace Punchy.Flora
                 colors[v] = tint(positions[v], normals[v], colors[v]);
         }
 
+        /// <summary>
+        /// Darkens the vertices since a vertex that sit below a height (the darker footing of a building or walkway).
+        /// Only the colour: the alpha carries a wood piece's grain axis and look, and scaling it (#550) turned the
+        /// planks of every low deck into shingles.
+        /// </summary>
+        public void DarkenBelow(int firstVertex, float height, float factor)
+        {
+            for (int v = firstVertex; v < positions.Count; v++)
+                if (positions[v].y < height)
+                {
+                    var c = colors[v];
+                    colors[v] = new Color(c.r * factor, c.g * factor, c.b * factor, c.a);
+                }
+        }
+
         // ------------------------------------------------------------------------------------------- primitives
 
         /// <summary>

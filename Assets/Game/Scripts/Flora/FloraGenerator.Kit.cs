@@ -274,7 +274,7 @@ namespace Punchy.Flora
                         Grade = Punchy.Terrain.StructureKit.LadderGrade
                     });
                 }
-            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            b.DarkenBelow(first, 0.5f, 0.82f);   // darker footing
             if (ruined && g.Lod < 2)
                 RuinSand(g, parts, width, depth, seed);
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
@@ -419,7 +419,7 @@ namespace Punchy.Flora
             // double-sided flip caught part of a wall).
             var first = b.VertexCount;
             b.Box(new Vector3(0f, (wall - 0.15f) * 0.5f, 0f), new Vector3(half * 2f, wall + 0.15f, half * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
-            b.Recolor(first, (p, c) => p.y < 0.6f ? c * 0.8f : c);   // darker footing
+            b.DarkenBelow(first, 0.6f, 0.8f);   // darker footing
             b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.5f));
 
             // Wall detail: dressed quoins up each corner (alternating long and short blocks), a plinth course round
@@ -594,7 +594,7 @@ namespace Punchy.Flora
                 if (perch.y > 1f)
                     g.Perches.Add(perch);
             }
-            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.8f : c);   // darker footing
+            b.DarkenBelow(first, 0.5f, 0.8f);   // darker footing
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.5f));
 
             // Fallen stones, most of them below the wall that came down.
