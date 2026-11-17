@@ -2,6 +2,12 @@
 
 Newest first.
 
+## Job 86: R-28 row 2 cobble parallax (render/cobble-depth ce3ff5a7), 2026-11-16 (q128e.job): **BLOCKED: FXC crashes compiling the branch's terrain shader, every time it compiles fresh**
+q128e built ce3ff5a7 plus one unused constant in TerrainSurface.shader's ForwardLit pass (bench-only local commit 5317827, not pushed). The constant changes the shader's source hash, so no cached variant could be reused; earlier rebuilds (q128c, q128d) had quietly reused the variants left by the first crash.
+- **Result:** "Punchy/Terrain Surface" compiled for the first time since q128b, and FXC crashed 15 times: `Compile Punchy/Terrain Surface - ForwardLit, Fragment Program: Lost connection with shader compiler process. Suspected crash in FXC` (d3d11; 24 fragment variants after stripping; Unity restarts the compiler and retries, then gives up on the shader). The build reports Succeeded but ships without the terrain pass, as q128b did (flat blue ground). The guard stopped the job before any timed game.
+- **So the crash is in the branch's shader, not the bench.** The other FXC lines in the log are the usual "potentially uninitialized variable" warnings (Sky.hlsl, Creature.shader, WaterSwell.hlsl ...), also on main.
+- **Likely place (owner to confirm):** the new paving parallax in the ForwardLit fragment, a `[loop] for (i = 1; i <= 8; i++)` with an `[unroll]` inner loop. Common FXC triggers are texture samples with implicit derivatives inside a dynamic loop, and unrolls that grow too large (not verified here). Things to try: `SampleGrad`/`SampleLevel` inside the loop, or `[unroll]` the outer loop at a fixed count. The editor should show it on a reimport of TerrainSurface.shader after a source change (untested here).
+- No numbers until a build compiles the terrain cleanly. The bench spec (q128e) is ready to rerun as soon as the branch moves.
 ## Job 99a: fauna #428-#431 far herds and one population (6ce454c2 = B vs 84d7d574 = A), 2026-11-16 (q139g.job): **PASS at Medium and High dusk; High vantage UNRELIABLE (stalls in both arms), rerun with the Profiler chained (q139h.job)**
 Both arms built with the TestHooks.Options.cs guard (bench-only local commits 6fe2835 / b93adb1). Profile builds, 1920x1080, uncapped, Clear, 3 rounds, arms alternated. Views: job 81's summit vantage (-2496,294,960, yaw 55, noon; the card's grassland vantage isn't located) and town 73 at 19:12 from 100 m south.
 
