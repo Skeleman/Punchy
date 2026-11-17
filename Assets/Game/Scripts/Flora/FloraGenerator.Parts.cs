@@ -258,11 +258,13 @@ namespace Punchy.Flora
         /// <summary>
         /// A four-sided pyramid roof with a rounded eave (RoofTube), its eave at At's height, its apex at To (a perch), its
         /// rim reaching past the larger of Span.x and Span.z (the width and depth it covers). In the species' foliage colour;
-        /// the roofing is the form's own family.
+        /// the roofing is the form's own family, or plaster (the smithy's) on a form with none (a timber stall's blueprint).
         /// </summary>
         static void PyramidRoof(Grower g, UnitFrame f, UnitPart p)
         {
             var b = g.B;
+            if (b.BaseFamily == Family.None)
+                b.Family = Family.Plaster;
             Vector3 eave = f.At(p), apex = f.To(p), span = f.Span(p) * 0.5f;
             var roof = b.VertexCount;
             RoofTube(b, eave.y - 0.2f, Mathf.Max(span.x, span.z) * 1.414f * 1.15f, 4, g.FoliageColor(), FloraPart.Bark, apex.y, 0.05f, 0f, 0f);
@@ -437,6 +439,7 @@ namespace Punchy.Flora
         {
             var at = f.At(p);
             var first = g.B.VertexCount;
+            g.B.Family = Family.Cloth;   // W-166: a woven mat, whatever the building is
             DoorMat(g, at.z, f.Span(p).x);
             // (DoorMat draws at x = 0 on the ground; move it along only if At says so, so a centred mat keeps its bits.)
             if (at.x != 0f || at.y != 0f)
@@ -453,6 +456,7 @@ namespace Punchy.Flora
             var b = g.B;
             var radius = f.Span(u).x * 0.5f;
             var stones = Mathf.Max(6, g.Count(s.Branches));
+            b.Family = Family.Stone;   // W-166: the ring and its ash bed are stone, whatever the unit is
             if (u.Bounds)
             {
                 g.Height = radius * 0.8f;
