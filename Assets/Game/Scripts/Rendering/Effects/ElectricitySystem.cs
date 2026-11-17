@@ -16,7 +16,7 @@ namespace Punchy.Rendering.Effects
     /// and the fade by screen size (DetailPolicy, rule 20).
     /// Two ways to add one: AddArc for a steady arc (the golem's links) and AddStrike for one that fires now and then on
     /// its own rhythm (spire to spire, spire to ground), which says whether it is firing so the caller can skip work.
-    /// SKETCH (11-16, uncompiled): to compile, tune and wire at the first editor slot. Not yet called from anywhere.
+    /// Callers: FloraSystem.DrawBolts (spire strikes) and GolemArcs (the golems' links).
     /// </summary>
     public static class ElectricitySystem
     {
