@@ -8638,3 +8638,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - WaterTruth down on every kind: wall 972->457, step 970->610, dryRun 7->0, deep 43->11, tilt 29->18, fallHead 46->0, fallFoot 5->0.
 - Landmarks_V3 re-pinned 9786243F -> 4DC69668 (114 kept): river-side spots shift; profiler bench spots near rivers may move, re-check after row 6.
 - Shots: PunchyMilestones/W-153 fall-a/fall-b/notch-r2-before/after. Next: row 3 (fall profile + foot pool), then 3b curtain.
+
+## W-153 rework row 3 (2026-11-17) - world/river-profile-r1 a60d82b2
+- Fall profile: bed holds the upper level to the lip, then plunges; water steps on one straight lip line; bed sinks into a foot pool (channel width, 0.2 x drop, max 2.5 m). A wider pool basin spilled lower water onto banks (wall 664), so it stays channel-wide.
+- Every bed step >= 1 m is a described fall (#42 thinning dropped): 75 -> 138 falls. WaterTruth wall 457->397, deep 11->10, tilt 18->17, step 610->225, others unchanged. WorldTests 20/20 after re-pin Landmarks_V3 9113464F.
+- Shots: W-153/notch-r3, fall-a-r3, fall-b-r3 (unviewed). Profiler bench spots near rivers may move; re-check after row 6.
+- 3b fits one row: the R-9 fine sheet already sends per-fall lip/axis uniforms, so the chosen fall needs no vertex flag; curtains on all 138 falls would need one (will ask render before adding).
