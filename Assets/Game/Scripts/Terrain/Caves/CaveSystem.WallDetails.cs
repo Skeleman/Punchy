@@ -139,6 +139,7 @@ namespace Punchy.Terrain
                 }
             Shader.SetGlobalVector(CaveAirId, CameraCaveAir(ref set, camPos));
             DrawMushrooms(camPos);
+            DrawTendrils(camPos);
         }
 
         /// <summary>
@@ -180,6 +181,7 @@ namespace Punchy.Terrain
             wallShown.Clear();
             wallBuilding = null;
             ReleaseMushrooms();
+            ReleaseTendrils();
             if (wallMaterials != null)
                 foreach (var mat in wallMaterials)
                     if (mat != null)

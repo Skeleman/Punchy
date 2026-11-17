@@ -282,6 +282,11 @@ namespace Punchy.Terrain
         /// </summary>
         public readonly List<(float3 position, float yaw, float scale, int model, float random)> Mushrooms =
             new List<(float3, float, float, int, float)>();
+        /// <summary>
+        /// W-178: glowing tendrils hanging from the ceiling over a GlowFungi patch (hash stream 10, so no other draw moves).
+        /// CaveSystem.Tendrils swings them on the shared ChainSim; anchor is on the rock, length is the rest length.
+        /// </summary>
+        public readonly List<(float3 anchor, float length, float random)> Tendrils = new List<(float3, float, float)>();
         /// <summary>Every place made: kind, where and the wall's normal (for shots and tests).</summary>
         public readonly List<(CaveWallKind kind, float3 position, float3 normal)> Placed = new List<(CaveWallKind, float3, float3)>();
 
@@ -600,7 +605,10 @@ namespace Punchy.Terrain
                                        (glow ? 2 : 0) + (floor ? 0 : 1), CaveWallDetails.U(hc, 4)));
                     }
                     if (glow)
+                    {
                         Glows.Add(p + n * 0.3f);
+                        Tendril(source, p, n, h);
+                    }
                     break;
                 }
                 case CaveWallKind.Carving:
@@ -648,6 +656,27 @@ namespace Punchy.Terrain
                     }
                     break;
                 }
+            }
+        }
+
+        /// <summary>W-178: a few tendrils from the ceiling above and out from a glow patch, each clear of the floor.</summary>
+        void Tendril(in TerrainSource source, float3 p, float3 n, uint h)
+        {
+            var out_ = math.normalizesafe(new float3(n.x, 0f, n.z), new float3(1f, 0f, 0f));
+            var count = 3 + (int)(CaveWallDetails.U(CaveWallDetails.Hash(h, 10, 99, 0), 0) * 5f);
+            for (int i = 0; i < count; i++)
+            {
+                var hc = CaveWallDetails.Hash(h, 10, i, 0);
+                var from = p + out_ * (0.4f + CaveWallDetails.U(hc, 0) * 1.4f) +
+                           new float3(CaveWallDetails.U(hc, 1) - 0.5f, 0f, CaveWallDetails.U(hc, 2) - 0.5f) * 1.6f;
+                if (!Cast(source, from, new float3(0f, 1f, 0f), 8f, out var q, out var qn) || qn.y > -0.4f)
+                    continue;
+                var gap = Cast(source, q - new float3(0f, 0.1f, 0f), new float3(0f, -1f, 0f), 12f, out var floor, out _) ? q.y - floor.y : 12f;
+                // Long enough that many reach a walker's chest or head (tips stop 1.1-1.7 m over the floor).
+                var length = math.min(1.6f + CaveWallDetails.U(hc, 3) * 2.6f, gap - 1.1f - CaveWallDetails.U(hc, 5) * 0.6f);
+                if (length < 0.5f)
+                    continue;
+                Tendrils.Add((q + new float3(0f, 0.03f, 0f), length, CaveWallDetails.U(hc, 4)));
             }
         }
 
