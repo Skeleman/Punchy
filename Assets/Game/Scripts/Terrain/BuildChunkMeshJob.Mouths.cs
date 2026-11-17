@@ -45,9 +45,8 @@ namespace Punchy.Terrain
         /// blend (MouthBlend) also opens where the cave passes sideways under a thin roof; there the walls' skin dips into
         /// a shallow dish with rock under it, and a hole in the ground showed that dish as a dark speck or slot. A cut
         /// point stays open if the walls' air lies straight under it within GateDepth (the mouth itself, a skylight),
-        /// or if it lies below the middle of its cave's mouth and the straight line there is open all the way (the floor
-        /// running out of the mouth). A point
-        /// that fails both takes the larger of the two misses (positive), so the sign is continuous and the rim
+        /// or if it lies no higher than ApronRise over the floor under its cave's mouth and the straight line there is open
+        /// all the way (the floor running out of the mouth). A point that fails both takes the larger of the two misses (positive), so the sign is continuous and the rim
         /// bisection (Collars.Crossing) and both chunks on a shared edge read the same zero line.
         /// </summary>
         public static float MouthCutKept(in TerrainSource source, float2 xz, float step)
@@ -69,7 +68,8 @@ namespace Punchy.Terrain
             if (below < 0f)
                 return cut;
             var mouth = set.Caves[cave].Mouth;
-            var path = h - mouth.y;     // the floor runs out below the mouth's middle; specks sit beside or over the arch
+            // the floor runs out of the mouth at about its own height; specks sit higher, beside or over the arch
+            var path = h - (MouthFloor(source, mouth, step) + ApronRise);
             var len = math.distance(xz, mouth.xz);
             if (len > PathMax)
                 path = math.max(path, len - PathMax);
@@ -82,6 +82,21 @@ namespace Punchy.Terrain
             }
             return path < 0f ? cut : math.min(below, path);
         }
+
+        /// <summary>The height of the cave floor under a mouth's middle: the first rock (walls' field below zero) going
+        /// down from it in FloorStep steps, at most FloorDepth.</summary>
+        static float MouthFloor(in TerrainSource source, float3 mouth, float step)
+        {
+            for (var d = 0f; d < FloorDepth; d += FloorStep)
+                if (WallFieldAt(source, mouth - new float3(0f, d, 0f), step) < 0f)
+                    return mouth.y - d;
+            return mouth.y - FloorDepth;
+        }
+
+        const float FloorDepth = 6f;
+        const float FloorStep = 0.25f;
+        /// <summary>How far (m) over the mouth's floor a cut point still counts as the floor running out.</summary>
+        const float ApronRise = 1f;
 
         /// <summary>How deep (m) and in how many samples MouthCutKept looks for cave air under a cut point.</summary>
         const float GateDepth = 2.5f;
