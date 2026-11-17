@@ -1106,3 +1106,6 @@ casters) and CPU ms for each. About 3x the blades/m² (55 to 168), so expect a r
 
 ## Note (2026-11-16, player-2 lane, P-51 r2 #337, branch player/tower-rooms 68817676): default world changed
 Elf groves now keep their towers when they are the biggest town (no Kit Buildings there). Fauna fingerprint 4BEFEA91 -> DFC4F03B; landmarks 114 9786243F unchanged. Re-baseline any bench spot in the elf grove.
+
+## Note (2026-11-16, player-2 lane, #518 tail, branch player/tower-slip fa22d14b): KeepOut per-frame cost
+KitCollision.KeepOut runs once per substep against kit boxes. For each box within reach it now checks the 9-sample wall test at both from and to. It also does one Floor scan of the kit boxes for each probe (up to 3 per blocked move). Worth one CPU check walking inside a walk-in tower and in a kit town against main.
