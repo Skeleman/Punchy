@@ -8670,3 +8670,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - world/cave-seam 86094e80: CaveSampling.MouthRing (RingDepth 0.4) is the one sheet the collars' feet use (FootSheet, FootField, CollarDepth) and the cave walls clip to (rule 33). CaveSystem.MeshJob.OntoRing drops a wall or roof vertex onto the ring when it sits inside a mouth's cut (MouthCutKept < 0.5) and above the ring. The cell's corner columns skip most vertices before MeshHeight is read.
 - Floors facing up (normal.y > 0.6) are not clipped: dropping them showed a buried terrain spike at the c6 floor exit. c6 debug view: the stray wall patch at the top left and the ragged top fringe are now covered by the collar. Shaded c0/c3/c6 at 5 m and 20 m look clean.
 - Next: step C, the band-weight block in the shader.
+
+### W-174 r3 step C (#365) - world/cave-seam 37987f96
+- Marked band block in TerrainSurface.shader lines 622-633 (begin/end comments "W-174 row 3: mouth collar band weight"): the collar darkens (albedo x0.8, occlusion 0.55) from rim (0.001) to foot (0.002), faded by on-screen size (rule 20).
+- Cave.shader not touched: its terrain share (data.x) is already about 0.96 at the ring, so the walls take the terrain look there.
+- Shader has no errors after a forced reimport and Refresh. c6 5 m shot viewed: the collar shades into the walls with no gap. Next: guard plus hash re-pin.

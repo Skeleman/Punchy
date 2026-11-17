@@ -269,3 +269,9 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Fixed in 50cdacb6 on render/effects-kit: branch-free PathPoint and arithmetic selects; short wide links take their side from the path axis. Both stages compile with 0 messages. Glow is back at main's 9 / 1.
 - Spire A/B at 9 / 1 (ab/m9-*): glow_lift is 0.101 by day and 0.133 at night, against main's 0.073 / 0.119.
 - Golem with arcs forced on (Dropout 0) at the g2 pose: R-29/golem-f2-{day,night,closeday,closenight}-0..3. I checked golem-f2-night-1 by eye: arcs on every link, soft round halo, no spokes. There is faint vertical banding inside the halo.
+
+### R-28 r2 FXC fix (11-17)
+- render/cobble-depth 6290b06e: the paving parallax is one `[loop]` with a fixed count (steps+3) and arithmetic selects. The two secant refines run as its last iterations, so CobbleHeight is inlined once instead of four times. There is no branch around the sample.
+- The crash did not reproduce in the editor (the old shader compiled there too), so I treated it as compile cost. Editor cold compile of 2 ForwardLit variants: base 80 s, ce3ff5a7 141 s, 6290b06e 101 s. All variants are ok, with warnings only.
+- Look: town paving at (80,-352), old vs new (R-28/row2/fxc-pold-* vs fxc-pnew-*). I checked the graze pair by eye: stones, bevels and grout match. The pixel differences come from grass, clouds and the player model. Town 73 (2972,-885) has no paving any more.
+- Cost: B now samples steps+3 times on every paving pixel. BENCH job 86 is updated to B = 6290b06e and is READY; build with a clean shader cache.

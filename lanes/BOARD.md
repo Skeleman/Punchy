@@ -11,7 +11,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
 | W-175 | #415 | world | merged #516 (world part), fungi caps #521 | - | Cookhouse blueprint in human villages; fungi-cap brightness |
 | W-177 | #522 | world | merged #527 | - | Cave mushrooms: clusters from the flora Mushroom grower on Fungi/GlowFungi patches, wall-grown form, LOD by screen size; tests 19/19; BENCH requested; next for world: open |
-| W-174 r3 | #365 | world | WIP | world/cave-seam 86094e80 | Steps 1, B done (walls clip to MouthRing); now C band block, guard, hashes |
+| W-174 r3 | #365 | world | WIP | world/cave-seam 37987f96 | Steps 1, B, C done (band block TerrainSurface 622-633); now guard, hashes |
 | W-174 r6 | #405 | world | merged #520 (temple), #526 (cave mouths) | - | Entrance collars: row 1 temple collar in the chunk mesh at LOD0-2, rim on the grid, shared edges canonical, guard clean. Row 2: cave mouths (inner ring = cave wall 0.4 m level set) (option A: inner ring on the true wall field) |
 | W-180 | #529 | world | merged #530 | world/mouth-holes (docs only) | Shot artefact: the surface skip culled walls for the last frame's pose; posed a frame ahead, mouths are dark at 20 m and 150 m. Not #520 |
 | W-178 | #523 | world | merged #531, #533 | world/cave-setpieces |
@@ -55,7 +55,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | b/fix-dolphin-wake | A-125 | fauna | merged #443 | | |
 | b/fix-lake-ring-hash | #298 | fauna | merged #447, #449 | | lake ring and sky-bird seeds scrambled |
 | fauna/lab-herds | #412 | fauna | merged #453 11-16; host+join check in next playtest build | fauna/lab-herds | stale comments: CreatureSpecies.FromHomes, FaunaDirector.Build MergeHomes |
-| R-28 r2 | #312 | render-2 | merged #454 (R-23 r2), #455 (R-15 r1-3); cobble-depth NOT ready: job 86 BLOCKED, FXC crashes on fresh Terrain Surface ForwardLit compile (likely paving parallax loop) | render/cobble-depth@ce3ff5a7 needs the FXC fix first; render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); render/one-surface@5c25c3fd ready for PR (R-23 r2, job 82 pass) | Render lane owns the FXC fix (SampleLevel/SampleGrad in the loop or fixed unroll) |
+| R-28 r2 | #312 | render-2 | merged #454 (R-23 r2), #455 (R-15 r1-3); FXC fix done 11-17 (one fixed-count parallax loop, look unchanged); job 86 READY for rerun on 6290b06e | render/cobble-depth@6290b06e waits on job 86; render/audit-fixes@efec19b7 ready for PR (R-15 r1-3; r4 waits on job 62); render/one-surface@5c25c3fd ready for PR (R-23 r2, job 82 pass) | PR after job 86 passes (B within +0.1 ms terrain GPU at Medium) |
 | R-23 r4 | #298 | render-2 | editor-free done (WIP 3fefa203); editor after world W-176 and render plume | render/one-surface-4 (new off main) | r3 merged PR #483. Row 4: Creature close-detail and bark relief fades by screen size (rule 20) |
 | R-23 r4+r5 | #298 | render-2 | DONE in editor 11-16 (HeatHaze kept in metres: physical effect, pushback accepted) | render/one-surface-5@9701f8a3, draft PR #494 | Drift pair + colossus clouds on/off done 11-16 (REPORTS); waits only on BENCH job 109 |
 | R-35 r3 | #333 | render-2 | row 3 = pick E only (Zach 11-16); cherry-picked onto one-surface-5, main merged, BC1091 fix in | render/cloud-e@25fbc044 (carries #494 incl. its 3 Water.shader lines from R-23 r5) | Job 111 cut to E only, after 109 |
