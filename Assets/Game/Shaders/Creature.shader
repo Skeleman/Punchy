@@ -212,6 +212,7 @@ Shader "Punchy/Creature"
             #include "Materials/Wood.hlsl"
             #include "Materials/Cloth.hlsl"
             #include "Materials/Bone.hlsl"
+            #include "Materials/Coat.hlsl"
             #include "Grounding.hlsl"
 
             float _PunchyNoFur; // A-92, #230: 0 gives bodies fur strands and coat patches, 1 ("-nofur") plain
@@ -355,123 +356,23 @@ Shader "Punchy/Creature"
                     {
                         float dist = distance(input.positionWS, _WorldSpaceCameraPos);
                         half patch = Noise3(sp * 2.3 + albedo * 17) * 0.6 + Noise3(sp * 5.7 + 3.1) * 0.4;
-                        if (surf == 0)
+                        if (surf <= 4)
                         {
-                            // Fur: broad soft patches in the coat (both shades of it, a little), and up close fine strands
-                            // running along the segment, as a bump on the normal (screen-space derivatives: no tangents) and
-                            // a darker fleck between them. Patterns sit in the segment's own frame, so they move with it.
-                            // Short fur (len 1) has finer, flatter strands; long fur (2) longer ones gathered in clumps.
-                            albedo *= lerp(0.84, 1.12, patch);
-                            float near = 1 - smoothstep(3, 9, dist);
-                            if (near > 0)
-                            {
-                                half strand;
-                                if (len == 1)
-                                {
-                                    strand = Noise3(float3(sp.xy * 260, sp.z * 40));
-                                    albedo *= 1 - near * 0.09 * (1 - strand);
-                                    h = strand * 0.0018 * near;
-                                }
-                                else if (len == 2)
-                                {
-                                    half clump = Noise3(float3(sp.xy * 45, sp.z * 6));
-                                    strand = Noise3(float3(sp.xy * 150, sp.z * 9)) * 0.6 + clump * 0.4;
-                                    albedo *= 1 - near * 0.2 * (1 - strand);
-                                    h = strand * 0.005 * near;
-                                }
-                                else
-                                {
-                                    strand = Noise3(float3(sp.xy * 170, sp.z * 20));
-                                    albedo *= 1 - near * 0.14 * (1 - strand);
-                                    h = strand * 0.0035 * near;
-                                }
-                            }
+                            // W-166: fur, feathers, scales, skin and chitin come from the one material library
+                            // (Materials/Coat.hlsl): the pattern, the bump height h and each covering's own light.
+                            PunchyCoatLight coatLight;
+                            albedo = PunchyCoat((int)surf, sp, input.radius, len, dist, albedo, h, coatLight);
+                            wrap = coatLight.wrap; rimK = coatLight.rim; spec = coatLight.spec;
+                            specPow = coatLight.specPow; sky = coatLight.sky;
                         }
                         else
                         {
-                            // Round the segment and along it, in metres: u counts cells round (a whole number of them, so
-                            // the pattern closes up at the seam), v along. Detail too fine for the pixel fades out.
+                            // Round the segment and along it, in metres: u round, v along. Detail too fine for the
+                            // pixel fades out.
                             float angle = atan2(sp.y, sp.x) * 0.15915494 + 0.5;
                             float r = max(input.radius, 0.004);
                             float near = 1 - smoothstep(4, 14, dist);
-                            if (surf <= 4)
-                                albedo *= lerp(0.92, 1.06, patch);
-                            if (surf == 1)
-                            {
-                                // Feathers (A-123 row 3): soft contour feathers in staggered rows, each a long rounded vane
-                                // whose tip lies over the base of the row behind it, pointing away from the head. The look's
-                                // high nibble (SurfaceLook.FeatherBody, FeatherFlight) says which way: 1 the segment runs
-                                // towards the head, so tips point down -z; 2 flight feathers on a wing or tail, long and
-                                // narrow with a shaft, tips out along +z; 0 tips along +z. The vane rises from its tucked-in
-                                // base to its tip and back down where the next row overlaps (no hard seam), with a thin darker
-                                // edge along its rounded tip and a faint shadow on the base it covers. Little gloss, a faint
-                                // sheen on dark plumage (a crow's). Thin parts keep at least 6 (flight 10) feathers around so
-                                // flat wings don't turn into big tiles. Pattern and bump fade by on-screen size (the cell's
-                                // pixel width), not distance.
-                                uint fl = len;
-                                float fcell = fl == 2 ? 0.018 : 0.024;
-                                float flong = fl == 2 ? 6 : 1.4;
-                                float faround = max(fl == 2 ? 10.0 : 6.0, round(6.2831853 * r / fcell));
-                                float fz = (fl & 1) ? -sp.z : sp.z;
-                                float2 fuv = float2(angle * faround, fz / (fcell * flong));
-                                float frow = floor(fuv.y);
-                                fuv.x += frac(frow * 0.5);
-                                float2 ff = frac(fuv) - float2(0.5, 0);
-                                float fd = length(float2(ff.x * (fl == 2 ? 2.4 : 2), ff.y));
-                                half fpix = max(fwidth(fuv.x), fwidth(fuv.y));
-                                half ffine = saturate(1.5 - fpix * 2.5);
-                                half fbump = saturate(1.5 - fpix * 6);
-                                half fringe = smoothstep(0.78, 0.95, fd) * (1 - smoothstep(0.95, 1.15, fd)) * ffine;
-                                half tucked = (1 - smoothstep(0, 0.22, ff.y)) * ffine;
-                                half fshaft = fl == 2 ? (1 - smoothstep(0, 0.05, abs(ff.x))) * (1 - ff.y) * ffine : 0;
-                                half barbs = 1 - 0.05 * ffine * (1 - Noise3(float3(ff.x * 9 + frow, ff.y * 3, 2.9)));
-                                half dark = 1 - saturate(dot(albedo, half3(0.3, 0.59, 0.11)) * 4);
-                                albedo *= (1 - 0.14 * fringe) * (1 - 0.08 * tucked) * (1 + 0.08 * fshaft) * barbs *
-                                          lerp(0.96, 1.04, Noise3(float3(frow, floor(fuv.x), 1.7)));
-                                // On near-black plumage a darker edge can't show: there each vane's edge and tip catch a
-                                // faint cool lift instead, so a crow reads as layered feathers rather than one smooth hide.
-                                albedo += dark * (0.014 * fringe + 0.006 * saturate(ff.y - 0.3) * (1 - smoothstep(0.8, 1, fd)) * ffine + 0.01 * fshaft) * half3(0.85, 0.92, 1);
-                                h = smoothstep(0, 0.8, ff.y) * (1 - smoothstep(0.8, 1, ff.y)) * (1 - smoothstep(0.7, 1.05, fd)) * 0.0008 * fbump;
-                                // The sheen sits on each vane (strongest toward its tip, none in the fringe or the tucked
-                                // base), broad and soft, so it breaks up feather by feather instead of one glossy sweep.
-                                half fsheen = lerp(1, 0.6 + 0.4 * saturate(0.3 + ff.y) * (1 - 0.6 * fringe) * (1 - 0.5 * tucked), ffine);
-                                wrap = 0.35; rimK = 0.3; spec = (0.02 + 0.07 * dark) * fsheen; specPow = 8 + 8 * dark;
-                            }
-                            else if (surf == 2)
-                            {
-                                // Scales: small domes in staggered rows, a dark groove round each, a little gloss.
-                                float cell = 0.009;
-                                float around = max(3, round(6.2831853 * r / cell));
-                                float2 uv = float2(angle * around, sp.z / (cell * 0.8));
-                                float row = floor(uv.y);
-                                uv.x += frac(row * 0.5) * 1.0;
-                                float2 f = frac(uv) - float2(0.5, 0);
-                                float d = length(float2(f.x * 2, f.y));
-                                float fine = saturate(1.5 - max(fwidth(uv.x), fwidth(uv.y)) * 2.5);
-                                half groove = smoothstep(0.7, 0.95, d) * fine;
-                                albedo *= (1 - 0.35 * groove) * lerp(0.9, 1.08, Noise3(float3(row, floor(uv.x), 3.3)));
-                                h = (1 - saturate(d * d)) * 0.0012 * near * fine;
-                                wrap = 0.2; rimK = 0.15; spec = 0.35; specPow = 30;
-                            }
-                            else if (surf == 3)
-                            {
-                                // Skin: fine pores and soft mottling, the light wrapping further round, a moist gloss.
-                                albedo *= lerp(0.88, 1.08, Noise3(sp * 9 + 1.3));
-                                half pore = Noise3(sp * 140);
-                                albedo *= 1 - 0.08 * (1 - pore) * near;
-                                h = pore * 0.0005 * near;
-                                wrap = 0.4; rimK = 0.12; spec = 0.25; specPow = 24;
-                            }
-                            else if (surf == 4)
-                            {
-                                // Chitin: hard plates in bands along the body, a sharp gloss and a bright edge.
-                                float band = frac(sp.z / 0.035);
-                                half seam = (1 - smoothstep(0.0, 0.08, band)) * saturate(1.5 - fwidth(sp.z / 0.035) * 2.5);
-                                albedo *= (1 - 0.3 * seam) * lerp(0.95, 1.05, Noise3(sp * 30));
-                                h = -seam * 0.0008 * near;
-                                wrap = 0.15; rimK = 0.1; spec = 0.6; specPow = 40; sky = 0.25;
-                            }
-                            else if (surf == 5 || surf == 6 || surf == 9)
+                            if (surf == 5 || surf == 6 || surf == 9)
                             {
                                 // Hoof (5), claw (6), horn, antler, tusk, beak (9): matte keratin and bone, faint growth
                                 // rings round it and streaks along it, the light flatter (less contrast) than on fur.
