@@ -25,7 +25,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | A-110 | #298 | fauna | merged #430 | fauna/one-population | - |
 | A-125 r2 | #360 | fauna | merged #431 | fauna/swimmer-droplets | #360 closed; BENCH job 99 |
 | M-06 r5 | #414 | fauna | DONE, merged #469; #414 closed | - | Kit gaps carded as W-175 rows 4-6 (#415) |
-| #24 p2 r4-5, P-37 r3 row 2 | #24, #369 | fauna | paused (budget). r4, r5, row 2 verified + pushed; PRs left to the supervisor | fauna/dungeon-props-r4 e62982b2; fauna/dungeon-r5 74f295d0; fauna/walkin-walls dbbb352e + fauna/walkin-walls-doors 29d4328e (after seamless-2) | r1 #470, r2 #480, uv3+loot #486, r3 #497 |
+| #24 p2 r4-5, P-37 r3 row 2 | #24, #369 | fauna | merged #505 (r4-r5), #506 (row 2) | fauna/dungeon-props-r4 e62982b2; fauna/dungeon-r5 74f295d0; fauna/walkin-walls dbbb352e + fauna/walkin-walls-doors 29d4328e (after seamless-2) | r1 #470, r2 #480, uv3+loot #486, r3 #497 |
 | A-133 | #336 | fauna | merged #448 | | creature wood + metal via Materials/*.hlsl, forwarder deleted |
 | W-175 r1-3 | #415 | materials | r3 merged (PR #465); r3b DONE: kit Crate/Basket/LanternHead parts, partial StructureKit; Landmarks_V3 pass, 7/7 | r3b merged PR #477 | r4 DONE a83b9c35; r5 DONE 422688dc (11 building parts on the kit draw + boxes, hashes same, 15/15 + Landmarks_V3); r6 DONE 393c4588 (nested units, snap joins, FloraSpecies.UnitJson; hashes same, 19/19 + Landmarks_V3); branch world/parts-units-4 ready for review |
 | R-25 r4-6 | #302 | render-2 | merged #439 | render/far-lights-2@92253cd3 | rows 4-6 done (row 5 partly verified: no surface lava); row 6 core cap handed off; ready for PR | Row 3 merged #423; moved from render 11-15 so render keeps R-30 r1 and its rule 11 branches. Lava far-light re-check done 11-16 by render (walk1, 19 shots, High): rim glow steady from 1300 m in, no pop; smoke plume pops in at 850->700 m (see REPORTS-render) |
@@ -57,7 +57,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-40 | #511 | render | done: PR #513 (bilinear PCF, one shadow per point at the hand-off); 0 errors, NaN 0, noon 90 m colossus shadow now solid | render/soft-wide-shadow@251d95b1 | review + merge (coordinator); sheet PunchyMilestones/R-40/R-40-sheet.png |
 | R-31 | #325 | render | row 3 done: f is the default (3/8/15/25 m hidden 44.9/74.8/89.3/71.9%), today behind -grassproto today, e dropped; NaN 0. Disc = sun-moving ground shadow (tree), not grass/push | render/grass-fields@c55dbd9f | merge waits on BENCH 114 (pinned to 14f86b6d, all three arms) |
 | R-29 | #320 | render-2 | paused (budget). Row 2 call sites wired; row 3 bolt gather by screen size done; all uncompiled, needs editor slot (port 7987) | render/effects-kit@63f794f7 (Punchy-release) | resume on coordinator message |
-| #400 cull | #400 | fauna | paused (budget), not started | fauna/cull-no-stall (new off main) | CreatureRenderSystem: no same-frame Complete of the cull |
+| #400 cull | #400 | fauna | active 11-16 | fauna/cull-no-stall (new off main) | CreatureRenderSystem: no same-frame Complete of the cull |
 | #400 mesh | #400 | world | queued after M-07 r2b, W-172 r7 | world/chunk-mesh-budget (new off main) | Per-frame chunk-mesh budget by screen size; tunnel-mouth burst |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
 | Jobs 94, 95 | - | profiler | queued | - | Log bark; one build per person |
