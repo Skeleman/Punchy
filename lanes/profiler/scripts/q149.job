@@ -1,0 +1,20 @@
+# Job 111 (render-2 lane, R-35 r2 #333): cloud look picks, cost per pick. render/cloud-picks b7a1f7cc (carries #494 and
+# one-surface-5) with arms by -skyoff mask: base (no flag); A 4096; B 8192; C 16384; D 32768; all 61440; off 3 (clouds off:
+# no cloud march and no far clouds, as job 79); E 65536 (E taken out: fades in metres). main = the branch's merge-base with
+# main, 25558ed8, for the E check (main vs base also includes #494's fades; base vs E isolates E).
+# Medium and Ultra, 1920x1080, uncapped, noon, 3 rounds rotated. Views: job 79's peak (-3460,2425 facing west) in Clear and
+# Overcast, and the same peak in PartlyCloudy with the camera looking up about 20 degrees (-benchpitch -20; negative looks up).
+# Cloud share = arm minus off. Report only.
+Q=q149; TITLE="job 111 cloud picks"
+BUILDS="b7a1f7c 25558ed"
+VIEWS="clear overcast cumulus"
+view() { case $1 in
+  clear)    echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchhour 12 -benchweather Clear";;
+  overcast) echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchhour 12 -benchweather Overcast";;
+  cumulus)  echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchpitch -20 -benchhour 12 -benchweather PartlyCloudy";; esac; }
+ARMS="base A B C D all off E main"
+arm() { case $1 in
+  base) echo "Profile-b7a1f7c";;      A) echo "Profile-b7a1f7c -skyoff 4096";;  B) echo "Profile-b7a1f7c -skyoff 8192";;
+  C) echo "Profile-b7a1f7c -skyoff 16384";; D) echo "Profile-b7a1f7c -skyoff 32768";; all) echo "Profile-b7a1f7c -skyoff 61440";;
+  off) echo "Profile-b7a1f7c -skyoff 3";;  E) echo "Profile-b7a1f7c -skyoff 65536";;  main) echo "Profile-25558ed";; esac; }
+ROUNDS=3; GFX="Medium Ultra"; REF=base; BAR=0.5

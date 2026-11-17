@@ -1067,7 +1067,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Record: CreatureBrainSystem job ms (worker), the footprint bake ms at load, whole-frame CPU ms.
 - Pass: B within 0.2 ms brain job and no change at (b). Report the numbers otherwise.
 
-## Job 111 (2026-11-16, QUEUED after 109; render-2 lane, R-35 r2 #333, branch render/cloud-picks b7a1f7cc, carries #494): cloud look picks, cost per pick
+## Job 111 (2026-11-16, RUNNING 11-17 08:27 as q149 (162 games, about 6 h; main arm = merge-base 25558ed8); QUEUED after 109; render-2 lane, R-35 r2 #333, branch render/cloud-picks b7a1f7cc, carries #494): cloud look picks, cost per pick
 - Arms (all on the branch build, by `-skyoff` mask): base 0; A 4096; B 8192; C 16384; D 32768; all 61440; clouds off 3 (the cloud share, as job 79); E off 65536 (fades in metres, the branch with E taken out). Also main for the E check. The branch carries #494 (merged in for ScreenSize.hlsl), so main vs branch base also includes #494's fades; the 0 vs 65536 pair isolates E.
 - Profile build, 1920x1080, Medium and Ultra, uncapped, noon, arms rotated, 3 rounds, 300 frames.
 - Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
