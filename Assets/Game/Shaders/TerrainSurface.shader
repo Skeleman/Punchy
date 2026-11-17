@@ -619,6 +619,18 @@ Shader "Punchy/Terrain Surface"
                 surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle));
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
+                // ---- W-174 row 3: mouth collar band weight (world lane; begin) ----
+                // A mouth collar runs from its rim (BuildChunkMeshJob.SeamEpsilon, 0.001) down to its foot (CollarFoot, 0.002),
+                // so on it the band reads 0 to 1 from the daylit ground down to where the cave walls take over; the ground
+                // beside a rim sees it for a millimetre only. The collar dims towards its foot to meet the walls' shaded top.
+                // Fades by the band's on-screen size (rule 20, DetailPolicy.ScreenSize): gone where 0.4 m spans < 2 px.
+                {
+                    float bandPpm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                    half collarBand = saturate((input.cave - 0.001) / 0.001) * saturate((0.4 * bandPpm / max(distance, 0.01) - 2) / 4);
+                    surface.albedo *= lerp(1, 0.8, collarBand);
+                    surface.occlusion = lerp(1, 0.55, collarBand);
+                }
+                // ---- W-174 row 3: mouth collar band weight (end) ----
                 surface.emission = input.emission * _EmissionScale;
                 surface.alpha = 1;
 
