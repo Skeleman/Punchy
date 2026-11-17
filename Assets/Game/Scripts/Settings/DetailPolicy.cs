@@ -72,8 +72,8 @@ namespace Punchy.Settings
         // globals. They are set before every frame draws, from the render loop itself, so they never depend on a system
         // calling SetView (a posed shot camera or a scene without critters still gets them), and a Detail change in
         // GraphicsSettings reaches the shaders on the next frame.
-        static readonly int DetailId = Shader.PropertyToID("_PunchyDetail");
-        static readonly int ViewPpmId = Shader.PropertyToID("_PunchyViewPpm");
+        // (Ids looked up inline in PushShaderView: a static PropertyToID field would give DetailPolicy a managed static
+        // constructor, which Burst jobs reading it can't compile in a player build, BC1091, job 111.)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void InitShaderView()
@@ -92,8 +92,8 @@ namespace Punchy.Settings
         {
             var detail = GraphicsSettings.Detail;
             var cam = UnityEngine.Camera.main;
-            Shader.SetGlobalFloat(DetailId, detail);
-            Shader.SetGlobalFloat(ViewPpmId, PixelsPerMetreAt(cam != null ? cam.fieldOfView : ReferenceFov) * detail);
+            Shader.SetGlobalFloat(Shader.PropertyToID("_PunchyDetail"), detail);
+            Shader.SetGlobalFloat(Shader.PropertyToID("_PunchyViewPpm"), PixelsPerMetreAt(cam != null ? cam.fieldOfView : ReferenceFov) * detail);
         }
 
         public static float PixelsPerMetreAt(float fovDegrees)
