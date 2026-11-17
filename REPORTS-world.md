@@ -8506,3 +8506,12 @@ Plan:
 - Fingerprints unchanged, no re-pin. WorldTests 19/19 after rebasing on main 08ec39c9.
 - Shots (unviewed, the guard is the check): D:/Unity/PunchyMilestones/W-174 w174r2-mouth0-20m(-b), w174r2-mouth0-150m, w174r2-mouth3-steep(-b), w174r2-mouth4-steep(-b).
 - Next for world: W-177 cave mushrooms (#522) on world/cave-mushrooms.
+
+## W-177: cave mushrooms (#522), world/cave-mushrooms @ 9fbc1493
+- Fungi and GlowFungi wall patches get a bed sheet and 2-4 mushroom clusters each, grown by the flora Mushroom grower (rule 33): PaleCap on plain patches and glowing GlimmerCap on deep ones. Both are set per cave style (CaveStyle.Mushrooms, GlowMushrooms); every natural style has them, Mine has none.
+- Floor clusters stand upright. Wall clusters use the new FloraSpecies.WallGrown form, built from a runtime copy of the species: the stems leave the rock and the caps turn up. Ceiling spots are skipped. The existing mushroom grower makes no new RNG draws, so old mushrooms are unchanged.
+- Drawn only, from the new partial CaveSystem.Mushrooms.cs (CaveSystem.cs gets no lines). It uses a flora-material copy and indirect draws, 12 models grown one per frame, and per-cluster reach plus LOD0/1 by DetailPolicy screen size (size 0.3 m, cave-plant pixel thresholds).
+- Placement uses a new hash stream (9) and nothing is baked. Fingerprints unchanged, no re-pin. WorldTests 19/19 after rebasing on main 5a523039.
+- Play check: fungal cave 2 had 13 clusters, all drawn up close, with caps facing up on the patch.
+- Shots: D:/Unity/PunchyMilestones/W-177 fungi-floor, glowfungi-wall (viewed), glowfungi-wide.
+- BENCH request in REPORTS-profiler.
