@@ -624,8 +624,8 @@ namespace Punchy.Terrain
             // M-07 r2b: the painted edits before any place, so places, rivers and roads are laid out on the edited ground.
             source.Edits = PaintedEdits.Build(version, Allocator.Persistent);
             Debug.Log(PaintedEdits.LastLog);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.CliffKit = default; source.Anchors = default; source.PondMask = default; source.CaveSockets = default; source.Herds = default;
-            TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.CliffKit = default; source.Anchors = default; source.PondMask = default; source.CaveSockets = default; source.Herds = default; source.Paddies = default;
+            TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true, paddies: false);
             // #72 (W-87): "-campsitetest <look>" adds one test campsite (debug only; nothing without the flag).
             CampsiteTest.Add(ref source, biomes, types, Allocator.Persistent);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
@@ -640,6 +640,9 @@ namespace Punchy.Terrain
             // W-155: scarps last of all, cut into the finished ground, so no place, river or cave is laid out on them.
             source.Scarps = ScarpBake.Build(source, Allocator.Persistent);
             Debug.Log(ScarpBake.LastLog);
+            // W-153: still water after the scarps (the stepped pools take their levels only once the falls have cut their gorge), before the cliff kit, sockets and herds, which read the finished ground.
+            source.Paddies = source.BuildPaddies(Allocator.Persistent, out var paddyReport);
+            Debug.Log($"[paddies] {paddyReport}");
             // W-150: the cliff kit after the scarps, on the finished ground; its own stream, so no place sees it.
             source.CliffKit = CliffKitBaking.Build(source, biomes, Allocator.Persistent);
             Debug.Log(CliffKitBaking.LastLog);
@@ -710,7 +713,7 @@ namespace Punchy.Terrain
                     Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
                     Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
                     Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago); Free(ref baked.Scarps);
-                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit); Free(ref baked.CaveSockets); Free(ref baked.Herds); Free(ref baked.Edits);
+                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit); Free(ref baked.CaveSockets); Free(ref baked.Herds); Free(ref baked.Edits); Free(ref baked.Paddies);
                 }
                 bakes.Clear();
             }
@@ -747,6 +750,7 @@ namespace Punchy.Terrain
                 source.CliffKit = baked.CliffKit;
                 source.CaveSockets = baked.CaveSockets;
                 source.Herds = baked.Herds;
+                source.Paddies = baked.Paddies;
             }
         }
     }

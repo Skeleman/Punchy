@@ -89,6 +89,34 @@ namespace Punchy.Tests
         const float MaxTurnAll = 130f, MaxTurnWide = 130f;
 
         /// <summary>
+        /// W-153 row 1 (#301): where the island's water breaks physical rules, counted by WaterTruth over every river
+        /// cell, every fall and a 4 m grid of the whole island. The baseline is the count of each kind when the probe
+        /// was written; a kind may only fall. Lower its number when a fix lands, until every one is 0.
+        /// </summary>
+        [UnityTest, Order(3)]
+        public IEnumerator Water_TruthCounts()
+        {
+            var counts = Game.Hook<int[]>("WaterTruthCounts");
+            LogWatch.Measure($"water truth ({string.Join(", ", WaterTruthKinds)}): {string.Join(", ", counts)}");
+            Assert.AreEqual(WaterTruthBaseline.Length, counts.Length, "the probe's kinds changed: update the baseline");
+            for (int k = 0; k < counts.Length; k++)
+                Assert.LessOrEqual(counts[k], WaterTruthBaseline[k], $"more '{WaterTruthKinds[k]}' water defects than the baseline");
+            yield return null;
+        }
+
+        static readonly string[] WaterTruthKinds =
+        {
+            "bend", "widthJump", "deadEnd", "source", "dryRun", "uphillGraph", "uphillSampled", "wall", "deep", "tilt", "step", "fallHead", "fallFoot"
+        };
+        // W-153 row 2 (still water last): dryRun 21 -> 10, uphillSampled 7 -> 0, wall 1987 -> 988, tilt 35 -> 31, step 1186 -> 959.
+        // No stepped pool is left in a wall or a step: the 109 'pool' walls still counted are fall and landmark
+        // head pools, which stand with ponds off (rows 3-6).
+        // Main merge (W-174 rivers and cave mouths, M-07 painted edits, W-162): the river graph changed under the probe,
+        // so the graph-only kinds moved (bend 80 -> 82, uphillGraph 31 -> 62) with deep 42 -> 43, step 959 -> 964 and
+        // fallFoot 4 -> 5; dryRun 10 -> 9, wall 988 -> 972, tilt 31 -> 29, fallHead 47 -> 46. Re-based here.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 9, 62, 0, 972, 43, 29, 964, 46, 5 };
+
+        /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
         /// per 100 m² (MaxDensity); the band is today's value (0.30 on main
         /// 69ca891) with a tolerance.

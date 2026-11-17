@@ -27,7 +27,7 @@ namespace Punchy.Terrain
     public static class IslandCache
     {
         /// <summary>Bumped whenever the file layout changes (old files then miss and are rewritten).</summary>
-        public const int Format = 5;   // 2: W-155 scarps, W-150 cliff kit; 3: W-168 cave sockets; 4: A-108 herds; 5: M-07 painted edits
+        public const int Format = 6;   // 2: W-155 scarps, W-150 cliff kit; 3: W-168 cave sockets; 4: A-108 herds; 5: M-07 painted edits; 6: W-153 paddies
         static readonly byte[] Magic = Encoding.ASCII.GetBytes("PICF");
         const int KeyBytes = 32, SumBytes = 32, BlobHeaderBytes = 32;
 
@@ -64,6 +64,7 @@ namespace Punchy.Terrain
             v.Visit(nameof(s.CaveSockets), ref s.CaveSockets);
             v.Visit(nameof(s.Herds), ref s.Herds);
             v.Visit(nameof(s.Edits), ref s.Edits);
+            v.Visit(nameof(s.Paddies), ref s.Paddies);
         }
 
         struct Sizer : IBlobVisitor
