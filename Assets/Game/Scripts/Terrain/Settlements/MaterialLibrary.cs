@@ -120,15 +120,15 @@ namespace Punchy.Terrain
         public static readonly StoneRow[] Stone =
         {
             new StoneRow(1.0f, 1.0f, 1.15f, 0.3f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // plain: ordinary lumpy rock
-            new StoneRow(1.3f, 0.8f, 1.4f, 0.5f, 0f, 1.6f, 0f, 2.5f, 0.35f, 1.5f),     // granite: big jointed blocks
+            new StoneRow(1.3f, 0.6f, 1.4f, 0.95f, 0f, 1.6f, 0f, 2.5f, 0.45f, 2.2f),    // granite: big jointed blocks
             new StoneRow(1.0f, 1.0f, 1.05f, 0.3f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // limestone: dissolved, rounded
-            new StoneRow(0.7f, 0.6f, 0.75f, 0.7f, 0f, 1.6f, 0f, 2.5f, 0.25f, 0.8f),    // sandstone: bedded slabs
+            new StoneRow(0.7f, 0.45f, 0.75f, 1f, 0f, 1.6f, 0f, 2.5f, 0.25f, 1.4f),     // sandstone: bedded slabs
             new StoneRow(0.2f, 0.5f, 0.15f, 0f, 0f, 1.6f, 0f, 2.5f, 0.05f, 1f),        // basalt: smooth flow skin
             new StoneRow(0.5f, 0.6f, 0.8f, 0.8f, 0.8f, 2.2f, 0f, 2.5f, 0.9f, 0.9f),    // ice: melt-scalloped ribs
             new StoneRow(0.8f, 1.6f, 1f, 0.5f, 0f, 1.6f, 0.7f, 1.8f, 0.12f, 2f),       // crystal: faceted
             new StoneRow(0.3f, 1.2f, 0.35f, 0.1f, 0f, 1.6f, 1f, 2.2f, 0.08f, 1.8f),    // ore: hard faces, worked
             new StoneRow(0.6f, 1.0f, 0.35f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // shale: soft, crumbly
-            new StoneRow(1.2f, 1.3f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.5f),     // tuff: soft, pitted
+            new StoneRow(1.2f, 1.8f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.5f, 2.5f),     // tuff: soft, pitted
         };
 
         public const int MaxWoodKinds = 8;
