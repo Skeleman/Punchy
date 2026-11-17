@@ -40,9 +40,9 @@ namespace Punchy.Rendering.Effects
         [Tooltip("The core's half width (m) at width 1.")]
         [Min(0.001f)] public float CoreWidth = 0.05f;
         [Tooltip("The glow's half width, as a multiple of the core's.")]
-        [Min(1f)] public float GlowWidth = 9f;
+        [Min(1f)] public float GlowWidth = 12f;
         [Tooltip("How bright the glow is next to the core (0 for none).")]
-        [Min(0f)] public float GlowStrength = 1f;
+        [Min(0f)] public float GlowStrength = 1.5f;
 
         [Header("Forks")]
         [Tooltip("The chance each of an arc's two fork slots has a fork on a given path.")]

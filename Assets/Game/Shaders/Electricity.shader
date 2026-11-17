@@ -65,6 +65,27 @@ Shader "Punchy/Electricity"
         return lerp(from, to, u) + (sideA * a + sideB * b) * (jag * env);
     }
 
+    // One path's geometry: the spine, or one fork off it.
+    struct ArcPath
+    {
+        float3 from, to, sideA, sideB;
+        float jag;
+        uint pathKey;
+        bool fork;
+        float3 root, tip, forkSideA;
+        float forkJag;
+        uint forkKey;
+    };
+
+    // Point i (0..segments) along the path.
+    float3 PathPoint(ArcPath P, uint i)
+    {
+        if (!P.fork)
+            return SpinePoint(P.from, P.to, P.sideA, P.sideB, P.jag, i / (float)SPINE_SEGMENTS, P.pathKey);
+        float s = i / (float)FORK_SEGMENTS;
+        return lerp(P.root, P.tip, s) + P.forkSideA * Noise1(s, 7.0, P.forkKey) * P.forkJag * sin(s * PI);
+    }
+
     // The live path's index and start time at clock t: path k starts at (k + 0.85 h_k) / rate (ElectricitySystem.PathAt).
     void PathAt(uint seed, float t, float rate, out int k, out float start)
     {
@@ -81,7 +102,7 @@ Shader "Punchy/Electricity"
     struct Varyings
     {
         float4 positionCS : SV_POSITION;
-        float2 across : TEXCOORD0;      // x -1..1 across the ribbon, y unused
+        float3 across : TEXCOORD0;      // x -1..1 across the ribbon; y, z how far past the path's start / end (half widths)
         nointerpolation float4 core : TEXCOORD1; // rgb core x brightness, a glow strength
         nointerpolation float3 glow : TEXCOORD2;
         float alpha : TEXCOORD3;        // fades a missing fork's tail
@@ -134,72 +155,85 @@ Shader "Punchy/Electricity"
         float3 sideA = normalize(cross(dir, helper));
         float3 sideB = cross(dir, sideA);
 
-        // This quad's two ends (a, b) along the spine or a fork, and how bright each end is.
-        float3 a, b;
-        float alphaA = 1.0, alphaB = 1.0;
+        // This quad's two ends (a, b): points i0 and i0 + 1 of the spine or a fork.
+        ArcPath P = (ArcPath)0;
+        P.from = from; P.to = to; P.sideA = sideA; P.sideB = sideB; P.jag = jag; P.pathKey = pathKey;
+        uint i0, segments;
+        bool miss = false;
         float thin = 1.0;
         if (piece < SPINE_SEGMENTS)
         {
-            float u0 = piece / (float)SPINE_SEGMENTS;
-            float u1 = (piece + 1u) / (float)SPINE_SEGMENTS;
-            a = SpinePoint(from, to, sideA, sideB, jag, u0, pathKey);
-            b = SpinePoint(from, to, sideA, sideB, jag, u1, pathKey);
+            i0 = piece;
+            segments = SPINE_SEGMENTS;
         }
         else
         {
             uint f = (piece - SPINE_SEGMENTS) / FORK_SEGMENTS;
-            uint j = (piece - SPINE_SEGMENTS) % FORK_SEGMENTS;
+            i0 = (piece - SPINE_SEGMENTS) % FORK_SEGMENTS;
+            segments = FORK_SEGMENTS;
             uint forkKey = PunchyArcHash(pathKey ^ (0x9E37u + f * 0x85EBu));
             if (Hash01(forkKey) >= _PunchyArcForks.x)
                 return o; // no fork in this slot on this path: a degenerate quad (clipped)
             float forkBase = 0.15 + 0.7 * Hash01(forkKey ^ 0x11u);
-            bool miss = Hash01(forkKey ^ 0x22u) < _PunchyArcForks.z;
+            miss = Hash01(forkKey ^ 0x22u) < _PunchyArcForks.z;
             float3 root = SpinePoint(from, to, sideA, sideB, jag, forkBase, pathKey);
             float angle = Hash01(forkKey ^ 0x33u) * 2.0 * PI;
             float3 outward = normalize(dir * 0.8 + (sideA * cos(angle) + sideB * sin(angle)));
             float forkLength = _PunchyArcForks.y * arcLength;
             float3 tip = miss ? root + outward * forkLength
                               : SpinePoint(from, to, sideA, sideB, jag, min(forkBase + _PunchyArcForks.y, 0.98), pathKey);
-            float3 forkSideA = normalize(cross(normalize(tip - root + 1e-4), sideB));
-            float s0 = j / (float)FORK_SEGMENTS;
-            float s1 = (j + 1u) / (float)FORK_SEGMENTS;
-            float fj = jag * 0.5;
-            a = lerp(root, tip, s0) + forkSideA * Noise1(s0, 7.0, forkKey) * fj * sin(s0 * PI);
-            b = lerp(root, tip, s1) + forkSideA * Noise1(s1, 7.0, forkKey) * fj * sin(s1 * PI);
-            alphaA = miss ? 1.0 - s0 : 1.0;
-            alphaB = miss ? 1.0 - s1 : 1.0;
+            P.fork = true;
+            P.root = root; P.tip = tip;
+            P.forkSideA = normalize(cross(normalize(tip - root + 1e-4), sideB));
+            P.forkJag = jag * 0.5;
+            P.forkKey = forkKey;
             thin = 0.6;
         }
+        float3 a = PathPoint(P, i0);
+        float3 b = PathPoint(P, i0 + 1u);
 
-        // Camera-facing ribbon round segment a-b, as wide as the glow.
+        // Camera-facing ribbon, as wide as the glow. A joint's two vertices are shared with the next quad (the side
+        // comes from the tangent through the joint, not this segment alone), so neighbouring quads never fan out and
+        // overlap into streaks. The path's own two ends get round caps: the quad runs on half a width past them and
+        // the fragment fades by the distance to the end point.
         bool atB = corner == 1u || corner == 2u || corner == 4u;
         bool right = corner == 2u || corner == 4u || corner == 5u;
+        uint i = atB ? i0 + 1u : i0;
         float3 p = atB ? b : a;
+        float3 tangent = atB ? (i < segments ? PathPoint(P, i + 1u) : b) - a
+                             : b - (i > 0u ? PathPoint(P, i - 1u) : a);
+        tangent = normalize(tangent + 1e-5);
         float3 toCamera = GetCameraPositionWS() - p;
-        float3 side = normalize(cross(b - a + 1e-5, toCamera));
+        float3 side = normalize(cross(tangent, toCamera) + 1e-6);
         float halfWidth = _PunchyArcShape.x * _PunchyArcShape.y * width * thin;
         float across = right ? 1.0 : -1.0;
+        float segment = length(b - a) / max(halfWidth, 1e-5);
+        float capStart = -1.0, capEnd = -1.0;
+        if (i0 == 0u) capStart = atB ? -segment : 1.0;
+        if (i0 + 1u == segments) capEnd = atB ? 1.0 : -segment;
+        if (i == 0u) p -= tangent * halfWidth;
+        if (i == segments) p += tangent * halfWidth;
         p += side * (across * halfWidth);
 
         o.positionCS = TransformWorldToHClip(p);
-        o.across = float2(across, 0);
+        o.across = float3(across, capStart, capEnd);
         float4 coreColour = _PunchyArcColours[colour * 2];
         float4 glowColour = _PunchyArcColours[colour * 2 + 1];
         float strength = brightness * fade;
         // The afterglow is all glow: the core has gone.
         o.core = float4(coreColour.rgb * strength * (copy == 0u ? 1.0 : 0.0), _PunchyArcShape.z);
         o.glow = glowColour.rgb * strength;
-        o.alpha = atB ? alphaB : alphaA;
+        o.alpha = (miss && P.fork) ? 1.0 - i / (float)FORK_SEGMENTS : 1.0;
         o.fogFactor = ComputeFogFactor(o.positionCS.z);
         return o;
     }
 
     half4 Frag(Varyings input) : SV_Target
     {
-        float d = abs(input.across.x);
+        float d = length(float2(input.across.x, max(max(input.across.y, input.across.z), 0.0)));
         float coreEdge = 1.0 / max(_PunchyArcShape.y, 1.0);
         float core = 1.0 - smoothstep(coreEdge * 0.5, coreEdge, d);
-        float glow = input.core.a * (1.0 - d) * (1.0 - d); // soft halo out to the ribbon edge, past the core
+        float glow = input.core.a * saturate(1.0 - d) * saturate(1.0 - d); // soft halo out to the ribbon edge, past the core
         half3 color = (half3)(input.core.rgb * core + input.glow * glow) * input.alpha;
         color = MixFogColor(color, half3(0, 0, 0), input.fogFactor);
         return half4(color, 1);
