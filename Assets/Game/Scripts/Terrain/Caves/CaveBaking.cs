@@ -100,8 +100,8 @@ namespace Punchy.Terrain
                 var rng = new Random(math.hash(new uint2(inst.Key, 7717u)) | 1u);
                 var style = PickStyle(source, palette, type, inst.Position, ref rng);
                 var profile = style != null ? new float2(style.Width, style.Width * style.Height) : new float2(1f);
-                var wall = style != null ? new float4(style.Roughness, style.Grain, style.Ribs, style.RibSpacing) : new float4(1f, 1f, 0f, 1.6f);
-                var rock = style != null ? new float4(style.Jaggedness, style.FloorFlatness, style.FloorSteps, style.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
+                var wall = style != null ? new float4(style.Relief.Roughness, style.Relief.Grain, style.Relief.Ribs, style.Relief.RibSpacing) : new float4(1f, 1f, 0f, 1.6f);
+                var rock = style != null ? new float4(style.Relief.Jaggedness, style.FloorFlatness, style.FloorSteps, style.Relief.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
                 // Each cave its own take on its style, from its seed: a little wider or lower, rougher or smoother, more
                 // or less broken, with more or fewer steps (so two limestone caves don't look cast from one mould).
                 var vary = new Random(math.hash(new uint2(inst.Key, 0x5A17u)) | 1u);
@@ -162,7 +162,7 @@ namespace Punchy.Terrain
                 var tall = profile.y * (1.45f + (1f - flatness) * 0.65f);
                 // W-172 row 6: the smallest radius whose top clears a ridden horse past the ceiling's noise. Main path
                 // nodes are never laid smaller, and never squashed below it (a thin roof sinks the floor instead).
-                var facetReach = style != null ? 0.64f * style.FacetSize * style.Angularity : 0f;
+                var facetReach = style != null ? 0.64f * style.Relief.FacetSize * style.Relief.Angularity : 0f;
                 var horse = (RiderHead + CaveSampling.JaggedReach * rock.x * CeilingDip + (CaveSampling.NoiseReach * wall.x + facetReach) * WallDip) / tall;
                 var minMain = math.max(math.max(r * MinMain, MainHead / tall), horse);
                 void Grade(List<int> path, List<float> want, List<float> ceil, float grade = MainGrade)
@@ -441,7 +441,7 @@ namespace Punchy.Terrain
                     Style = style != null ? styles.IndexOf(style) + 1 : 0,
                     Profile = profile,
                     Wall = wall,
-                    Facet = style != null ? new float2(style.Angularity, style.FacetSize) : float2.zero,
+                    Facet = style != null ? new float2(style.Relief.Angularity, style.Relief.FacetSize) : float2.zero,
                     Rock = rock,
                     MainEnds = mainEnds
                 });
