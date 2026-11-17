@@ -77,6 +77,7 @@ namespace Punchy.Terrain
         NativeArray<ChunkBuildRequest> farRequests;
         NativeArray<float2> farRanges, farWaterRanges;
         NativeArray<VertexAttributeDescriptor> farWaterLayout;
+        NativeArray<VertexAttributeDescriptor> farTerrainLayout;   // set because the job needs it; far LODs never re-cut (W-174 r6)
         /// <summary>The ring's outer radius (m), or 0 while it's off; and the disc's radius it was set with.</summary>
         float farRadius, nearRadius;
 
@@ -264,6 +265,7 @@ namespace Punchy.Terrain
             farWaterRanges = new NativeArray<float2>(count, Allocator.Persistent);
             var layout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Temp);
             farWaterLayout = new NativeArray<VertexAttributeDescriptor>(WaterVertex.Layout, Allocator.Persistent);
+            farTerrainLayout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Persistent);
             var last = config.LodLevels - 1;
             for (int i = 0; i < count; i++)
             {
@@ -291,6 +293,7 @@ namespace Punchy.Terrain
                 Meshes = farData,
                 Requests = farRequests,
                 WaterLayout = farWaterLayout,
+                TerrainLayout = farTerrainLayout,
                 Source = source,
                 ChunkSize = span,
                 // The disc's normal scale, so far tiles light exactly like the chunks they meet.
@@ -395,6 +398,7 @@ namespace Punchy.Terrain
             farRanges.Dispose();
             farWaterRanges.Dispose();
             farWaterLayout.Dispose();
+            farTerrainLayout.Dispose();
         }
 
         /// <summary>Unloads the far tiles in farScratch in one structural change; their meshes go back to the pool.</summary>

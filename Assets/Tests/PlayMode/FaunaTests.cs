@@ -29,6 +29,17 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// P-37 r3 row 2 (#369): a walk-in house's kit boxes stop a creature, its doorway stops one unless its door is
+        /// open, and its floor and the room inside don't (a made-up house, turned and scaled).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator WalkIn_WallsBlockCreatures()
+        {
+            yield return null;
+            Assert.AreEqual("", Game.Hook<string>("WalkInWallProblems"));
+        }
+
+        /// <summary>
         /// #24 phase 2 row 3: on the pinned seed, no dungeon has more creature picks (each a bit in its dead mask) than
         /// the mask holds, once every dungeon is registered.
         /// </summary>
@@ -48,6 +59,30 @@ namespace Punchy.Tests
         {
             yield return AllDungeonsRegistered();
             Assert.AreEqual("", Game.Hook<string>("DungeonOrdinalProblems"));
+        }
+
+        /// <summary>
+        /// #24 phase 2 row 4 (rule 20): the dungeon props are drawn by screen size (whole, as their biggest part, or
+        /// not at all), not kept as GameObjects drawn at any distance.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Dungeons_PropsDrawnByScreenSize()
+        {
+            yield return AllDungeonsRegistered();
+            yield return null;
+            yield return null;
+            Assert.AreEqual("", Game.Hook<string>("DungeonPropTiers"));
+        }
+
+        /// <summary>
+        /// #24 phase 2 r5: dungeon creatures take their behaviour from their socket's tags (a bat at a ceiling roosts,
+        /// a walker in a passage patrols, one in a dark nook naps), each to the creatures it suits.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Dungeons_PostsFromSocketTags()
+        {
+            yield return AllDungeonsRegistered();
+            Assert.AreEqual("", Game.Hook<string>("DungeonPostProblems"));
         }
 
         /// <summary>Waits (up to 60 s) until the director has residents for every dungeon (caves come a few per frame).</summary>

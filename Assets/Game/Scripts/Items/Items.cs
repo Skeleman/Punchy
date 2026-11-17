@@ -255,8 +255,6 @@ namespace Punchy.Items
     public struct ItemGoneRpc : IRpcCommand { public int Uid; }
     /// <summary>Host → everyone: a world item appeared (a drop, a chest's contents).</summary>
     public struct ItemSpawnRpc : IRpcCommand { public int Uid; public byte Item, Count; public float3 Pos; }
-    /// <summary>Host → the picker: it's yours, into the inventory.</summary>
-    public struct GrantRpc : IRpcCommand { public byte Item, Count; }
     /// <summary>Host → everyone: a chest has been opened (named as in <see cref="OpenChestRpc"/>).</summary>
     public struct ChestOpenedRpc : IRpcCommand { public uint Dungeon; public ushort Type, Socket; }
 
@@ -267,7 +265,7 @@ namespace Punchy.Items
     /// same ones without sending them), plus what's dropped and what chests give, which the host sends. Drawn as small
     /// coloured blocks within 60 m.</item>
     /// <item>Picking up: facing an item within 2 m, the Use key (P-10's, shared with doors: the nearer one wins). The host
-    /// decides: it removes the item for everyone (ItemGoneRpc) and grants it to the picker (GrantRpc). Solo decides alone.</item>
+    /// decides: it removes the item for everyone (ItemGoneRpc) and grants it to the picker (KitSlotRpc). Solo decides alone.</item>
     /// <item>Inventory: 16 slots with stacks, this machine's own for the session (no disk save). Tab or I shows it; click a
     /// slot (or select with the arrows and press Use) to drop one of it on the ground in front of the player.</item>
     /// <item>Dungeon chests: every dungeon's Chest sockets (the sunken temple's, every cave's and the caves' ruin rooms',
@@ -285,9 +283,9 @@ namespace Punchy.Items
     public partial class Items : MonoBehaviour
     {
         public const float Reach = 2f, DrawRange = 60f;
-        /// <summary>Uids: seeded door items are door*4+k; drops DropBase upwards; spares at the folk's posts SpareBase
-        /// upwards (Spares.cs). (Chests keep their contents as containers: <see cref="ChestId"/>.)</summary>
-        const int DropBase = 2_000_000;
+        // Uids (P-35 r3 row 5, WorldIds): seeded items are (placement record, k): a door's starter items, a post's spares
+        // (Spares.cs), wharf and hut rods (Fishing.cs); drops and dungeon spawns take the host's counter, nextDrop.
+        // (Chests keep their contents as containers: ChestId.)
 
         struct WorldItem { public byte Item, Count; public float3 Pos; }
 
@@ -300,11 +298,13 @@ namespace Punchy.Items
         readonly HashSet<int> gone = new HashSet<int>();
         readonly Dictionary<int, WorldItem> added = new Dictionary<int, WorldItem>();
         readonly HashSet<int> openedChests = new HashSet<int>();
-        readonly (byte item, int count)[] slots = new (byte, int)[BaseSlots + MaxExtraSlots];
+        readonly ItemStack[] slots = new ItemStack[BaseSlots + MaxExtraSlots];   // (P-35 r3 row 3: the shared stack)
         BlobAssetReference<AnchorSetBlob> seededFor;
         readonly HashSet<Entity> sentTo = new HashSet<Entity>();
         World server, client;
-        int nextDrop = DropBase;
+        /// <summary>The host's counter for moved and dropped items, from 1 (below WorldIds.SeededBit). Saved with the world
+        /// in the save row (row 7); until then it restarts each session, as the drops do.</summary>
+        int nextDrop = 1;
         int target = -1, targetChest = -1;
         string prompt;
         /// <summary>The in-world menu is up (any tab; P-39, #397: the inventory is its Items tab).</summary>
@@ -346,8 +346,7 @@ namespace Punchy.Items
             ItemTable.Check();
             ItemCatalog.Check();
             FolkKits.CheckLooks();
-            for (int i = 0; i < instance.slots.Length; i++)
-                instance.slots[i].item = 255;
+            System.Array.Clear(instance.slots, 0, instance.slots.Length);
             instance.StartPack();
             var args = Punchy.Debugging.DebugControls.LaunchArgs;
             var at = System.Array.IndexOf(args, "-pickup");
@@ -481,7 +480,8 @@ namespace Punchy.Items
             return true;
         }
 
-        /// <summary>Two starter items by every house door, from the door's index: the same on every machine.</summary>
+        /// <summary>Two starter items by every house door, from the door's record (kind and baked position, WorldIds): the
+        /// same on every machine, and the same if the world reorders its doors.</summary>
         void Seed(in TerrainSource terrain)
         {
             seededFor = terrain.Anchors;
@@ -492,14 +492,20 @@ namespace Punchy.Items
             {
                 if (anchors[i].Kind != AnchorKind.Door)
                     continue;
+                var record = WorldIds.Record(RecordKind.Door, anchors[i].Position);
                 for (int k = 0; k < 2; k++)
                 {
-                    var h = math.hash(new uint3((uint)door, (uint)k, 0x17E35u));
+                    var h = WorldIds.Draw(record, k, 0x17E35u);
                     var angle = (h & 0xFFFF) / 65535f * math.PI * 2f;
                     var dist = 3f + (h >> 16 & 0xFF) / 255f * 5f;
                     var xz = anchors[i].Position.xz + new float2(math.cos(angle), math.sin(angle)) * dist;
                     var kind = (byte)((h >> 24) % 7);   // (not keys: those come from chests)
-                    var uid = door * 4 + k;
+                    var uid = WorldIds.Seeded(SeedFamily.DoorStarter, record, k);
+                    if (world.ContainsKey(uid))
+                    {
+                        Debug.LogWarning($"Items: door {door}'s starter item {k} has the uid {uid:X8} of another door's (an id clash): skipped");
+                        continue;
+                    }
                     if (!gone.Contains(uid))
                         world[uid] = new WorldItem { Item = kind, Count = (byte)(kind == 2 ? 3 : 1), Pos = new float3(xz.x, terrain.SampleHeight(xz), xz.y) };
                 }
@@ -722,8 +728,8 @@ namespace Punchy.Items
         {
             var total = WornWeight();
             foreach (var slot in slots)
-                if (slot.item != 255)
-                    total += ItemTable.Items[slot.item].Weight * slot.count;
+                if (!slot.IsEmpty)
+                    total += ItemTable.Items[slot.Row].Weight * slot.Count;
             return total;
         }
 
@@ -768,18 +774,19 @@ namespace Punchy.Items
         void Grant(byte item, int count)
         {
             var stack = ItemTable.Items[item].Stack;
+            var one = ItemStack.Of(item, 1);
             for (int i = 0; i < Capacity && count > 0; i++)
-                if (slots[i].item == item && slots[i].count < stack)
+                if (!slots[i].IsEmpty && slots[i].Merges(one) && slots[i].Count < stack)
                 {
-                    var n = math.min(count, stack - slots[i].count);
-                    slots[i].count += n;
+                    var n = math.min(count, stack - slots[i].Count);
+                    slots[i].Count += (ushort)n;
                     count -= n;
                 }
             for (int i = 0; i < Capacity && count > 0; i++)
-                if (slots[i].item == 255)
+                if (slots[i].IsEmpty)
                 {
                     var n = math.min(count, stack);
-                    slots[i] = (item, n);
+                    slots[i] = ItemStack.Of(item, n);
                     count -= n;
                 }
             Debug.Log($"Items: picked up {ItemTable.Items[item].Name}; inventory: {DescribeInventory()}");
@@ -789,19 +796,18 @@ namespace Punchy.Items
         {
             var parts = new List<string>();
             foreach (var s in slots)
-                if (s.item != 255)
-                    parts.Add($"{ItemTable.Items[s.item].Name} x{s.count}");
+                if (!s.IsEmpty)
+                    parts.Add(s.ToString());
             return parts.Count > 0 ? string.Join(", ", parts) : "empty";
         }
 
         /// <summary>One of slot <paramref name="slot"/>'s items on the ground 1 m in front of the player.</summary>
         void Drop(int slot)
         {
-            if (slot < 0 || slot >= slots.Length || slots[slot].item == 255 || !TryPlayer(out var player) || !TryTerrain(out var terrain))
+            if (slot < 0 || slot >= slots.Length || slots[slot].IsEmpty || !TryPlayer(out var player) || !TryTerrain(out var terrain))
                 return;
-            var item = slots[slot].item;
-            if (--slots[slot].count <= 0)
-                slots[slot] = (255, 0);
+            var item = slots[slot].Row;
+            slots[slot].TakeOne();
             var xz = player.Position.xz + math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz) * 1f;
             var pos = new float3(xz.x, terrain.SampleHeight(xz), xz.y);
             Debug.Log($"Items: dropped {ItemTable.Items[item].Name}; inventory: {DescribeInventory()}");
@@ -842,7 +848,7 @@ namespace Punchy.Items
             var w = new WorldItem { Item = item, Count = (byte)math.clamp(count, 1, 255), Pos = pos };
             world[uid] = w;
             added[uid] = w;
-            if (uid >= DropBase && uid < SpareBase)
+            if (!WorldIds.IsSeeded(uid))
                 NoteDrop(uid);
             Debug.Log($"Items: item {uid} ({ItemTable.Items[item].Name} x{w.Count}) on the ground at ({pos.x:F1}, {pos.y:F1}, {pos.z:F1})");
             if (Hosting)
@@ -884,8 +890,7 @@ namespace Punchy.Items
         void Serve()
         {
             var em = server.EntityManager;
-            ServeGear(em);
-            ServeArmour(em);
+            ServeKit(em);
             ServeSlots(em);
             ServeSwings(em);
             ServeFish(em);
@@ -897,7 +902,7 @@ namespace Punchy.Items
                     if (Take(uid, out var it) && em.Exists(from))
                     {
                         Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfItem(uid), PlayerId(em, from), $"{ItemTable.Items[it.Item].Name} x{it.Count} (item {uid})");
-                        Send(em, from, new GrantRpc { Item = it.Item, Count = it.Count });
+                        Send(em, from, KitGrant(it.Item, it.Count));
                         Carry(PlayerId(em, from), it.Item, it.Count);   // (P-17: the host's tally)
                     }
                     em.DestroyEntity(r);
@@ -963,27 +968,26 @@ namespace Punchy.Items
             var joined = Joined;
             Each(em, joined, onItemGone ??= OnItemGone);
             Each(em, joined, onItemSpawn ??= OnItemSpawn);
-            Each(em, joined, onGrant ??= OnGrant);
+            Each(em, joined, onKitSlot ??= OnKitSlot);
             Each(em, joined, onContainerSlot ??= ReceiveContainer);
             Each(em, joined, onQuestState ??= ReceiveQuestState);
             Each(em, joined, onChestOpened ??= OnChestOpened);
-            Each(em, joined, onGearState ??= OnGearState);
-            Each(em, joined, onArmourState ??= OnArmourState);
-            Each(em, joined, onSlotState ??= OnSlotState);
             Each(em, joined, onSwing ??= OnSwing);
             Each(em, joined, onLeftSwing ??= OnLeftSwing);
             Each(em, joined, onFish ??= OnFish);
+            if (joined)
+            {
+                ReadKits(em);   // (P-35 r3 row 4: what everyone has on, from their ghosts)
+                SyncKit();
+            }
         }
 
         System.Action<ItemGoneRpc> onItemGone;
         System.Action<ItemSpawnRpc> onItemSpawn;
-        System.Action<GrantRpc> onGrant;
+        System.Action<KitSlotRpc> onKitSlot;
         System.Action<ContainerSlotRpc> onContainerSlot;
         System.Action<QuestStateRpc> onQuestState;
         System.Action<ChestOpenedRpc> onChestOpened;
-        System.Action<GearStateRpc> onGearState;
-        System.Action<ArmourStateRpc> onArmourState;
-        System.Action<SlotStateRpc> onSlotState;
         System.Action<SwingRpc> onSwing;
         System.Action<LeftSwingRpc> onLeftSwing;
         System.Action<FishRpc> onFish;
@@ -1014,8 +1018,6 @@ namespace Punchy.Items
             added[m.Uid] = w;
             Debug.Log($"Items: item {m.Uid} ({ItemTable.Items[m.Item].Name} x{m.Count}) appeared (from the host)");
         }
-
-        void OnGrant(GrantRpc m) => Grant(m.Item, m.Count);
 
         void OnChestOpened(ChestOpenedRpc m)
         {
@@ -1114,7 +1116,7 @@ namespace Punchy.Items
                 var bestD = float.MaxValue;
                 foreach (var kv in world)
                 {
-                    if (spareOnlyArg && kv.Key < SpareBase)
+                    if (spareOnlyArg && !WorldIds.IsSpare(kv.Key))
                         continue;
                     var d = math.distance(kv.Value.Pos, player.Position);
                     if (d < bestD) (bestD, best) = (d, kv.Key);
@@ -1194,8 +1196,8 @@ namespace Punchy.Items
             if (nav.Active && nav.Focus != lastFocus)
             {
                 lastFocus = nav.Focus;
-                (byte item, int count) s = nav.Focus < Capacity ? slots[nav.Focus] : ((byte)255, 0);
-                Debug.Log($"Items: inventory slot {nav.Focus} ({(s.item == 255 ? "empty" : $"{ItemTable.Items[s.item].Name} x{s.count}")})");
+                var s = nav.Focus < Capacity ? slots[nav.Focus] : default;
+                Debug.Log($"Items: inventory slot {nav.Focus} ({s})");
             }
             selected = nav.Focus;
             // (In the menu the pad's A is its own Submit, and RB switches tab; the Use key as before.)
@@ -1370,7 +1372,7 @@ namespace Punchy.Items
                 // (The item's Colour and Accent are in the mesh's vertex colours, ItemMeshes.Of: no property block.)
                 if (libraryMaterial != null)
                     r.sharedMaterials = mesh.subMeshCount > 1 ? new[] { libraryMaterial, libraryMaterial } : new[] { libraryMaterial };
-                if (uid >= SpareBase)
+                if (WorldIds.IsSpare(uid))
                     StandSpare(uid, it, go, mesh);
                 shown[uid] = go;
             }
@@ -1436,18 +1438,18 @@ namespace Punchy.Items
                 {
                     var i = row * 4 + col;
                     var s = slots[i];
-                    if (nav.Button(s.item == 255 ? "" : $"{ItemTable.Items[s.item].Name}\nx{s.count}", slotStyle, GUILayout.Width(cell), GUILayout.Height(cell)))
+                    if (nav.Button(s.IsEmpty ? "" : $"{ItemTable.Items[s.Row].Name}\nx{s.Count}", slotStyle, GUILayout.Width(cell), GUILayout.Height(cell)))
                     {
                         selected = i;
                         if (openContainer >= 0) Put(i);
                         else Drop(i);
                     }
                     RightClickEquip(GUILayoutUtility.GetLastRect(), i);
-                    if (s.item != 255 && Event.current.type == EventType.Repaint)
+                    if (!s.IsEmpty && Event.current.type == EventType.Repaint)
                     {
                         var rect = GUILayoutUtility.GetLastRect();
                         GUI.color = Color.white;
-                        GUI.DrawTexture(new Rect(rect.x + cell * 0.2f, rect.y + 2f, cell * 0.6f, cell * 0.6f), ItemMeshes.Icon(s.item), ScaleMode.ScaleToFit);
+                        GUI.DrawTexture(new Rect(rect.x + cell * 0.2f, rect.y + 2f, cell * 0.6f, cell * 0.6f), ItemMeshes.Icon(s.Row), ScaleMode.ScaleToFit);
                         GUI.color = colour;
                     }
                     GUILayout.Space(gap);

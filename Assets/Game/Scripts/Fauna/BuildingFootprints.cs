@@ -19,6 +19,8 @@ namespace Punchy.Fauna
     /// place of Place. Same answers by construction (anything not baked yet is placed as before); "-footprintcheck"
     /// counts any disagreement with FloraPlacement.Blocked, "-oldfootprints" turns the cache off for an A/B.
     /// Seed-derived (placement is a pure function of the seed), so every machine bakes the same.
+    /// P-37 r3 row 2 (#369): walk-in houses have no wall circles, so Walls never stops anything at them; their kit boxes
+    /// and shut doors are tested apart from it (<see cref="WalkIn"/>), which -footprintcheck leaves out of its compare.
     /// </summary>
     public struct BuildingFootprints
     {
@@ -37,6 +39,8 @@ namespace Punchy.Fauna
         [ReadOnly] public NativeList<BakedProp> Props;
         /// <summary>False when the cache is off ("-oldfootprints") or not made yet: Blocked is FloraPlacement.Blocked.</summary>
         public bool On;
+        /// <summary>P-37 r3 row 2: walk-in houses' walls and the doors open now (empty: none, and no cost).</summary>
+        public WalkInWalls WalkIn;
 
         /// <summary>"-oldfootprints": every wall check places its buildings again, as before A-70.</summary>
         public static readonly SharedStatic<int> Off = SharedStatic<int>.GetOrCreate<OffKey>();
@@ -52,7 +56,7 @@ namespace Punchy.Fauna
         public bool Blocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
         {
             if (!On)
-                return FloraPlacement.Blocked(ref f, source, xz, radius);
+                return FloraPlacement.Blocked(ref f, source, xz, radius) || WalkIn.Any && WalkInBlocked(ref f, source, xz, radius);
             var blocked = Walls(ref f, source, xz, radius);
             if (Check.Data != 0)
             {
@@ -60,7 +64,36 @@ namespace Punchy.Fauna
                 if (blocked != FloraPlacement.Blocked(ref f, source, xz, radius))
                     System.Threading.Interlocked.Increment(ref Stats.Data.w);
             }
-            return blocked;
+            return blocked || WalkIn.Any && WalkInBlocked(ref f, source, xz, radius);
+        }
+
+        /// <summary>
+        /// P-37 r3 row 2 (#369): whether a body is in a walk-in house's walls or shut doorway: the town plots round it, as
+        /// Walls walks them, each walk-in house tested by its boxes (<see cref="WalkInWalls.Inside"/>).
+        /// </summary>
+        bool WalkInBlocked(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
+        {
+            if (!source.Settlements.IsCreated || f.SettlementSpecies.Length == 0)
+                return false;
+            ref var towns = ref source.Settlements.Value;
+            var townCell = SettlementSampling.Cell(ref towns, xz);
+            if (townCell < 0)
+                return false;
+            var plots = towns.PlotCells[townCell];
+            for (int k = plots.x; k < plots.x + plots.y; k++)
+            {
+                var index = towns.PlotItems[k];
+                ref var plot = ref towns.Plots[index];
+                if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length ||
+                    math.any(xz < plot.Min - radius) || math.any(xz > plot.Max + radius))
+                    continue;
+                FloraSystem.FloraInstance plant = default;
+                if (!(On && Plots.TryGetValue(index, out plant)) && !PlacePlot(ref f, source, ref towns, plot, WalkIn, out plant))
+                    continue;
+                if (WalkIn.Inside(plant, xz, radius))
+                    return true;
+            }
+            return false;
         }
 
         // (Must walk exactly what FloraPlacement.Blocked walks, in the same order, with the same skips.)
@@ -136,13 +169,21 @@ namespace Punchy.Fauna
 
         /// <summary>A plot's building placed as FloraPlacement.Blocked places it; false when it has no walls.</summary>
         internal static bool PlacePlot(ref FloraBlob f, in TerrainSource source, ref SettlementSetBlob towns, in SettlementPlot plot,
-                                       out FloraSystem.FloraInstance plant)
+                                       out FloraSystem.FloraInstance plant) =>
+            PlacePlot(ref f, source, ref towns, plot, default, out plant);
+
+        /// <summary>The same, and a walk-in house too (its walls are boxes, not circles: P-37 r3 row 2).</summary>
+        internal static bool PlacePlot(ref FloraBlob f, in TerrainSource source, ref SettlementSetBlob towns, in SettlementPlot plot,
+                                       in WalkInWalls walkIn, out FloraSystem.FloraInstance plant)
         {
             plant = default;
             if (plot.Building < 0 || plot.Building >= f.SettlementSpecies.Length)
                 return false;
             var building = FloraPlacement.PlotSpecies(ref f, ref towns, plot);
-            if (building.x < 0 || f.Models[f.Rules[building.x].FirstModel].ObstacleCount == 0)
+            if (building.x < 0)
+                return false;
+            var model = f.Rules[building.x].FirstModel;
+            if (f.Models[model].ObstacleCount == 0 && !walkIn.Is(model))
                 return false;
             plant = FloraPlacement.Place(ref f, source, (int2)math.floor(plot.Centre / f.CellSizes[building.y]), building.y, footprint: true);
             return true;
@@ -163,6 +204,8 @@ namespace Punchy.Fauna
         public NativeHashMap<int, FloraSystem.FloraInstance> Plots;
         public NativeHashMap<int, int2> Landmarks;
         public NativeList<BuildingFootprints.BakedProp> Props;
+        /// <summary>P-37 r3 row 2: walk-in houses are baked too (Walls finds no circles on them; WalkInBlocked uses them).</summary>
+        public WalkInWalls WalkIn;
 
         public void Execute()
         {
@@ -174,7 +217,7 @@ namespace Punchy.Fauna
                 {
                     ref var town = ref towns.Settlements[Settlements[i]];
                     for (int p = town.FirstPlot; p < town.FirstPlot + town.PlotCount && p < towns.Plots.Length; p++)
-                        if (BuildingFootprints.PlacePlot(ref f, Terrain, ref towns, towns.Plots[p], out var plant))
+                        if (BuildingFootprints.PlacePlot(ref f, Terrain, ref towns, towns.Plots[p], WalkIn, out var plant))
                             Plots.TryAdd(p, plant);
                 }
             }

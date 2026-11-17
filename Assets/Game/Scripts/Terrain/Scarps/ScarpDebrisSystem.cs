@@ -114,6 +114,7 @@ namespace Punchy.Terrain
             int groups = 0;
             for (int i = 0; i < built.Value.Scarps.Length; i++)
                 groups += ScarpDebris.Groups(ref built.Value.Scarps[i]);
+            groups += ScarpDebris.MouthGroupTotal(source);
             var counts = new int[groups];
             for (int b = 0; b < blocks.Length; b++)
                 counts[blocks[b].Group]++;

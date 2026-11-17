@@ -82,6 +82,22 @@ namespace Punchy.Debugging
             return r;
         }
 
+        /// <summary>
+        /// After a test sets the hour: lets go the member creatures of the town nearest the player so they are made
+        /// again from that hour's whereabouts (FaunaDirector.RemakeMembersNear). Without it, a creature made earlier
+        /// (at load, or in an earlier test) keeps its old leg, and an innkeeper made off its job holds no Job.
+        /// Returns how many it let go, or -1 without a director.
+        /// </summary>
+        public static int RemakeTownMembers()
+        {
+            var director = UnityEngine.Object.FindAnyObjectByType<FaunaDirector>();
+            if (director == null)
+                return -1;
+            var gone = director.RemakeMembersNear((float3)PlayerPosition());
+            UnityEngine.Debug.Log($"[test] remade town members: {gone} let go");
+            return gone;
+        }
+
         /// <summary>A line's text filled for a speaker of the given job by the live archive ("I'm a {trade}." for an
         /// Innkeeper should read "I'm an innkeeper."), or null without an archive.</summary>
         public static string FillForJob(string text, string job)

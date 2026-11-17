@@ -342,7 +342,40 @@ namespace Punchy.Interact
                 ClimbTest(ref terrain);
             foreach (var d in open)
                 if (d < doorAnchors.Count)
+                {
                     Punchy.Flora.FloraDoors.SetOpen(terrain.Anchors.Value.Anchors[doorAnchors[d]].Position, 1f);
+                    if (Interiors.TowerLeaf(d, out var leaf))
+                        Punchy.Flora.FloraDoors.SetOpen(leaf, 1f);
+                }
+            HoldWalkInsShut(ref terrain.Anchors.Value);
+        }
+
+        readonly List<float3> heldShut = new List<float3>();
+        float3 playerAt;
+        bool hasPlayer;
+
+        /// <summary>
+        /// P-37 r3 (#369): a shut walk-in door near the player is held shut on its leaf (FloraDoors.HoldShut). Its leaf
+        /// blocks while shut, so the flora shader's daytime rhythm (a few doors ajar) mustn't show it open. Cosmetic
+        /// and per machine, from the open set every machine already has.
+        /// </summary>
+        void HoldWalkInsShut(ref AnchorSetBlob set)
+        {
+            heldShut.Clear();
+            if (hasPlayer)
+                for (int k = 0; k < doorAnchors.Count; k++)
+                    if (!open.Contains(k) && Interiors.IsWalkIn(k) && math.distancesq(set.Anchors[doorAnchors[k]].Position, playerAt) < 30f * 30f)
+                        heldShut.Add(set.Anchors[doorAnchors[k]].Position);
+            Punchy.Flora.FloraDoors.HoldShut(heldShut);
+        }
+
+        /// <summary>P-37 r3: a walk-in house's door is used from inside too: the same test, from the far side of its
+        /// opening (the anchor mirrored through it, facing in).</summary>
+        static bool TestInside(float3 player, float2 forward, float2 look, in Anchor a, out float distance, out float score)
+        {
+            var o = DoorPick.Opening(a.Position, a.Facing);
+            var mirror = new float3(2f * o.x - a.Position.x, a.Position.y, 2f * o.y - a.Position.z);
+            return DoorPick.Test(player, forward, look, mirror, -a.Facing, out distance, out score);
         }
 
         int climbArg = -1, climbMantles;
@@ -456,8 +489,10 @@ namespace Punchy.Interact
             FacingDistance = float.MaxValue;
             var world = World.DefaultGameObjectInjectionWorld;
             using var q = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<PlayerTag>(), ComponentType.ReadOnly<LocalTransform>());
+            hasPlayer = false;
             if (!q.TryGetSingleton<LocalTransform>(out var player))
                 return;
+            (playerAt, hasPlayer) = (player.Position, true);
             var forward = math.normalizesafe(math.mul(player.Rotation, new float3(0f, 0f, 1f)).xz);
             var camera = Camera.main;
             var look = camera != null ? math.normalizesafe(((float3)camera.transform.forward).xz) : forward;
@@ -466,7 +501,8 @@ namespace Punchy.Interact
             for (int k = 0; k < doorAnchors.Count; k++)
             {
                 var a = set.Anchors[doorAnchors[k]];
-                if (DoorPick.Test(player.Position, forward, look, a.Position, a.Facing, out var d, out var score) && score < bestScore)
+                if ((DoorPick.Test(player.Position, forward, look, a.Position, a.Facing, out var d, out var score) ||
+                     Interiors.IsWalkIn(k) && TestInside(player.Position, forward, look, a, out d, out score)) && score < bestScore)
                     (bestScore, facing, distance) = (score, k, d);
             }
             // Held for a moment once shown, so turning or stepping at the edge of the rule doesn't make it flicker.
@@ -521,6 +557,8 @@ namespace Punchy.Interact
                 return;
             if (!isOpen && TryGetDoor(door, out var p, out _))
                 Punchy.Flora.FloraDoors.SetOpen(p, 0f);
+            if (!isOpen && Interiors.TowerLeaf(door, out var leaf))
+                Punchy.Flora.FloraDoors.SetOpen(leaf, 0f);
             Debug.Log($"Doors: door {door} {(isOpen ? "open" : "shut")} ({who})");
             if (server != null && server.IsCreated && server.IsServer())
                 Broadcast(door, isOpen);

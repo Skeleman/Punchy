@@ -54,16 +54,25 @@ namespace Punchy.Flora
             var walls = height * 0.62f;
             g.Height = height;
             g.Width = radius * 3f;
-            g.TrunkRadius = radius;
+            // P-51 row 2: walked into (with Seamless on), the tower is hollow: kit boxes for its wall, floors and stair
+            // (TowerRooms) in place of the solid cylinder, and no trunk to climb.
+            var walkIn = Punchy.Terrain.StructureKit.WalkInTower;
+            g.TrunkRadius = walkIn ? 0f : radius;
             // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
             // off it, F-36); the roof itself is stood on through its support grid.
-            g.Colliders.Add(new Vector4(0f, 0f, radius, walls));
+            if (!walkIn)
+                g.Colliders.Add(new Vector4(0f, 0f, radius, walls));
             var sides = g.Sides(12, 8, 6);
+            var doorWidth = Mathf.Min(radius * 0.7f, 1.25f);
+            var doorHeight = Mathf.Min(walls * 0.4f, HumanDoor);
 
             // Walls taper gently, flaring at the foot like a root.
             var first = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * walls * 0.15f, Vector3.up * walls * 0.6f, Vector3.up * walls },
-                   new List<float> { radius * 1.35f, radius * 1.05f, radius * 0.9f, radius * 0.85f }, sides, g.Bark, FloraPart.Bark);
+            if (walkIn && g.Lod < 2)
+                TowerShell(g, radius, walls, sides, doorWidth, doorHeight);
+            else
+                b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * walls * 0.15f, Vector3.up * walls * 0.6f, Vector3.up * walls },
+                       new List<float> { radius * 1.35f, radius * 1.05f, radius * 0.9f, radius * 0.85f }, sides, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, walls * 0.3f));
 
             // Balconies: thin rings round the walls.
@@ -77,20 +86,28 @@ namespace Punchy.Flora
                 var wy = y + 0.7f;
                 var wr = wy < walls * 0.6f ? Mathf.Lerp(radius * 1.05f, radius * 0.9f, Mathf.InverseLerp(walls * 0.15f, walls * 0.6f, wy))
                                            : Mathf.Lerp(radius * 0.9f, radius * 0.85f, Mathf.InverseLerp(walls * 0.6f, walls, wy));
-                Windows(g, wr, wy, 5, 0.35f, f == 1 ? 30f : -1f, sides);
+                // (A walk-in tower has its own, at its storeys: TowerRooms.)
+                if (!walkIn)
+                    Windows(g, wr, wy, 5, 0.35f, f == 1 ? 30f : -1f, sides);
             }
 
-            // A tall, slightly flared roof.
+            // A tall, slightly flared roof; walked into, lifted on posts over a roof deck at the eaves (P-51 row 3).
             var roof = b.VertexCount;
-            RoofTube(b, walls - 0.2f, radius * 1.25f, sides, g.FoliageColor(), FloraPart.Foliage, height, 0.02f, walls + (height - walls) * 0.25f, radius * 0.7f);
+            var eaves = walkIn ? walls + TowerLookout : walls;
+            RoofTube(b, eaves - 0.2f, radius * 1.25f, sides, g.FoliageColor(), FloraPart.Foliage, height, 0.02f, eaves + (height - eaves) * 0.25f, radius * 0.7f);
             b.Occlude(roof, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.3f)));
             g.Perches.Add(Vector3.up * height);
 
             // The door in a porch standing out past the flared foot (1.35 × radius at the ground), so the flare tucks
             // in behind the porch's sides and nothing crosses the opening; the sides run back into the wall above it.
-            var doorWidth = Mathf.Min(radius * 0.7f, 1.25f);
-            Porch(g, radius * 1.38f + 0.05f, WallBehind(radius * 0.9f, doorWidth), doorWidth, Mathf.Min(walls * 0.4f, HumanDoor), 0.35f,
-                  g.Bark, g.FoliageColor(), FloraPart.Foliage);
+            var doorZ = radius * 1.38f + 0.05f;
+            if (!walkIn)
+                Porch(g, doorZ, WallBehind(radius * 0.9f, doorWidth), doorWidth, doorHeight, 0.35f, g.Bark, g.FoliageColor(), FloraPart.Foliage);
+            else
+            {
+                TowerPorch(g, radius, walls, doorZ, WallBehind(radius * 0.9f, doorWidth), doorWidth, doorHeight, 0.35f, g.Bark, g.FoliageColor(), FloraPart.Foliage);
+                TowerRooms(g, radius, walls, doorWidth, doorHeight, doorZ);
+            }
         }
 
 

@@ -39,6 +39,13 @@ namespace Punchy.Terrain
         public static int Groups(ref Scarp sc) => 2 * ((int)math.ceil(sc.Length / GroupLength) + 1);
 
         public static int Group(ref Scarp sc, float s, bool small) => 2 * (int)math.clamp(s / GroupLength, 0f, math.ceil(sc.Length / GroupLength)) + (small ? 1 : 0);
+
+        /// <summary>W-162 row 4: draw groups per cave mouth (its big and its small stones), after every scarp's.</summary>
+        public const int MouthGroups = 2;
+
+        /// <summary>All the cave mouths' draw groups (one pair per cave, tunnels included so the index is the cave's).</summary>
+        public static int MouthGroupTotal(in TerrainSource source) =>
+            source.Caves.IsCreated ? MouthGroups * source.Caves.Value.Caves.Length : 0;
     }
 
     /// <summary>
@@ -68,6 +75,86 @@ namespace Punchy.Terrain
                 Place(ref sc, groups);
                 groups += ScarpDebris.Groups(ref sc);
             }
+            if (!Source.Caves.IsCreated)
+                return;
+            ref var caves = ref Source.Caves.Value;
+            for (int i = 0; i < caves.Caves.Length; i++, groups += ScarpDebris.MouthGroups)
+                if (caves.Caves[i].Tunnel == 0 && caves.Caves[i].NodeCount > 1)
+                    Mouth(ref caves, i, groups);
+        }
+
+        /// <summary>
+        /// W-162 row 4 (#327): a cave mouth gets the cliff toe's fallen stone: rubble lying round the rim, thickest
+        /// where the mouth opens downhill (fallen from its brow and rolled out), now and then a bigger block, in the
+        /// country rock's colour the walls take at the mouth (the ground's own steep rock) with a little of the earth
+        /// round it. Rays walk out from the mouth to its rim (where the terrain's mouth cut ends) and every stone lies
+        /// on the ground past it, never over the opening. Rolled from the cave's own stream (its Key), so no scarp's
+        /// rubble moves.
+        /// </summary>
+        void Mouth(ref CaveSetBlob set, int index, int group)
+        {
+            const int Rays = 64;
+            const float Reach = 16f, March = 0.25f, GridStep = 1f;
+            var cave = set.Caves[index];
+            var rng = new Unity.Mathematics.Random(math.hash(new uint2(cave.Key, 0x6d6f7574u)) | 1u);
+            var outward = math.normalizesafe((cave.Mouth - set.Nodes[cave.FirstNode + 1].Position).xz, new float2(1f, 0f));
+            var flat = new float3(0f, 1f, 0f);
+            for (int r = 0; r < Rays; r++)
+            {
+                // Every roll is drawn whatever happens, so one ray's choices never shift the next's.
+                float4 r0 = rng.NextFloat4(), r1 = rng.NextFloat4(), r2 = rng.NextFloat4();
+                float4 q0 = rng.NextFloat4(), q1 = rng.NextFloat4(), q2 = rng.NextFloat4(), q3 = rng.NextFloat4();
+                float angle = (r + r0.x) * (2f * math.PI / Rays);
+                var dir = new float2(math.cos(angle), math.sin(angle));
+                float rim = -1f;
+                for (float t = 0.5f; t <= Reach; t += March)
+                    if (BuildChunkMeshJob.MouthCutAt(Source, cave.Mouth.xz + dir * t, GridStep) > 0f)
+                    {
+                        rim = t;
+                        break;
+                    }
+                if (rim < 0f)
+                    continue;
+                // More stone on the open, downhill side; a little all round the rim.
+                float spill = math.saturate(0.3f + 0.7f * math.dot(dir, outward));
+                var edge = cave.Mouth.xz + dir * rim;
+                var ground = Source.SampleGround(edge);
+                var normal = Source.SampleNormal(edge, 1f);
+                var down = math.normalizesafe(normal.xz, dir);
+                var steep = new float3(down.x * 0.94f, 0.342f, down.y * 0.94f);
+                var rock = Source.SampleSurface(edge, ground, steep).Albedo;
+                var earth = Source.SampleSurface(edge, ground, flat).Albedo;
+                var tone = math.lerp(rock, math.dot(earth, new float3(0.3f, 0.59f, 0.11f)) * new float3(1.08f, 1f, 0.88f), 0.25f);
+                var side = new float2(-dir.y, dir.x);
+                float4x4 stones = new float4x4(q0, q1, q2, q3);
+                for (int m = 0; m < 3; m++)
+                {
+                    float4 q = stones[m], p = stones[m + 1].wzyx;
+                    if (q.x >= 0.6f * spill + 0.1f)
+                        continue;
+                    float f = math.pow(q.y, 1.6f);
+                    float h = math.lerp(0.07f, 0.24f, q.z) * (1f + 1.2f * f);
+                    var xz = edge + dir * (0.4f + f * (1.5f + 4f * spill)) + side * (q.w - 0.5f) * rim * 0.1f;
+                    Lay(xz, new float3(h * (1f + 0.4f * p.x), h * (0.6f + 0.3f * p.y), h), p.z, p.wx,
+                        tone * (0.85f + 0.25f * p.y), 0.6f, 0.2f, 0.3f, group + 1);
+                }
+                // Now and then a block off the brow, lying a little out from the rim.
+                if (r1.x < 0.14f * spill)
+                {
+                    float h = math.lerp(0.35f, 0.9f, r1.y * r1.y);
+                    var xz = edge + dir * (0.8f + h + r1.z * 2.5f * spill);
+                    var half = new float3(h * (1.1f + 0.5f * r1.w), h * (0.5f + 0.3f * r2.x), h * (0.8f + 0.3f * r2.y));
+                    Lay(xz, half, r2.z, r2.wx * 0.6f, tone * (0.9f + 0.2f * r0.y), 0.35f, 0.4f, 0.35f, group);
+                }
+            }
+        }
+
+        /// <summary>Lays one mouth stone (<see cref="Put"/>) where it sits wholly on the ground past the rim.</summary>
+        void Lay(float2 xz, float3 half, float yaw, float2 tilt, float3 tone, float round, float moss, float sink, int group)
+        {
+            if (BuildChunkMeshJob.MouthCutAt(Source, xz, 1f) < 0.3f + math.cmax(half))
+                return;
+            Put(xz, half, yaw, tilt, tone, round, moss, sink, group);
         }
 
         void Place(ref Scarp sc, int group0)
@@ -185,7 +272,11 @@ namespace Punchy.Terrain
         /// <summary>Sits one block on the ground (on the lowest of five points under it, sunk by its share of its
         /// height), unless it would stand on a flora rock or drown.</summary>
         void Add(ref Scarp sc, float2 xz, float3 half, float yaw, float2 tilt, float3 tone, float round, float moss,
-                 float sink, float s, bool small, int group0)
+                 float sink, float s, bool small, int group0) =>
+            Put(xz, half, yaw, tilt, tone, round, moss, sink, group0 + ScarpDebris.Group(ref sc, s, small));
+
+        /// <summary>Sits one block on the ground in draw group group (Add's work, shared with the cave mouths').</summary>
+        void Put(float2 xz, float3 half, float yaw, float2 tilt, float3 tone, float round, float moss, float sink, int group)
         {
             var turn = math.mul(quaternion.RotateY(yaw * 2f * math.PI), quaternion.Euler(tilt.x - 0.5f * tilt.y, 0f, tilt.y - 0.5f * tilt.x));
             float reach = math.max(half.x, half.z);
@@ -203,7 +294,7 @@ namespace Punchy.Terrain
             {
                 Position = new float3(xz.x, y + half.y * (1f - 2f * sink), xz.y), Half = half, Turn = turn, Tone = tone,
                 Round = round, Moss = moss, Seed = (Blocks.Length * 7.31f) % 113f,
-                Group = group0 + ScarpDebris.Group(ref sc, s, small)
+                Group = group
             });
         }
     }

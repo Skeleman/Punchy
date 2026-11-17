@@ -365,15 +365,27 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// The innkeeper tests' start: at the village at 11, its members made again for that hour. Its creatures may
+        /// have been made at another hour (at load, or in a test before) and keep the leg they were made on, so the
+        /// innkeeper could be off its job with no Job at all: the test then passed or failed by load time and order.
+        /// </summary>
+        static IEnumerator AtTheInnBy11()
+        {
+            yield return TestSceneSetup.Place("HumanVillage", 10f);
+            yield return TestSceneSetup.TimeOfDay(11f);
+            yield return TestSceneSetup.Seconds(1f);
+            Game.Hook<int>("RemakeTownMembers");
+            yield return TestSceneSetup.Seconds(10f);
+        }
+
+        /// <summary>
         /// A-132 row 1, target: a town's inn has a Counter, a live innkeeper works it by day (within a few metres of it,
         /// at its post), FolkConversation takes it as a talker and its "work" answer is the innkeeper's line.
         /// </summary>
         [UnityTest]
         public IEnumerator LiveFolk_InnkeeperAtCounter()
         {
-            yield return TestSceneSetup.Place("HumanVillage", 10f);
-            yield return TestSceneSetup.TimeOfDay(11f);
-            yield return TestSceneSetup.Seconds(10f);
+            yield return AtTheInnBy11();
             // (It may still be walking over from home: give it up to 40 s to reach its post, stage 10 = FolkJobs.Serving.)
             var r = Game.Hook<float[]>("InnkeeperAtCounter");
             for (int i = 0; i < 40 && !(r[1] == 1f && r[14] == 10f); i++)
@@ -409,9 +421,7 @@ namespace Punchy.Tests
         [UnityTest, Explicit("shots, run on demand"), Timeout(600000)]
         public IEnumerator Innkeeper_Shot()
         {
-            yield return TestSceneSetup.Place("HumanVillage", 10f);
-            yield return TestSceneSetup.TimeOfDay(11f);
-            yield return TestSceneSetup.Seconds(10f);
+            yield return AtTheInnBy11();
             var r = Game.Hook<float[]>("InnkeeperAtCounter");
             for (int i = 0; i < 40 && !(r[1] == 1f && r[14] == 10f); i++)
             {
@@ -433,9 +443,7 @@ namespace Punchy.Tests
         [UnityTest, Explicit("shots, run on demand"), Timeout(600000)]
         public IEnumerator Innkeeper_ChoreShots()
         {
-            yield return TestSceneSetup.Place("HumanVillage", 10f);
-            yield return TestSceneSetup.TimeOfDay(11f);
-            yield return TestSceneSetup.Seconds(10f);
+            yield return AtTheInnBy11();
             var r = Game.Hook<float[]>("InnkeeperAtCounter");
             for (int i = 0; i < 90 && !(r[1] == 1f && r[14] == 10f); i++)
             {

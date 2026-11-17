@@ -218,7 +218,7 @@ namespace Punchy.Items
             if (IsDungeon(q) && !DungeonChestOpen(board, slot))
                 return false;
             // (P-49 r3: only items that fit the quest count: another quest's quest-only item never does.)
-            return ItemId(q.item) >= 0 && CountFor(q.id, q.item, slots) >= math.max(q.count, 1);
+            return ItemId(q.item) >= 0 && CountHeld(q.id, q.item, slots) >= math.max(q.count, 1);
         }
 
         void BuildBoards(in TerrainSource terrain)
@@ -362,12 +362,12 @@ namespace Punchy.Items
             var id = ItemId(q.item);
             var need = math.max(q.count, 1);
             for (int i = 0; i < slots.Length && need > 0; i++)
-                if (slots[i].item == id)
+                if (slots[i].Row == id)
                 {
-                    var n = math.min(need, slots[i].count);
-                    slots[i].count -= n;
+                    var n = math.min(need, (int)slots[i].Count);
+                    slots[i].Count -= (ushort)n;
                     need -= n;
-                    if (slots[i].count <= 0) slots[i] = (255, 0);
+                    if (slots[i].Count == 0) slots[i] = default;
                 }
             Debug.Log($"Quests: handed in {q.count} {q.item} at board {board} ({boards[board].Town}); inventory: {DescribeInventory()}");
             if (Joined)

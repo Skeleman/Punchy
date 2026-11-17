@@ -178,3 +178,67 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
   crate (they stayed square to the dock before); sunken crates and raft baskets gained the band and rim.
 - Not moved: the alpine sled's lashed bundle (a bundle, not a basket), sconces, braziers, candelabra and beacons
   (other lights, not hung lanterns). Shore baskets did not exist as a site: the crab pot is its own cage.
+
+## 9. What row 4 built (the part format)
+
+- **One size rule.** `Span` is a part's full size in every axis; a round part's diameter is `Span.x`. Pole, post,
+  pyramid roof, hide tent, fire ring, log tepee and embers used to read a half size; coded units doubled those
+  values (exact in floats), so their meshes hash the same.
+- **Turn and mirror.** `UnitPart.Yaw` (degrees about up) and `Mirror` (in x, applied before the turn) act about the
+  part's `At`. `BuildUnit` moves the part's vertices, normals, colliders, boxes, perches, chimneys and windows, and
+  flips the winding when mirrored so faces still point out. All-zero offsets skip the move, so coded units keep
+  every bit.
+- **Centred parts honour At.** Hide tent, fire ring, log tepee and embers draw about the unit's middle; their `At`
+  is now an offset (it was ignored).
+- **Bounds are opt-in.** A part sets `g.Width` and `g.TrunkRadius` only when `UnitPart.Bounds` is set (the coded
+  tent and fire pit set it). A part placed in a blueprint no longer overwrites the unit's frame.
+- **Metre frames.** `UnitDef.Host` names the species a blueprint grows on, `Size` gives a fixed frame in metres (zero
+  grows from the host as before), and `WidthOfHeight` sets width as a share of height (zero keeps the host's
+  spread).
+- **A stream per part.** With `UnitDef.PartStreams`, each part draws from its own random stream (unit seed, part id,
+  `UnitPart.Seed`), so adding or reordering parts never changes another part's look. Coded units leave it off until a
+  re-pin.
+- **Tidy JSON.** `UnitDef.ToJson()` writes floats in their shortest round-trip form (0.7, not 0.699999988); the
+  Model Lab saves and copies with it.
+- `UnitLibraryTests` cover tidy JSON, yaw, mirror winding and part streams.
+
+## 10. What row 5 built (the building parts)
+
+- `FloraGenerator.Parts.Build.cs` adds eleven parts: `wall`, `floor`, `door`, `window`, `gabled roof`, `beam`, `stair`,
+  `rail`, `sign`, `lantern`, `crate` (list in `FloraGenerator.BuildPartIds`). Each lays out structure-kit pieces
+  (`KitPart`) in the unit frame and draws them through the kit's `DrawKitPart`, so the host species' `KitCulture` sets
+  trim colours and wall/roof looks and every piece takes its W-166 family from `MaterialLibrary.FamilyOf`.
+- Lines (`wall`, `beam`, `rail`) run from At to To; the rest stand on or centre on At and read their size from Span,
+  with a default in metres for any axis left at zero. Doors, windows and signs face +z; turn them with Yaw.
+- Collision follows the kit (W-67): every piece that isn't decor is a box, and so is any piece marked solid (a crate's
+  body, a door step). Lamps and glass stay walk-through, so a lantern has no box. `KitDecor` is the one rule for
+  both kit buildings and these parts.
+- `stair`, `lantern` and `crate` call the kit's own builders (`StructureKit.Stair`, `LanternHead`, `Crate`): one
+  definition each (rule 33).
+
+## 11. What row 6 built (nesting, snapping, JSON units in the world)
+
+- **Nested units:** a part with id `unit` and `UnitPart.Unit` set draws that whole unit at `At`, turned and mirrored
+  with the part. Its frame is the part's Span if it has one, otherwise the unit's own Size, otherwise the parent's
+  frame. A nested unit always draws from part streams salted by its id and the part's Seed. Nesting stops at depth 4,
+  so a unit that nests itself still grows. `DrawParts` uses salt 0 at the top level, so coded units hash the same.
+- **`UnitLibrary`** finds a unit by id: the coded units, any JSON unit a species loaded, and (in the editor only) every
+  blueprint in `Assets/Game/Flora/Units`. The Model Lab's Save calls `Reload` so nested copies pick up the edit.
+- **JSON units at runtime:** `FloraSpecies.UnitJson` (a TextAsset) is read on the main thread in OnEnable/OnValidate
+  into `JsonUnit`, which `GrowParts` uses when `Unit` is empty. Wherever that species is placed, it grows the
+  blueprint. Settlements place them as of section 12.
+- **Snapping:** `UnitDef.Snap(grid, join)` moves a metre-only point onto an earlier part's point when it is within
+  `join` of it, then rounds metres to `grid`. The Lab's "Snap joins" button uses 5 cm / 12 cm. The Lab shows a
+  "Unit id" field when a part is `unit`.
+
+## 12. Units in settlements (W-175 world part)
+
+- **A Lab blueprint in a town:** make a species for it (copy a building species such as `Stall`, give it its own
+  `Seed`), set `UnitJson` to the saved JSON in `Flora/Units` and leave `Unit` empty. Then list that species where it
+  should stand: a landmark prop (fixed `Count`, `Ring`, `Angle`, `FaceCentre`, `Clearance`) or a settlement layout
+  building (`Role`, `Weight`). Placement and drawing come from the species as for any other; its own `Solid` decides collision.
+- **First one:** `Cookhouse` (cookhouse.json) is a HumanVillage prop at ring 0.6, angle 70, between the inn and the
+  smithy, facing the square.
+- **Guard:** WorldTests `Blueprints_PlacedInSettlements` (hook `BlueprintPlacements`) fails when a species' JSON reads
+  no parts, a filled `Unit` hides it, no landmark lists it, or it stands in none of the landmarks that list it.
+- **Still to do:** converting the older code-built buildings to units (#415).

@@ -138,6 +138,19 @@ namespace Punchy.Flora
                         Punchy.Terrain.StructureKit.RoofLadder(parts, seed, trim, width, depth, storeys, g.Variant);
                     break;
             }
+            // P-37 r3 row 1 (#369): a house walked into (StructureKit.WalkIn). Its ground door swings and lets you through,
+            // and its floor holds you. Its door step goes up to StructureKit.WalkInStep so both rises are climbable.
+            var walkIn = !ruined && Punchy.Terrain.StructureKit.WalkIn(shape);
+            if (walkIn)
+                for (int i = 0; i < parts.Count; i++)
+                    if (parts[i].Piece == Punchy.Terrain.KitPiece.Trim && parts[i].Material == Punchy.Terrain.KitMaterial.Stone &&
+                        Mathf.Abs(parts[i].Size.y - 0.16f) < 0.01f && parts[i].Centre.y < 0.1f)
+                    {
+                        var step = parts[i];
+                        step.Size.y = Punchy.Terrain.StructureKit.WalkInStep;
+                        step.Centre.y = Punchy.Terrain.StructureKit.WalkInStep * 0.5f;
+                        parts[i] = step;
+                    }
             var house = Punchy.Terrain.StructureKit.HouseLike(shape) && shape != Punchy.Terrain.KitShape.SlabShelter ||   // a slab shelter is walked into
                         shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
@@ -165,23 +178,28 @@ namespace Punchy.Flora
                 if (small && g.Lod >= 2)
                     continue;
                 var lit = house && !ruined && p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
+                if (walkIn && p.Piece == Punchy.Terrain.KitPiece.Door && p.Centre.y - p.Size.y * 0.5f < 0.3f)
+                {
+                    WalkInDoor(g, p, trim);
+                    top = Mathf.Max(top, p.Centre.y + p.Size.y * 0.5f);
+                    continue;
+                }
                 if (!DrawKitPart(g, parts, i, trim, looks, ruined, lit, seed, contacts))
                     continue;
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
                 // collision is the art. Only LOD 0 keeps them (that's the one FloraModel copies).
-                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Ladder ||
-                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Flame ||
-                            p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
+                var decor = KitDecor(p);
                 // W-113 (item 10): a ruin's plinth course (trim, but a 0.5 m slab under the whole floor) is solid too, so a
                 // body walks up onto the platform rather than sinking to the ground through it. The door step (a low, small
                 // ground trim) is solid with it, so the climb is two rises under KitStep.
-                if (ruined && p.Piece == Punchy.Terrain.KitPiece.Trim && p.Centre.y - p.Size.y * 0.5f < 0.05f && (p.Size.x * p.Size.z > 4f || p.Size.y < 0.3f))
+                // P-37 r3: a walk-in house's plinth and door step are solid the same way: they are its floor.
+                if ((ruined || walkIn) && p.Piece == Punchy.Terrain.KitPiece.Trim && p.Centre.y - p.Size.y * 0.5f < 0.05f && (p.Size.x * p.Size.z > 4f || p.Size.y < 0.3f))
                     decor = false;
                 if (g.Lod == 0 && !decor)
                     g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
-                if (p.Solid)
+                if (p.Solid && !walkIn)   // (P-37 r3: a walk-in house's kit boxes are its walls; circles would fill the room)
                 {
                     var r = Mathf.Max(p.Size.x, p.Size.z) * 0.55f;
                     if (ruined)
@@ -217,7 +235,7 @@ namespace Punchy.Flora
                     perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
             b.Shell = false;
-            if (!ruined && house)   // the inside: one fat cylinder so nothing walks through the middle of the house
+            if (!ruined && house && !walkIn)   // the inside: one fat cylinder so nothing walks through the middle of the house
             {
                 var inner = Mathf.Min(width, depth) * 0.45f;
                 // W-64 (#38): an igloo's door stands well inside the dome now; the cylinder stops 0.4 m short of it.
@@ -270,7 +288,29 @@ namespace Punchy.Flora
                 g.Width = Mathf.Max(g.Width, reach * 2f);
             }
             // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
-            g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
+            // (P-37 r3: a walk-in house has no trunk circle either: it would fill the room.)
+            g.TrunkRadius = house && !walkIn ? Mathf.Max(width, depth) * 0.55f : 0f;
+        }
+
+        /// <summary>
+        /// P-37 r3 row 1 (#369): a walk-in house's ground door, at the kit's own door part (DoorBay, so the house's
+        /// layout decides where it stands). The leaf is hung on its left edge so Flora.hlsl swings it (FloraDoors), as a
+        /// timber house's door is. There is no dark panel behind it: the room is there. It is solid only while shut:
+        /// FloraSystem adds its DoorBox to the kit boxes while FloraDoors says it is shut. Its family comes from
+        /// MaterialLibrary like every other kit part (W-166).
+        /// </summary>
+        static void WalkInDoor(Grower g, Punchy.Terrain.KitPart p, in Punchy.Terrain.CultureTrim trim)
+        {
+            var b = g.B;
+            b.Surface = (int)Punchy.Terrain.KitSurface.Plain;
+            b.Family = Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, Punchy.Terrain.KitSurface.Plain);
+            b.Rubble = false;
+            b.Unfounded = p.Afloat;
+            var leaf = b.VertexCount;
+            b.Box(p.Centre, p.Size, p.Rotation, Punchy.Terrain.StructureKit.Colour(trim, p.Material), FloraPart.Bark);
+            b.Hinge(leaf, p.Centre + p.Rotation * new Vector3(-p.Size.x * 0.5f, -p.Size.y * 0.5f, 0f), p.Rotation * Vector3.right, p.Rotation.eulerAngles.y * Mathf.Deg2Rad);
+            if (g.Lod == 0)
+                g.DoorBoxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
         }
 
         /// <summary>

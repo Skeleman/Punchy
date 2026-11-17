@@ -223,6 +223,10 @@ namespace Punchy.Flora
         /// <summary>The players the support buffer was last gathered round, and when.</summary>
         readonly List<float2> supportCentres = new List<float2>();
         float nextSupport;
+        /// <summary>P-37 r3: FloraDoors.Version when the kit boxes were last gathered (a walk-in door's leaf blocks only while shut).</summary>
+        int doorVersion;
+        /// <summary>P-37 r3: how far from a walk-in door leaf an opened door still counts (a door is opened by its anchor, just out from the leaf).</summary>
+        const float DoorReach = 2.5f;
         /// <summary>Walkable tops are gathered within this distance of every player.</summary>
         const float SupportRange = 40f;
         /// <summary>W-67 (#79): kit buildings whose bounds come within this of a player have their boxes placed for collision.</summary>
@@ -272,6 +276,10 @@ namespace Punchy.Flora
 
         /// <summary>W-127: a model's lit window panes (FloraModel.Windows; model index as placement gives it), or null.</summary>
         public List<Vector4> ModelWindows(int model) => model >= 0 && model < models.Count ? models[model].Windows : null;
+        /// <summary>P-37 r3 row 2 (#369): how many models there are, and one by placement's model index (null past the end),
+        /// for creatures' walls round walk-in houses (Fauna/WalkInWalls).</summary>
+        public int ModelCount => models.Count;
+        public FloraModel ModelAt(int model) => model >= 0 && model < models.Count ? models[model] : null;
 
         // ------------------------------------------------------------------------------------------- fountains' water
 
@@ -1320,8 +1328,10 @@ namespace Punchy.Flora
             var moved = centres.Count != supportCentres.Count;
             for (int i = 0; !moved && i < centres.Count; i++)
                 moved = math.distance(centres[i], supportCentres[i]) > 2f;
-            if (!moved && Time.unscaledTime < nextSupport)
+            // P-37 r3: a walk-in door opening or shutting changes the kit boxes now, not at the next half-second refresh.
+            if (!moved && Time.unscaledTime < nextSupport && FloraDoors.Version == doorVersion)
                 return;
+            doorVersion = FloraDoors.Version;
             nextSupport = Time.unscaledTime + 0.5f;
             supportCentres.Clear();
             supportCentres.AddRange(centres);
@@ -1360,8 +1370,18 @@ namespace Punchy.Flora
                             nearest = math.min(nearest, math.distancesq(inst.Position.xz, c));
                         var model = models[inst.Model];
                         if (model.Boxes.Count > 0 && nearest < math.square(KitBoxRange + model.Radius * inst.Scale))
+                        {
                             foreach (var box in model.Boxes)
                                 kitBoxes.Add(KitCollision.Placed(box, inst.Position, inst.Yaw, inst.Scale));
+                            // P-37 r3 (#369): a walk-in house's door leaf, while it's shut. Opened doors are keyed by where
+                            // the leaf or its anchor stands, so the check reaches a little past the leaf (DoorReach).
+                            foreach (var box in model.DoorBoxes)
+                            {
+                                var placed = KitCollision.Placed(box, inst.Position, inst.Yaw, inst.Scale);
+                                if (!FloraDoors.IsOpen(placed.Centre, DoorReach))
+                                    kitBoxes.Add(placed);
+                            }
+                        }
                         if (modelGrid[inst.Model] >= 0 && nearest < SupportRange * SupportRange)
                             buffer.Add(new FloraSupport { Position = inst.Position, Yaw = inst.Yaw, Scale = inst.Scale, Grid = modelGrid[inst.Model], Kit = model.Boxes.Count > 0 });
                     }
