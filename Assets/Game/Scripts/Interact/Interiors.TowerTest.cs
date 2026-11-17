@@ -26,6 +26,50 @@ namespace Punchy.Interact
         float climbLongestFrame;
         float climbStillSince;
         float2 climbStepAt = float.NaN;
+        /// <summary>#518 tail: the last frames on the stair (about 1.5 s), dumped on a fall: where, how long the frame,
+        /// grounded, the tread aimed at and the box tops under the feet.</summary>
+        readonly System.Collections.Generic.Queue<(float t, string line)> climbTrail = new();
+
+        /// <summary>One frame of the trail: time, frame, feet (m up), grounded, vertical speed, the point aimed at, and each
+        /// kit box within 0.4 m of the feet's column whose top is within 1.5 m of the feet (top m up, distance from feet
+        /// to the box's footprint, and the box's centre).</summary>
+        void Trail(WalkIn w, float3 at, Entity e, float2 to, float t)
+        {
+            var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+            var m = em.HasComponent<PlayerMotion>(e) ? em.GetComponentData<PlayerMotion>(e) : default;
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"t {t:F3} dt {Time.deltaTime:F3} at ({at.x:F2}, {at.y - w.Floor:F2}, {at.z:F2}) r {math.distance(at.xz, w.Centre):F2} grounded {(m.Grounded ? 1 : 0)} prop {(m.OnProp ? 1 : 0)} vv {m.VerticalVelocity:F2} to ({to.x:F2}, {to.y:F2}) |");
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<KitBox>());
+            if (q.TryGetSingletonBuffer<KitBox>(out var boxes, true))
+                foreach (var box in boxes)
+                {
+                    var local = math.mul(math.inverse(box.Rotation), at - box.Centre);
+                    var out2 = math.max(math.abs(local.xz) - box.Half.xz, 0f);
+                    var top = box.Centre.y + box.Half.y;
+                    if (math.length(out2) < 0.4f && math.abs(top - at.y) < 1.5f)
+                        sb.Append($" top {top - w.Floor:F2} off {math.length(out2):F2} c ({box.Centre.x:F2}, {box.Centre.z:F2});");
+                }
+            if (q.TryGetSingletonBuffer<KitBox>(out var all, true))
+            {
+                // The box a straight step towards the aim would go into, as the walls see it.
+                var inOne = KitCollision.Wall(all, at, 0.35f, 0.32f, 1.7f);
+                sb.Append($" in {(inOne ? 1 : 0)}");
+                var want = at.xz + math.normalizesafe(to - at.xz) * 0.05f;
+                var cut = false;
+                var kept = KitCollision.KeepOut(all, at, want, 0.35f, 0.32f, 1.7f, ref cut);
+                sb.Append($" keep ({kept.x - at.x:F3}, {kept.y - at.z:F3}) of ({want.x - at.x:F3}, {want.y - at.z:F3}) cut {(cut ? 1 : 0)}");
+                for (int d = 0; d < 8; d++)
+                {
+                    var dir = new float2(math.cos(d * math.PI / 4f), math.sin(d * math.PI / 4f));
+                    var i = KitCollision.EnteredBox(all, at, at.xz + dir * 0.05f, inOne, 0.35f, 0.32f, 1.7f);
+                    if (i >= 0)
+                        sb.Append($" BLOCK{d} y {all[i].Centre.y - all[i].Half.y - w.Floor:F2}..{all[i].Centre.y + all[i].Half.y - w.Floor:F2} c ({all[i].Centre.x:F2}, {all[i].Centre.z:F2}) half {all[i].Half} r {math.distance(all[i].Centre.xz, w.Centre):F2}");
+                }
+            }
+            climbTrail.Enqueue((t, sb.ToString()));
+            while (t - climbTrail.Peek().t > 1.5f)
+                climbTrail.Dequeue();
+        }
 
         void ClimbTowerTest()
         {
@@ -46,7 +90,7 @@ namespace Punchy.Interact
                 climbAt = Time.realtimeSinceStartup;
                 Debug.Log($"Interiors: -climbtower {climbTower}: door open{(walkInOf.ContainsKey(climbTower) ? "" : " (not a walk-in door)")}");
             }
-            if (!walkInOf.TryGetValue(climbTower, out var house) || !TryPlayer(out _, out var player))
+            if (!walkInOf.TryGetValue(climbTower, out var house) || !TryPlayer(out var playerEntity, out var player))
             {
                 Finish(false, "no walk-in tower at that door");
                 return;
@@ -68,6 +112,8 @@ namespace Punchy.Interact
                         if (math.all(math.abs(local) - box.Half <= 1.1f))
                             Debug.Log($"Interiors: -climbtower near the fall: box at {box.Centre}, half {box.Half}, local {local}");
                     }
+                foreach (var (_, line) in climbTrail)
+                    Debug.Log("Interiors: -climbtower trail: " + line);
                 Finish(false, $"fell from {climbBestAt} to {player.Position}, longest frame {climbLongestFrame:F3} s");
                 return;
             }
@@ -134,9 +180,19 @@ namespace Punchy.Interact
                 // (From the door, first to the middle of the floor: a straight line from the door's side to the stair's
                 // foot runs along the round wall and lodges on its segments.)
                 climbCentred |= math.distance(w.Centre, player.Position.xz) < 0.5f;
-                // (Each tread aimed at a little toward the wall: off its inner edge the player drops down the well.)
-                if (found)
-                    to += math.normalizesafe(to - w.Centre) * 0.15f;
+                // (Each tread aimed at a little toward the wall: off its inner edge the player drops down the well. But
+                // never so far the body would rub the wall: #518, the walls once let a body on the stair through, and
+                // the aim leant on that; now that they hold, a body aimed into one stands still.)
+                if (found && boxes.IsCreated)
+                {
+                    var centre = to;
+                    foreach (var lean in new[] { 0.15f, 0.08f, 0f })
+                    {
+                        to = centre + math.normalizesafe(centre - w.Centre) * lean;
+                        if (!KitCollision.Wall(boxes, new float3(to.x, best, to.y), 0.35f, 1f, 1.7f))
+                            break;
+                    }
+                }
                 if (!climbCentred)
                     to = w.Centre;
                 else if (found && !climbOnStair)
@@ -166,6 +222,8 @@ namespace Punchy.Interact
                 }
             }
             PlayerInputSystem.TestMove = math.distance(to, player.Position.xz) > 0.2f ? math.normalizesafe(to - player.Position.xz) : float2.zero;
+            if (climbOnStair)
+                Trail(w, player.Position, playerEntity, to, t);
 
             if (t >= climbLog)
             {
@@ -191,7 +249,11 @@ namespace Punchy.Interact
                     }
             }
             if (t > 70f)
+            {
+                foreach (var (_, line) in climbTrail)
+                    Debug.Log("Interiors: -climbtower trail: " + line);
                 Finish(false, $"timed out at {feet - w.Floor:F2} m up (best {climbBest:F2}, top tread {climbTop - w.Floor:F2})");
+            }
 
             void Finish(bool pass, string why)
             {
