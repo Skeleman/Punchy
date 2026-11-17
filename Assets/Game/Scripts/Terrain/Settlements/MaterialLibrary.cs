@@ -49,6 +49,21 @@ namespace Punchy.Terrain
         Tuff = 9
     }
 
+    /// <summary>The kinds of cloth (W-166 #336): rows of MaterialLibrary.Cloth, read by Shaders/Materials/Cloth.hlsl.
+    /// Linen is MaterialFamily.Cloth (tents, awnings, banners, nets, gear cloth), Hide is MaterialFamily.Leather.</summary>
+    public enum ClothKind
+    {
+        Linen = 0,
+        Hide = 1
+    }
+
+    /// <summary>The kinds of metal (W-166 #336): rows of MaterialLibrary.Metal, read by Shaders/Materials/Metal.hlsl.
+    /// Iron is every metal drawn so far (kit copper and lamps, tools and gear, colossus metal).</summary>
+    public enum MetalKind
+    {
+        Iron = 0
+    }
+
     /// <summary>
     /// W-166: the one material library. A table of kinds per family (base colour, grain scale, contrast, knots, wear),
     /// pushed to the shaders as globals so every piece of a kind looks the same wherever it's drawn, and the maps from
@@ -175,8 +190,69 @@ namespace Punchy.Terrain
         /// <summary>The covering row for a creature's coat.</summary>
         public static CoatRow CoatFor(Punchy.Fauna.CoatKind kind) => Coat[Mathf.Clamp((int)kind, 0, Coat.Length - 1)];
 
+        /// <summary>One kind of cloth (W-166 #336), read by Shaders/Materials/Cloth.hlsl. Size: pattern size (1 =
+        /// threads, seams and blotches as W-99 / W-113 drew them). Contrast: how strongly the pattern shows (1 as
+        /// drawn). Wrap: how far the diffuse wraps round. Sheen: light at a glancing angle (hide's soft shine).</summary>
+        public readonly struct ClothRow
+        {
+            public readonly float Size, Contrast, Wrap, Sheen;
+
+            public ClothRow(float size, float contrast, float wrap, float sheen)
+            {
+                Size = size;
+                Contrast = contrast;
+                Wrap = wrap;
+                Sheen = sheen;
+            }
+        }
+
+        /// <summary>The cloths, by ClothKind. Columns: size, contrast, wrap, sheen. The light columns are creature
+        /// gear's own (Creature.shader), so nothing changes on screen.</summary>
+        public static readonly ClothRow[] Cloth =
+        {
+            new ClothRow(1f, 1f, 0.25f, 0f),     // linen: matte weave, sewn panels
+            new ClothRow(1f, 1f, 0.2f, 0.22f),   // hide: blotchy tanning, creases, a soft sheen
+        };
+
+        /// <summary>One kind of metal (W-166 #336), read by Shaders/Materials/Metal.hlsl. Diffuse: how much of a
+        /// plain surface's diffuse it keeps. Sky: tinted sky reflection. Spec, SpecPower: the sun highlight.
+        /// GlintCells: glint cells per metre. Glint: glint strength. GlintThreshold: cells whose hash is under it
+        /// stay dark. GlintPower: how tight each glint is.</summary>
+        public readonly struct MetalRow
+        {
+            public readonly float Diffuse, Sky, Spec, SpecPower, GlintCells, Glint, GlintThreshold, GlintPower;
+
+            public MetalRow(float diffuse, float sky, float spec, float specPower, float glintCells, float glint,
+                            float glintThreshold, float glintPower)
+            {
+                Diffuse = diffuse;
+                Sky = sky;
+                Spec = spec;
+                SpecPower = specPower;
+                GlintCells = glintCells;
+                Glint = glint;
+                GlintThreshold = glintThreshold;
+                GlintPower = glintPower;
+            }
+        }
+
+        /// <summary>The metals, by MetalKind. Columns: diffuse, sky, spec, spec power, glint cells, glint, glint
+        /// threshold, glint power. The values are Metal.hlsl's own, so nothing changes on screen.</summary>
+        public static readonly MetalRow[] Metal =
+        {
+            new MetalRow(0.45f, 0.35f, 3f, 90f, 7f, 14f, 0.55f, 400f),   // iron: sky-tinted, sharp sun, twinkling glints
+        };
+
+        /// <summary>The cloth row for a family: Leather is hide, anything else linen.</summary>
+        public static ClothRow ClothFor(MaterialFamily family) => Cloth[family == MaterialFamily.Leather ? (int)ClothKind.Hide : (int)ClothKind.Linen];
+
         public const int MaxWoodKinds = 8;
         public const int MaxCoatKinds = 8;
+        public const int MaxClothKinds = 8;
+        public const int MaxMetalKinds = 8;
+        static readonly int ClothKinds = Shader.PropertyToID("_PunchyClothKinds");
+        static readonly int MetalLightKinds = Shader.PropertyToID("_PunchyMetalLightKinds");
+        static readonly int MetalGlintKinds = Shader.PropertyToID("_PunchyMetalGlintKinds");
         static readonly int CoatShapeKinds = Shader.PropertyToID("_PunchyCoatShapeKinds");
         static readonly int CoatLightKinds = Shader.PropertyToID("_PunchyCoatLightKinds");
         static readonly int GrainKinds = Shader.PropertyToID("_PunchyWoodGrainKinds");
@@ -184,7 +260,8 @@ namespace Punchy.Terrain
         static readonly int FormKinds = Shader.PropertyToID("_PunchyWoodFormKinds");
 
         /// <summary>Pushes the tables to the shaders (Wood.hlsl's _PunchyWoodGrainKinds, _PunchyWoodToneKinds and
-        /// _PunchyWoodFormKinds; Coat.hlsl's _PunchyCoatShapeKinds and _PunchyCoatLightKinds).</summary>
+        /// _PunchyWoodFormKinds; Coat.hlsl's _PunchyCoatShapeKinds and _PunchyCoatLightKinds; Cloth.hlsl's
+        /// _PunchyClothKinds; Metal.hlsl's _PunchyMetalLightKinds and _PunchyMetalGlintKinds).</summary>
         public static void Push()
         {
             var grain = new Vector4[MaxWoodKinds];
@@ -215,6 +292,25 @@ namespace Punchy.Terrain
             }
             Shader.SetGlobalVectorArray(CoatShapeKinds, shape);
             Shader.SetGlobalVectorArray(CoatLightKinds, light);
+
+            var cloth = new Vector4[MaxClothKinds];
+            for (int i = 0; i < MaxClothKinds; i++)
+            {
+                var row = Cloth[Mathf.Min(i, Cloth.Length - 1)];
+                cloth[i] = new Vector4(row.Size, row.Contrast, row.Wrap, row.Sheen);
+            }
+            Shader.SetGlobalVectorArray(ClothKinds, cloth);
+
+            var metalLight = new Vector4[MaxMetalKinds];
+            var metalGlint = new Vector4[MaxMetalKinds];
+            for (int i = 0; i < MaxMetalKinds; i++)
+            {
+                var row = Metal[Mathf.Min(i, Metal.Length - 1)];
+                metalLight[i] = new Vector4(row.Sky, row.Spec, row.SpecPower, row.Diffuse);
+                metalGlint[i] = new Vector4(row.GlintCells, row.Glint, row.GlintThreshold, row.GlintPower);
+            }
+            Shader.SetGlobalVectorArray(MetalLightKinds, metalLight);
+            Shader.SetGlobalVectorArray(MetalGlintKinds, metalGlint);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
