@@ -132,7 +132,7 @@ namespace Punchy.Tests
             {
                 var defines = new Regex(@"^\s*(half3|half|float3|float)\s+" + definesName + @"\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase);
                 var draws = new Regex(drawsName);
-                var quoted = $"\"Materials/{include}\"";
+                var family = Path.GetFullPath(Path.Combine(root, "Materials", include));
                 foreach (var path in files)
                 {
                     var name = Path.GetFileName(path);
@@ -141,17 +141,45 @@ namespace Punchy.Tests
                     var pending = Pending.Contains((include, name));
                     if (!inMaterials && !pending && defines.IsMatch(text))
                         problems.Add($"{name} defines its own {include} look ({defines.Match(text).Value.Trim()}): draw it through Materials/{include}");
-                    if (!inMaterials && !pending && name != include && draws.IsMatch(text) && !text.Contains(quoted))
+                    if (!inMaterials && !pending && name != include && draws.IsMatch(text) && !Includes(path, root).Contains(family))
                         problems.Add($"{name} draws {include}'s family without including Materials/{include}");
                 }
                 foreach (var name in users)
                 {
-                    var text = File.ReadAllText(Path.Combine(root, name));
-                    if (!text.Contains(quoted) || !draws.IsMatch(text))
+                    var path = Path.Combine(root, name);
+                    var reached = Includes(path, root);
+                    // The draw may sit in a shared include on the way (Cave and TerrainSurface reach Stone through
+                    // Materials/RockWall.hlsl), so the shader's own text and everything it pulls in short of the family count.
+                    var drawn = reached.Where(p => p != family).Prepend(Path.GetFullPath(path)).Any(p => draws.IsMatch(File.ReadAllText(p)));
+                    if (!reached.Contains(family) || !drawn)
                         problems.Add($"{name} should draw its {include} family through Materials/{include}");
                 }
             }
             Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        static readonly Regex IncludeLine = new(@"^\s*#include(_with_pragmas)?\s+""([^""]+)""", RegexOptions.Multiline);
+
+        /// <summary>Every project shader file a file reaches through #include, followed through chains (a family
+        /// include reached via another include counts). Paths resolve next to the including file, then under Shaders;
+        /// package includes don't resolve and are skipped.</summary>
+        static HashSet<string> Includes(string path, string root)
+        {
+            var seen = new HashSet<string>();
+            var todo = new Stack<string>();
+            todo.Push(Path.GetFullPath(path));
+            while (todo.Count > 0)
+            {
+                var file = todo.Pop();
+                foreach (Match m in IncludeLine.Matches(File.ReadAllText(file)))
+                {
+                    var rel = m.Groups[2].Value;
+                    var found = new[] { Path.Combine(Path.GetDirectoryName(file), rel), Path.Combine(root, rel) }
+                        .Select(Path.GetFullPath).FirstOrDefault(File.Exists);
+                    if (found != null && seen.Add(found)) todo.Push(found);
+                }
+            }
+            return seen;
         }
     }
 }
