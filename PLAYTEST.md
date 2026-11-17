@@ -233,3 +233,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #547 (#529): no see-through cave mouth on the frame after a camera cut or teleport.
 - 11-17 #548 W-166 (#336): creatures draw coats through the material library; no look change.
 - 11-17 #549 beach glare: dock/shore/wharf/boardwalk lanterns are night-only pier lamps; noon sand reads pale.
+- 11-17 #551 (#550): pier, dock and stilt-house decks show planks again, not shingles.
