@@ -274,6 +274,12 @@ namespace Punchy.Terrain
         public readonly int[] Counts = new int[CaveWallDetails.Kinds];
         /// <summary>Glowing fungus clusters, for their lights.</summary>
         public readonly List<Vector3> Glows = new List<Vector3>();
+        /// <summary>
+        /// W-177: mushroom clusters on the Fungi and GlowFungi patches, drawn by CaveSystem with the flora grower's models.
+        /// Model: glow * 2 + wall-grown (CaveSystem.MushroomModel); yaw turns a wall cluster's +Z out of the rock.
+        /// </summary>
+        public readonly List<(float3 position, float yaw, float scale, int model, float random)> Mushrooms =
+            new List<(float3, float, float, int, float)>();
         /// <summary>Every place made: kind, where and the wall's normal (for shots and tests).</summary>
         public readonly List<(CaveWallKind kind, float3 position, float3 normal)> Placed = new List<(CaveWallKind, float3, float3)>();
 
@@ -573,6 +579,22 @@ namespace Punchy.Terrain
                         var out_ = math.normalizesafe(new float3(qn.x, 0f, qn.z), new float3(1f, 0f, 0f));
                         var radius = (glow ? 0.08f : 0.12f) + CaveWallDetails.U(hc, 2) * (glow ? 0.1f : 0.2f);
                         g.Shelf(q - out_ * 0.03f, out_, radius, 0.035f + radius * 0.12f, i % 2 == 0 ? 1.05f : 0.9f);
+                    }
+                    // W-177: the patch is the bed of a few mushroom clusters (CaveSystem.Mushrooms draws them), upright on
+                    // a floor, growing out of the rock and turning up on a wall; none hang from a ceiling.
+                    g.Sheet(source, Cave, p, n, 0.7f + R(2) * 0.6f, 0.55f, h, 0.03f);
+                    var clusters = 2 + (int)(R(3) * 3f);
+                    for (int i = 0; i < clusters; i++)
+                    {
+                        var hc = CaveWallDetails.Hash(h, 9, i, 0);
+                        if (!OnWall(source, g, p, n, (CaveWallDetails.U(hc, 0) - 0.5f) * 1.2f, (CaveWallDetails.U(hc, 1) - 0.5f) * 1.2f, out var q, out var qn) ||
+                            qn.y < -0.3f)
+                            continue;
+                        var floor = qn.y > 0.55f;
+                        var out_ = math.normalizesafe(new float3(qn.x, 0f, qn.z), new float3(1f, 0f, 0f));
+                        var yaw = floor ? CaveWallDetails.U(hc, 2) * 6.283f : math.atan2(-out_.x, out_.z);
+                        Mushrooms.Add((floor ? q - new float3(0f, 0.02f, 0f) : q - out_ * 0.015f, yaw, 0.8f + CaveWallDetails.U(hc, 3) * 0.6f,
+                                       (glow ? 2 : 0) + (floor ? 0 : 1), CaveWallDetails.U(hc, 4)));
                     }
                     if (glow)
                         Glows.Add(p + n * 0.3f);

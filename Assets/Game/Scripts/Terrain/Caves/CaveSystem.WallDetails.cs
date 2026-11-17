@@ -133,6 +133,7 @@ namespace Punchy.Terrain
                     for (int k = 0; k < CaveWallDetails.Kinds; k++)
                         wallShown.Remove(cave * CaveWallDetails.Kinds + k);
                 }
+            DrawMushrooms(camPos);
         }
 
         static float BoxDistanceSq(float3 min, float3 max, float3 p)
@@ -151,6 +152,7 @@ namespace Punchy.Terrain
             wallBuilds.Clear();
             wallShown.Clear();
             wallBuilding = null;
+            ReleaseMushrooms();
             if (wallMaterials != null)
                 foreach (var mat in wallMaterials)
                     if (mat != null)

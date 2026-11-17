@@ -83,3 +83,5 @@ MonoBehaviour:
   RoomChance: 0.45
   RoomWeights: {x: 1, y: 0, z: 1.5, w: 1}
   RockKind: 4
+  Mushrooms: {fileID: 11400000, guid: f0bc63d3dde59f142948a597920d6c11, type: 2}
+  GlowMushrooms: {fileID: 11400000, guid: 17cfe4343a148844db935df7595a8316, type: 2}

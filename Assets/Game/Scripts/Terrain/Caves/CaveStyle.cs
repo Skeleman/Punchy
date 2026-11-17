@@ -64,6 +64,11 @@ namespace Punchy.Terrain
         [Tooltip("W-172 row 5: the bench set against the wall of road tunnels' side chambers (those not left as camp " +
                  "sockets). None = no benches.")]
         public Punchy.Flora.FloraSpecies Bench;
+        [Tooltip("W-177: the mushroom species (a Mushroom flora form) that grows in clusters on Fungi wall patches, upright " +
+                 "on floors and out of the rock on walls. Drawn only, not baked. None = no clusters.")]
+        public Punchy.Flora.FloraSpecies Mushrooms;
+        [Tooltip("W-177: as Mushrooms, for the deep GlowFungi patches (a glowing species).")]
+        public Punchy.Flora.FloraSpecies GlowMushrooms;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
