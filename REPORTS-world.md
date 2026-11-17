@@ -8580,3 +8580,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Cave walls take the surrounding rock colour at the mouth and fade to the style's own colour with depth. CaveSystem goes from 2587 to 2492 lines (look code moved to CaveSystem.RockLook.cs).
 - Shots in PunchyMilestones/W-162 (before/after: cliff near and at 100 m, sandstone mouth, sandstone and granite caves). The cliff differences are sky drift; caves differ by 1-5 levels. NaN 0, WorldTests 19/19, BENCH request posted.
 - Next: row 3, rock grades through WorldClimbs.
+
+## W-162 (#327) row 4 done: cave mouths (world/rock-walls 2f8b15be)
+- The ground at a mouth now ends in the cliff toe's ragged band (Cave.shader), with rim rubble from ScarpDebris on its own hash stream. SkinGap went from 2 cm to 20 cm, so the pale wall-skin patches are gone.
+- CutGap (2 cm) keeps the terrain's own mouth cut as it was. With SkinGap feeding that cut, the ground vanished for metres round each mouth, which I caught in shots and fixed. Ground and placement are unchanged, so no re-pin.
+- Shots: PunchyMilestones/W-162/pair-mouth{0,5,13}-{5,30,100}m.png (before | after). Weather differs between the runs. NaN 0 at all 3 mouths, WorldTests 19/19, no hole at any LOD.
+- Next: row 3 (rock climb grades plus the approved PlayerMovementSystem cut), with the 4 checks in its handoff.
