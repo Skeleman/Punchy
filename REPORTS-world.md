@@ -8660,3 +8660,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - world/cave-seam 62d2474a (pushed, WIP): MouthCutKept in BuildChunkMeshJob.Mouths filters the cut mask where it's built. A cut point stays open if the walls' air lies under it, or if it sits below the mouth's middle with an open straight path to the mouth (the floor apron). Rims stay smooth and aprons are kept; most stray specks are gone. All four cut call sites use it.
 - Open: one c6 speck (left of the mouth, -2687.6,1235.4) still passes, because the path test reads the raw cut across a rock ridge the gate removed. Next: make the path samples pass the gate too, or use a below-floor test.
 - Not started: cave-side boundary clip/snap (step B), the band-weight shader block (C), the seam guard and the hash re-pin. No shader edits yet. Probe: the scratchpad probe2.cs pattern (wall field at 0.4/1/2 m under the hit point).
+
+## W-174 row 3 step 1 (cut-mask islands), 11-17: verified
+- world/cave-seam b3117cad: the apron test is now below the floor. A cut point stays open only if the walls' air is straight under it, or it sits at most 1 m (ApronRise) above the floor under the mouth with an open line to the mouth.
+- c6: the island left of the mouth is gone, and the floor exit stays one piece (a 0.5 m rise broke it into slabs). The top-left rim patch is a real mouth edge joined to the hole, so it stays. Debug (unlit) and shaded 5 m/20 m shots at c0/c3/c6 checked.
+- Next: step B (cave walls clip to a shared CaveSampling.MouthRing), then C, the guard and the re-pin.
