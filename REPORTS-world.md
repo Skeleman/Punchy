@@ -8586,3 +8586,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - CutGap (2 cm) keeps the terrain's own mouth cut as it was. With SkinGap feeding that cut, the ground vanished for metres round each mouth, which I caught in shots and fixed. Ground and placement are unchanged, so no re-pin.
 - Shots: PunchyMilestones/W-162/pair-mouth{0,5,13}-{5,30,100}m.png (before | after). Weather differs between the runs. NaN 0 at all 3 mouths, WorldTests 19/19, no hole at any LOD.
 - Next: row 3 (rock climb grades plus the approved PlayerMovementSystem cut), with the 4 checks in its handoff.
+
+## W-162 (#327) row 3 done: rock climb grades (world/rock-walls 6b126884)
+- RockGrades (new) grades bare rock from RockWall.hlsl's shapes: craggy 4, smooth 5, ledges and cracks one easier. WorldClimbs reads it through RockClimbs; ladders are unchanged. Clips are frame strips in PunchyMilestones/W-162/row3/: skill 4 climbs a craggy cliff (12 m+) and a cave wall, skill 3 is refused on both, and a smooth face refuses skill 4.
+- PlayerMovementSystem.cs (approved): a cave-wall cut, or rock within reach, sets blocked. A rise past CliffRise (60 deg over 2 m) on open ground is cut and sets blocked, except under a prop or kit top.
+- Checks: (1) roads 0 cuts, so roads and slopes walk the same; (2) the system queries PlayerTag only, so AI is unaffected; (3) prediction is unaffected (client-side, deterministic, no ghost fields); (4) at an 8 m grid, 100.0% of cells and 114/114 landmarks are still reached. WorldTests 19/19, NaN 0.
+- Not done yet: the W-144 routes rebuilt as CaveHangings, plus grade 2 for vines and roots. It's a ~300-line salvage of the route finding from origin/world/cave-climbs. Do you want it as row 3b, or as its own card?
