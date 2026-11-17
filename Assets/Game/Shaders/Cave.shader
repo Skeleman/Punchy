@@ -170,7 +170,8 @@ Shader "Punchy/Cave"
                 float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = float4(_OwnLight.rgb, 0), s3 = 0, s4 = float4(1, 1, 0, 0);
                 float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0), s8 = 0;
                 // A style-air copy reads only the style's everywhere light from its slot (added last, as on the walls).
-                half3 air = 0;
+                // A plain copy with no slot (dungeon props, kit pieces) takes the camera's cave air (Surface.hlsl).
+                half3 air = slot == 0 ? (half3)_PunchyCaveAir.rgb : 0;
                 if (_StyleAir > 0.5 && slot > 0)
                 {
                     air = _PunchyCaveStyles[slot * 9 + 2].rgb * _PunchyCaveStyles[slot * 9 + 4].y;

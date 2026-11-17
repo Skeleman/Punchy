@@ -144,7 +144,8 @@ namespace Punchy.Terrain
 
         /// <summary>
         /// W-179: the everywhere light (CaveStyle.GlowEverywhere: Crystal's purple, Ice's blue) of the cave the camera is
-        /// in, faded out over the first two metres outside its air. Surface.hlsl's PunchySurfaceFinish adds it to every
+        /// in, fading out from a metre inside its air to four metres out (the distance is to the nearest passage tube, so
+        /// a room's middle can read near zero). Surface.hlsl's PunchySurfaceFinish adds it to every
         /// surface that can stand in a cave (cave flora, creatures, items, props), so they sit in the same light as the
         /// walls around them; w is the fade.
         /// </summary>
@@ -152,13 +153,13 @@ namespace Punchy.Terrain
         {
             var style = 0;
             var distance = CaveSampling.Distance(ref set, camPos, out var cave);
-            if (distance < 2f && cave >= 0 && cave < set.Caves.Length)
+            if (distance < 4f && cave >= 0 && cave < set.Caves.Length)
                 style = set.Caves[cave].Style;
             if (style <= 0 || style > wallStyles.Count || wallStyles[style - 1] == null)
                 return Vector4.zero;
             var s = wallStyles[style - 1];
             // As CaveStyle.Pack and Cave.shader: glow colour x glow x the everywhere share, in the table's raw values.
-            var fade = math.saturate(0.5f - distance * 0.25f);
+            var fade = math.saturate((4f - distance) / 3f);
             var air = s.GlowColor * (s.Glow * s.GlowEverywhere * fade);
             return new Vector4(air.r, air.g, air.b, fade);
         }
