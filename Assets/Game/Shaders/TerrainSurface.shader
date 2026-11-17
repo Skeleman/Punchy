@@ -483,27 +483,32 @@ Shader "Punchy/Terrain Surface"
                         // Grazing (view under ~30 degrees from the ground) adds steps, up to double, 8 at most.
                         float steps = min(round(_PunchyTerrainParallax * (1 + saturate(1 - v.y * 2))), 8);
                         float jit = frac(52.9829189 * frac(dot(input.positionCS.xy, float2(0.06711056, 0.00583715))));
-                        float tPrev = 0, t = 0, tHit = top, dHit = -1;
-                        float dPrev = top - CobbleHeight(cq, bevelMin, pid, pedge);   // ray depth under the paving (> 0: above it)
-                        bool hit = dPrev <= 0, onTop = hit;
-                        [loop] for (int i = 1; i <= 8; i++)
-                            [branch] if (!hit && i <= (int)steps)
-                            {
-                                t = top * min((i - jit * (i < steps)) / steps, 1);
-                                float d = top - CobbleHeight(cq + dir * t, bevelMin, pid, pedge) - t;
-                                if (d <= 0) { tHit = t; dHit = d; hit = true; }
-                                else { tPrev = t; dPrev = d; }
-                            }
-                        if (hit && !onTop)
+                        float tPrev = 0, t = 0, tHit = top, dHit = -1, dPrev = 1;
+                        // (FXC: one loop with CobbleHeight inlined once, no branch around it. A sample per pass: pass 0
+                        // the start, then the steps until one meets the paving, then two regula falsi refines of that
+                        // bracket. A pass's role is picked arithmetically. Unrolled copies of this heavy sample took
+                        // the cold compile from ~40 s to ~100 s a variant and crashed FXC in a parallel player build.)
+                        int stepCount = (int)steps;
+                        float hitF = 0, onTopF = 0;
+                        [loop] for (int i = 0; i <= stepCount + 2; i++)
                         {
-                            [unroll] for (int r = 0; r < 2; r++)
-                            {
-                                float tm = tPrev + (tHit - tPrev) * dPrev / max(dPrev - dHit, 1e-5);
-                                float dm = top - CobbleHeight(cq + dir * tm, bevelMin, pid, pedge) - tm;
-                                if (dm > 0) { tPrev = tm; dPrev = dm; } else { tHit = tm; dHit = dm; }
-                            }
-                            t = tPrev + (tHit - tPrev) * dPrev / max(dPrev - dHit, 1e-5);
+                            float refine = (i > stepCount ? 1.0 : 0.0) * hitF * (1 - onTopF);
+                            float stepT = top * min((i - jit * (i > 0 && i < stepCount ? 1.0 : 0.0)) / steps, 1);
+                            float secant = tPrev + (tHit - tPrev) * dPrev / max(dPrev - dHit, 1e-5);
+                            t = lerp(stepT, secant, refine);
+                            float d = top - CobbleHeight(cq + dir * t, bevelMin, pid, pedge) - t;
+                            float under = d <= 0 ? 1.0 : 0.0;
+                            float stepping = (i <= stepCount ? 1.0 : 0.0) * (1 - hitF);
+                            float newHit = stepping * under;   // the first sample at or under the paving
+                            onTopF = max(onTopF, newHit * (i == 0 ? 1.0 : 0.0));
+                            float toHit = newHit + refine * under, toPrev = stepping * (1 - under) + refine * (1 - under);
+                            tHit = lerp(tHit, t, toHit); dHit = lerp(dHit, d, toHit);
+                            tPrev = lerp(tPrev, t, toPrev); dPrev = lerp(dPrev, d, toPrev);
+                            hitF = max(hitF, newHit);
                         }
+                        bool hit = hitF > 0.5, onTop = onTopF > 0.5;
+                        if (hit && !onTop)
+                            t = tPrev + (tHit - tPrev) * dPrev / max(dPrev - dHit, 1e-5);
                         else t = onTop ? 0 : top;
                         cq += dir * t;
                     }
