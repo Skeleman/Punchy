@@ -102,7 +102,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - One shared fire effect with a colour setting, used by everything that burns; Ember Forest burns one seeded
   colour per night. Shipped (#131) with 4 colours of the 7 asked for (orange, golden, silver, violet, emerald,
   crimson, black). Zach wants further tweaks later.
-- Effects as reusable systems (11-14): electricity, steam, smoke, sparks, gushing water and wind each one shared effect like fire, so new places reuse them as systems grow. R-29, rule 30.
+- Effects as reusable systems (11-14): electricity, steam, smoke, sparks, gushing water and wind each one shared effect like fire, so new places reuse them as systems grow. R-29, rule 30. Electricity shipped #540 (spires + golems, 11-17); steam, smoke, sparks, spray and wind next.
 Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, bent normals) instead of solid toon shapes; #323, R-30.
 - Shorelines wander instead of ruled lines: lapping, noise lift, ragged wet band (W-160, #324).
 - Continuous grass swathes without bald spots; grass ground textured with blades, dirt speckled and grainy (R-31, #325).

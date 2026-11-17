@@ -61,7 +61,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-35 r3 | #333 | render-2 | row 3 = pick E only (Zach 11-16); cherry-picked onto one-surface-5, main merged, BC1091 fix in | render/cloud-e@25fbc044 (carries #494 incl. its 3 Water.shader lines from R-23 r5) | Job 111 cut to E only, after 109 |
 | R-40 | #511 | render | done: PR #513 (bilinear PCF, one shadow per point at the hand-off); 0 errors, NaN 0, noon 90 m colossus shadow now solid | render/soft-wide-shadow@251d95b1 | review + merge (coordinator); sheet PunchyMilestones/R-40/R-40-sheet.png |
 | R-31 | #325 | render | row 3 done: f is the default (3/8/15/25 m hidden 44.9/74.8/89.3/71.9%), today behind -grassproto today, e dropped; NaN 0. Disc = sun-moving ground shadow (tree), not grass/push | render/grass-fields@c55dbd9f | merge waits on BENCH 114 (pinned to 14f86b6d, all three arms) |
-| R-29 | #320 | render-2 | row 3 verified 11-17: compiles, 20 bolts at 281 m reach, sparkle NaN 0, 16 shots in PunchyMilestones/R-29 (golem arcs not shot) | render/effects-kit@87426738 (main merged) | Ready for PR review; BENCH request filed for pairing cost |
+| R-29 | #320 | render-2 | electricity kit merged #540 (spires + golem arcs) | render/effects-kit | Next: steam, smoke, sparks, spray, wind families (after R-28 r2) |
 | #400 cull | #400 | fauna | held: #400 closed by #509; start only if BENCH q137b still shows the cull stall | fauna/cull-no-stall (new off main) | CreatureRenderSystem: no same-frame Complete of the cull |
 | #400 mesh | #400 | world | queued after M-07 r2b, W-172 r7 | world/chunk-mesh-budget (new off main) | Per-frame chunk-mesh budget by screen size; tunnel-mouth burst |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
