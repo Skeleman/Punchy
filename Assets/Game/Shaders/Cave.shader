@@ -25,6 +25,9 @@ Shader "Punchy/Cave"
         [HideInInspector] _Dressed ("Dressed", Float) = 0
         // Light a plain (slot 0) copy gives off everywhere: pale wall fungi that would read black deep in.
         [HideInInspector] _OwnLight ("Own light", Color) = (0, 0, 0, 0)
+        // 1: a plain copy (wall details, tendrils) whose vertices carry their cave's slot keeps its own colours but takes
+        // that style's everywhere light (Crystal's purple, Ice's blue), so it sits in the same air as the walls (W-179).
+        [HideInInspector] _StyleAir ("Style air", Float) = 0
     }
 
     SubShader
@@ -41,6 +44,7 @@ Shader "Punchy/Cave"
             half _Darkness;
             half _Dressed;
             half4 _OwnLight;
+            half _StyleAir;
         CBUFFER_END
 
         struct CaveAttributes
@@ -165,6 +169,14 @@ Shader "Punchy/Cave"
                 bool built = tunnel && ((code - 1) & 2) != 0;
                 float4 s0 = float4(_RockColor.rgb, 0.3), s1 = float4(_DarkColor.rgb, 0.366), s2 = float4(_OwnLight.rgb, 0), s3 = 0, s4 = float4(1, 1, 0, 0);
                 float4 s5 = float4(_RockColor.rgb * 0.8, 0.3), s6 = float4(_DarkColor.rgb, 0), s7 = float4(0.3, 1, 0, 0), s8 = 0;
+                // A style-air copy reads only the style's everywhere light from its slot (added last, as on the walls).
+                // A plain copy with no slot (dungeon props, kit pieces) takes the camera's cave air (Surface.hlsl).
+                half3 air = slot == 0 ? (half3)_PunchyCaveAir.rgb : 0;
+                if (_StyleAir > 0.5 && slot > 0)
+                {
+                    air = _PunchyCaveStyles[slot * 9 + 2].rgb * _PunchyCaveStyles[slot * 9 + 4].y;
+                    slot = 0;
+                }
                 if (slot > 0)
                 {
                     int i = slot * 9;
@@ -444,6 +456,7 @@ Shader "Punchy/Cave"
                 // inside, whole wavefronts skip the sun's shadow taps.
                 // (Surface.hlsl: the sun reaches as far as the sky is overhead, the sky's ambient down to _Darkness.)
                 PunchySurface ps = PunchySurfaceAt(p, n);
+                ps.caveAir = 0; // walls add their own cave's air per style (air, below)
                 ps.sunReach = openness;
                 ps.skyReach = lerp(_Darkness, 1, openness);
                 half3 light = SampleSH(n) * ps.skyReach;
@@ -591,6 +604,7 @@ Shader "Punchy/Cave"
                     color *= 1 - crack * s4.w * 0.85;
                     color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y) * (1 - s4.w)) * (1 - terrain);
                 }
+                color += air * (1 - terrain);
                 return half4(color, 1);
             }
             ENDHLSL

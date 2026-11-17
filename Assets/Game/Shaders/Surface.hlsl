@@ -19,6 +19,12 @@
 //
 // Needs URP's Lighting.hlsl, Atmosphere.hlsl (or Sky.hlsl, which includes it), WideShadow.hlsl and Glow.hlsl included first.
 
+// W-179: the one cave haze. The everywhere light of the cave the camera is in (CaveStyle.GlowEverywhere: Crystal's
+// purple, Ice's blue), already faded out as the camera leaves the cave (CaveSystem.CameraCaveAir). PunchySurfaceFinish
+// adds it to every surface, so fungi, creatures, items and props sit in the same air as the cave walls (which add the
+// same term per cave from the style table in Cave.shader).
+float4 _PunchyCaveAir;
+
 /// What the shader knows about the point it lights.
 struct PunchySurface
 {
@@ -29,6 +35,7 @@ struct PunchySurface
     half sunReach;             // how much of the sun gets here: 1 outside, 0 for cave plants and underground
     half skyReach;             // how much of the sky's ambient gets here: 1 outside, a little in caves
     half glowWorldReach;       // how much of the far glow map: 1, plants 0 in caves (0 skips the lookup)
+    half caveAir;              // how much of the camera's cave air: 1, 0 for what only stands outside (terrain, grass)
     float4 positionCS;         // the clip position, for real lights' Forward+ clusters (PUNCHY_SURFACE_REAL_LIGHTS)
 };
 
@@ -58,6 +65,7 @@ PunchySurface PunchySurfaceAt(float3 positionWS, half3 normalWS)
     s.sunReach = 1;
     s.skyReach = 1;
     s.glowWorldReach = 1;
+    s.caveAir = 1;
     s.positionCS = 0;
     return s;
 }
@@ -122,9 +130,10 @@ half3 PunchySurfaceSunDim(half3 color, PunchySurface s, PunchyLit lit, half3 bak
     return color;
 }
 
-/// The last step for every surface: the haze and atmosphere.
+/// The last step for every surface: the cave haze, then the atmosphere.
 half3 PunchySurfaceFinish(half3 color, PunchySurface s)
 {
+    color += _PunchyCaveAir.rgb * s.caveAir;
     return PunchyAtmosphere(color, s.positionWS);
 }
 

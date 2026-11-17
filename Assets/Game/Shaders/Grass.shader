@@ -74,6 +74,7 @@ Shader "Punchy/Grass Blades"
                 // (Surface.hlsl: PUNCHY_SURFACE_SHADOW_FADE for the fade, the wide map biased straight up like plants.)
                 PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
                 ps.wideNormalWS = half3(0, 1, 0);
+                ps.caveAir = 0; // grass only grows outside
                 ps.positionCS = input.positionCS;
                 PunchyLit lit = PunchySurfaceLight(ps);
                 Light light = lit.sun;

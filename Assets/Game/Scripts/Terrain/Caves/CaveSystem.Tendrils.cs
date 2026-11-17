@@ -48,6 +48,7 @@ namespace Punchy.Terrain
                 tendrilMaterial.SetColor(RockColorId, Color.Lerp(rock, Color.white, 0.3f));
                 tendrilMaterial.SetColor(DarkColorId, rock);
                 tendrilMaterial.SetFloat(DressedId, -1f);
+                tendrilMaterial.SetFloat(StyleAirId, 1f); // W-179: in the cave's haze like the walls and fungi
                 tendrilMaterial.SetColor(OwnLightId, CaveWallDetails.OwnLight(CaveWallKind.GlowFungi) * 1.6f);
             }
 
@@ -134,9 +135,11 @@ namespace Punchy.Terrain
             tendrilColours.Clear();
             tendrilData.Clear();
             tendrilIndices.Clear();
-            var noRib = new Vector4(0f, 1f, 0f, SeamRib(0f, 1f));
             foreach (var pair in tendrilChains)
             {
+                // The cave's style slot rides in z, so Cave.shader's style-air path gives the tendril its cave's haze.
+                var style = wallBuilds.TryGetValue((int)(pair.Key >> 20), out var build) ? build.Style : 0;
+                var noRib = new Vector4(0f, 1f, style, SeamRib(0f, 1f));
                 var sides = tendrilFine.Contains(pair.Key) ? 6 : 3;
                 var points = tendrilSim.Points(pair.Value);
                 var n = points.Length;

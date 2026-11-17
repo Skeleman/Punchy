@@ -23,6 +23,8 @@ namespace Punchy.Terrain
         /// <summary>Per kind, a copy of the cave material in its colours.</summary>
         Material[] wallMaterials;
         static readonly int OwnLightId = Shader.PropertyToID("_OwnLight");
+        static readonly int StyleAirId = Shader.PropertyToID("_StyleAir");
+        static readonly int CaveAirId = Shader.PropertyToID("_PunchyCaveAir");
         CaveWallBuild wallBuilding;
         BlobAssetReference<CaveSetBlob> wallSet;
         List<CaveStyle> wallStyles;
@@ -51,6 +53,8 @@ namespace Punchy.Terrain
                     mat.SetColor(DarkColorId, dark);
                     mat.SetFloat(DressedId, -1f);
                     mat.SetColor(OwnLightId, CaveWallDetails.OwnLight((CaveWallKind)k));
+                    // Their vertices carry the cave's slot: take its style's everywhere light, as the walls do.
+                    mat.SetFloat(StyleAirId, 1f);
                     wallMaterials[k] = mat;
                 }
             }
@@ -133,8 +137,31 @@ namespace Punchy.Terrain
                     for (int k = 0; k < CaveWallDetails.Kinds; k++)
                         wallShown.Remove(cave * CaveWallDetails.Kinds + k);
                 }
+            Shader.SetGlobalVector(CaveAirId, CameraCaveAir(ref set, camPos));
             DrawMushrooms(camPos);
             DrawTendrils(camPos);
+        }
+
+        /// <summary>
+        /// W-179: the everywhere light (CaveStyle.GlowEverywhere: Crystal's purple, Ice's blue) of the cave the camera is
+        /// in, fading out from a metre inside its air to four metres out (the distance is to the nearest passage tube, so
+        /// a room's middle can read near zero). Surface.hlsl's PunchySurfaceFinish adds it to every
+        /// surface that can stand in a cave (cave flora, creatures, items, props), so they sit in the same light as the
+        /// walls around them; w is the fade.
+        /// </summary>
+        Vector4 CameraCaveAir(ref CaveSetBlob set, float3 camPos)
+        {
+            var style = 0;
+            var distance = CaveSampling.Distance(ref set, camPos, out var cave);
+            if (distance < 4f && cave >= 0 && cave < set.Caves.Length)
+                style = set.Caves[cave].Style;
+            if (style <= 0 || style > wallStyles.Count || wallStyles[style - 1] == null)
+                return Vector4.zero;
+            var s = wallStyles[style - 1];
+            // As CaveStyle.Pack and Cave.shader: glow colour x glow x the everywhere share, in the table's raw values.
+            var fade = math.saturate((4f - distance) / 3f);
+            var air = s.GlowColor * (s.Glow * s.GlowEverywhere * fade);
+            return new Vector4(air.r, air.g, air.b, fade);
         }
 
         static float BoxDistanceSq(float3 min, float3 max, float3 p)
@@ -148,6 +175,7 @@ namespace Punchy.Terrain
 
         void ReleaseWallDetails()
         {
+            Shader.SetGlobalVector(CaveAirId, Vector4.zero);
             foreach (var build in wallBuilds.Values)
                 build.Release();
             wallBuilds.Clear();
