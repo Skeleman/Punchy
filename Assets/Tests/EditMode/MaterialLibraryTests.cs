@@ -23,9 +23,9 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). Empty since
-        // TerrainSurface.shader includes Materials/Stone.hlsl directly; kept so a future hand-off has a place to go.
-        static readonly (string include, string shader)[] Pending = { };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). Creature.shader
+        // draws its coats inline until the fauna lane moves it onto Materials/Coat.hlsl (then it joins Coat's users).
+        static readonly (string include, string shader)[] Pending = { ("Coat.hlsl", "Creature.shader") };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -98,7 +98,32 @@ namespace Punchy.Tests
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
             ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader", "TerrainSurface.shader" }),
             ("Bone.hlsl", @"\w*Bone(Pit|Line|Ivory)\w*", @"PunchyBone\w*\s*\(", new[] { "Creature.shader" }),
+            ("Coat.hlsl", @"\w*Coat(Fur|Feathers|Scales|Skin|Chitin)\w*", @"PunchyCoat\w*\s*\(", new string[0]),
         };
+
+        // Coverings (W-166 #336): one library row per creature coat kind, so the look in Materials/Coat.hlsl and
+        // Fauna.CoatKind cannot drift apart, and each row is usable (a pattern size and a highlight power above 0).
+        [Test]
+        public void EveryCoatKindHasARow()
+        {
+            var coatKind = Game.GetType("Punchy.Fauna.CoatKind", true);
+            var library = Game.GetType("Punchy.Terrain.MaterialLibrary", true);
+            var rows = (Array)library.GetField("Coat").GetValue(null);
+            var max = (int)library.GetField("MaxCoatKinds").GetValue(null);
+            var kinds = Enum.GetValues(coatKind).Length;
+            Assert.AreEqual(kinds, rows.Length, "MaterialLibrary.Coat needs one row per CoatKind");
+            Assert.LessOrEqual(kinds, max, "Coat.hlsl holds at most MaxCoatKinds rows");
+            var problems = new List<string>();
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var row = rows.GetValue(i);
+                var size = (float)row.GetType().GetField("Size").GetValue(row);
+                var power = (float)row.GetType().GetField("SpecPower").GetValue(row);
+                if (size <= 1e-3f || power <= 1e-3f)
+                    problems.Add($"{Enum.GetName(coatKind, i)}: size {size}, spec power {power} (0 reads as an unpushed row)");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
 
         // Gear (W-166 row 3): every creature gear material maps to a family, and Creature.shader is a user of that family's
         // include in the table above, so SegmentMaterial and the library cannot drift apart.

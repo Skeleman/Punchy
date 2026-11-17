@@ -54,7 +54,7 @@ namespace Punchy.Terrain
     /// pushed to the shaders as globals so every piece of a kind looks the same wherever it's drawn, and the maps from
     /// what builders know (a kit part's KitMaterial, a culture, a flora form) to a family and kind. A piece keeps its
     /// own colour; the kind decides how its surface reads. Wood first; the other families get rows as their includes
-    /// land (W-166 row 3). Cosmetic and seed-free: nothing here moves placement or any hash.
+    /// land (W-166 row 3). Creature coverings (fur, feathers, scales, skin, chitin) are kinds too (Coat). Cosmetic and seed-free: nothing here moves placement or any hash.
     /// </summary>
     public static class MaterialLibrary
     {
@@ -138,13 +138,53 @@ namespace Punchy.Terrain
             new StoneRow(1.2f, 1.5f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.4f, 1.8f),     // tuff: soft, pitted
         };
 
+        /// <summary>One kind of creature covering (W-166 #336), read by Shaders/Materials/Coat.hlsl so a creature's coat
+        /// and anything later made of it (a fur rug, a feathered cloak, a scale shield) look the same. Size: pattern
+        /// size (1 = strands, feathers, scales, pores and plates as A-97 / A-123 drew them). Contrast: how strongly the
+        /// pattern darkens (1 as drawn). Bump: relief (1 as drawn). Wrap: how far the diffuse wraps round. Rim: rim
+        /// light. Spec, SpecPower: the highlight (feathers add a sheen on dark plumage on top). Sky: sky mirrored at a
+        /// glancing angle (chitin's hard gloss).</summary>
+        public readonly struct CoatRow
+        {
+            public readonly float Size, Contrast, Bump, Wrap, Rim, Spec, SpecPower, Sky;
+
+            public CoatRow(float size, float contrast, float bump, float wrap, float rim, float spec, float specPower, float sky = 0f)
+            {
+                Size = size;
+                Contrast = contrast;
+                Bump = bump;
+                Wrap = wrap;
+                Rim = rim;
+                Spec = spec;
+                SpecPower = specPower;
+                Sky = sky;
+            }
+        }
+
+        /// <summary>The coverings, by Fauna.CoatKind. Columns: size, contrast, bump, wrap, rim, spec, spec power, sky.
+        /// The values are Creature.shader's own, so moving it onto Coat.hlsl changes nothing on screen.</summary>
+        public static readonly CoatRow[] Coat =
+        {
+            new CoatRow(1f, 1f, 1f, 0.25f, 0.25f, 0f, 8f),            // fur: soft strands, matte
+            new CoatRow(1f, 1f, 1f, 0.35f, 0.3f, 0.02f, 8f),          // feathers: layered vanes, a faint sheen
+            new CoatRow(1f, 1f, 1f, 0.2f, 0.15f, 0.35f, 30f),         // scales: grooved domes, a little gloss
+            new CoatRow(1f, 1f, 1f, 0.4f, 0.12f, 0.25f, 24f),         // skin: pores and mottling, moist
+            new CoatRow(1f, 1f, 1f, 0.15f, 0.1f, 0.6f, 40f, 0.25f),   // chitin: banded plates, hard gloss
+        };
+
+        /// <summary>The covering row for a creature's coat.</summary>
+        public static CoatRow CoatFor(Punchy.Fauna.CoatKind kind) => Coat[Mathf.Clamp((int)kind, 0, Coat.Length - 1)];
+
         public const int MaxWoodKinds = 8;
+        public const int MaxCoatKinds = 8;
+        static readonly int CoatShapeKinds = Shader.PropertyToID("_PunchyCoatShapeKinds");
+        static readonly int CoatLightKinds = Shader.PropertyToID("_PunchyCoatLightKinds");
         static readonly int GrainKinds = Shader.PropertyToID("_PunchyWoodGrainKinds");
         static readonly int ToneKinds = Shader.PropertyToID("_PunchyWoodToneKinds");
         static readonly int FormKinds = Shader.PropertyToID("_PunchyWoodFormKinds");
 
-        /// <summary>Pushes the table to the shaders (Wood.hlsl's _PunchyWoodGrainKinds, _PunchyWoodToneKinds and
-        /// _PunchyWoodFormKinds).</summary>
+        /// <summary>Pushes the tables to the shaders (Wood.hlsl's _PunchyWoodGrainKinds, _PunchyWoodToneKinds and
+        /// _PunchyWoodFormKinds; Coat.hlsl's _PunchyCoatShapeKinds and _PunchyCoatLightKinds).</summary>
         public static void Push()
         {
             var grain = new Vector4[MaxWoodKinds];
@@ -164,6 +204,17 @@ namespace Punchy.Terrain
             Shader.SetGlobalVectorArray(GrainKinds, grain);
             Shader.SetGlobalVectorArray(ToneKinds, tone);
             Shader.SetGlobalVectorArray(FormKinds, form);
+
+            var shape = new Vector4[MaxCoatKinds];
+            var light = new Vector4[MaxCoatKinds];
+            for (int i = 0; i < MaxCoatKinds; i++)
+            {
+                var row = Coat[Mathf.Min(i, Coat.Length - 1)];
+                shape[i] = new Vector4(row.Size, row.Contrast, row.Bump, row.Sky);
+                light[i] = new Vector4(row.Wrap, row.Rim, row.Spec, row.SpecPower);
+            }
+            Shader.SetGlobalVectorArray(CoatShapeKinds, shape);
+            Shader.SetGlobalVectorArray(CoatLightKinds, light);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
