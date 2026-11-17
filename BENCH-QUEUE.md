@@ -1131,3 +1131,6 @@ FloraSystem.DrawBolts now gathers spires by screen size (ElectricitySystem.Reach
 
 ## Note (2026-11-17, supervisor, W-153 rework rows 1-3 #541, merged on main): river layout changed
 Rivers now have 138 falls (was 75) and Landmarks_V3 is re-pinned to 114 9113464F. Bench spots near rivers may have moved; re-check them after rework row 6. The river notch cost request above should run on main at or after #541.
+
+## Request (2026-11-17, render-2, R-29 #320, merged on main via #540): golem arc ribbon cost
+The electricity ribbon now has joint-shared sides and round caps (16 spine segments, about 4 m wide on golem links). One GPU check against the commit before #540: whole-frame GPU ms close to a golem with its arcs on, at night, Medium and High, uncapped, 300 frames. Report only.
