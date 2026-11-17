@@ -975,7 +975,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - View: boulder-2 and wall-2 (-3224.5,1602.0) from REPORTS-render R-34 row 1 (cliff-2 now faces open water on the current layout), then cave-2. Record GPU ms.
 - Pass (rule 23): Medium at most +0.3 ms GPU, High at most +0.5 ms.
 
-## Job 99 (2026-11-15, 99a CHAINED 11-16 on guarded commits (q139g.job; q139.job fails the build like 97); 99b and 98 NEED POSES (see REPORTS-profiler 11-16); fauna lane, merged #428-#431): far herds, one population, swimmer splashes
+## Job 99 (2026-11-15, 99a REPORTED 11-16: PASS at Medium and High dusk, High vantage stalls in both arms, Profiler rerun CHAINED (q139h.job) (q139g.job; q139.job fails the build like 97); 99b and 98 NEED POSES (see REPORTS-profiler 11-16); fauna lane, merged #428-#431): far herds, one population, swimmer splashes
 - Arms: run 99a (herds plus population) as 6ce454c2 (B) against 84d7d574 (A), and 99b (splashes) as 64eb4799 (B) against 6ce454c2 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds. The first launch of each B rebakes the island cache (Format 4), so warm it once before timing and note the bake ms.
 - 99a view: an open grassland vantage looking over 300 m to 1.5 km of herds, then the biggest town at dusk. Record CPU main-thread ms, GPU ms and the [herds] log line.
 - 99b view: at sea beside a dolphin pod or trout school, Clear noon. Record CPU ms (one ground sample per splashing swimmer each frame).

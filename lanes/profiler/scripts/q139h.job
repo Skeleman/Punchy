@@ -1,0 +1,29 @@
+# Job 99a High vantage, again with the Profiler (q139g's High vantage rounds stalled in both arms: 300-600 ms frames
+# from about 62 s, main thread 28 -> 83 ms over the rounds, so its A/B delta isn't trustworthy). Same guarded builds:
+# 6fe2835 (B = 6ce454c2 + guard) vs b93adb1 (A = 84d7d574 + guard). High, 1920x1080, uncapped, noon Clear, summit
+# vantage, -hitchms 100, 3 rounds alternated; then one Profiler run per arm analysed for every main frame over 100 ms.
+Q=q139h; TITLE="job 99a high vantage stalls"
+BUILDS="6fe2835 b93adb1"
+VIEWS="vantage"
+view() { echo "-goto -2496,294,960 -benchstops spot -benchspot -2496,294,960,55 -benchhour 12 -benchweather Clear -hitchms 100"; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-6fe2835";; A) echo "Profile-b93adb1";; esac; }
+ROUNDS=3; GFX="High"; REF=A; BAR=0.5
+after() {
+  [ -n "${DRY:-}" ] && return
+  for a in B A; do
+    local o t; o=$(arm $a); t=$Q-prof-$a-cs100-1
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$a ${o#Profile-} s100 1 -gfx High -fpscap 0 $(view) \
+      -profiler-enable -profiler-log-file "$W/q-$t.raw" -profiler-maxusedmemory 1073741824
+    check "$R/q-$t.log"
+    cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+    cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+    ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+        -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$t.txt")" -over 100 -logFile "$W/analyze-$t.log" )
+    cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+    rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+    [ -f "$R/$t.txt" ] && rm -f "$R/q-$t.raw"
+    echo "== $t"; grep -a "^OVER\|frames used" "$R/$t.txt" | cut -c1-400 | head -20
+  done
+  for f in "$L"/q-$Q-*.log; do echo "-- $(basename $f): $(grep -ac 'BenchRoute: hitch' $f) over 100 ms, first at $(grep -ah 'BenchRoute: hitch' $f | head -1 | grep -o 'at [0-9.]* s')"; done
+}

@@ -2,6 +2,20 @@
 
 Newest first.
 
+## Job 99a: fauna #428-#431 far herds and one population (6ce454c2 = B vs 84d7d574 = A), 2026-11-16 (q139g.job): **PASS at Medium and High dusk; High vantage UNRELIABLE (stalls in both arms), rerun with the Profiler chained (q139h.job)**
+Both arms built with the TestHooks.Options.cs guard (bench-only local commits 6fe2835 / b93adb1). Profile builds, 1920x1080, uncapped, Clear, 3 rounds, arms alternated. Views: job 81's summit vantage (-2496,294,960, yaw 55, noon; the card's grassland vantage isn't located) and town 73 at 19:12 from 100 m south.
+
+| view | preset | A GPU ms | B GPU ms | B vs A | bar | A / B CPU ms |
+|---|---|---|---|---|---|---|
+| vantage | Medium | 11.47 | 11.57 | +0.10 | +0.3 PASS | 16.7 / 17.1 |
+| dusk | Medium | 13.63 | 13.57 | -0.07 | +0.3 PASS | 17.2 / 17.73 |
+| dusk | High | 18.93 | 19.30 | +0.37 | +0.5 PASS | 25.0 / 25.9 |
+| vantage | High | 17.07 (16.7, 17.2, 17.3) | 19.57 (17.4, 20.1, 21.2) | +2.50 | +0.5 **not trusted** | 59.9 / 88.8 |
+
+- **High vantage stalls in both arms.** From about 62 s into each game, a run of 270-600 ms frames (39-56 frames over 33 ms per game). The main thread grows from round to round in both arms (A 28 -> 40 -> 58 ms, B 28 -> 77 -> 83 ms), and the frame count falls from about 560 to 170. B is worse in rounds 2-3, but A degrades too, so the +2.5 ms isn't a clean delta. Round 1 alone is +0.7 ms GPU, main thread level (27.8 vs 28.1 ms). At Medium the same view is clean in both arms.
+- **Bake:** both builds missed the island cache on their warm launch (B 41.4 s, A 44.0 s), so the bench cache didn't hold either island; nothing timed was a bake.
+- **[herds] (B only, a new log line):** 1127 herds, 4264 animals, 5500 spots from 41 herding entries (36x36 cells, 2110 ms); most AshCrab 325, AshCrab 157, Deer 67, MountainGoat 65, BoneStag 37, BoneHound 34. The 2.1 s is a load-time cost.
+- **Next:** q139h.job, chained last: the High vantage alone, 3 rounds alternated plus one Profiler run per arm analysed for every main frame over 100 ms. It will show whether the 62 s stall is herds, streaming or something on the machine.
 ## Job 97: W-166 rows 2-3a wood grain (main fe23fc62 = B vs fe23fc62^1 5e59c65 = A, #426), 2026-11-16 (q138g.job): **FAIL at Medium across the town (+0.43 ms); the rest pass**
 Both arms built with the TestHooks.Options.cs guard (bench-only local commits f69d867 / c14a674; main #420-#436 can't build a player without it). Profile builds, 1920x1080, uncapped, noon Clear, 3 rounds, arms alternated. Town 73 from the south, yaw 0: near = 15 m out (2972,-900), across = 80 m out (2972,-965); the card's gate isn't located.
 
