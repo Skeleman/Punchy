@@ -173,7 +173,7 @@ namespace Punchy.Terrain
                 // into the vertex's cut, so a triangle Collars can't split is clipped per pixel as before.
                 if (entranceLod)
                 {
-                    var tc = math.min(templeLod ? Source.TempleCut(world) : 100f, mouthLod ? MouthCutAt(Source, world, step) : 100f);
+                    var tc = math.min(templeLod ? Source.TempleCut(world) : 100f, mouthLod ? MouthCutKept(Source, world, step) : 100f);
                     templeCut[z * v + x] = tc;
                     worlds[z * v + x] = world;
                     collared |= tc < 0f;

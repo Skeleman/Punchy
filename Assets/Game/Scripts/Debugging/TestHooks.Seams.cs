@@ -270,7 +270,7 @@ namespace Punchy.Debugging
                 if (mouth)
                     for (int z = 0; z < n; z++)
                     for (int x = 0; x < n; x++)
-                        cut[z * n + x] = BuildChunkMeshJob.MouthCutAt(job.Source, corner + new float2(x, z) * TempleSeamStep, step);
+                        cut[z * n + x] = BuildChunkMeshJob.MouthCutKept(job.Source, corner + new float2(x, z) * TempleSeamStep, step);
                 var data = Mesh.AllocateWritableMeshData(count * 2);
                 var requests = new NativeArray<ChunkBuildRequest>(count, Allocator.TempJob);
                 var ranges = new NativeArray<float2>(count, Allocator.TempJob);

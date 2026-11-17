@@ -40,6 +40,60 @@ namespace Punchy.Terrain
             return MouthCut(source, xz, source.SampleHeight(xz), step);
         }
 
+        /// <summary>
+        /// W-174 row 3: the mouth cut the mesh uses, with the specks and slivers beside a mouth taken out. The cut's smooth
+        /// blend (MouthBlend) also opens where the cave passes sideways under a thin roof; there the walls' skin dips into
+        /// a shallow dish with rock under it, and a hole in the ground showed that dish as a dark speck or slot. A cut
+        /// point stays open if the walls' air lies straight under it within GateDepth (the mouth itself, a skylight),
+        /// or if it lies below the middle of its cave's mouth and the straight line there is open all the way (the floor
+        /// running out of the mouth). A point
+        /// that fails both takes the larger of the two misses (positive), so the sign is continuous and the rim
+        /// bisection (Collars.Crossing) and both chunks on a shared edge read the same zero line.
+        /// </summary>
+        public static float MouthCutKept(in TerrainSource source, float2 xz, float step)
+        {
+            var cut = MouthCutAt(source, xz, step);
+            if (cut >= 0f)
+                return cut;
+            var h = source.SampleHeight(xz);
+            var p = new float3(xz.x, h, xz.y);
+            ref var set = ref source.Caves.Value;
+            CaveSampling.Distance(ref set, p, out var cave);
+            if (cave < 0 || set.Caves[cave].Tunnel != 0)
+                return cut;     // road tunnels have a portal at each end; their cut is left as it was
+            // the walls' field, not the cave's: where the cave runs under a thin roof the walls' skin closes it into
+            // a shallow dish, and the hole would show that dish
+            var below = float.MaxValue;
+            for (int k = 1; k <= GateSamples; k++)
+                below = math.min(below, GateAir - WallFieldAt(source, p - new float3(0f, GateDepth * k / GateSamples, 0f), step));
+            if (below < 0f)
+                return cut;
+            var mouth = set.Caves[cave].Mouth;
+            var path = h - mouth.y;     // the floor runs out below the mouth's middle; specks sit beside or over the arch
+            var len = math.distance(xz, mouth.xz);
+            if (len > PathMax)
+                path = math.max(path, len - PathMax);
+            else
+            {
+                // half-quad spacing, so a rock ridge one quad wide between a speck and the mouth is not stepped over
+                var n = math.clamp((int)math.ceil(len * PathEnd / (0.5f * step)), 1, PathSamplesMax);
+                for (int k = 1; k <= n; k++)
+                    path = math.max(path, MouthCutAt(source, math.lerp(xz, mouth.xz, PathEnd * k / n), step));
+            }
+            return path < 0f ? cut : math.min(below, path);
+        }
+
+        /// <summary>How deep (m) and in how many samples MouthCutKept looks for cave air under a cut point.</summary>
+        const float GateDepth = 2.5f;
+        /// <summary>The walls' field (m into the air) that counts as cave air under a cut point; above the skin's dish.</summary>
+        const float GateAir = 0.3f;
+        const int GateSamples = 4;
+        /// <summary>The path to the mouth: most samples, the share of the way they reach (the mouth's middle can sit under its
+        /// arch), and the longest path (m) that still counts.</summary>
+        const int PathSamplesMax = 48;
+        const float PathEnd = 0.85f;
+        const float PathMax = 24f;
+
         /// <summary>The cave walls' field at p, from the surface the near grid draws (gridStep) and the slope there, as
         /// CaveSystem's ColumnJob and FieldJob build the walls.</summary>
         public static float WallFieldAt(in TerrainSource source, float3 p, float gridStep) =>
