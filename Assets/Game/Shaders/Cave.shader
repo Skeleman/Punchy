@@ -190,7 +190,12 @@ Shader "Punchy/Cave"
                     s6 = _PunchyCaveStyles[i + 6]; s7 = _PunchyCaveStyles[i + 7];
                     s8 = _PunchyCaveStyles[i + 8];
                 }
-                float terrain = saturate(input.data.x);
+                // W-162 row 4: the ground's share round a mouth ends in the cliff toe's ragged band (as ScarpPaint's toe),
+                // not on one depth line: its edge wanders along the rim and is torn finer, and ground that lies back (a
+                // floor or a ledge) keeps it a little further in. Full at the surface and gone deep in, whatever the rag.
+                float toeRag = (PunchyValueNoise(p.xz * 0.4 + p.y * 0.3) - 0.5) * 0.7 + (PunchyValueNoise(p.xz * 1.7 + p.y * 1.3 + 7.3) - 0.5) * 0.35;
+                float toeEdge = clamp(0.5 + toeRag - 0.2 * smoothstep(0.55, 0.85, shape.y), 0.2, 0.8);
+                float terrain = smoothstep(toeEdge - 0.12, toeEdge + 0.12, saturate(input.data.x));
                 // Floor: ground that faces up, by its shape (not its fine detail), away from the terrain-coloured mouth.
                 float floorShare = smoothstep(0.55, 0.8, shape.y) * (1 - terrain);
                 float gloss = lerp(s3.x, s6.w, floorShare);

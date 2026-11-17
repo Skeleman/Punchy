@@ -323,8 +323,14 @@ namespace Punchy.Terrain
         public const float MouthBlend = 1.2f;
         /// <summary>How far under the terrain surface the cave walls end (m, measured across the slope). W-112: was 10 cm,
         /// which showed as a lip round every mouth where the terrain's cut (wider by up to half a quad) exposed the
-        /// walls' skin; at 2 cm the skin sits flush with the surface and still stays under it.</summary>
-        public const float SkinGap = 0.02f;
+        /// walls' skin; at 2 cm the skin sat flush with the surface. W-162 row 4: 20 cm, since the mouth collars (W-174
+        /// r6) now hang from the cut's rim down onto the walls and hide the skin there, while 2 cm let the skin poke
+        /// through the drawn ground in pale patches all round a mouth (the walls' cells cut corners off the field).</summary>
+        public const float SkinGap = 0.2f;
+        /// <summary>The terrain's own mouth cut (TerrainSource.MouthCut) keeps the old 2 cm gap: at SkinGap its 15 cm
+        /// mesh depth went below zero and the cut ate the ground for metres round every mouth. The collars cover the
+        /// 18 cm step between the cut's rim and the walls' top (it's under their CollarDepth).</summary>
+        public const float CutGap = 0.02f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
         /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>

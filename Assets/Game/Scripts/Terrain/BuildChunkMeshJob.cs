@@ -749,8 +749,8 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Cave field distance beyond which MouthCut is settled at its rock value (the smooth min's blend is
-        /// spent: MouthCutDepth - SkinGap + MouthBlend), with half a metre to spare.</summary>
-        const float SettledCave = TerrainSource.MouthCutDepth - CaveSampling.SkinGap + CaveSampling.MouthBlend + 0.5f;
+        /// spent: MouthCutDepth - CutGap + MouthBlend), with half a metre to spare.</summary>
+        const float SettledCave = TerrainSource.MouthCutDepth - CaveSampling.CutGap + CaveSampling.MouthBlend + 0.5f;
         /// <summary>A safe bound on how fast the cave field changes per metre (it's a smoothed, noise-moved distance
         /// that can overstate by up to 1.8 times, so not a true 1-per-metre distance).</summary>
         const float FieldSlope = 2f;
