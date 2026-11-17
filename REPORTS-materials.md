@@ -26,5 +26,7 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Branch materials/cave-surface: cf7acd9c (table, untuned: cave sdf 3D2D78E06B03B800 and style table equal to before), 9cf9ca10 (tuning).
 - `StoneKind` + general `MaterialLibrary.StoneRow`/`Stone` table; CaveStyle names a Stone; Cave.shader fine detail fades by ScreenSize ppm.
 - Tuned granite, sandstone, tuff (layout-safe columns only); Limestone has no caves on this island, so tuff (Fungal) was tuned instead. Only those caves' sdf changed; node counts equal, NaN 0.
-- Landmarks_V3 and the 3 cave tests pass. Shots: PunchyMilestones/W-166/cave/before and after (Granite, Sandstone, Fungal, same frames).
+- 968da515: tuff softened (Grain 1.5, Detail 0.4 at 1.8); the rainy shot read as smeared.
+- Retake 11-17: same seed and frames, weather pinned Clear, time 12:00, ground wetness zeroed, 25 s settle. Skies clear in all 6. Lum before/after: Granite 73.8/69.2, Sandstone 51.4/58.9, Fungal 82.6/84.7.
+- Landmarks_V3 and the 3 cave tests pass on 968da515. Shots: PunchyMilestones/W-166/cave/before and after (Granite, Sandstone, Fungal).
 - Row 2 (scarps, notches) plan above; waits for the OK.
