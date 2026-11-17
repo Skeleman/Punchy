@@ -151,7 +151,6 @@ namespace Punchy.Terrain
         public float Carve;      // lowest carved height among nearby rivers (handles confluences)
         public float Water;      // water surface of the river that carved the ground lowest here
         public float FallWater;  // upper surface of a waterfall whose channel covers this point above its lip (else MinValue)
-        public float ChannelWater; // highest water of a channel just above a fall that covers this point (else MinValue)
         public float2 Flow;      // downstream direction at the closest point
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
     }
@@ -227,7 +226,7 @@ namespace Punchy.Terrain
         /// <param name="maxBankSlope">Caps the valley walls' slope here (W-73: v3 pass tracks keep river banks walkable).</param>
         public static RiverQuery Query(ref RiverMapBlob map, in RiverSettings s, float2 xz, bool rough = false, float maxBankSlope = float.MaxValue)
         {
-            var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue, FallWater = float.MinValue, ChannelWater = float.MinValue };
+            var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue, FallWater = float.MinValue };
             var bank = Bank.At(ref map, s, xz, rough);
             bank.Slope = math.min(bank.Slope, maxBankSlope);
             var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
@@ -242,10 +241,6 @@ namespace Punchy.Terrain
             // Above a waterfall's lip the pool below carves its wide bowl back up under the upper river (cells are
             // narrower than the channel), so the lower water would win there and leave land between the two surfaces.
             // The upper surface runs on to the lip instead, and the curtain falls from there (W-22).
-            // W-153: the same one segment further up, where a lower segment's broad valley undercuts the channel leading to
-            // a fall. That channel's own water runs on there (a small fall at the step) instead of dropping short of it.
-            if (s.FallDrop > 0f && q.ChannelWater > q.Water + s.FallDrop * 0.5f)
-                q.FallWater = math.max(q.FallWater, q.ChannelWater);
             if (q.FallWater > q.Water)
                 q.Water = q.FallWater;
             return q;
@@ -335,11 +330,6 @@ namespace Punchy.Terrain
                 q.Carve = carve;
                 q.Water = math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], tl);
             }
-            // Only a channel just above a fall segment, and only beside it (not past its end, where the fall has begun):
-            // elsewhere (a tributary over a wide river's bank) the lower water is right.
-            var below = down >= 0 ? map.Down[down] : -1;
-            if (distance < width * 0.5f && t < 0.95f && below >= 0 && s.FallDrop > 0f && map.Bed[down] - map.Bed[below] >= s.FallDrop)
-                q.ChannelWater = math.max(q.ChannelWater, math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], tl));
             if (fall && tl < 0.5f && distance < width * 0.5f)
                 q.FallWater = math.max(q.FallWater, math.lerp(map.WaterLevel[start], map.WaterLevel[down], tl));
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
