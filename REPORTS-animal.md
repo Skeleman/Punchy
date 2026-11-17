@@ -5808,3 +5808,9 @@ Branch fauna/far-life: 945799f2 (herd bake + DetailPolicy thresholds), 843f656a 
 - **Row 2** (fauna/walkin-walls dbbb352e, then fauna/walkin-walls-doors 29d4328e = DoorsOf reads model.DoorBoxes, merge after seamless-2): on a local merge with seamless-2, FaunaTests 4/4 and a 5 min herd test with walk-ins on near 11 houses (83-111 creatures within 40 m): 0 inside in 20 samples. Nothing sent.
 - **PRs:** not opened. My brief forbids opening PRs, so they're left to the supervisor.
 - **Paused (budget):** #400 cull-no-stall not started (a draft is in my scratchpad). Editor closed with EditorApplication.Exit.
+
+## A-135 (#405) ground-hole mask - 11-16 - verified, pushed fauna/ground-holes 6de1463c
+- CreatureMotion: new OnHole helper. Solid treats removed temple/scarp ground as a lip; cave mouths keep their carved-floor path. TraceSystem.NoSurface also rejects GroundHoles.Removed.
+- FaunaDirector: Spawn nudges off removed ground (OffHole, 1-16 m ring); Enqueue drops anything still on a hole, which covers DungeonSpawner residents too (HoleRejects counter, first 3 logged).
+- Checks: FaunaTests 6/6 and Fauna_Fingerprint pass. Live at the temple (3520,360): 40 creatures, 0 OnHole, 0 rejects; the only 2 over the cut are DungeonPost residents on the temple floor 23 m down.
+- Rule 11: no world or player lane files touched. Ready for PR.
