@@ -60,14 +60,21 @@ namespace Punchy.Terrain
     {
         /// <summary>One kind of wood. Base: its reference colour (also the hue its late wood and knots darken to).
         /// RingSpacing: metres between growth rings. Contrast: how dark the late wood gets (1 oak). Knots: 0..1, how
-        /// many half-metre cells hold a knot. Grey: 0..1, how silver its wear bands go. Pores: fine streak strength.</summary>
+        /// many knot cells hold a knot. Grey: 0..1, how silver its wear bands go. Pores: fine streak strength.
+        /// BoardScale: painted board and shingle width (1 = 21 cm boards, 30 cm shingles; laid geometry keeps its size).
+        /// KnotSpacing: metres per knot cell. Figure: how far the grain wanders (1 oak). Wear: dirt band strength.</summary>
         public readonly struct WoodRow
         {
             public readonly Color Base;
-            public readonly float RingSpacing, Contrast, Knots, Grey, Pores;
+            public readonly float RingSpacing, Contrast, Knots, Grey, Pores, BoardScale, KnotSpacing, Figure, Wear;
 
-            public WoodRow(Color baseColour, float ringSpacing, float contrast, float knots, float grey, float pores)
+            public WoodRow(Color baseColour, float ringSpacing, float contrast, float knots, float grey, float pores,
+                float boardScale = 1f, float knotSpacing = 0.55f, float figure = 1f, float wear = 0.22f)
             {
+                BoardScale = boardScale;
+                KnotSpacing = knotSpacing;
+                Figure = figure;
+                Wear = wear;
                 Base = baseColour;
                 RingSpacing = ringSpacing;
                 Contrast = contrast;
@@ -134,16 +141,20 @@ namespace Punchy.Terrain
         public const int MaxWoodKinds = 8;
         static readonly int GrainKinds = Shader.PropertyToID("_PunchyWoodGrainKinds");
         static readonly int ToneKinds = Shader.PropertyToID("_PunchyWoodToneKinds");
+        static readonly int FormKinds = Shader.PropertyToID("_PunchyWoodFormKinds");
 
-        /// <summary>Pushes the table to the shaders (Wood.hlsl's _PunchyWoodGrainKinds and _PunchyWoodToneKinds).</summary>
+        /// <summary>Pushes the table to the shaders (Wood.hlsl's _PunchyWoodGrainKinds, _PunchyWoodToneKinds and
+        /// _PunchyWoodFormKinds).</summary>
         public static void Push()
         {
             var grain = new Vector4[MaxWoodKinds];
             var tone = new Vector4[MaxWoodKinds];
+            var form = new Vector4[MaxWoodKinds];
             for (int i = 0; i < MaxWoodKinds; i++)
             {
                 var row = Wood[Mathf.Min(i, Wood.Length - 1)];
                 grain[i] = new Vector4(row.RingSpacing, row.Contrast, row.Knots, row.Grey);
+                form[i] = new Vector4(row.BoardScale, row.KnotSpacing, row.Figure, row.Wear);
                 // The base colour's hue at luminance 1, so tinting the late wood by it keeps its brightness.
                 var lum = Mathf.Max(0.05f, row.Base.r * 0.299f + row.Base.g * 0.587f + row.Base.b * 0.114f);
                 var hue = new Vector3(row.Base.r, row.Base.g, row.Base.b) / lum;
@@ -152,6 +163,7 @@ namespace Punchy.Terrain
             }
             Shader.SetGlobalVectorArray(GrainKinds, grain);
             Shader.SetGlobalVectorArray(ToneKinds, tone);
+            Shader.SetGlobalVectorArray(FormKinds, form);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
