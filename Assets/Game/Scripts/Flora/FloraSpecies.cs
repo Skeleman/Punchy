@@ -274,6 +274,9 @@ namespace Punchy.Flora
         public bool RockStrata;
         [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
         public bool Breathes;
+        [Tooltip("Mushrooms: grown out of a wall (the model's +Z points out of it), the stems running out from the wall and " +
+                 "bending up so the caps face the sky (W-177: cave wall clusters).")]
+        public bool WallGrown;
         [Tooltip("Benches: one carved stone slab for a seat instead of two planks (the elves' benches).")]
         public bool StoneSeat;
         [Tooltip("Rocks: keep their own colour wherever they lie (ice), instead of taking the biome's rock on dry ground.")]
