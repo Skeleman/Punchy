@@ -2,6 +2,19 @@
 
 Newest first.
 
+## W-174 r4a: ground holes' ScarpSet.Strip lookup (world/ground-holes 521ec1af = B vs its merge-base main d2ac9d1c = A), 2026-11-16 (q144.job): **GPU passes; the walk has about twice the frames over 30 ms; the town jump's world-ready is 3.4 s later**
+Medium, 1920x1080, uncapped, noon Clear, 3 rounds alternated, each a fresh launch. Walk: Job 81's open-country line (3244,-922 to 3664,-988 at 6 m/s). Jump: townjump (800 m out, jumped into the biggest town). -hitchms 30.
+
+| view | A GPU ms | B GPU ms | B vs A | A / B main thread ms | A / B frames over 30 ms (rounds) | A / B 1% low fps |
+|---|---|---|---|---|---|---|
+| walk | 13.23 | 12.97 | -0.27 PASS | 15.6 / 16.6 | 94, 157, 98 / 267, 187, 182 | 12.6 / 4.8 |
+| jump | 15.30 | 15.10 | -0.20 PASS | 27.0 / 28.6 | 232, 223, 215 / 194, 189, 206 | 1.9 / 1.9 |
+
+- **Walk:** B has about twice the frames over 30 ms. Most are small (median hitch 40 ms vs A's 37), plus one 3.07 s frame in B r3 at 3272,11,-926 (45.5 s; B's other worst frames are about 0.52 s, as are A's). Main thread +1.0 ms.
+- **Jump:** B's world ready is later: 46.3 / 47.7 / 49.1 s vs A's 42.6 / 42.4 / 45.4 s (+3.4 s, about 8%). Main thread +1.6 ms; frames over 30 ms slightly fewer.
+- **Bake:** B changes the island: a different cache file (island-v3-3478608b vs A's 7135352f), so the hole mask feeds the bake. The bake costs the same (B 54.2 s, A 53.4 s, both first launches); cache loads are 1.2-1.3 s in both.
+- **Producers (cache loaded, walk):** caves rest-of-frame and caves stream match between the arms. The extra cost isn't in the logged producers, so it's likely the per-sample ScarpSet.Strip lookup in flora placement during streaming, which the start ledger doesn't split out.
+- If world wants the 3 s frame and the walk's extra frames traced, a Profiler run on the walk can follow.
 ## Job 96b: #400 tunnel entry with the chunk-mesh budget (#509, main d2ac9d1c = B vs its parent 9533f61b = A), 2026-11-16 (q143.job): **WORSE with #509: more slow frames and lower fps; the worst stalls stay at 0.6-0.9 s, now from LandmarkEffectSystem and the colossi**
 world/chunk-mesh-budget isn't on origin; it landed as #509, so this is #509 against the commit before it. q137b's route unchanged (20 m outside W-172's mouth, through the bore, 140 m at 6 m/s, noon Clear), Medium, 1920x1080, uncapped, -hitchms 33, 3 timed rounds alternated, then one Profiler run per arm analysed for every main frame over 33 ms.
 
