@@ -227,3 +227,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #542 W-166 row 1 (#336): cave walls take their relief from the general stone table (granite, sandstone, tuff tuned; detail fades by screen size).
 - 11-17 #543 W-153 row 3b (#301): waterfalls get a curtain mesh of the water itself (arc out and down, ragged edges), detail by screen size.
 - 11-17 #540 R-29 (#320): one shared electricity effect; spire and golem arcs re-jag erratically with a soft glow.
+- 11-17 #544 W-166 wood (#336): each wood kind has its own board size, knot spacing, grain figure and wear (pine, driftwood, dark, bleached tuned).
