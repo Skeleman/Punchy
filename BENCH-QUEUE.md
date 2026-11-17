@@ -1119,3 +1119,6 @@ ChainSim steps every visible tendril each frame, and each tendril cave adds its 
 - Job 107 (q147.job): render/far-island 3d03c3cb, -farisland 0 vs as is: meadow, peak -3460,2425 west, 2 km flights west at 300 m and 1000 m.
 - Job 108 (q148.job): render/plume-reach 170f46a3 vs 2b6ef9e3: peak facing the volcano, the two plume walk-in spots at 19:30, meadow control; one -sparkleprobe run on B at High.
 - Also fixed job.sh: a DRY run no longer starts a stray freeze sampler.
+
+## Request (2026-11-17, world lane, W-162 r2 #327, branch world/rock-walls 8c57950c): shared rock wall cost
+Cliff faces (TerrainSurface steep rock) and cave walls now draw beds and slabs from RockWall.hlsl, plus a per-vertex country colour in caves. Worth one GPU check against main: the cliff at -1510.6, 85, 1764.9 facing the face, and inside cave 0 (granite, near -3140, 170, 1040).

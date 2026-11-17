@@ -8574,3 +8574,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 **Asks.**
 1. Render: where should the shared functions live? Options are extending Materials/Stone.hlsl or a new Materials/RockWall.hlsl. TerrainSurface.hlsl is untouched either way.
 2. Supervisor: rebase world/cave-climbs into row 3, or retire it and rebuild its routes on the new source?
+
+## W-162 (#327) row 2 done: one rock wall (world/rock-walls 8c57950c)
+- RockWall.hlsl (includes Stone.hlsl, unchanged) holds beds, slabs, ledge shade and country colour. TerrainSurface and Cave draw from it and add their own layers. Every part fades by screen size.
+- Cave walls take the surrounding rock colour at the mouth and fade to the style's own colour with depth. CaveSystem goes from 2587 to 2492 lines (look code moved to CaveSystem.RockLook.cs).
+- Shots in PunchyMilestones/W-162 (before/after: cliff near and at 100 m, sandstone mouth, sandstone and granite caves). The cliff differences are sky drift; caves differ by 1-5 levels. NaN 0, WorldTests 19/19, BENCH request posted.
+- Next: row 3, rock grades through WorldClimbs.
