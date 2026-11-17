@@ -1,0 +1,12 @@
+# Job 114 (R-31 row 2, #325): grass e and f cost. render/grass-fields 14f86b6d (the card's commit; the branch has since
+# made f the default and dropped e, c55dbd9f), one build, three arms by -grassproto: today (none), e, f. Medium and High,
+# 1920x1080, uncapped, noon Clear, 3 rounds, arms rotated, at -place meadow (open country). The supervisor's addendum
+# (grass shadow share) doesn't apply: on this commit the grass already draws with shadowCastingMode Off
+# (GroundDetailSystem.cs:386, Prototypes.cs:141), so there is no caster pass to price.
+Q=q145; TITLE="job 114 grass e and f"
+BUILDS="14f86b6"
+VIEWS="meadow"
+view() { echo "-place meadow -benchstops here -benchhour 12 -benchweather Clear"; }
+ARMS="today e f"
+arm() { case $1 in today) echo "Profile-14f86b6";; e) echo "Profile-14f86b6 -grassproto e";; f) echo "Profile-14f86b6 -grassproto f";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=today; BAR=0.3

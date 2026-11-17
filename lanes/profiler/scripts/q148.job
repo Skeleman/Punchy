@@ -1,0 +1,22 @@
+# Job 108 (#302): wider plume gather. render/plume-reach 170f46a3 (B) vs its merge-base main 2b6ef9e3 (A). Medium and
+# High, 1920x1080, uncapped, Clear, 3 rounds alternated. Views: peak = -3460,2425 facing the volcano (-891,-2021: yaw 150),
+# noon; plumeN / plumeS = the plume walk-in spots -891,-421 and -891,-1171 facing the volcano (yaw 180) at 19:30;
+# ground = -place meadow at noon (control). after(): one -sparkleprobe plume run on B at High at plumeS (rule 24: NaN 0).
+Q=q148; TITLE="job 108 plume reach"
+BUILDS="170f46a 2b6ef9e"
+VIEWS="peak plumeN plumeS ground"
+view() { case $1 in
+  peak)   echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,150 -benchhour 12 -benchweather Clear";;
+  plumeN) echo "-goto -891,-421 -benchstops spot -benchspot -891,-421,180 -benchhour 19.5 -benchweather Clear";;
+  plumeS) echo "-goto -891,-1171 -benchstops spot -benchspot -891,-1171,180 -benchhour 19.5 -benchweather Clear";;
+  ground) echo "-place meadow -benchstops here -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-170f46a";; A) echo "Profile-2b6ef9e";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.5
+after() {
+  [ -n "${DRY:-}" ] && return
+  BENCHW=1920 BENCHH=1080 runcsv Profile-170f46a $Q-sparkle 170f46a s100 1 -gfx High -fpscap 0 $(view plumeS) -sparkleprobe plume
+  check "$R/q-$Q-sparkle-cs100-1.log"
+  echo "sparkle: $(grep -ac '^\[sparkle\]' "$R/q-$Q-sparkle-cs100-1.log") lines; $(grep -ah '^\[sparkle\]' "$R/q-$Q-sparkle-cs100-1.log" | grep -v 'nan 0\b\|NaN 0\b' | head -3 | cut -c1-160 | tr '\n' '|')"
+  grep -ah '^\[sparkle\]' "$R/q-$Q-sparkle-cs100-1.log" | tail -2 | cut -c1-200
+}

@@ -32,7 +32,7 @@ for c in $BUILDS; do
   build $c BuildDev $o || { echo "build $o failed"; exit 1; }
 done
 keepawake
-[ -z "${DRY:-}" ] && ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &)
+[ -z "${DRY:-}" ] && { ps -ef | grep -q '[f]reezesample.sh' || (nohup bash "$S/freezesample.sh" >/dev/null 2>&1 &); }
 L="$R/${Q}logs"; mkdir -p "$L" "$R/$Q-shots"
 check() { [ -n "${DRY:-}" ] && return; grep -q 'Crash!!!\|Received signal' "$1" && { echo "CRASH in $1"; grep -A15 'Crash!!!\|Received signal' "$1" | head -25; exit 1; }; cp "$1" "$L/"; }
 game() { # gfx view arm round

@@ -1112,3 +1112,10 @@ KitCollision.KeepOut runs once per substep against kit boxes. For each box withi
 
 ## Request (2026-11-16, world lane, W-178 r1 #523, branch world/cave-tendrils 27879651): cave tendril cost
 ChainSim steps every visible tendril each frame, and each tendril cave adds its own mesh draw. Worth one CPU and GPU check standing in fungal cave 2 (near -2609, 208, 322) against main.
+
+## Note (2026-11-17, profiler): chained, in this order
+- Job 114 (q145.job): grass today / e / f by -grassproto on 14f86b6d at -place meadow, Medium and High. The audit addendum (grass shadow share) doesn't apply: grass on that commit already draws with shadowCastingMode Off.
+- Job 106 (q146.job): fauna/dungeon-spawns ba6a6c90 (eca2aaec with main merged) vs its merge-base 53cc5e36, High, -host: island start (60 s), temple chest 1, a 200 m walk in to it.
+- Job 107 (q147.job): render/far-island 3d03c3cb, -farisland 0 vs as is: meadow, peak -3460,2425 west, 2 km flights west at 300 m and 1000 m.
+- Job 108 (q148.job): render/plume-reach 170f46a3 vs 2b6ef9e3: peak facing the volcano, the two plume walk-in spots at 19:30, meadow control; one -sparkleprobe run on B at High.
+- Also fixed job.sh: a DRY run no longer starts a stray freeze sampler.

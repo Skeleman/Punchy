@@ -1,0 +1,21 @@
+# Job 106 (fauna #24 phase 2 row 2): dungeon creatures by nearness. fauna/dungeon-spawns ba6a6c90 (B: eca2aaec with main
+# merged) vs its merge-base main 53cc5e36 (A). High, 1920x1080, uncapped, noon Clear, -host, 3 rounds alternated.
+# Views: start = the island start (-benchstops here, -benchlong here 60: the tier fills); temple = standing at sunken
+# temple chest 1 (3512,19,368, on the floor under it); walkin = from 200 m west of the chest to it at 6 m/s, -hitchms 30
+# (the spawn burst). after() lists each game's [start] world-ready line and any fauna/dungeon census line.
+Q=q146; TITLE="job 106 dungeon spawns"
+BUILDS="ba6a6c9 53cc5e3"
+VIEWS="start temple walkin"
+view() { case $1 in
+  start)  echo "-benchstops here -benchlong here 60 -benchhour 12 -benchweather Clear -host";;
+  temple) echo "-goto 3512,19,368 -benchstops spot -benchspot 3512,19,368,90 -benchhour 12 -benchweather Clear -host";;
+  walkin) echo "-goto 3312,368 -benchstops line -benchline 3312,368,3512,368,6,-200 -benchhour 12 -benchweather Clear -host -hitchms 30";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-ba6a6c9";; A) echo "Profile-53cc5e3";; esac; }
+ROUNDS=3; GFX="High"; REF=A; BAR=0.5
+after() {
+  [ -n "${DRY:-}" ] && return
+  for f in $(ls -tr "$L"/q-$Q-*.log); do
+    echo "-- $(basename $f): $(grep -ah '^\[start\] world ready' $f | head -1 | cut -c1-60) | $(grep -aih 'dungeon\|\[fauna\].*live\|residents' $f | tail -2 | cut -c1-160 | tr '\n' '|') | hitches $(grep -ac 'BenchRoute: hitch' $f), worst $(grep -ah 'BenchRoute: [a-z]*: avg' $f | grep -o 'worst [0-9.]* ms')"
+  done
+}

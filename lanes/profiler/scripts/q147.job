@@ -1,0 +1,22 @@
+# Job 107 (R-22 row 1, #298): whole-island far mesh. render/far-island 3d03c3cb, one build: A = -farisland 0, B = as is.
+# Medium and High, 1920x1080, uncapped, noon Clear, 3 rounds alternated. Views: ground = -place meadow (open country);
+# peak = -3460,2425 facing west (job 56's hilltop over the sea); fly300 / fly1000 = 2 km flights west over land toward
+# that coast (-1460,2425 to -3460,2425) at 60 m/s, 300 m and 1000 m up, -hitchms 33. Card pass: B within 0.5 ms GPU at
+# ground, 1.5 ms at peak and the flights (checked by hand; BAR is ground's).
+Q=q147; TITLE="job 107 far island"
+BUILDS="3d03c3c"
+VIEWS="ground peak fly300 fly1000"
+view() { case $1 in
+  ground)  echo "-place meadow -benchstops here -benchhour 12 -benchweather Clear";;
+  peak)    echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchhour 12 -benchweather Clear";;
+  fly300)  echo "-goto -1460,2425 -benchstops line -benchline -1460,2425,-3460,2425,60,300 -benchhour 12 -benchweather Clear -hitchms 33";;
+  fly1000) echo "-goto -1460,2425 -benchstops line -benchline -1460,2425,-3460,2425,60,1000 -benchhour 12 -benchweather Clear -hitchms 33";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-3d03c3c";; A) echo "Profile-3d03c3c -farisland 0";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.5
+after() {
+  [ -n "${DRY:-}" ] && return
+  for f in $(ls -tr "$L"/q-$Q-*-cs100-1.log); do
+    echo "-- $(basename $f): $(grep -aih 'far island\|farisland' $f | head -2 | cut -c1-160 | tr '\n' '|') | $(grep -ah 'BenchRoute: [a-z]*: avg' $f | grep -o 'render thread [0-9.]* ms\|worst [0-9.]* ms' | tr '\n' ' ') hitches $(grep -ac 'BenchRoute: hitch' $f)"
+  done
+}
