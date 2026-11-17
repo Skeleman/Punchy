@@ -23,9 +23,9 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). Creature.shader
-        // draws its coats inline until the fauna lane moves it onto Materials/Coat.hlsl (then it joins Coat's users).
-        static readonly (string include, string shader)[] Pending = { ("Coat.hlsl", "Creature.shader") };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). Empty since
+        // Creature.shader draws its coats through Materials/Coat.hlsl; kept so a future hand-off has a place to go.
+        static readonly (string include, string shader)[] Pending = { };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -98,7 +98,7 @@ namespace Punchy.Tests
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
             ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader", "TerrainSurface.shader" }),
             ("Bone.hlsl", @"\w*Bone(Pit|Line|Ivory)\w*", @"PunchyBone\w*\s*\(", new[] { "Creature.shader" }),
-            ("Coat.hlsl", @"\w*Coat(Fur|Feathers|Scales|Skin|Chitin)\w*", @"PunchyCoat\w*\s*\(", new string[0]),
+            ("Coat.hlsl", @"\w*Coat(Fur|Feathers|Scales|Skin|Chitin)\w*", @"PunchyCoat\w*\s*\(", new[] { "Creature.shader" }),
         };
 
         // Coverings (W-166 #336): one library row per creature coat kind, so the look in Materials/Coat.hlsl and
