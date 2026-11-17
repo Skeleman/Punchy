@@ -222,8 +222,10 @@ namespace Punchy.Debugging
                             hits[DryRun].Add(new Hit { Score = none ? 50f : ground[b + k] - surface[b + k], At = k == 0 ? here : mid, A = none ? 1f : 0f, B = r.Width[i], I = ground[b + k] > carved + 2f ? 1 : 0 });
                             break;
                         }
-                // (c) Levels in the graph rising downstream.
-                if (runs && (r.WaterLevel[down] > r.WaterLevel[i] + 0.01f || r.Bed[down] > r.Bed[i] + 0.01f))
+                // (c) Levels in the graph rising downstream. A lake cell's Bed holds the lake surface, not its floor,
+                // so beds are only compared where neither cell is lake; water levels are compared everywhere.
+                var bedsComparable = runs && !lake && r.LakeDepth[down] <= 0f;
+                if (runs && (r.WaterLevel[down] > r.WaterLevel[i] + 0.01f || (bedsComparable && r.Bed[down] > r.Bed[i] + 0.01f)))
                     hits[UphillGraph].Add(new Hit { Score = math.max(r.WaterLevel[down] - r.WaterLevel[i], r.Bed[down] - r.Bed[i]), At = here, A = r.WaterLevel[down] - r.WaterLevel[i], B = r.Bed[down] - r.Bed[i] });
                 // (c) The sampled surface rising downstream: start to mid, mid to the next cell.
                 if (down >= 0)
