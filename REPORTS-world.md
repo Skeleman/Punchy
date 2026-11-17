@@ -8655,3 +8655,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Cause: Cave's terrain share shades smoother and without speckle, so a material line shows round the rim; stray thin cut slots show dark collar faces; small stray cut islands open onto the walls. A clamp test ruled out the skin poking through.
 - Plan: cave walls give a boundary loop on a shared MouthRing; the temple Collar path stitches the rim to it; a band weight blends Cave.shader and TerrainSurface. Hashes will be re-pinned.
 - Before shots: PunchyMilestones/world/W-174r3-mouth-seam/before (3 mouths, 5 m and 20 m, 12:00 Clear). No code on world/cave-seam yet.
+
+## W-174 row 3 (cave-mouth seams), 11-17: WIP, context handoff
+- world/cave-seam 62d2474a (pushed, WIP): MouthCutKept in BuildChunkMeshJob.Mouths filters the cut mask where it's built. A cut point stays open if the walls' air lies under it, or if it sits below the mouth's middle with an open straight path to the mouth (the floor apron). Rims stay smooth and aprons are kept; most stray specks are gone. All four cut call sites use it.
+- Open: one c6 speck (left of the mouth, -2687.6,1235.4) still passes, because the path test reads the raw cut across a rock ridge the gate removed. Next: make the path samples pass the gate too, or use a below-floor test.
+- Not started: cave-side boundary clip/snap (step B), the band-weight shader block (C), the seam guard and the hash re-pin. No shader edits yet. Probe: the scratchpad probe2.cs pattern (wall field at 0.4/1/2 m under the hit point).
