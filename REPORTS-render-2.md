@@ -275,3 +275,9 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - The crash did not reproduce in the editor (the old shader compiled there too), so I treated it as compile cost. Editor cold compile of 2 ForwardLit variants: base 80 s, ce3ff5a7 141 s, 6290b06e 101 s. All variants are ok, with warnings only.
 - Look: town paving at (80,-352), old vs new (R-28/row2/fxc-pold-* vs fxc-pnew-*). I checked the graze pair by eye: stones, bevels and grout match. The pixel differences come from grass, clouds and the player model. Town 73 (2972,-885) has no paving any more.
 - Cost: B now samples steps+3 times on every paving pixel. BENCH job 86 is updated to B = 6290b06e and is READY; build with a clean shader cache.
+
+## Cave cut flash fix (11-17) - b/fix-cave-cut-flash 1efa2a5d
+- Cause (W-180): the surface skip culls cave chunks in Update with that frame's pose; a cut moves the camera afterwards, so the mouth drew with no passage behind it.
+- Fix: new partial CaveSystem.CutGuard.cs plus 6 lines in CaveSystem.cs (OnEnable/OnDisable hook, NoteGathered in GatherOpenings, skipped list in Draw). In beginCameraRendering, if the main camera is 3 m+ or 25 deg+ from the gathered pose that frame, the skipped chunks draw too, that frame only, no shadows. Normal frames cost nothing extra.
+- Check: pose then cam.Render in the same eval, no warm-up, at cave 0's mouth from 70 m away. Hook off: the mouth is a white hole through to the sky. Hook on: dark passage, same as the settled frame. I viewed the pair myself. Shots: PunchyMilestones/cave-cut-flash/c0-cut-noguard, c0-cut-guard, c0-settled.
+- WorldTests 20/20 pass. Works the same solo, host or client (camera-only, no net state).
