@@ -8622,3 +8622,13 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Neutral: WaterTruth {82,0,0,0,7,10,0,972,43,29,970,46,5} and 75 falls identical to main; WorldTests 20/20. No visual change, no shots.
 - Bank clamp deferred to row 2: under lowest-carve sampling every clamp variant raised dryRun (7 -> 11-31). 450 cells sit over their bank low.
 - Row 3b (fall curtain) noted; I'll say in the row 3 handoff whether it fits one row. Starting row 2 (nearest-profile sampling with join blending).
+
+## W-166 cave surface r0 (#336), materials lane, 11-17: design
+- Library: MaterialLibrary gets `StoneKind` (Granite, Limestone, Sandstone, Basalt, Ice, Crystal, Ore) and a `StoneRow[] Stone` table. Each row holds relief amplitude (noise strength), scale (grain frequency) and shape (jaggedness, blockiness, angularity, facet size, ribs, rib spacing), plus fine-relief strength/scale for the shader.
+- Rows start from today's CaveStyle asset values, so current caves keep their look. CaveStyle shape fields become per-style multipliers (default 1). `CaveRockKind` maps to `StoneKind` (one rock enum; world's floor/detail code keeps its reads).
+- Wall reads: CaveBaking packs `Wall`/`Rock`/`Facet` (lines ~103-104, 165, 444) from `MaterialLibrary.Stone[kind]` x style multipliers. CaveData.WallNoise already consumes those packed values, so the SDF, mesher and collision all pick it up with no change.
+- LOD (rule 20): the geometric relief lives in the SDF that collision, FloorUnder and the chunk mesher share, so it must stay the same at every distance; mesh LOD stays world's existing `DetailPolicy.ScreenSize(CaveWallSize)` chunk levels. Fine relief (normal detail) comes from the Stone row via the cave look table, and Cave.shader fades it by a ScreenSize-derived factor pushed per draw, never fixed metres.
+- Files (materials-owned): Terrain/Settlements/MaterialLibrary.cs (+StoneKind, StoneRow, Push of fine relief).
+- Files (world-owned, need OK): Terrain/Caves/CaveStyle.cs (StoneKind field, multipliers), Terrain/Caves/CaveBaking.cs (pack from library), Terrain/Caves/CaveSystem.RockLook.cs (fine relief into look table), Landmarks/CaveStyles/*.asset (10 styles: set kind, reset multipliers). None of RiverData, TerrainSource.* or RiverBaking. CaveData.cs only if a per-kind shape term is needed (not planned).
+- Render-owned: Shaders/Cave.shader, a one-line fade on the existing Detail() strength (s7.y path). I'll ask render, or the coordinator, before touching it.
+- Verify r1: framed before/after shots of 3 styles, NaN 0, Landmarks_V3 pass. The cave layout may re-pin (layout is disposable).
