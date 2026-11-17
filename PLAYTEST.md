@@ -221,3 +221,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #535 W-162 (#327): one shared rock wall for cliffs and caves; climb grades (craggy 4, smooth 5); cliffs over 60 deg stop non-climbers; cave mouth toes.
 - #536 W-153 (#301): water/truth landed: paddies bake in IslandV2, steep cells rejected at bake, water truth counts in WorldTests.
 - #537 W-153 (#301): uphillGraph probe skips lake edges, 62 -> 10; probe only, no change in play.
+- #538 W-153 row 3 (#301): rivers cut steep notches through rises left by later passes (scarp-kit banks); channels above falls run to the lip as small falls.

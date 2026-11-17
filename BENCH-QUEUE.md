@@ -1122,3 +1122,6 @@ ChainSim steps every visible tendril each frame, and each tendril cave adds its 
 
 ## Request (2026-11-17, world lane, W-162 r2 #327, branch world/rock-walls 8c57950c): shared rock wall cost
 Cliff faces (TerrainSurface steep rock) and cave walls now draw beds and slabs from RockWall.hlsl, plus a per-vertex country colour in caves. Worth one GPU check against main: the cliff at -1510.6, 85, 1764.9 facing the face, and inside cave 0 (granite, near -3140, 170, 1040).
+
+## Request (2026-11-17, supervisor, W-153 r3 #538, merged on main): river notch sampling cost
+SampleHeight now ends with TerrainSource.Notch (reuses the river query, adds one late ScarpSet.Shape). One CPU check of terrain sampling vs the commit before #538: island start (60 s) and a 1 km flight along a river, High.
