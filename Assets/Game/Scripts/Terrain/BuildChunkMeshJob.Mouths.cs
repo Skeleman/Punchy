@@ -14,7 +14,7 @@ namespace Punchy.Terrain
         /// <summary>The coarsest LOD that cuts cave mouths (the walls are built only near; coarser ground covers them).</summary>
         const int MouthMaxLod = 1;
         /// <summary>How deep under the ground (m, across the slope, as the walls measure it) a mouth collar's foot lies.</summary>
-        public const float CollarDepth = 0.4f;
+        public const float CollarDepth = CaveSampling.RingDepth;
         /// <summary>Spacing (m) of a mouth collar's foot knots along a rim edge, so its foot follows the wall's curve.</summary>
         const float MouthKnot = 0.25f;
         /// <summary>How far (m) from a rim point its foot is looked for, each way along the foot sheet's gradient.</summary>
@@ -121,7 +121,7 @@ namespace Punchy.Terrain
 
         /// <summary>The point depth under the walls' surface at xz (on the sheet a collar's foot lies on).</summary>
         static float3 FootSheet(in TerrainSource source, float2 xz, float gridStep, float depth) =>
-            new float3(xz.x, source.MeshHeight(xz, gridStep) - depth / source.AcrossSlope(xz), xz.y);
+            new float3(xz.x, CaveSampling.MouthRing(source.MeshHeight(xz, gridStep), source.AcrossSlope(xz), depth), xz.y);
 
         /// <summary>The walls' field on the foot sheet at xz (positive in the cave's air; WallFieldAt at FootSheet, with
         /// the surface and slope read once).</summary>
@@ -129,7 +129,7 @@ namespace Punchy.Terrain
         {
             var surface = source.MeshHeight(xz, gridStep);
             var scale = source.AcrossSlope(xz);
-            var y = surface - depth / scale;
+            var y = CaveSampling.MouthRing(surface, scale, depth);
             return CaveSampling.WallField(y, surface, scale, CaveSampling.Distance(ref source.Caves.Value, new float3(xz.x, y, xz.y), out _));
         }
 

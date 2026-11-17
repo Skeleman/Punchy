@@ -331,6 +331,13 @@ namespace Punchy.Terrain
         /// mesh depth went below zero and the cut ate the ground for metres round every mouth. The collars cover the
         /// 18 cm step between the cut's rim and the walls' top (it's under their CollarDepth).</summary>
         public const float CutGap = 0.02f;
+        /// <summary>W-174 row 3: how deep under the drawn ground (m, across the slope) a mouth's ring lies: the sheet the
+        /// terrain collars' feet stand on (BuildChunkMeshJob.MouthFoot) and the cave walls stop at inside a mouth's cut.</summary>
+        public const float RingDepth = 0.4f;
+
+        /// <summary>W-174 row 3: the height of the mouth ring sheet depth under a column whose drawn surface is surface,
+        /// with scale its across-slope factor. One function for the collars' feet and the walls' clip (rule 33).</summary>
+        public static float MouthRing(float surface, float scale, float depth = RingDepth) => surface - depth / scale;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
         /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>
