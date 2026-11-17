@@ -282,7 +282,7 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Check: pose then cam.Render in the same eval, no warm-up, at cave 0's mouth from 70 m away. Hook off: the mouth is a white hole through to the sky. Hook on: dark passage, same as the settled frame. I viewed the pair myself. Shots: PunchyMilestones/cave-cut-flash/c0-cut-noguard, c0-cut-guard, c0-settled.
 - WorldTests 20/20 pass. Works the same solo, host or client (camera-only, no net state).
 
-## Beach glare fix (11-17) - render/beach-glare f36e362b
+## R-40 Beach glare fix (11-17) - render/beach-glare f36e362b
 - Cause: not sand specular, bloom or exposure (BeachSand albedo test and bloom/post toggles changed nothing). 15 always-on warm glow slots (3.0, 1.03, 0.15, 14 m) sat 4-49 m from the camera at noon: the fishing kit's dock/shore/wharf/boardwalk lanterns (GlowingAccents) went out as plant glow.
 - Fix: FloraPlacement.GlowLight (+13 lines) gives those walkways the PierLamp street-light entry, so they light only after dark through the pooled street-light path (night check: 15 pooled near lights at time 22). Night look: dimmer, less orange than before. No shader change, so no BENCH line; fewer glow slots by day.
 - Shots, noon, Clear, same pose, sun frozen: PunchyMilestones/beach-glare/g0-base (before, lower-frame mean 180/157/129, yellow wash) vs g2-base (after, 156/144/135, pale sand, deck shadows show). I viewed the pair.
