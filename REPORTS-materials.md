@@ -38,3 +38,8 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Shots (Clear, 12:00, dry ground, 25 s settle): PunchyMilestones/W-166/wood/before and after (Oak town house, Pine snow shelter, Driftwood stilt house and log, Dark ramada and marsh hut, Bleached palisade). The change is subtle at these distances.
 - Landmarks_V3 passes. MaterialLibraryTests: 2 of 4 fail on things this branch doesn't touch (Cookhouse stall bark has no family; Cave/TerrainSurface Stone include check). Likely already failing on main.
 - Wood needs no edits to Cave.shader or TerrainSurface.hlsl.
+
+## materials/lib-tests (8d9a25bc) - DONE
+- Both failures reproduced on main. MaterialLibraryTests 4/4 now, edit-mode suite 42/42.
+- Stone: the test now follows #include chains. Cave and TerrainSurface reach Materials/Stone.hlsl through Materials/RockWall.hlsl (#327). No shader edits.
+- Cookhouse: its blueprint's parts take their form's family, and Stall has none. The pyramid roof falls back to plaster (like the smithy's), the door mat is cloth, the fire ring is stone (so camp fire pit stones now draw as stone too).
