@@ -2,6 +2,27 @@
 
 Newest first.
 
+## Job 108 (#302): wider plume reach, PASS (GPU); sparkle NaN 0
+
+render/plume-reach 170f46a3 (B) vs main 2b6ef9e3 (A). 1920x1080 uncapped, Clear, 3 rounds alternated. Views: peak = summit
+-3460,2425 yaw 150 (volcano in sight), noon; plumeN -891,-421 yaw 180 and plumeS -891,-1171 yaw 180 at 19.5; ground =
+`-place meadow` (control). Laptop GTX 1060 Max-Q. Spec q148.job.
+
+| gfx | view | A GPU | B GPU | B vs A | A / B CPU (whole frame) |
+|---|---|---|---|---|---|
+| Medium | peak | 14.97 | 15.07 | +0.10 | 17.7 / 17.7 |
+| Medium | plumeN | 17.03 | 17.00 | -0.03 | 20.2 / 20.2 |
+| Medium | plumeS | 16.47 | 16.23 | -0.23 | 19.7 / 19.8 |
+| Medium | ground | 14.97 | 15.23 | +0.27 | 22.1 / 23.5 |
+| High | peak | 21.53 | 21.93 | +0.40 | 52.4 / 50.9 |
+| High | plumeN | 23.43 | 23.83 | +0.40 | 47.1 / 47.4 |
+| High | plumeS | 22.23 | 22.20 | -0.03 | 37.3 / 39.3 |
+| High | ground | 24.17 | 25.00 | +0.83 | 161.8 / 162.5 |
+
+- **GPU passes** at (a) and (b) on both presets: everything is within +0.4 ms, under the 0.5 ms bar. The peak and plumeN at High (+0.4) are the views where far plumes are added, so that is about what the extra plumes cost there.
+- **CPU:** whole-frame CPU is level at Medium. At High, plumeS is +2.0 ms and the peak -1.5 ms; the High views are noisy (CPU means 37-52 ms with spikes), so that is not a clear change in either direction. LandmarkEffectSystem's gather on its own was not timed (no Profiler pass in this job), so the card's 0.2 ms CPU bar is not checked. If it's wanted, one Profiler capture per arm at the High peak would give it.
+- **Control (ground) at High: +0.83 ms**, but both arms have one off round (A 25.6, B 26.6) and the meadow has no plume in sight; Medium ground is +0.27. Same High-ground noise as Jobs 107 and 114, not a plume cost.
+- **Sparkle probe (rule 24):** B, High, plumeS at 19.5, 360 frames from 3 s: 203 frames read, **creature marked 0, other bad 0 (no NaN)**. The probe reports "hot 4255" (bright pixels, not NaN; plumes at dusk are bright) and "segments odd 258, first not unit #19 pos 0,0,0 len 0", which is a zero-length segment, so worth a glance from render but not a NaN.
 ## Job 107 (R-22 row 1, #298): whole-island far mesh, FAIL on the flights (ground and summit pass, except High ground)
 
 render/far-island 3d03c3cb, one Profile build: B as is, A `-farisland 0`. 1920x1080 uncapped, noon Clear, 3 rounds alternated.
