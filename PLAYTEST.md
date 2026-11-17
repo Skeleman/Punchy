@@ -218,3 +218,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #531 W-178 r1 (#523): glowing cave tendrils over glow fungi, sway and part on touch; shared local ChainSim.
 - #532 W-179 r1 (#528): one shared cave haze; fungi, tendrils, bats and creatures now sit in the cave's air.
 - #533 W-178 r2 (#523): cave set pieces (root curtains, vine drapes, mine ropes) pushed by player/creatures; tendril glow tinted per cave style.
+- #535 W-162 (#327): one shared rock wall for cliffs and caves; climb grades (craggy 4, smooth 5); cliffs over 60 deg stop non-climbers; cave mouth toes.

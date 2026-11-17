@@ -108,7 +108,7 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - Continuous grass swathes without bald spots; grass ground textured with blades, dirt speckled and grainy (R-31, #325).
 - Soft mid/far shadows, with one shadow LOD per caster and no wash-out at the hand-off (R-40, #511). Shipped (#513, 2026-11-16).
 - Elven cities have no wood: signs, fences and props in stone or metal (W-161, #326).
-- Cliffs and caves share one rock wall look, climbable grades and the ground blend at cave mouths (W-162, #327).
+- Cliffs and caves share one rock wall look, climbable grades and the ground blend at cave mouths (W-162, #327). Shipped #535; cave routes are W-181.
 - Blue moon casts the shadows on blue-moon nights, so its blue light reads as coming from it (R-32 row 3, #328).
 - 11-14 (Zach): procedural wood grain on planks and static strangler-fig roots on swamp trunks and cave walls (W-163, #330).
 - 11-14 (Zach): caked, cracked dry ground on salt flats and cracked bark (R-33 #331, W-163 row 3).
