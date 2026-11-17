@@ -134,6 +134,7 @@ namespace Punchy.Terrain
                         wallShown.Remove(cave * CaveWallDetails.Kinds + k);
                 }
             DrawMushrooms(camPos);
+            DrawTendrils(camPos);
         }
 
         static float BoxDistanceSq(float3 min, float3 max, float3 p)
@@ -153,6 +154,7 @@ namespace Punchy.Terrain
             wallShown.Clear();
             wallBuilding = null;
             ReleaseMushrooms();
+            ReleaseTendrils();
             if (wallMaterials != null)
                 foreach (var mat in wallMaterials)
                     if (mat != null)
