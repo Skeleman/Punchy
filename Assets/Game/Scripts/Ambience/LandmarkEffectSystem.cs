@@ -127,6 +127,7 @@ namespace Punchy.Ambience
             fineFalls.Clear();
             // (No curtains drawn: the water draws its falls' faces again.)
             Shader.SetGlobalFloat(CurtainCountId, 0f);
+            ClearCurtainMesh();
             WaterPatchSystem.Vents.Clear();
             foreach (var handle in fallLoops.Values)
                 Punchy.Audio.GameAudio.StopLoop(handle);
@@ -154,7 +155,9 @@ namespace Punchy.Ambience
                 nextCheck = Time.unscaledTime + 0.5f;
                 var rebuilt = Gather(source, palette.Landmarks, cam.transform.position);
                 FallTiers(cam.transform.position, rebuilt);
+                CurtainMesh(source, cam.transform.position, rebuilt);
             }
+            DrawCurtains();
             var eye = cam.transform.position;
             FallSounds(eye);
             var flameRange = Punchy.Settings.DetailPolicy.ExtraReach(TorchSize, Punchy.Settings.DetailPolicy.TorchFlamePixels);
@@ -381,6 +384,7 @@ namespace Punchy.Ambience
         void SetCurtainBoxes()
         {
             curtainCount = 0;
+            curtainShapes.Clear();
             var rect = new Vector4(1f, 1f, -1f, -1f);
             for (int pass = 0; pass < 2; pass++)
                 foreach (var s in fallShapes)
@@ -392,6 +396,7 @@ namespace Punchy.Ambience
                     curtainLip[curtainCount] = a;
                     curtainPour[curtainCount] = new Vector4(s.Out.x, s.Out.y, s.Run + 1.5f, s.Lip.y - s.Drop);
                     curtainFoot[curtainCount] = new Vector4(s.Skew, s.Bow, s.ClipBack, s.Seed);
+                    curtainShapes.Add(s);
                     var r = a.w + s.Run + 3f + math.abs(s.Skew) + math.abs(s.Bow);
                     rect = curtainCount == 0
                         ? new Vector4(a.x - r, a.z - r, a.x + r, a.z + r)

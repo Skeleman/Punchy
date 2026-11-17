@@ -98,6 +98,7 @@ Shader "Punchy/Water"
             {
                 float3 positionOS : POSITION;
                 float4 data       : TEXCOORD0;   // as WaterAttributes: z the depth below the surface
+                float2 fall       : TEXCOORD5;   // as WaterAttributes
             #ifdef _WATER_FIELD
                 float4 parent     : TEXCOORD3;   // as WaterAttributes
                 float2 parentY    : TEXCOORD4;
@@ -110,6 +111,7 @@ Shader "Punchy/Water"
                 float4 positionCS : SV_POSITION;
                 float2 restXZ     : TEXCOORD0;   // where the point is before the swell moves it
                 float3 positionWS : TEXCOORD1;   // where it ends up (R-21: is it behind a river curtain)
+                float  curtain    : TEXCOORD2;   // 1 on a fall's curtain mesh
             };
 
             DepthVaryings DepthVert(DepthAttributes input)
@@ -127,19 +129,25 @@ Shader "Punchy/Water"
                 float fallChurn;
                 float2 fallSlope;
                 o.positionWS.y += PunchyFallWater(rest, _PunchyClock, 0, fallChurn, fallSlope);
+                // (A fall's curtain mesh stays where it was built.)
+                o.positionWS = input.fall.y > 0.5 ? rest : o.positionWS;
             #endif
+                o.curtain = input.fall.y;
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;
             }
 
             half4 DepthFrag(DepthVaryings input) : SV_Target
             {
+                [branch] if (input.curtain < 0.5)
+                {
             #ifndef _WATER_FIELD
-                // (The fine sheet stands in for the chunk water near the player; cave water is never under it.)
-                clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
+                    // (The fine sheet stands in for the chunk water near the player; cave water is never under it.)
+                    clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
-                // (R-21: a river fall's face is drawn by its curtain, LandmarkEffectSystem.cs.)
-                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                    // (R-21: a river fall's face is drawn by its curtain, LandmarkEffectSystem.cs.)
+                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                }
                 return 0;
             }
             ENDHLSL
@@ -225,6 +233,9 @@ Shader "Punchy/Water"
                 float4 data       : TEXCOORD0;   // flow direction xz, depth below the surface, rapids 0..1
                 float4 look       : TEXCOORD1;   // biome water colour rgb, murk 0..1
                 float2 glow       : TEXCOORD2;   // self-glow (toxic water), lava 0..1
+                // W-153 row 3b: a fall's curtain mesh only (FallCurtain.cs): how steep the water reads here (x, 0 on the
+                // river above the lip up to 1 once it pours over), and 1 (y) on the curtain. Other meshes read 0.
+                float2 fall       : TEXCOORD5;
             #ifdef _WATER_FIELD
                 // The fine sheet only (WaterField.hlsl, PunchyWaterPatchVertex): on the square's edge, the depths at the
                 // chunk water edge's two corners, how far along it the vertex is, and which way it runs.
@@ -246,6 +257,7 @@ Shader "Punchy/Water"
                 float  swell      : TEXCOORD5;   // how strongly the sea swells here (WaterSwell.hlsl), 0 elsewhere
                 float  sea        : TEXCOORD6;   // 1 on the sea (its surface at sea level), 0 on lakes and rivers
                 float2 restXZ     : TEXCOORD7;   // where the point is before the swell moves it (the fine sheet's square)
+                float2 fall       : TEXCOORD8;   // as WaterAttributes
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -267,7 +279,11 @@ Shader "Punchy/Water"
                 float fallChurnV;
                 float2 fallSlopeV;
                 pos.positionWS.y += PunchyFallWater(float3(o.restXZ.x, pos.positionWS.y, o.restXZ.y), _PunchyClock, 0, fallChurnV, fallSlopeV);
+                // (A fall's curtain mesh stays where it was built, and is never the sea.)
+                pos.positionWS = input.fall.y > 0.5 ? TransformObjectToWorld(input.positionOS) : pos.positionWS;
+                o.sea *= 1 - input.fall.y;
             #endif
+                o.fall = input.fall;
                 pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 o.positionCS = pos.positionCS;
                 o.positionWS = pos.positionWS;
@@ -548,12 +564,15 @@ Shader "Punchy/Water"
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                [branch] if (input.fall.y < 0.5)
+                {
             #ifndef _WATER_FIELD
-                // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
-                clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
+                    // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
+                    clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
-                // (R-21: a river fall's face, here or on the fine sheet, is drawn by its curtain, LandmarkEffectSystem.cs.)
-                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                    // (R-21: a river fall's face, here or on the fine sheet, is drawn by its curtain mesh, FallCurtain.cs.)
+                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                }
                 float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;
@@ -593,6 +612,8 @@ Shader "Punchy/Water"
                 PunchyWaterFallOffset(float3(input.restXZ.x, input.positionWS.y, input.restXZ.y), t, fallChurn, fallCurtain);
                 steep = max(steep, (half)fallCurtain);
             #endif
+                // W-153 row 3b: the curtain mesh is steep by where it lies on its arc, not by each triangle's tilt.
+                steep = max(steep, (half)input.fall.x);
 
                 // Rivers run faster in the deep middle than at the banks, and much faster down steep rapids.
                 float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6)) * kindSpeed;
