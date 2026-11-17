@@ -2,6 +2,24 @@
 
 Newest first.
 
+## Job 111 (R-35 r2 #333): cloud picks, BLOCKED: render/cloud-picks b7a1f7cc fails the player build (Burst BC1091). Job 109 is blocked by the same error.
+
+The Profile build of b7a1f7cc failed after 81 min in the Burst step (q149.job, build-Profile-b7a1f7c.log):
+
+    Burst error BC1091: External and internal calls are not allowed inside static constructors:
+    UnityEngine.Shader.PropertyToID_Injected(ref UnityEngine.Bindings.ManagedSpanWrapper name)   (twice)
+
+Cause: `Assets/Game/Scripts/Settings/DetailPolicy.cs:75-76` adds `static readonly int DetailId = Shader.PropertyToID("_PunchyDetail")`
+and `ViewPpmId = Shader.PropertyToID("_PunchyViewPpm")` to `DetailPolicy`, a static class that Burst code calls
+(`DetailPolicy.Current` is a SharedStatic read in jobs; Within / Crossfade / Tier run in Burst). Those fields give the class a
+static constructor that calls into the engine, so Burst can't compile any Burst method that touches DetailPolicy. The lines
+come from 329aebad (WIP R-23 r4) and are on render/one-surface-5 9701f8a3 too, so **Job 109 (one-surface-5) won't build either**.
+An editor Play session doesn't show it (Burst compiles lazily there and falls back to Mono); only the player build fails.
+
+Suggested fix for render-2: move the two ids and PushShaderView into a separate non-Burst class (for example a nested
+`static class ShaderView` or a new `DetailShaderGlobals`), or set them in InitShaderView instead of a field initialiser
+(`static int DetailId;` and `DetailId = Shader.PropertyToID(...)` inside the method), so DetailPolicy has no static constructor.
+I haven't tested either change. When a fixed commit is pushed, I'll rerun q149 (Job 111) and spec Job 109.
 ## Job 108 (#302): wider plume reach, PASS (GPU); sparkle NaN 0
 
 render/plume-reach 170f46a3 (B) vs main 2b6ef9e3 (A). 1920x1080 uncapped, Clear, 3 rounds alternated. Views: peak = summit

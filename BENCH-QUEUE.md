@@ -1046,7 +1046,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Record: CPU ms in LandmarkEffectSystem's gather, plume draw GPU ms (transparent pass), whole-frame GPU/CPU ms. Also run `-sparkleprobe plume` once on B at High (rule 24, NaN 0; render could not run it for lack of RAM).
 - Pass: B within 0.2 ms CPU and 0.5 ms GPU of A at (a) and (b), no change at (c), sparkle NaN 0. Report the numbers otherwise.
 
-## Job 109 (2026-11-16, QUEUED after 108; render-2 lane, R-23 r4+r5, #298, branch render/one-surface-5 9701f8a3, includes one-surface-4): detail fades on screen size
+## Job 109 (2026-11-16, BLOCKED 11-17: same Burst BC1091 as Job 111 (DetailPolicy.cs:75-76, from 329aebad); QUEUED after 108; render-2 lane, R-23 r4+r5, #298, branch render/one-surface-5 9701f8a3, includes one-surface-4): detail fades on screen size
 - r4: the Creature fur/pattern and Flora relief/leaf/sheen/glow/cell fades read PunchyReferenceDistance (each camera's projection x Detail). The Flora.hlsl breath, twitch and flutter read PunchyMainReferenceDistance (`_PunchyViewPpm`). DetailPolicy sets `_PunchyDetail` and `_PunchyViewPpm` from beginContextRendering each frame. r5: TerrainSurface sheen/cobble/rock-face/cave-mouth/grain/rain and Water rippleNear do the same. Per-pixel cost added: one multiply and one divide per fade. At fov 60 the fade distances match main; elsewhere they move. Rule 21: the lane did not time it.
 - Reach note: at a narrow fov (zoom) the gated branches reach further, at a wide fov less far. Cobbles (`cobbleFade > 0.001`) and the rock-face/cave-mouth grain (`steep > 0.01`, cave detail sampling) are the costly ones. At fov 90 the rock-face grain ends at 52 m instead of 90 m; at fov 40 it reaches about 141 m.
 - Arms: main (A) against render/one-surface-5 (B), editor on each tree, ShaderCache (Library/ShaderCache) cleared first, -fpscap 0.
@@ -1067,7 +1067,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Record: CreatureBrainSystem job ms (worker), the footprint bake ms at load, whole-frame CPU ms.
 - Pass: B within 0.2 ms brain job and no change at (b). Report the numbers otherwise.
 
-## Job 111 (2026-11-16, RUNNING 11-17 08:27 as q149 (162 games, about 6 h; main arm = merge-base 25558ed8); QUEUED after 109; render-2 lane, R-35 r2 #333, branch render/cloud-picks b7a1f7cc, carries #494): cloud look picks, cost per pick
+## Job 111 (2026-11-16, BLOCKED 11-17: player build fails, Burst BC1091 on DetailPolicy.cs static ids; spec q149 ready; QUEUED after 109; render-2 lane, R-35 r2 #333, branch render/cloud-picks b7a1f7cc, carries #494): cloud look picks, cost per pick
 - Arms (all on the branch build, by `-skyoff` mask): base 0; A 4096; B 8192; C 16384; D 32768; all 61440; clouds off 3 (the cloud share, as job 79); E off 65536 (fades in metres, the branch with E taken out). Also main for the E check. The branch carries #494 (merged in for ScreenSize.hlsl), so main vs branch base also includes #494's fades; the 0 vs 65536 pair isolates E.
 - Profile build, 1920x1080, Medium and Ultra, uncapped, noon, arms rotated, 3 rounds, 300 frames.
 - Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
