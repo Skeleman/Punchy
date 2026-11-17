@@ -168,6 +168,7 @@ Shader "Punchy/FloraImpostor"
 
                 // The mesh's lighting (Flora.shader, through Surface.hlsl), from the baked normal.
                 PunchySurface ps = PunchySurfaceAt(positionWS, n);
+                ps.caveAir = 0; // far plants stand outside
                 ps.wideNormalWS = half3(0, 1, 0);
                 ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
                 ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));

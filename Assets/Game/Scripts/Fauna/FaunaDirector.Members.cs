@@ -266,18 +266,7 @@ namespace Punchy.Fauna
                 // Coming out at a door (row 4): made in the doorway, it steps out as the far figure would have, the
                 // brain's own step-out (GoIndoors' last stage). Its far figure stays hidden while it is in the doorway
                 // (LiveIndoors), so there is never a double.
-                var from = plan.Places[w.From];
-                var outward = math.normalizesafe(from.Face - from.At, new float2(0f, 1f));
-                st.Mode = CreatureMode.Home;
-                st.ModeTime = 0f;
-                st.Stage = 3;
-                st.StageTime = 0f;
-                st.ActionTime = 1f;
-                st.Anchor = new float3(from.At.x, from.Height, from.At.y);
-                st.AnchorYaw = math.atan2(outward.x, outward.y);
-                st.Position = new float3(from.At.x - outward.x * 0.7f, from.Height, from.At.y - outward.y * 0.7f);
-                st.Yaw = st.AnchorYaw;
-                st.Timer = 0f;
+                StepOutOf(ref st, plan.Places[w.From]);
             }
             else if (job.Task != CreatureTask.None && w.To == r.Job)
             {
@@ -320,6 +309,23 @@ namespace Punchy.Fauna
                           $"apart {math.distance(st.Position, w.Position):F2} m, {w.Doing}{(st.Task != CreatureTask.None ? " task " + st.Task : "")}, hour {hour:F2}");
         }
 
+        /// <summary>A creature just made in an indoor place's doorway, stepping out of it (the brain's own step-out,
+        /// GoIndoors' last stage).</summary>
+        static void StepOutOf(ref CreatureState st, in TownPlace from)
+        {
+            var outward = math.normalizesafe(from.Face - from.At, new float2(0f, 1f));
+            st.Mode = CreatureMode.Home;
+            st.ModeTime = 0f;
+            st.Stage = 3;
+            st.StageTime = 0f;
+            st.ActionTime = 1f;
+            st.Anchor = new float3(from.At.x, from.Height, from.At.y);
+            st.AnchorYaw = math.atan2(outward.x, outward.y);
+            st.Position = new float3(from.At.x - outward.x * 0.7f, from.Height, from.At.y - outward.y * 0.7f);
+            st.Yaw = st.AnchorYaw;
+            st.Timer = 0f;
+        }
+
         /// <summary>Row 7b: if a body of this radius at p is inside a building's or prop's walls, moves p to the nearest
         /// clear spot (rings half a metre apart, out to 8 m) and says how far. False if p was clear or nothing near is. // sim:</summary>
         bool OutOfWalls(ref float3 p, float radius, out float moved)
@@ -359,5 +365,48 @@ namespace Punchy.Fauna
                       $"far figure {(w.Outdoors ? $"at ({w.Position.x:F1}, {w.Position.y:F1}, {w.Position.z:F1}), apart {math.distance(s.Position, w.Position):F2} m" : "indoors")}, " +
                       $"clock {s.Clock:F1} s, hour {hour:F2}");
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Tests (host): lets go every member creature of the town nearest a spot and forgets its row 4 notes (gone in
+        /// at a door, asked for), so SpawnMembers makes them again from where their day has them now. A creature made
+        /// before a clock jump keeps the leg it was made on (a member near a player is never put back on its legs),
+        /// so a test that sets the hour calls this to see the town as that hour has it. Returns how many it let go.
+        /// </summary>
+        public int RemakeMembersNear(float3 at)
+        {
+            if (simWorld == null || !simWorld.IsCreated || Whereabouts.Towns.Count == 0)
+                return 0;
+            TownPlan plan = null;
+            foreach (var p in Whereabouts.Towns.Values)
+                if (plan == null || math.distancesq(p.Centre, at.xz) < math.distancesq(plan.Centre, at.xz))
+                    plan = p;
+            var seeds = new HashSet<uint>();
+            foreach (var r in plan.Residents)
+            {
+                seeds.Add(r.Seed);
+                r.GoneInTo = -1;
+                r.Asked = float.MinValue;
+                r.InSince = r.WaitSince = -1f;
+            }
+            var em = simWorld.EntityManager;
+            using var q = em.CreateEntityQuery(ComponentType.ReadOnly<CreatureState>());
+            using var entities = q.ToEntityArray(Unity.Collections.Allocator.Temp);
+            var gone = 0;
+            foreach (var e in entities)
+            {
+                var s = em.GetComponentData<CreatureState>(e);
+                if (s.Mode == CreatureMode.Held || !seeds.Contains(s.Individual) || !Households.Of(s.Individual, out var house, out var m))
+                    continue;
+                house.Taken &= ~(1u << m) | house.Pinned | house.Lost;
+                memberLive.Remove(s.Individual);
+                memberSentIn.Remove(s.Individual);
+                housedCount = math.max(0, housedCount - 1);
+                em.DestroyEntity(e);
+                gone++;
+            }
+            return gone;
+        }
+#endif
     }
 }

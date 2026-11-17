@@ -625,3 +625,20 @@ MonoBehaviour:
     WorldState: 
     Range: 0.8
     Task: 0
+  - Content: Bat
+    Species: {fileID: 0}
+    Weight: 400
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 0
+    Size: {x: 0, y: 0}
+    Types: 3
+    NeedTags: 64
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0

@@ -349,7 +349,11 @@ namespace Punchy.Terrain
                     if (dp > r * 1.5f)
                         continue;
                     var level = PoolLevel(ref inst, ref type, ref pool, hit.Radius);
-                    h = math.max(h, math.lerp(level + 0.25f, h, math.smoothstep(r * 1.15f, r * 1.5f, dp)));
+                    // W-174 r3 (#406): the lip fades by the shared ground-edit band: full out to r * 1.15 at least (as
+                    // before, so the water stays held), then out to r * 1.5 from a start that wanders, so the lip is not
+                    // a perfect circle.
+                    var lip = GroundEdits.Band(dp, r * 1.15f, r * 1.3f, r * 1.5f, GroundEdits.EdgeNoise(xz, 1f / 6f, p * 3.1f + 2.3f));
+                    h = math.max(h, math.lerp(h, level + 0.25f, lip));
                     // The bank rises gently out of the water (0.6 m per metre), so the shore line falls across the terrain
                     // grid smoothly instead of a near-vertical step between two vertices (ragged shards of water).
                     var bowl = level - 0.1f - pool.Depth * math.smoothstep(r, r * 0.35f, dp) + math.max(dp - r, 0f) * 0.6f;

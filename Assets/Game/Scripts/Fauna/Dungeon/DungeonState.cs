@@ -23,8 +23,8 @@ namespace Punchy.Fauna
         public int Creatures, CreaturesLeft;
         /// <summary>
         /// Every creature it was given is gone or driven off (more than <see cref="DungeonState.DrivenOff"/> from its post);
-        /// true from the start for a dungeon that was given none (its quest is the chest). Only known where animals live
-        /// (solo, the host): false on a joined client, which asks the host, and while the animals are being rebuilt.
+        /// true from the start for a dungeon that was given none (its quest is the chest). On a joined client, from the
+        /// host's dead masks, where a creature driven off still counts as there; false while the dungeon isn't registered.
         /// </summary>
         public bool Cleared;
         /// <summary>The quest's chest: an index into the dungeon's DungeonSocket buffer (-1: no chest socket), and where it is.</summary>
@@ -163,8 +163,8 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// #24 phase 2 row 2: the dungeon's residents still at their posts, from the director's records (a resident not
-        /// in the world because no player is near is still there; a dead one, or one driven off, is not). False where
-        /// animals don't live (a joined client) or before the director has the dungeon.
+        /// in the world because no player is near is still there; a dead one, or one driven off, is not; on a joined
+        /// client a driven-off one still is). False before the director has the dungeon.
         /// </summary>
         static bool Left(in DungeonInfo info, out int left)
         {

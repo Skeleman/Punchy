@@ -29,9 +29,8 @@ namespace Punchy.Items
     public partial class Items
     {
         public const int ContainerSlots = 8, MaxDrops = 256;
-        /// <summary>Container ids: a temple chest is its socket index; room storage RoomBase + room * 4 + k; a cave or
-        /// ruin room chest <see cref="ChestId"/> (CaveChestBit upwards).</summary>
-        public const int RoomBase = 100_000;
+        // Container ids: a temple chest is its socket index; room storage WorldIds.Storage(door record, k) (A-134, P-35 r3
+        // row 5); a cave or ruin room chest ChestId (CaveChestBit upwards).
 
         class Container
         {
@@ -75,7 +74,7 @@ namespace Punchy.Items
                 var roll = rng.NextInt(0, 20);
                 if (isChest && roll == 19)
                 {
-                    c.Slots[k] = ((byte)rng.NextInt(ItemTable.Torch, ItemTable.Items.Length), 1);
+                    c.Slots[k] = (ItemTable.RandomLoot(ref rng, ItemTable.Torch), 1);
                     continue;
                 }
                 byte item = roll == 0 ? ItemTable.Key : roll < 6 ? (byte)6 : (byte)rng.NextInt(0, 6);
@@ -149,6 +148,48 @@ namespace Punchy.Items
             return false;
         }
 
+        /// <summary>Whether a container by this id is registered.</summary>
+        public static bool HasContainer(int id) => instance != null && instance.containers.ContainsKey(id);
+
+        /// <summary>
+        /// P-37 r3 (#369): moves container <paramref name="from"/>'s stacks into <paramref name="into"/>'s free slots and,
+        /// if all fitted, removes <paramref name="from"/>. Called the same way on every machine straight after both are
+        /// registered from their seeds (a walk-in house's room stores joining its door container), so nothing is sent.
+        /// False if either is missing or some stacks didn't fit (those stay in <paramref name="from"/>).
+        /// </summary>
+        public static bool MergeContainer(int from, int into)
+        {
+            if (instance == null || from == into || !instance.containers.TryGetValue(from, out var a) || !instance.containers.TryGetValue(into, out var b))
+                return false;
+            var all = true;
+            for (int i = 0; i < ContainerSlots; i++)
+            {
+                if (a.Slots[i].item == 255)
+                    continue;
+                if (PutInFreeSlot(b, a.Slots[i].item, a.Slots[i].count))
+                    a.Slots[i] = (255, 0);
+                else
+                    all = false;
+            }
+            if (all)
+            {
+                instance.containers.Remove(from);
+                instance.changedContainers.Remove(from);
+                if (instance.openContainer == from) instance.openContainer = -1;
+            }
+            return all;
+        }
+
+        /// <summary>P-37 r3: puts a registered container somewhere else (and, if given, renames it).</summary>
+        public static void MoveContainer(int id, float3 pos, string name = null)
+        {
+            if (instance == null || !instance.containers.TryGetValue(id, out var c))
+                return;
+            c.Pos = pos;
+            if (name != null)
+                c.Name = name;
+        }
+
         /// <summary>The nearest open-able container within reach (chests only once opened), for the Use key.</summary>
         /// <summary>The container the player faces best, if it beats <paramref name="best"/> (UseTarget's score).</summary>
         void FindContainer(float3 player, float2 forward, float2 look, ref float best, ref float distance)
@@ -156,7 +197,7 @@ namespace Punchy.Items
             targetContainer = -1;
             foreach (var kv in containers)
             {
-                if (kv.Value.IsChest && !openedChests.Contains(kv.Key))
+                if (kv.Value.IsChest && !openedChests.Contains(kv.Key) || !Punchy.Interact.Interiors.StorageHere(kv.Key))
                     continue;
                 var d = math.distance(kv.Value.Pos.xz, player.xz);
                 if (d > Reach || math.abs(kv.Value.Pos.y - player.y) >= 1.8f)
@@ -178,11 +219,10 @@ namespace Punchy.Items
         /// <summary>One of the player's slot into the open container (the host decides where it goes).</summary>
         void Put(int slot)
         {
-            if (openContainer < 0 || slot < 0 || slot >= Capacity || slots[slot].item == 255)
+            if (openContainer < 0 || slot < 0 || slot >= Capacity || slots[slot].IsEmpty)
                 return;
-            var item = slots[slot].item;
-            if (--slots[slot].count <= 0)
-                slots[slot] = (255, 0);
+            var item = slots[slot].Row;
+            slots[slot].TakeOne();
             Debug.Log($"Items: put {ItemTable.Items[item].Name} into container {openContainer}; inventory: {DescribeInventory()}");
             if (Joined)
                 SendToHost(new PutRpc { Container = openContainer, Item = item, Count = 1 });
@@ -202,6 +242,7 @@ namespace Punchy.Items
                 return;
             }
             var s = c.Slots[slot];
+            Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfContainer(id), -1, $"{ItemTable.Items[s.item].Name} x{s.count} from {c.Name} {id}");
             SetSlot(id, slot, 255, 0, Hosting ? "host" : "solo");
             Grant(s.item, s.count);
         }
@@ -247,7 +288,7 @@ namespace Punchy.Items
                     Carry(PlayerId(em, from), m.Item, -m.Count);
                     if (!HostPut(m.Container, m.Item, m.Count, "host, for a client") && em.Exists(from))
                     {
-                        Send(em, from, new GrantRpc { Item = m.Item, Count = m.Count });   // (full: back to them)
+                        Send(em, from, KitGrant(m.Item, m.Count));   // (full: back to them)
                         Carry(PlayerId(em, from), m.Item, m.Count);
                     }
                     em.DestroyEntity(r);
@@ -257,12 +298,15 @@ namespace Punchy.Items
                 {
                     var m = em.GetComponentData<TakeRpc>(r);
                     var from = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                    // (A-134: a house's storage this host hadn't registered yet, as when the client came without walking past its door.)
+                    if (!containers.ContainsKey(m.Container) && Punchy.Interact.Interiors.RegisterStorage(m.Container)) Debug.Log($"Items: container {m.Container} registered late, for a client's take");
                     if (containers.TryGetValue(m.Container, out var c) && m.Slot < ContainerSlots && c.Slots[m.Slot].item != 255 && em.Exists(from))
                     {
                         var s = c.Slots[m.Slot];
+                        Punchy.Fauna.Ownership.Took(Punchy.Fauna.Ownership.OfContainer(m.Container), PlayerId(em, from), $"{ItemTable.Items[s.item].Name} x{s.count} from {c.Name} {m.Container}");
                         SetSlot(m.Container, m.Slot, 255, 0, "host, for a client");
                         Carry(PlayerId(em, from), s.item, s.count);
-                        Send(em, from, new GrantRpc { Item = s.item, Count = (byte)math.min(s.count, 255) });
+                        Send(em, from, KitGrant(s.item, s.count));
                     }
                     em.DestroyEntity(r);
                 }
@@ -281,7 +325,7 @@ namespace Punchy.Items
 
         void ReceiveContainer(ContainerSlotRpc m)
         {
-            if (!containers.TryGetValue(m.Container, out var c) || m.Slot >= ContainerSlots)
+            if (!containers.TryGetValue(m.Container, out var c) && !(Punchy.Interact.Interiors.RegisterStorage(m.Container) && containers.TryGetValue(m.Container, out c)) || m.Slot >= ContainerSlots)
                 return;
             if (c.Slots[m.Slot].item == m.Item && c.Slots[m.Slot].count == m.Count)
                 return;
@@ -321,7 +365,7 @@ namespace Punchy.Items
             {
                 putArg = false;
                 openContainer = containerArg;
-                var slot = System.Array.FindIndex(slots, s => s.item != 255);
+                var slot = System.Array.FindIndex(slots, s => !s.IsEmpty);
                 Debug.Log($"Items: -putitem: slot {slot} into container {containerArg} ({Describe(containers[containerArg].Slots)})");
                 Put(slot);
             }

@@ -122,7 +122,7 @@ namespace Punchy.Items
         static Kit Build(string name)
         {
             var k = new Kit();
-            switch (name)
+            switch (ItemTable.MeshName(name))
             {
                 case "Stick": k.Tube(0, new Vector3(0f, 0.04f, -0.3f), new Vector3(0.03f, 0.05f, 0f), 0.028f, 0.024f); k.Tube(0, new Vector3(0.03f, 0.05f, 0f), new Vector3(-0.01f, 0.04f, 0.3f), 0.024f, 0.016f); k.Tube(0, new Vector3(0.03f, 0.05f, 0f), new Vector3(0.14f, 0.05f, 0.1f), 0.015f, 0.007f); break;
                 case "Stone": k.Blob(0, new Vector3(0f, 0.08f, 0f), new Vector3(0.14f, 0.09f, 0.11f), 11u); break;

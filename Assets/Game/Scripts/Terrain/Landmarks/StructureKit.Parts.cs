@@ -13,7 +13,7 @@ namespace Punchy.Terrain
     public static partial class StructureKit
     {
         /// <summary>The lantern head's glass at scale 1 (m): the size most hung lanterns already used.</summary>
-        static readonly Vector3 LanternGlass = new Vector3(0.24f, 0.32f, 0.24f);
+        internal static readonly Vector3 LanternGlass = new Vector3(0.24f, 0.32f, 0.24f);
 
         /// <summary>One piece of a part, placed in the part's frame.</summary>
         static void Put(List<KitPart> parts, KitPiece piece, KitMaterial m, Vector3 centre, Vector3 size, Quaternion rotation, bool solid) =>
@@ -23,7 +23,7 @@ namespace Punchy.Terrain
         /// A wooden crate: a cube of <paramref name="size"/> centred on <paramref name="centre"/> and a lid band across
         /// its top, the band turning with the crate.
         /// </summary>
-        static void Crate(List<KitPart> parts, Vector3 centre, float size, float yaw, bool solid, float pitch = 0f)
+        internal static void Crate(List<KitPart> parts, Vector3 centre, float size, float yaw, bool solid, float pitch = 0f)
         {
             var q = Quaternion.Euler(pitch, yaw, 0f);
             Put(parts, KitPiece.Trim, KitMaterial.Wood, centre, new Vector3(size, size, size), q, solid);
@@ -45,7 +45,7 @@ namespace Punchy.Terrain
         /// A hung lantern's head: a cap set at 45 degrees, the glass (<paramref name="glass"/>: Lamp, or Flame for one
         /// turned low) centred on <paramref name="centre"/> and a drip tray under it. The site supplies what it hangs from.
         /// </summary>
-        static void LanternHead(List<KitPart> parts, Vector3 centre, float yaw, KitMaterial glass = KitMaterial.Lamp, float scale = 1f, float roll = 0f)
+        internal static void LanternHead(List<KitPart> parts, Vector3 centre, float yaw, KitMaterial glass = KitMaterial.Lamp, float scale = 1f, float roll = 0f)
         {
             var q = Quaternion.Euler(0f, yaw, roll);
             var g = LanternGlass * scale;
