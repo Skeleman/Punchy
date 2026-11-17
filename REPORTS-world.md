@@ -8632,3 +8632,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Files (world-owned, need OK): Terrain/Caves/CaveStyle.cs (StoneKind field, multipliers), Terrain/Caves/CaveBaking.cs (pack from library), Terrain/Caves/CaveSystem.RockLook.cs (fine relief into look table), Landmarks/CaveStyles/*.asset (10 styles: set kind, reset multipliers). None of RiverData, TerrainSource.* or RiverBaking. CaveData.cs only if a per-kind shape term is needed (not planned).
 - Render-owned: Shaders/Cave.shader, a one-line fade on the existing Detail() strength (s7.y path). I'll ask render, or the coordinator, before touching it.
 - Verify r1: framed before/after shots of 3 styles, NaN 0, Landmarks_V3 pass. The cave layout may re-pin (layout is disposable).
+
+### W-153 rework row 2 (nearest-profile sampling): world/river-profile-r1 2b5ad5e3, WorldTests 20/20
+- Query blends carve and water over nearby profiles by edge distance (2 m), no more lowest-carve winner.
+- WaterTruth down on every kind: wall 972->457, step 970->610, dryRun 7->0, deep 43->11, tilt 29->18, fallHead 46->0, fallFoot 5->0.
+- Landmarks_V3 re-pinned 9786243F -> 4DC69668 (114 kept): river-side spots shift; profiler bench spots near rivers may move, re-check after row 6.
+- Shots: PunchyMilestones/W-153 fall-a/fall-b/notch-r2-before/after. Next: row 3 (fall profile + foot pool), then 3b curtain.
