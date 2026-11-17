@@ -249,3 +249,9 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - BC1091: DetailPolicy's static readonly PropertyToID ids gave the struct a managed static ctor; ids now looked up inline. Fix 5939a4e0 on render/one-surface-5 (unblocks jobs 109 and 111).
 - R-35 (#333) row 3: pick E only, on render/cloud-e 25fbc044 (one-surface-5 + E + main).  Compiles; sparkle `r35e` (PartlyCloudy noon) 360 frames, bad 0 hot 0. 65536 bit kept as the metres fallback for BENCH. Note: the diff vs main carries 3 Water.shader lines; they come from R-23 r5 (#494), not E. Job 111 cut to E only.
 - R-28 r2: cobble-depth is NOT ready for PR. Job 86 BLOCKED: FXC crashes compiling Terrain Surface ForwardLit fresh, likely the paving parallax `[loop]` with an inner `[unroll]`. BOARD corrected.
+
+## R-29 pre-merge check (PR #540, e7b96f9c)
+- (a) A/B vs main at the spire pose, clear weather (core px / core lum / glow lift): main day 2921/0.915/0.073, night 3180/0.919/0.119; kit as pushed lost night glow (0.104). Fix: glow falls off softly to the ribbon edge instead of hiding under the core, GlowWidth 6->9, GlowStrength 0.35->1. Kit now day 3039/0.915/0.123, night 3286/0.923/0.141, so it beats main on both. It still looks like a white core with a modest blue halo; a strong bloom halo would need volume/bloom settings (supervisor's call). Shots: PunchyMilestones/R-29/ab/main-*, kitj-*.
+- (b) Golem arcs: blue arcs with visible glow, day and night (PunchyMilestones/R-29/golem-g2-*). Pass.
+- (c) FloraSystem.cs diff vs main only moves spire bolts into ElectricitySystem. WorldTests.Landmarks_V3 PASS (landmarks 114 9786243F), Flora_PlacementCost PASS. FloraHabitatTests are all Explicit shot tests, so they were not run.
+- Note: the open-editor CLI `test run` returns 0 tests for PlayMode here (sync is refused; async status stays empty). scripts/run-playmode-tests.sh with the editor closed works.
