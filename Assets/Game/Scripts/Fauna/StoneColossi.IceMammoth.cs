@@ -35,6 +35,8 @@ namespace Punchy.Fauna
             var root = new GameObject("IceMammoth").transform;
             root.SetPositionAndRotation(new Vector3(at.x, at.y - 0.6f, at.z), Quaternion.Euler(0f, yaw, 0f));
             var m = new DunesColossus.MeshBuilder();
+            foreach (var ice in new[] { IcePale, IceBlue, IceDeep })                   // W-166 r4 (#336): the plates are library ice
+                m.Family(ice, MaterialFamily.Ice);
             var loose = new DunesColossus.MeshBuilder();
             var rng = Unity.Mathematics.Random.CreateFromIndex(seed | 1u);
             var shed = new System.Collections.Generic.List<Vector3>();

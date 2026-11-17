@@ -58,6 +58,17 @@ namespace Punchy.Net
     public struct IslandVersionRpc : IRpcCommand
     {
         public int Version;
+        /// <summary>P-37 r3 (#369): 1 if the host walks into its houses (StructureKit.Seamless), 0 for teleport rooms.</summary>
+        public byte Seamless;
+    }
+
+    /// <summary>
+    /// Host → client on connecting (P-35 r3 row 2): the host's item catalog print (ItemCatalog.JoinPrint). A joined
+    /// client whose own differs leaves, with a notice, since item ids would mean different things on the two machines.
+    /// </summary>
+    public struct CatalogCheckRpc : IRpcCommand
+    {
+        public ulong Print;
     }
 
     /// <summary>
@@ -66,8 +77,10 @@ namespace Punchy.Net
     /// a client that joined someone else it puts WeatherSystem in remote mode and copies that state in every frame.
     /// It also checks that joining clients built the same world (seed, biomes, landmarks, species tables) and
     /// disconnects them if not. Before that the host sends each new connection its island version (IslandVersionRpc),
-    /// which a joined client bakes instead of its own launch's. Test flag: "-worldsalt N" on a client mixes N into its
-    /// fingerprint, to check that a client with a different world is still refused.
+    /// which a joined client bakes instead of its own launch's, and its item catalog print (CatalogCheckRpc), which a
+    /// joined client compares with its own and leaves on a mismatch. Test flags: "-worldsalt N" on a client mixes N into
+    /// its fingerprint, to check that a client with a different world is still refused; "-catalogsalt N" does the same
+    /// for the item catalog print.
     /// </summary>
     [DefaultExecutionOrder(-20)]   // before DayNightCycle and WeatherSystem read the time and cells
     public class WorldSync : MonoBehaviour
@@ -78,6 +91,16 @@ namespace Punchy.Net
 
         /// <summary>Testing: mixed into this machine's world fingerprint, to check that a mismatched client is refused.</summary>
         public static uint TestSalt;
+        /// <summary>Testing: mixed into this machine's item catalog print (-catalogsalt N), to check the catalog refusal.</summary>
+        public static ulong CatalogSalt;
+
+        /// <summary>This machine's item catalog print as the join check compares it.</summary>
+        public static ulong CatalogPrint => Punchy.Items.ItemCatalog.JoinPrint ^ CatalogSalt;
+
+        // A catalog refusal's notice, shown again once the "lost the connection" notice and the switch to solo are past.
+        // Static: it outlives the scene reload that playing solo does.
+        static string refusalNotice;
+        static float refusalAt;
 
         readonly List<WeatherField.CellState> cells = new List<WeatherField.CellState>();
 
@@ -94,9 +117,14 @@ namespace Punchy.Net
             var at = System.Array.IndexOf(args, "-worldsalt");
             if (at >= 0 && at + 1 < args.Length && uint.TryParse(args[at + 1], out var salt))
                 TestSalt = salt;
+            at = System.Array.IndexOf(args, "-catalogsalt");
+            if (at >= 0 && at + 1 < args.Length && ulong.TryParse(args[at + 1], out var catalogSalt))
+                CatalogSalt = catalogSalt;
         }
         readonly HashSet<Entity> checkedConnections = new HashSet<Entity>();
         readonly HashSet<Entity> versionSent = new HashSet<Entity>();
+        readonly HashSet<Entity> catalogSent = new HashSet<Entity>();
+        Entity catalogRefused;
         World server, client;
         Entity stateGhost;
         bool subscribed;
@@ -123,6 +151,15 @@ namespace Punchy.Net
                 stateGhost = Entity.Null;
                 checkedConnections.Clear();
                 versionSent.Clear();
+                catalogSent.Clear();
+                catalogRefused = Entity.Null;
+                // (P-37 r3: back to this launch's own walk-in choice; a joined client takes the host's below.)
+                Punchy.Terrain.StructureKit.Seamless = Punchy.Terrain.StructureKit.LaunchSeamless;
+            }
+            if (refusalNotice != null && Time.unscaledTime - refusalAt > 3f)
+            {
+                NetMenu.Notify(refusalNotice, 10f);
+                refusalNotice = null;
             }
             if (Weather != null && !subscribed)
             {
@@ -141,11 +178,13 @@ namespace Punchy.Net
             {
                 EnsureStateGhost();
                 SendIslandVersion();
+                SendCatalogCheck();
                 CheckJoiners();
             }
             if (client != null && client.IsCreated && client.IsClient())
             {
                 ReceiveIslandVersion(joined);
+                ReceiveCatalogCheck(joined);
                 SendWorldCheck();
                 ReceiveLightning(joined);
                 if (joined)
@@ -284,9 +323,28 @@ namespace Punchy.Net
                 if (!versionSent.Add(connection))
                     continue;
                 var rpc = em.CreateEntity(typeof(IslandVersionRpc), typeof(SendRpcCommandRequest));
-                em.SetComponentData(rpc, new IslandVersionRpc { Version = version });
+                em.SetComponentData(rpc, new IslandVersionRpc { Version = version, Seamless = (byte)(Punchy.Terrain.StructureKit.Seamless ? 1 : 0) });
                 em.SetComponentData(rpc, new SendRpcCommandRequest { TargetConnection = connection });
                 Debug.Log($"WorldSync: sent island v{version} to player {em.GetComponentData<NetworkId>(connection).Value}");
+            }
+            list.Dispose();
+        }
+
+        /// <summary>Sends each new connection this host's item catalog print (P-35 r3 row 2); it needs no bake, so it goes at once.</summary>
+        void SendCatalogCheck()
+        {
+            var print = CatalogPrint;
+            var em = server.EntityManager;
+            var connections = CachedQueries.Get<NetworkId>(em.World);
+            var list = connections.ToEntityArray(Allocator.Temp);
+            foreach (var connection in list)
+            {
+                if (!catalogSent.Add(connection))
+                    continue;
+                var rpc = em.CreateEntity(typeof(CatalogCheckRpc), typeof(SendRpcCommandRequest));
+                em.SetComponentData(rpc, new CatalogCheckRpc { Print = print });
+                em.SetComponentData(rpc, new SendRpcCommandRequest { TargetConnection = connection });
+                Debug.Log($"WorldSync: sent item catalog {print:x16} to player {em.GetComponentData<NetworkId>(connection).Value}");
             }
             list.Dispose();
         }
@@ -306,7 +364,7 @@ namespace Punchy.Net
                 var connection = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
                 if (ours != 0 && theirs != ours && em.Exists(connection))
                 {
-                    Debug.LogWarning($"WorldSync: a player built a different world ({theirs:X8}, ours {ours:X8}): seed, island version, biomes or species differ; host runs island v{Punchy.Terrain.IslandV2.ActiveVersion}. Disconnecting them.");
+                    Debug.LogWarning($"WorldSync: a player built a different world ({theirs:X8}, ours {ours:X8}): seed, island version, biomes, species or map edits differ; host runs island v{Punchy.Terrain.IslandV2.ActiveVersion}. Disconnecting them.");
                     em.AddComponent<NetworkStreamRequestDisconnect>(connection);
                 }
                 else if (em.Exists(connection))
@@ -331,12 +389,53 @@ namespace Punchy.Net
                 var version = em.GetComponentData<IslandVersionRpc>(r).Version;
                 if (joined)
                 {
+                    var seamless = em.GetComponentData<IslandVersionRpc>(r).Seamless != 0;
+                    if (seamless != Punchy.Terrain.StructureKit.Seamless)
+                        Debug.Log($"WorldSync: the host {(seamless ? "walks into its houses" : "uses teleport rooms")}; this client follows");
+                    Punchy.Terrain.StructureKit.Seamless = seamless;
                     var active = Punchy.Terrain.IslandV2.ActiveVersion;
                     Debug.Log($"WorldSync: host runs island v{version} (this launch asked for v{Punchy.Terrain.IslandV2.RequestedVersion()})");
                     if (active != 0 && active != version)
                         Debug.LogWarning($"WorldSync: the host's island v{version} came after this client baked v{active}; the world check will refuse it");
                     Punchy.Terrain.IslandV2.HostVersion = version;
                 }
+                em.DestroyEntity(r);
+            }
+            requests.Dispose();
+        }
+
+        /// <summary>
+        /// The host's item catalog print: a joined client with a different one leaves (its item ids would mean other items)
+        /// and says so. The host's own client gets it too and ignores it. It leaves once in game, like a world-check
+        /// refusal, so NetMenu's lost-connection path takes it back to solo.
+        /// </summary>
+        void ReceiveCatalogCheck(bool joined)
+        {
+            var em = client.EntityManager;
+            if (catalogRefused != Entity.Null && em.Exists(catalogRefused) && em.HasComponent<NetworkStreamInGame>(catalogRefused))
+            {
+                refusalNotice = "Can't join: the host's game has different items (another version). Both need the same build.";
+                refusalAt = Time.unscaledTime;
+                NetMenu.Notify(refusalNotice, 10f);
+                em.AddComponent<NetworkStreamRequestDisconnect>(catalogRefused);
+                catalogRefused = Entity.Null;
+            }
+            var query = CachedQueries.Get<CatalogCheckRpc, ReceiveRpcCommandRequest>(em.World);
+            if (query.IsEmpty)
+                return;
+            var ours = CatalogPrint;
+            var requests = query.ToEntityArray(Allocator.Temp);
+            foreach (var r in requests)
+            {
+                var theirs = em.GetComponentData<CatalogCheckRpc>(r).Print;
+                var connection = em.GetComponentData<ReceiveRpcCommandRequest>(r).SourceConnection;
+                if (joined && theirs != ours && em.Exists(connection))
+                {
+                    Debug.LogWarning($"WorldSync: the host's item catalog differs (host {theirs:x16}, ours {ours:x16}); leaving once in game");
+                    catalogRefused = connection;
+                }
+                else if (joined)
+                    Debug.Log($"WorldSync: the host has the same item catalog ({theirs:x16})");
                 em.DestroyEntity(r);
             }
             requests.Dispose();
@@ -450,7 +549,7 @@ namespace Punchy.Net
                 Add(b != null ? b.name : null);
                 if (b != null)
                     foreach (var f in b.Fauna)
-                        if (f.Species != null) species.Add(f.Species.name);
+                        if (f.Species != null && !f.FromHomes) species.Add(f.Species.name);
             }
             foreach (var l in palette.Landmarks ?? System.Array.Empty<LandmarkType>())
             {
@@ -468,9 +567,20 @@ namespace Punchy.Net
                     if (d.Species != null && d.Kind == (int)Punchy.Fauna.OverworldSlot.Domestic) species.Add(d.Species.name);
             foreach (var s in species)
                 Add(s);
+            // M-06: the Model Lab's species, in their index order (after the built-ins). Their Homes entries in the biomes
+            // are skipped above: they're there only once the fauna build has run, which may not have happened yet.
+            foreach (var s in Punchy.Fauna.LabSpeciesList.All())
+                Add(s != null ? "lab " + s.name : null);
             if (Avatars != null)
                 foreach (var s in Avatars.PlayableSpecies)
                     Add(s != null ? s.name : null);
+            // M-07 r2b (#260): the painted map edits this world was baked with, only when it has some (a world without
+            // edits keeps the old signature), so a client with other edits is refused like one with another seed.
+            if (source.Edits.IsCreated)
+            {
+                var c = source.Edits.Value.Content;
+                Add($"edits {c.x:X8}{c.y:X8}{c.z:X8}{c.w:X8}");
+            }
             if (TestSalt != 0 && world.IsClient())
                 Add(TestSalt.ToString());
             return hash == 0 ? 1u : hash;

@@ -88,7 +88,7 @@ namespace Punchy.Terrain
                 }
             }
             var dist = math.sqrt(best);
-            var lev = Level(dist, hw, w, Depth, h, out var weight);
+            var lev = Level(xz, dist, hw, w, Depth, h, out var weight);
             var inWater = dist < hw + 0.5f;
             var slope = drop / len;
             rapids = slope > 0.5f ? 1f : math.smoothstep(0.02f, 0.2f, slope);
@@ -100,7 +100,7 @@ namespace Punchy.Terrain
                 if (tier.Shelf || s < tier.Along - 0.5f) continue;
                 var r = math.distance(xz, tier.Pool.xz);
                 if (r > tier.PoolRadius + 40f) continue;
-                var poolLev = Level(r, tier.PoolRadius, tier.Pool.y, PoolDepth, h, out var poolWeight);
+                var poolLev = Level(xz, r, tier.PoolRadius, tier.Pool.y, PoolDepth, h, out var poolWeight);
                 if (r < tier.PoolRadius || poolWeight > weight)
                 {
                     lev = poolLev; weight = poolWeight; w = tier.Pool.y;
@@ -116,7 +116,8 @@ namespace Punchy.Terrain
                 flow = tangent * speed;
             }
             else rapids = 0f;
-            return math.lerp(h, lev, weight);
+            // W-174 r3: the shared ground-edit blend, so the gorge's banks are broken earth with talus, not a smooth ramp.
+            return GroundEdits.Apply(xz, h, lev, weight, 0.3f);
         }
 
         /// <summary>Half a scored shore stretch in 2.5 degree rays (W-81: about 30 degrees either side), and the shelf's width.</summary>
@@ -399,17 +400,21 @@ namespace Punchy.Terrain
             // The rim: at least 1.5 m above the water, easing back into the ground; never lowers a hill behind it.
             var rim = level + 1.5f * math.smoothstep(0f, 3f, outside);
             var bank = 10f + 0.5f * math.abs(h - rim);
-            var weight = 1f - math.smoothstep(0f, bank, outside);
+            // W-174 r3: the shared ground-edit band. It is full out to where the bank starts (never nearer than the
+            // basin's edge, so the rim holds the water as before), and that start wanders, so the rim is not a box.
+            var weight = GroundEdits.Band(outside, 0f, bank * 0.3f, bank, GroundEdits.EdgeNoise(xz, 1f / 20f, 5.9f));
             mask = weight * 0.5f;
-            return math.lerp(h, math.max(h, rim), weight);
+            return GroundEdits.Apply(xz, h, math.max(h, rim), weight, 0.3f);
         }
 
         /// <summary>The levelled height at distance d from a channel (or pool) of half width hw and water level w, and how strongly it replaces the ground.</summary>
-        static float Level(float d, float hw, float w, float depth, float h, out float weight)
+        static float Level(float2 xz, float d, float hw, float w, float depth, float h, out float weight)
         {
             // Banks widen with the height they make up, so a deep cut becomes a steep gorge rather than a wall.
             var bank = 8f + 0.4f * math.abs(h - (w + BankTop));
-            weight = 1f - math.smoothstep(hw, hw + bank, d);
+            // W-174 r3 (#406): the shared ground-edit band. Full weight at least out to the water's edge (more than
+            // before, so the water stays held); where the bank starts wanders, so the gorge's top edge is not a ruled line.
+            weight = GroundEdits.Band(d, hw, hw + bank * 0.25f, hw + bank, GroundEdits.EdgeNoise(xz, 1f / 25f, 11.1f));
             return d < hw ? w - depth * (1f - (d / hw) * (d / hw)) : w + BankTop * math.smoothstep(hw, hw + 3f, d);
         }
 

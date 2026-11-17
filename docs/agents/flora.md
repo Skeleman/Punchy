@@ -14,3 +14,6 @@ Read before changing plant species, rocks, props or flora forms.
 - Player collision with flora is upright cylinders pushed out on xz only (PlayerMovementSystem). A leaning shape
   (ArcSpire prongs) is a stack of short slices, `FloraModel.ColliderBase` giving each slice's start height; those
   plants only count within `ShardCollisionRange` (14 m) of the player.
+- Built kit pieces are moving to units of library parts (W-175): a part is defined once in code
+  (FloraGenerator.Parts), a unit lists its parts as data (FloraGenerator.Units, UnitDef). Stall and Smithy are
+  units so far. Read docs/agents/parts-and-units.md before adding a part or moving a form over.

@@ -22,7 +22,25 @@ namespace Punchy.Net
     [Preserve]
     public class GameBootstrap : ClientServerBootstrap
     {
-        public const ushort Port = 7979;
+        /// <summary>The game's default UDP port; the wire format is the same on any port.</summary>
+        public const ushort DefaultPort = 7979;
+
+        /// <summary>
+        /// The port this run hosts, listens and joins on: <c>-port N</c> from the launch flags (in the editor, also
+        /// Temp/PlayArgs.txt), else <see cref="DefaultPort"/>. Lets several local test pairs run side by side without
+        /// one lane's joiner landing on another lane's host. Read from the flags each time, so an editor play picks up
+        /// changed test flags. A port in the join address itself (<c>-join ip:port</c>, see TryParseAddress) wins.
+        /// </summary>
+        public static ushort Port
+        {
+            get
+            {
+                var args = Punchy.Debugging.DebugControls.LaunchArgs;
+                var at = Array.IndexOf(args, "-port");
+                return at >= 0 && at + 1 < args.Length && ushort.TryParse(args[at + 1], out var port) && port != 0
+                    ? port : DefaultPort;
+            }
+        }
 
         /// <summary>Where the local player should be put once the reloaded scene has a player (see NetMenu).</summary>
         public enum Placement { None, KeepPosition, NearHost }
@@ -46,7 +64,7 @@ namespace Punchy.Net
                 return false;
             NetworkStreamReceiveSystem.DriverConstructor = new NetDrivers.Constructor();
             var join = JoinAddressFromCommandLine();
-            if (join != null && NetworkEndpoint.TryParse(join, Port, out var endpoint))
+            if (join != null && TryParseAddress(join, out var endpoint))
             {
                 // Connect by hand: auto-connect goes by the build's play type (client and server), so it would swap
                 // the host's address for loopback.
@@ -100,6 +118,27 @@ namespace Punchy.Net
             AutoConnectPort = 0;
             CreateLocalWorld("Default World");
             ReloadScene();
+        }
+
+        /// <summary>
+        /// Parses a join address: an IPv4 address, optionally with its own port (<c>192.168.1.20:7983</c>); without
+        /// one it uses <see cref="Port"/>. NetworkEndpoint.TryParse alone takes no port in the string.
+        /// </summary>
+        public static bool TryParseAddress(string address, out NetworkEndpoint endpoint)
+        {
+            endpoint = default;
+            if (string.IsNullOrWhiteSpace(address))
+                return false;
+            address = address.Trim();
+            var port = Port;
+            var colon = address.IndexOf(':');
+            if (colon >= 0 && address.IndexOf(':', colon + 1) < 0)   // (more than one colon: left as before)
+            {
+                if (!ushort.TryParse(address.Substring(colon + 1), out port) || port == 0)
+                    return false;
+                address = address.Substring(0, colon);
+            }
+            return NetworkEndpoint.TryParse(address, port, out endpoint);
         }
 
         static string JoinAddressFromCommandLine()
@@ -217,7 +256,7 @@ namespace Punchy.Net
                 var settings = NetDrivers.Client();
                 settings.WithRelayParameters(ref relay);
                 var store = new NetworkDriverStore();
-                DefaultDriverBuilder.RegisterClientUdpDriver(client, ref store, debug.GetSingleton<NetDebug>(), settings);
+                NetDrivers.RegisterClientUdp(client, ref store, debug.GetSingleton<NetDebug>(), settings);
                 ref var driver = ref driverQuery.GetSingletonRW<NetworkStreamDriver>().ValueRW;
                 driver.ResetDriverStore(client.Unmanaged, ref store);
                 driver.Connect(em, relay.Endpoint);

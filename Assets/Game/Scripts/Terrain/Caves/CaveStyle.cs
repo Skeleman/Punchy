@@ -61,6 +61,14 @@ namespace Punchy.Terrain
         [Tooltip("W-147: the ladder pieces (a Ladder kit species, its variants by height) dug caves stand up their shafts " +
                  "and down drops in their passages. None = no ladders.")]
         public Punchy.Flora.FloraSpecies Ladder;
+        [Tooltip("W-172 row 5: the bench set against the wall of road tunnels' side chambers (those not left as camp " +
+                 "sockets). None = no benches.")]
+        public Punchy.Flora.FloraSpecies Bench;
+        [Tooltip("W-177: the mushroom species (a Mushroom flora form) that grows in clusters on Fungi wall patches, upright " +
+                 "on floors and out of the rock on walls. Drawn only, not baked. None = no clusters.")]
+        public Punchy.Flora.FloraSpecies Mushrooms;
+        [Tooltip("W-177: as Mushrooms, for the deep GlowFungi patches (a glowing species).")]
+        public Punchy.Flora.FloraSpecies GlowMushrooms;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
@@ -173,6 +181,11 @@ namespace Punchy.Terrain
         [Tooltip("How often each kind of destination chamber is picked here: crystal grotto, underground lake, bat roost, buried ruin room.")]
         public Vector4 RoomWeights = Vector4.one;
 
+        [Header("Wall details (W-172 row 7)")]
+        [Tooltip("What the rock is, for the wall details that only some rock takes: flowstone on limestone, fossils in " +
+                 "sedimentary rock (the biome above decides the rest: frost, salt, moss, fungi).")]
+        public CaveRockKind RockKind;
+
         /// <summary>The look as four vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
         {
@@ -193,6 +206,9 @@ namespace Punchy.Terrain
             table[i + 8] = new Vector4(moss.r, moss.g, moss.b, CrackBreakup);
         }
     }
+
+    /// <summary>W-172 row 7: what a cave style's rock is, for CaveWallDetails.</summary>
+    public enum CaveRockKind : byte { Plain, Limestone, Sedimentary, Ice, Volcanic, Crystal }
 
     /// <summary>Where in a cave a plant grows: by the daylight (mouths, shafts), away from it, or anywhere.</summary>
     public enum CaveLight : byte
@@ -247,6 +263,10 @@ namespace Punchy.Terrain
             foreach (var style in CaveStyleTable.Collect(types))
                 if (style.Ladder != null && !species.Contains(style.Ladder))
                     species.Add(style.Ladder);
+            // W-172 row 5: tunnel benches after those, for the same reason.
+            foreach (var style in CaveStyleTable.Collect(types))
+                if (style.Bench != null && !species.Contains(style.Bench))
+                    species.Add(style.Bench);
             return species;
         }
     }

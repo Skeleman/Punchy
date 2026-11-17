@@ -63,10 +63,44 @@ Read before changing any shader, material or render setting.
   the real-light cap (default 4/6/8 by Detail).
 - Terrain reads a whole-island glow map past the nearer glow tiers (`SurfaceGlow.World`, `PunchyGlowWorld`): fire in red, tinted
   by the night's colour, plants and lava in gba. New static lights join through `AddWorldSource`. `-worldglow 0` turns it off to compare.
+- A distant town at night (R-10): the town map (`TownMap`) on its ground and walls, plus `SurfaceGlow.FarLights` (one
+  sprite per static light, `FarPoints`) so it reads as a cluster of lights out to 3 km. The sky dome is off
+  unless `-towndome 1`; `-townglow 0` turns all three off. Far lights (R-10 row 4c) also cover burning trees, beacons,
+  lava, glowing plants and crystals: how bright each kind reads (its tier), its size, halo, haze and screen-size fade
+  are one table, `FarLightPolicy`; tune there, not in the shader. Fire points take tonight's forest-fire colour. HDR lights saturate after tonemapping, so compare strength
+  0 vs N, not two bright values. Past 1.5 km a town is a thin line a few dozen pixels wide, and ridges often hide it.
 - Rain puddles (TerrainSurface.shader) need level ground (vertex normal y > ~0.975) and a true hollow: the mesh's
   hollow depth (BuildChunkMeshJob, Strata.z) is capped by twice the lowest rise round the point, so slopes and
   downhill gullies get none. `TerrainSurface.Porosity` (vertex TEXCOORD4.x) makes sand soak rain up: it darkens,
   barely glazes, and pools only in its deepest spots.
+- Shader A/B in play (R-23): setting `material.shader` on a material Entities Graphics has registered (the terrain)
+  breaks its per-instance data, even with an exact copy; flora and impostors (RenderMeshIndirect) swap fine. Put both
+  paths in a throwaway build behind a global float instead. Cyan ground right after a shader reimport is Unity's
+  async-compile placeholder: wait until `ShaderUtil.anythingCompiling` is false before a shot.
+- `DayNightCycle.TimeOfDay` can be set back to 12 while paused (sky sync from WorldSync); set it and `Evaluate()` again
+  right before each capture and log the hour.
 - The sun's real-time shadow filter is set at run time by `Rendering/SunShadowFilter.cs` (wide at High and above, the
   Shadows setting with four cascades; the scene's own value at Medium and Low; `-sunshadowfilter scene|low|medium|high`). With the narrow filter the cascades'
   edges crawl as the sun turns (R-20, #286). Sunny day types show it; overcast ones hide it, so test under `Sunny`.
+
+## Built materials (W-166, November 2026)
+
+- One look per family, one include each in `Shaders/Materials/`: Wood, Thatch, Cloth (linen and hide), Metal, Plaster,
+  Brick, Ice, Stone (R-34's wet rock, plus built stone as cut courses or rubble) and Bone. A shader that draws a family
+  includes its file and calls it; never write your own grain, bricks or weave. `MaterialLibraryTests` fails on a
+  family drawn outside its include. The kinds (wood kinds so far) are rows of `MaterialLibrary.cs`, pushed as globals.
+  A kit part's family comes from `MaterialLibrary.FamilyOf(KitMaterial, KitSurface)`, a creature's gear from `FamilyOf(SegmentMaterial)`.
+- Flora reads the family from the bark mark (`FloraMeshBuilder.FamilyMark`): wood 0.01-0.035, strata 0.06-0.09,
+  plaster 0.10, brick 0.115, ice 0.13, built stone 0.142 (rubble 0.144), seams over 0.15. A new family needs a free slot
+  at least 0.011 from the others; the test checks.
+- Every detail fades with the pixel's footprint (`Punchy<Family>Fade(period, footprint)`: full at 8 pixels per period,
+  gone at 3) and is centred on 1, so far away a piece is its vertex colour (rules 20, 25). Inside a branch take the
+  footprint from the distance, `distance * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11)`, not from `fwidth`.
+- **Adding a kind** (a new wood, a new stone): add a row to the family's table in `MaterialLibrary.cs` (as `Wood`),
+  which `Push()` sends as globals, and pick it per culture or piece (`WoodFor`). Kinds change tone and scale, never the
+  rules, so a kind needs no shader edit. A piece drawn at its own scale (the sunken temple's 0.55 m courses) calls the
+  family with `p * k` and `footprint * k` instead of copying the pattern.
+- **Adding a family:** a new `Materials/<Family>.hlsl` with `Punchy<Family>Fade` and the look function, a
+  `MaterialFamily` value plus its `FamilyOf` cases, a free bark mark if Flora draws it, and a row in
+  `MaterialLibraryTests.Families` (what defining it by hand looks like, the call, and the shaders that must use it).
+  Upgrading a family's look later is an edit to its include only.

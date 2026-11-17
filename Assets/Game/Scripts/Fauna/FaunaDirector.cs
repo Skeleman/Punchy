@@ -71,6 +71,10 @@ namespace Punchy.Fauna
         World queryWorld, simWorld;
         /// <summary>The world that simulates animals (the server's, when hosting); null before the director is up.</summary>
         public World SimWorld => simWorld;
+
+        /// <summary>How far from every player (m, from CreatureMotion.SeenAt) an animal is let go: DespawnDistance, or
+        /// further for the huge, seen from further off; for a riding pair the larger of the two (A-119), so both go together.</summary>
+        public float LetGoRange(in CreatureState s, ref CreatureBlob b) => math.max(DespawnDistance, CreatureMotion.SeenFrom(s, ref b) + 20f);
         /// <summary>Counts the director's builds; a rebuild (terrain re-baked) destroys every animal, so dungeons refill theirs (#24).</summary>
         public int Builds { get; private set; }
         EntityQuery terrainQuery, paletteQuery, playerQuery, avatarQuery, replicaQuery, newReplicaQuery;
@@ -106,8 +110,9 @@ namespace Punchy.Fauna
         /// <summary>How many there are of each kind (wild, settled, cave), as last counted (Despawn) plus those since.</summary>
         int wildCount, settledCount, caveCount, critterCount;
 
-        /// <summary>Which count a waiting animal goes towards (Despawn's tally).</summary>
-        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake }
+        /// <summary>Which count a waiting animal goes towards (Despawn's tally). Housed: a town's household members
+        /// (A-110 row 3), with a cap of their own.</summary>
+        enum SpawnTier : byte { Wild, Settled, Cave, Critter, Lake, Housed, Dungeon }
 
         /// <summary>An animal waiting to be made: where, and what to set up on it once it exists.</summary>
         struct PendingSpawn
@@ -124,7 +129,7 @@ namespace Punchy.Fauna
         public int SpawnsPerFrame = 8;
         readonly Queue<PendingSpawn> pendingSpawns = new Queue<PendingSpawn>();
         /// <summary>How many are waiting, of each tier (counted with those already made, so the caps hold).</summary>
-        readonly int[] pendingTiers = new int[5];
+        readonly int[] pendingTiers = new int[7];
         /// <summary>Critter spots with an animal on its way.</summary>
         readonly HashSet<uint> pendingCritterSpots = new HashSet<uint>();
         EntityArchetype plainArchetype;
@@ -169,6 +174,7 @@ namespace Punchy.Fauna
             critterCells.Clear();
             pendingSpawns.Clear();
             System.Array.Clear(pendingTiers, 0, pendingTiers.Length);
+            ForgetDungeonLive();
             pendingCritterSpots.Clear();
             plainArchetype = default;
             if (simWorld != null && simWorld.IsCreated)
@@ -212,11 +218,14 @@ namespace Punchy.Fauna
             }
             settingsEntity = simClockEntity = floraEntity = Entity.Null;
             CreatureSnapshotSystem.Forget();
+            TeardownHerds();
+            DisposeBuilds();
             foreach (var b in blobs)
                 if (b.IsCreated) b.Dispose();
             blobs.Clear();
             species.Clear();
             speciesByName.Clear();
+            StripHomes();   // (M-06: the biome assets lose the Homes entries this build added.)
             occupied.Clear();
             ClearMarshPads();
             occupiedCaves.Clear();
@@ -291,8 +300,10 @@ namespace Punchy.Fauna
             var view = Camera.main;
             LampRoutes.Tick(clock.Hour, clock.Night, view != null ? (float3)view.transform.position : float3.zero);   // (A-115)
             WatchHouses(source);   // (A-105 -households: on a client too)
-            WatchKinLost(source);  // (A-106 row 3: a joined client only)
             WatchFarFolk(source);  // (A-109 row 2: the towns' far figures, on every machine)
+            ServeTownExceptions(); // (A-110 row 6: the host sends the towns' dead, a joined client applies them)
+            ServeDungeonExceptions(); // (#24 phase 2 row 3: the same for dungeon residents)
+            ServeThefts();         // (A-134 row 3: the host or solo game judges takes, every client hears thefts)
             if (simWorld == null)
                 return;
             // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in
@@ -339,7 +350,11 @@ namespace Punchy.Fauna
             {
                 nextDespawn = Time.time + 0.25f;
                 using (DespawnMarker.Auto())
+                {
                     Despawn();
+                    DespawnDungeons(); // (#24 phase 2: dungeon residents, their own tier)
+                    UpdateHerds(source);
+                }
             }
             DrainSpawns();
             UpdateRiders(source);
@@ -351,11 +366,16 @@ namespace Punchy.Fauna
                 using (ResidentsMarker.Auto())
                 {
                     SpawnResidents(source);
+                    StepOwnersOut();       // (A-134 row 4: one at home who saw a theft steps out at its door)
+                    SendMembersIn();      // (A-110 row 4: a member whose day takes it indoors goes in at its door)
+                    MembersLegs();         // (A-110 row 5: far members only follow their day, on low-rate legs)
+                    SpawnMembers(source);  // (A-110 row 3: each town household member as itself)
                     SpawnCaveDwellers(source);
                     SpawnChamberBands(source);
                     SpawnWildFolk(source);
                     SpawnCrossingFishers(source);
                     SpawnSeaVisitors(source);
+                    SpawnDungeons();       // (#24 phase 2: each dungeon's residents near a player)
                 }
             }
             using (CrittersMarker.Auto())
@@ -432,7 +452,8 @@ namespace Punchy.Fauna
                 counts = new int[size];
             System.Array.Clear(counts, 0, counts.Length);
             var far = new NativeList<Entity>(Allocator.Temp);
-            wildCount = settledCount = caveCount = critterCount = lakeCount = 0;
+            wildCount = settledCount = caveCount = critterCount = lakeCount = housedCount = 0;
+            memberLive.Clear();
             for (int i = 0; i < entities.Length; i++)
             {
                 var xz = states[i].Position.xz;
@@ -447,8 +468,9 @@ namespace Punchy.Fauna
                 }
                 // Far from everyone, or caught by a bird of prey; never one someone is carrying (wherever they go).
                 // (Huge animals seen from far off are let go only beyond that.)
-                var letGo = math.max(DespawnDistance, bodies[i].Blob.Value.SeenFrom + 20f);
-                if ((players.Count == 0 || NearestPlayer(xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
+                // (A-119: a rider and its mount let go together, from the mount's position.)
+                var letGo = LetGoRange(states[i], ref bodies[i].Blob.Value);
+                if ((players.Count == 0 || NearestPlayer(CreatureMotion.SeenAt(states[i]).xz) > letGo || states[i].Gone) && states[i].Mode != CreatureMode.Held)
                 {
                     if (states[i].Gone)
                     {
@@ -461,6 +483,12 @@ namespace Punchy.Fauna
                 // (Of its kind: lake fish their own (A-88 row 2), settled ones are leashed to a home, cave dwellers live in the dark.)
                 if (states[i].SwimAbove > 0f)
                     lakeCount++;
+                else if (states[i].Leash > 0f && TownMember(states[i].Individual))
+                {
+                    // (A-110 row 3: a town's household member, counted on its own and known to be in the world.)
+                    housedCount++;
+                    memberLive.Add(states[i].Individual);
+                }
                 else if (states[i].Leash > 0f)
                     settledCount++;
                 else if (bodies[i].Blob.Value.CaveDweller)
@@ -480,6 +508,7 @@ namespace Punchy.Fauna
             caveCount += pendingTiers[(int)SpawnTier.Cave];
             critterCount += pendingTiers[(int)SpawnTier.Critter];
             lakeCount += pendingTiers[(int)SpawnTier.Lake];
+            housedCount += pendingTiers[(int)SpawnTier.Housed];
             if (far.Length > 0)
                 em.DestroyEntity(far.AsArray());
             far.Dispose();
@@ -557,7 +586,8 @@ namespace Punchy.Fauna
                 var index = SpeciesIndex(f.Species);
                 // (Moths live round a cave's glowing plants: they come only with the cave.)
                 // (Nor a wolf, a bear or the like in a town: the guards would only be driving it off again.)
-                if (index < 0 || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
+                // (Herding species come with their baked herds, FaunaDirector.Herds, not one by one.)
+                if (index < 0 || Herding(index, source) || f.Species.Body.NearWater && !nearWater || !Suits(f.Species.Body.Habitat, depth) || f.Species.Body.DrawnToLight ||
                     f.Species.Body.DrivenOff && InTown(source, at))
                     continue;
                 var shortfall = f.Density * densityScale * areaHectares - counts[offset + index];
@@ -624,7 +654,8 @@ namespace Punchy.Fauna
             }
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
-            Init(e, speciesIndex, position, yaw);
+            Init(e, speciesIndex, OffHole(position), yaw);
+            ApplyBuild(em, e, true);
             return e;
         }
 
@@ -634,6 +665,14 @@ namespace Punchy.Fauna
         /// </summary>
         void Enqueue(int speciesIndex, float3 position, SpawnTier tier, System.Action<Entity> then = null, float yaw = float.NaN)
         {
+            // (A-135, #405: never on ground the hole mask removed, such as a goblin over a temple's entrance cut. Dropped,
+            // not moved: a dungeon resident's Pending stays set, so it isn't asked for again this session.)
+            if (built && CreatureMotion.OnHole(lastSource, position))
+            {
+                if (holeRejects++ < 3)
+                    Debug.Log($"[fauna] spawn on removed ground at ({position.x:F1}, {position.y:F1}, {position.z:F1}) ({tier}) left out");
+                return;
+            }
             pendingSpawns.Enqueue(new PendingSpawn { Species = speciesIndex, Position = position, Yaw = yaw, Tier = tier, Then = then });
             pendingTiers[(int)tier]++;
             switch (tier)
@@ -642,8 +681,34 @@ namespace Punchy.Fauna
                 case SpawnTier.Cave: caveCount++; break;
                 case SpawnTier.Critter: critterCount++; break;
                 case SpawnTier.Lake: lakeCount++; break;
+                case SpawnTier.Housed: housedCount++; break;
+                case SpawnTier.Dungeon: dungeonCount++; break;
                 default: wildCount++; break;
             }
+        }
+
+        /// <summary>A-135: spawns left out for standing on removed ground (GroundHoles), this session.</summary>
+        public int HoleRejects => holeRejects;
+        int holeRejects;
+
+        /// <summary>
+        /// A-135: a point moved off ground the hole mask removed (cave mouth, temple entrance, scarp strip) to the nearest
+        /// clear ground within 16 m, for a spawn whose caller needs the creature made; unchanged when it's clear or nothing
+        /// clear is near.
+        /// </summary>
+        float3 OffHole(float3 at)
+        {
+            if (!built || !CreatureMotion.OnHole(lastSource, at))
+                return at;
+            for (var r = 1f; r <= 16f; r += 1f)
+                for (int k = 0; k < 12; k++)
+                {
+                    var a = k * (math.PI / 6f);
+                    var xz = at.xz + new float2(math.cos(a), math.sin(a)) * r;
+                    if (!GroundHoles.Removed(lastSource, xz))
+                        return new float3(xz.x, lastSource.SampleHeight(xz), xz.y);
+                }
+            return at;
         }
 
         /// <summary>
@@ -674,6 +739,7 @@ namespace Punchy.Fauna
                 pendingTiers[(int)p.Tier]--;
                 Init(made[i], p.Species, p.Position, p.Yaw);
                 p.Then?.Invoke(made[i]);
+                ApplyBuild(em, made[i], true); // (A-124: after Then, which may settle it into a house's Individual.)
             }
             made.Dispose();
         }

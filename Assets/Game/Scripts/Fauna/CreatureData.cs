@@ -191,8 +191,11 @@ namespace Punchy.Fauna
             math.hash(new uint2(individual, (uint)trait * 2654435761u + 17u)) / (float)uint.MaxValue * 2f - 1f;
 
         /// <summary>Which option of a style group an individual shows.</summary>
+        /// <remarks>Scrambled before the modulo: individuals are odd and math.hash keeps the low bit, so with an even
+        /// option count the raw hash only ever drew every other option.</remarks>
         public static int Style(uint individual, int group, int count) =>
-            (int)(math.hash(new uint2(individual, (uint)group * 40503u + 101u)) % (uint)math.max(count, 1));
+            (int)(SpawnTable.Scramble(math.hash(new uint2(individual, (uint)group * 40503u + 101u)))
+                  % (uint)math.max(count, 1));
 
         /// <summary>An individual's hair colour (rgb), or the segment's own if the species has none.</summary>
         public float4 HairColor(uint individual, float4 fallback) =>
@@ -282,14 +285,15 @@ namespace Punchy.Fauna
         /// <summary>A sprinting leg's sweep, longer than its run's by this share (a gallop's more).</summary>
         public float SprintStride => Gallops ? 0.6f : 0.35f;
 
-        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride.</summary>
-        public float3 LegAngles(int segment, float p, float move, float run, float sprint)
+        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride and (A-124 row 2) the
+        /// person's own (GaitStyle.LegStride: both scale the swing about the rest pose).</summary>
+        public float3 LegAngles(int segment, float p, float move, float run, float sprint, float stride = 1f)
         {
             var a = Angles(segment, p, move, run);
-            if (sprint <= 0f)
+            if (sprint <= 0f && stride == 1f)
                 return a;
             var idle = Poses[segment * PoseCount + Idle];
-            return idle + (a - idle) * (1f + SprintStride * sprint);
+            return idle + (a - idle) * ((1f + SprintStride * math.max(sprint, 0f)) * stride);
         }
 
         public float3 Angles(int segment, float p, float move, float run)
@@ -334,6 +338,9 @@ namespace Punchy.Fauna
         public float JointPhaseStep;
         /// <summary>Segments bend to lie on the ground.</summary>
         public bool FollowGround;
+        /// <summary>A-127: clothing over a leg (a robe's panels). Each segment is drawn where the same segment of the
+        /// body's leg on its side is (CreatureAnimator.FollowLegs), so the leg can't poke through it.</summary>
+        public bool FollowsLeg;
         /// <summary>Style option group (0 = always shown), this part's option in it, and how many options it has.</summary>
         public int StyleGroup, StyleIndex, StyleCount;
         /// <summary>A leg's give: how much further its hip-to-ankle span can stretch beyond the standing pose (m, at
@@ -559,9 +566,180 @@ namespace Punchy.Fauna
     public static class CreatureWorn
     {
         public const byte Hat = 1, Pack = 2;
-        /// <summary>A-103 row 5: a player's eyewear (Eyewear): a small dark pair of glasses, or chunky glow goggles. Eyes
-        /// is both, the bits NetAvatars owns (Items' gear keeps them).</summary>
-        public const byte Glasses = 4, Goggles = 8, Eyes = Glasses | Goggles;
+    }
+
+    /// <summary>How the body draws a player's weapon (P-28; the item table's ItemDef.Weapon). 0 for none.</summary>
+    public static class CreatureWeapon
+    {
+        public const byte None = 0, Club = 1, Spear = 2, Sword = 3, Bow = 4;
+        /// <summary>Item row (Zach 11-10, never idle): a one-handed axe.</summary>
+        public const byte Axe = 5;
+        /// <summary>Item row: a one-handed war hammer.</summary>
+        public const byte Hammer = 6;
+        /// <summary>P-33: a fishing rod (cast, not swung; the line and bobber are drawn by Items).</summary>
+        public const byte Rod = 7;
+        /// <summary>Item row: a pickaxe, a miner's tool (a point one side, a flat adze the other), swung like an axe.</summary>
+        public const byte Pickaxe = 8;
+        /// <summary>Item row: a shovel, a digger's tool (a long haft, a T grip, a flat iron blade), swung like a club.</summary>
+        public const byte Shovel = 9;
+
+        // Zach 11-12, one item system: how the body draws everything else that goes in a hand, folk's and players' alike
+        // (ItemDef.Weapon is a hand look, not only a weapon's). Append only.
+        /// <summary>An ogre's great club; a goblin's scrap shield (on the forearm).</summary>
+        public const byte GreatClub = 10, Shield = 11;
+        /// <summary>Lights: a lantern hanging from the hand, a torch held up (its flame the world's).</summary>
+        public const byte Lantern = 12, Torch = 13;
+        /// <summary>A traveller's walking staff.</summary>
+        public const byte Staff = 14;
+        /// <summary>Workers' tools: a farmer's hoe, a broom, a smith's hammer, tongs, a bucket.</summary>
+        public const byte Hoe = 15, Broom = 16, SmithHammer = 17, Tongs = 18, Bucket = 19;
+        /// <summary>Carried things: a rolled letter, a sack of ore in both arms, a healer's bowl, a trader's jar or fruit,
+        /// a lump of dough, a child's stick or stone, a loaf.</summary>
+        public const byte Letter = 20, OreSack = 21, Bowl = 22, Jar = 23, Fruit = 24, Dough = 25, Stick = 26, Stone = 27, Loaf = 28;
+    }
+
+    /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,
+    /// then 1..255 through one swing (raised, then brought down; a bow drawn, then loosed).</summary>
+    public struct CreatureOutfit : System.IEquatable<CreatureOutfit>
+    {
+        public byte Weapon, Swing;
+        /// <summary>P-28 row 2: the armour on, place by place (CreatureArmour; 0 for none).</summary>
+        public byte Head, Body, Legs, Feet;
+        /// <summary>P-28 row 3: a cloak on the back, a scarf at the neck (CreatureArmour; 0 for none).</summary>
+        public byte Back, Neck;
+        /// <summary>P-29: the hairstyle and its colour (CreatureHair; style 0 for none).</summary>
+        public byte Hair, HairColour;
+        /// <summary>P-29: a player's body that wears gear: its hair is Hair / HairColour (bald included), drawn in place of
+        /// the species' own hair parts, which are hidden. False for folk, who keep their species' hair.</summary>
+        public bool OwnHair;
+        /// <summary>Zach 11-12: what's in the left hand (a CreatureWeapon hand look; 0 for nothing). Weapon is the right's:
+        /// there's no off hand, anything held goes in either.</summary>
+        public byte LeftHand;
+        /// <summary>Zach 11-12 row 4: a player's hand item put away or on its way there or back (ItemTable id + 1; 0 for
+        /// none), and how far into its sheath it is: 255 all the way, 0 in hand, between through the half-second Draw and
+        /// Sheathe (from 128 on, it's worn, not held: Weapon is then None).</summary>
+        public byte Kept, Stow;
+        /// <summary>Zach 11-12: a player's CreatureState.Held (a torch, a staff, a lantern) is in its left hand, not its
+        /// right.</summary>
+        public bool HeldLeft;
+        /// <summary>Zach 11-12: the left hand's swing (as Swing is the right's: 0 at rest, then 1..255), and which hands
+        /// are raised to block (bit 0 the right, bit 1 the left; a two-handed thing is the right's).</summary>
+        public byte LeftSwing, Block;
+
+        public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
+
+        /// <summary>Which arm holds the body's CreatureState.Held (+1 the right, -1 the left: LimbPart.Side): one of the
+        /// folk's lantern in its left and anything else in its right; a player's where it put it (HeldLeft).</summary>
+        public static float HeldSide(in CreatureState s) =>
+            s.Mode == CreatureMode.Puppet ? (s.Outfit.HeldLeft ? -1f : 1f) : s.Held == HeldItem.Lantern ? -1f : 1f;
+
+        public bool Equals(CreatureOutfit o) =>
+            Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && LeftHand == o.LeftHand &&
+            Kept == o.Kept && Stow == o.Stow && HeldLeft == o.HeldLeft && LeftSwing == o.LeftSwing && Block == o.Block;
+    }
+
+    /// <summary>
+    /// Hairstyles and hair colours (P-29), as CreatureOutfit.Hair and HairColour carry them: a player's pick on the
+    /// Character tab, saved and sent like gear. Ids only ever grow (a saved pick and a joined player's must keep meaning
+    /// the same style). Style 0 is none, a bald head.
+    /// </summary>
+    public static class CreatureHair
+    {
+        public const byte Bald = 0, Short = 1, Long = 2, Braid = 3, Ponytail = 4, Topknot = 5, Curls = 6, Crest = 7,
+                          ShortBeard = 8, LongBeard = 9, LongAndBeard = 10, TopknotBeard = 11;
+        public static readonly string[] Names =
+            { "Bald", "Short", "Long", "Braid", "Ponytail", "Topknot", "Curls", "Crest", "Short, beard", "Long beard", "Long, beard", "Topknot, beard" };
+        public static readonly string[] ColourNames = { "Black", "Dark brown", "Brown", "Auburn", "Ginger", "Fair", "Grey", "White" };
+        public const byte DefaultStyle = Short, DefaultColour = 1;
+
+        /// <summary>Whether a style has hair on the scalp, and a beard.</summary>
+        public static bool Scalp(byte style) => style != Bald && style != LongBeard;
+        public static bool Beard(byte style) => style >= ShortBeard && style <= TopknotBeard;
+
+        /// <summary>A colour, linear as the shader takes it.</summary>
+        public static Unity.Mathematics.float4 Colour(byte colour) => colour switch
+        {
+            0 => new Unity.Mathematics.float4(0.012f, 0.011f, 0.01f, 0f),    // black
+            1 => new Unity.Mathematics.float4(0.035f, 0.02f, 0.012f, 0f),    // dark brown
+            2 => new Unity.Mathematics.float4(0.09f, 0.05f, 0.025f, 0f),     // brown
+            3 => new Unity.Mathematics.float4(0.16f, 0.045f, 0.02f, 0f),     // auburn
+            4 => new Unity.Mathematics.float4(0.35f, 0.11f, 0.03f, 0f),      // ginger
+            5 => new Unity.Mathematics.float4(0.5f, 0.36f, 0.16f, 0f),       // fair
+            6 => new Unity.Mathematics.float4(0.25f, 0.24f, 0.23f, 0f),      // grey
+            _ => new Unity.Mathematics.float4(0.62f, 0.61f, 0.58f, 0f),      // white
+        };
+    }
+
+    /// <summary>How the body draws a player's armour (P-28 row 2; the item table's ItemDef.Look), by place.</summary>
+    public static class CreatureArmour
+    {
+        public const byte Cap = 1, Helm = 2, Hood = 3, Woolcap = 4, Brimhat = 5;
+        public const byte Jerkin = 1, Chain = 2, Tunic = 3, Robe = 4;
+        public const byte Greaves = 1;
+        public const byte Boots = 1;
+        public const byte Cloak = 1;
+        public const byte Scarf = 1;
+        // Zach 11-12, one item system: what guards and workers wear, as items (append only, by place).
+        /// <summary>Head: guards' helmets by folk (a human's kettle hat, a dwarf's horned helm, an elf's crested helm, a
+        /// goblin's dented pot, an ogre's beast skull), a baker's cap, a straw hat, a fisher's hat, smoked goggles.</summary>
+        public const byte KettleHat = 6, HornedHelm = 7, CrestedHelm = 8, PotHelm = 9, SkullHelm = 10, BakerCap = 11, StrawHat = 12, FisherHat = 13, Goggles = 14;
+        /// <summary>P-38 row 3 (A-103 row 5 as items): a small dark pair of glasses (bat eyes see normally), chunky glow
+        /// goggles (any other eyes see as a bat's). Eyewear says which a body wants.</summary>
+        public const byte Glasses = 15, GlowGoggles = 16;
+        /// <summary>Whether this head look sits over the eyes and leaves the head's hair showing.</summary>
+        public static bool OverEyes(byte head) => head == Goggles || head == Glasses || head == GlowGoggles;
+        /// <summary>Body: a guard's breastplate (with shoulder pads), a leather cuirass (with leather pads), an apron down
+        /// the front: plain cloth (a stallholder's), leather (a smith's), floury white (a baker's).</summary>
+        public const byte Breastplate = 5, Cuirass = 6, Apron = 7, LeatherApron = 8, BakerApron = 9;
+        /// <summary>Back: an ogre's hide cape, a healer's satchel.</summary>
+        public const byte HideCape = 2, Satchel = 3;
+        /// <summary>Neck: a guard's sash, from the shoulder across to the other hip, in its town's colour.</summary>
+        public const byte Sash = 2;
+
+        /// <summary>Cloth (row 3) is dyed by the wearer's folk: its main colour and its trim, linear, by GuardKit.</summary>
+        public static Unity.Mathematics.float4 ClothMain(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => new Unity.Mathematics.float4(0.1f, 0.16f, 0.05f, 0f),    // moss
+            GuardKit.Elf => new Unity.Mathematics.float4(0.04f, 0.2f, 0.16f, 0f),      // teal
+            GuardKit.Goblin => new Unity.Mathematics.float4(0.2f, 0.15f, 0.04f, 0f),   // mustard
+            GuardKit.Ogre => new Unity.Mathematics.float4(0.15f, 0.06f, 0.12f, 0f),    // plum
+            _ => new Unity.Mathematics.float4(0.32f, 0.06f, 0.04f, 0f),                // madder red
+        };
+
+        public static Unity.Mathematics.float4 ClothTrim(GuardKit kit) => kit switch
+        {
+            GuardKit.Dwarf => new Unity.Mathematics.float4(0.35f, 0.2f, 0.05f, 0f),
+            GuardKit.Elf => new Unity.Mathematics.float4(0.6f, 0.6f, 0.52f, 0f),
+            GuardKit.Goblin => new Unity.Mathematics.float4(0.07f, 0.045f, 0.025f, 0f),
+            GuardKit.Ogre => new Unity.Mathematics.float4(0.25f, 0.19f, 0.1f, 0f),
+            _ => new Unity.Mathematics.float4(0.55f, 0.42f, 0.18f, 0f),
+        };
+    }
+
+    /// <summary>
+    /// What one of the folk has on it and about it (Zach 11-12, one item system): items from the item table (ItemTable)
+    /// in its hand and its other hand, its weapon or tool sheathed (on the back or at the hip, by its length:
+    /// ItemSheaths.OnBack), what it wears by place, and a bag of four. Each slot holds the item's id + 1, so 0 (as a
+    /// beast's or a new body's) is nothing. The host fills it (FolkKitSystem); clients get it with the creature.
+    /// </summary>
+    public struct FolkKit : System.IEquatable<FolkKit>
+    {
+        public ushort Hand, LeftHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
+        /// <summary>Zach 11-12 row 5: what stands at its post while it works there (a kneading table and a loaf, the well's
+        /// rope and bucket, the hot iron, a chopping block and log), drawn by the Gear pass.</summary>
+        public ushort Post0, Post1;
+
+        /// <summary>A slot's value for an item (its id + 1: the catalog id, as ItemStack.Item), and the item in a slot (-1
+        /// for nothing). Ushort since P-35 r3 row 4, with the same values.</summary>
+        public static ushort Of(int item) => (ushort)(item + 1);
+        public static int Item(ushort slot) => slot - 1;
+
+        public bool Empty => (Hand | LeftHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3 | Post0 | Post1) == 0;
+
+        public bool Equals(FolkKit o) =>
+            Hand == o.Hand && LeftHand == o.LeftHand && Sheath == o.Sheath && Head == o.Head && Body == o.Body && Back == o.Back && Neck == o.Neck &&
+            Bag0 == o.Bag0 && Bag1 == o.Bag1 && Bag2 == o.Bag2 && Bag3 == o.Bag3 && Post0 == o.Post0 && Post1 == o.Post1;
     }
 
     public enum HeldItem : byte
@@ -591,10 +769,7 @@ namespace Punchy.Fauna
         /// <summary>A rolled message: on a messenger bird's leg, then in the hands of the one who took it, reading it.</summary>
         Letter,
         /// <summary>A chunk of honeycomb a raiding bear knocked down, on the ground at its nose while it licks at it.</summary>
-        Honey,
-        /// <summary>Smoked goggles over the eyes (bat folk on the surface by day, #35): worn, not held, so the light
-        /// doesn't make it cover its face.</summary>
-        Goggles
+        Honey
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>
@@ -748,13 +923,20 @@ namespace Punchy.Fauna
         /// <summary>The cave it roosts in (-1 = none), and the passage node its roost is at.</summary>
         public short LairCave, LairNode;
         /// <summary>Who is petting or carrying it, or what it rides (A-104). Positive: its holder (Interactions.HolderId).
-        /// Negative: it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world, which has no
-        /// ghosts). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
+        /// Negative: in Mode Ride, it is riding, and this is minus the mount's ghost id (Riding.SoloMount in a solo world,
+        /// which has no ghosts); in Mode Held or Petted, one of the folk has it, and this is minus that folk's ghost id
+        /// (Interactions.FolkHolder; A-120). 0 = neither. Read it through Riding.Mount/Dismount rather than by hand.</summary>
         public int Holder;
         /// <summary>What it has in hand (folk: a lantern at night). Replicated; each machine draws it.</summary>
         public HeldItem Held;
         /// <summary>What a player's body has on besides (CreatureWorn bits, P-23). Not sent: each machine sets it (Items.ApplyGear).</summary>
         public byte Worn;
+        /// <summary>What a player's body has on besides that (P-28): its weapon and where it is in a swing. Not sent:
+        /// each machine sets it (Items.ApplyGear).</summary>
+        public CreatureOutfit Outfit;
+        /// <summary>Zach 11-12: what one of the folk has on it and about it, as items (FolkKit). The host's: FolkKitSystem
+        /// fills it; replicated (CreatureNet). Empty for players (theirs is Items') and beasts.</summary>
+        public FolkKit Kit;
 
         /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
         /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>
@@ -762,6 +944,11 @@ namespace Punchy.Fauna
         /// <summary>Half the width of what this player's body carries in its arms (m; 0 for nothing): local, set each
         /// frame on every machine by HeldPoseSystem from the creature carried, so the arms open round it. Not sent.</summary>
         public float CarryWidth;
+        /// <summary>A-119 (#339): the ride it is part of, rider or mount (RidePair; Size 0 = none), as last seated: every
+        /// detail, think-rate, trace and let-go decision reads it, so the pair steps together. Local, never sent.</summary>
+        public RidePair Pair;
+        /// <summary>A-119: the pair written by this frame's seating (Riding.Pair), Pair from the next (RidePairSystem).</summary>
+        public RidePair PairNext;
     }
 
     /// <summary>
@@ -822,6 +1009,13 @@ namespace Punchy.Fauna
         /// the spot to the side it heads for, and how long it keeps to it (s) before making for the player again.</summary>
         public float2 FollowDetour;
         public float FollowDetourTime;
+        /// <summary>A-110 row 5, a town household member far from every player: 1 while it only follows its Whereabouts
+        /// (CreatureBrainSystem.Legs) instead of thinking; where its day has it (LegsAt, at the creature's Clock LegsSet),
+        /// how fast that spot moves (m/s) and which way it faces at rest. Set by FaunaDirector.MembersLegs, cleared by
+        /// the brain when it wakes. Host only, never sent.</summary>
+        public byte Legs;
+        public float2 LegsAt, LegsVel, LegsFace;
+        public float LegsSet;
     }
 
     /// <summary>The need cue a creature shows (CreatureState.Cue), strongest need first.</summary>
@@ -943,16 +1137,40 @@ namespace Punchy.Fauna
         }
 
         /// <summary>
+        /// M-06 row 4: what each segment of a species is made of (a SegmentMaterial, W-166 library family), in the same
+        /// order as <see cref="Looks"/> (segment 0 is the body). All Body (0) for a species that sets none. Kept off the
+        /// creature blob like the looks, so it never moves the fauna fingerprint.
+        /// </summary>
+        public static byte[] Materials(CreatureSpecies variant)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
+            var count = 1;
+            foreach (var p in parts)
+                count += p.Slot.Limb.Segments.Count;
+            var materials = new byte[count];
+            materials[0] = (byte)species.BodyMaterial;
+            var cursor = 1;
+            foreach (var p in parts)
+                foreach (var seg in p.Slot.Limb.Segments)
+                    materials[cursor++] = (byte)seg.Material;
+            return materials;
+        }
+
+        /// <summary>
         /// Builds a species. A variant takes its body, parts, gait and behaviour from the species it is a variant
         /// of, and only its own colours and size.
         /// </summary>
         /// <param name="prey">Indices of the species it hunts.</param>
         /// <param name="hunted">Whether any species hunts it.</param>
         /// <param name="regard">Folk only: its regard for each species (by index), and its kinship (FolkKin).</param>
+        /// <param name="build">A-124: one individual's build (BodyBuilds.Of); null for the species' own. The species' own
+        /// multiplies by exactly 1, so the shared blobs (and the fauna fingerprint) bake byte for byte as before.</param>
         public static BlobAssetReference<CreatureBlob> Build(CreatureSpecies variant, IReadOnlyList<int> prey = null, bool hunted = false,
                                                              IReadOnlyList<float> regard = null, IReadOnlyList<byte> kinship = null,
-                                                             Vector2? home = null)
+                                                             Vector2? home = null, BodyBuild? build = null)
         {
+            var bb = build ?? BodyBuild.Own;
             var species = variant.Body;
             var parts = Expand(species);
             // M-05: the Model Lab's adjustments for this species (null: none). Every multiplier defaults to 1 and is
@@ -977,9 +1195,9 @@ namespace Punchy.Fauna
             root.LeapingRun = species.Gallop == GallopStyle.Leap;
             // A variant's own proportions (a child's big head, chunky limbs and short legs) on the body it's based on.
             var own = variant != species;
-            var headScale = (own ? variant.VariantHead : 1f) * (tune?.Head ?? 1f);
-            var thickness = (own ? variant.VariantThickness : 1f) * (tune?.Thickness ?? 1f);
-            var legScale = (own ? variant.VariantLegs : 1f) * (tune?.Legs ?? 1f);
+            var headScale = (own ? variant.VariantHead : 1f) * (tune?.Head ?? 1f) * bb.Head;
+            var thickness = (own ? variant.VariantThickness : 1f) * (tune?.Thickness ?? 1f) * bb.Girth;
+            var legScale = (own ? variant.VariantLegs : 1f) * (tune?.Legs ?? 1f) * bb.Limbs;
             root.FrontRadius = species.BodyRadius * thickness;
             root.RearRadius = species.BodyRadius * species.BodyTaper * thickness;
             root.BodyFlatten = species.BodyFlatten;
@@ -1108,6 +1326,12 @@ namespace Punchy.Fauna
             var cursor = 1;
             // (Whether each part is the head or on it: those all take the head's scale, sockets on it too.)
             var onHead = new bool[parts.Count];
+            // (A-124: an upright body's shoulders are the top of the part its arms hang from; the build widens it there.)
+            var shoulders = new bool[parts.Count];
+            if (root.Upright && bb.Shoulders != 1f)
+                for (int i = 0; i < parts.Count; i++)
+                    if (parts[i].Slot.Limb.Role == LimbRole.Arm && parts[i].Parent >= 0 && parts[parts[i].Parent].Slot.Limb.Role == LimbRole.Feature)
+                        shoulders[parts[i].Parent] = true;
             for (int i = 0; i < parts.Count; i++)
             {
                 var e = parts[i];
@@ -1119,7 +1343,8 @@ namespace Punchy.Fauna
                 if (e.Parent >= 0 && onHead[e.Parent])
                     socket *= headScale;
                 var lengthScale = onHead[i] ? headScale : limb.Role == LimbRole.Leg ? legScale
-                                : limb.Role == LimbRole.Neck ? neckScale : limb.Role == LimbRole.Tail ? tailScale : 1f;
+                                : limb.Role == LimbRole.Neck ? neckScale : limb.Role == LimbRole.Tail ? tailScale
+                                : limb.Role == LimbRole.Arm ? bb.Limbs : 1f;
                 var radiusScale = onHead[i] ? headScale : thickness;
                 // (The head's own neck, before its last segment, only thickens: a big head, not a long neck.)
                 var neck = limb.Role == LimbRole.Head ? limb.Segments.Count - 1 : 0;
@@ -1131,7 +1356,7 @@ namespace Punchy.Fauna
                 }
                 var dir = (float3)slot.Direction;
                 if (root.Upright && limb.Role == LimbRole.Arm && e.Parent >= 0 && parts[e.Parent].Slot.Limb.Role == LimbRole.Feature)
-                    FitShoulder(segArray, partArray[e.Parent], limb, slot.Scale * slot.Thickness * radiusScale, slot.Scale,
+                    FitShoulder(segArray, partArray[e.Parent], limb, slot.Scale * slot.Thickness * radiusScale, slot.Scale * lengthScale,
                                 ref socket, ref dir);
                 socket.x *= side;
                 partArray[i] = new CreaturePart
@@ -1146,6 +1371,7 @@ namespace Punchy.Fauna
                     Spring = limb.Spring,
                     JointPhaseStep = limb.JointPhaseStep,
                     FollowGround = limb.FollowGround,
+                    FollowsLeg = limb.FollowsLeg,
                     Side = side,
                     StyleGroup = slot.StyleGroup,
                     StyleIndex = StyleIndex(species, e.SlotIndex),
@@ -1160,7 +1386,8 @@ namespace Punchy.Fauna
                     {
                         Length = seg.Length * slot.Scale * (s < neck ? 1f : lengthScale),
                         RadiusStart = seg.RadiusStart * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
-                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale),
+                        RadiusEnd = seg.RadiusEnd * slot.Scale * slot.Thickness * (s < neck ? thickness : radiusScale)
+                                  * (shoulders[i] && s == limb.Segments.Count - 1 ? bb.Shoulders : 1f),
                         Flatten = seg.Flatten,
                         Accent = seg.Accent,
                         Fixed = seg.UseFixedColor ? 1 : 0,

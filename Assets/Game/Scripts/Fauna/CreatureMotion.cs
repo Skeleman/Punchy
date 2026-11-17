@@ -30,13 +30,32 @@ namespace Punchy.Fauna
         /// How big a creature is for the detail rules (refactor 3.7, Settings.DetailPolicy), rendering and simulation
         /// alike: its largest extent (body length or girth, by its scale), and for the huge at least what its SeenFrom
         /// implies (seen from that far as a deer is from VisibleFrom: tall, thin or winged bodies whose length
-        /// undersells them).
+        /// undersells them). A-119: a rider and its mount are one size, the pair's (CreatureState.Pair), so neither
+        /// loses detail, thinks slower or is let go before the other.
         /// </summary>
         public static float ApparentSize(in CreatureState s, ref CreatureBlob b)
+            => math.max(OwnSize(s.Scale, ref b), s.Pair.Size);
+
+        /// <summary>ApparentSize on its own, ridden or not.</summary>
+        public static float OwnSize(float scale, ref CreatureBlob b)
         {
-            var size = math.max(b.BodyLength, 2f * math.max(b.RearRadius, b.FrontRadius)) * math.max(s.Scale, 0.01f);
+            var size = math.max(b.BodyLength, 2f * math.max(b.RearRadius, b.FrontRadius)) * math.max(scale, 0.01f);
             return math.max(size, DeerLength * b.SeenFrom / VisibleFrom);
         }
+
+        /// <summary>A-119: where its distance is measured from for the detail rules: the mount's position for both of a
+        /// riding pair (so they cross every threshold together), else its own.</summary>
+        public static float3 SeenAt(in CreatureState s) => s.Pair.Size > 0f ? s.Pair.At : s.Position;
+
+        /// <summary>A-119: how far off it is drawn and kept about (its SeenFrom, or its pair's when that's further).</summary>
+        public static float SeenFrom(in CreatureState s, ref CreatureBlob b) => math.max(b.SeenFrom, s.Pair.Reach);
+
+        /// <summary>A-119: how fast it moves for the detail rules (a rider sits still: its mount's speed).</summary>
+        public static float SeenSpeed(in CreatureState s) => s.Pair.Size > 0f ? s.Pair.Speed : s.Speed;
+
+        /// <summary>A-119: how tall a body stands (m): legs, then an upright body's trunk or a beast's girth, by its scale.</summary>
+        public static float Height(ref CreatureBlob b, float scale)
+            => (b.StandHeight + (b.Upright ? b.BodyLength : 2f * math.max(b.RearRadius, b.FrontRadius) * b.BodyFlatten)) * math.max(scale, 0.01f);
 
         /// <summary>
         /// Whether a flying bird is beating its wings rather than gliding: always for small birds; soaring birds flap
@@ -92,7 +111,9 @@ namespace Punchy.Fauna
             var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), s.GaitSpeed);
             var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
             var sprint = b.Sprint(s, s.GaitSpeed);
-            var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + b.SprintStride * sprint);
+            // (A-124 row 2: the person's own stride, posed as the animator poses it.)
+            var gait = GaitStyle.Of(ref b, s.Individual);
+            var stride = math.lerp(b.WalkStride, b.RunStride, run) * (1f + b.SprintStride * sprint) * gait.Stride;
             var sweep = 0f;
             var planted = 0;
             for (int i = 0; i < b.Parts.Length; i++)
@@ -108,7 +129,8 @@ namespace Punchy.Fauna
                 // (The body rocks fore and aft as it runs (RunRock), swinging the planted foot with it: included.)
                 var rock0 = b.RunRock * run * move * math.sin(2f * math.PI * (s.Phase + p0 - p));
                 var rock1 = b.RunRock * run * move * math.sin(2f * math.PI * (s.Phase + p1 - p));
-                sweep += (FootZ(ref b, ref part, p0, move, run, sprint, rock0) - FootZ(ref b, ref part, p1, move, run, sprint, rock1)) / (p1 - p0);
+                var legStride = gait.LegStride(ref part, run);
+                sweep += (FootZ(ref b, ref part, p0, move, run, sprint, rock0, legStride) - FootZ(ref b, ref part, p1, move, run, sprint, rock1, legStride)) / (p1 - p0);
                 planted++;
             }
             // (None planted, as in a run's flight: the stride's average pace. Feet barely sweeping, just setting off with
@@ -127,22 +149,24 @@ namespace Punchy.Fauna
         /// Where a leg's foot is in the body's frame (unscaled; x right, z forward) at a point of its cycle, posed as the
         /// animator poses it for this speed.
         /// </summary>
-        public static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed) => FootAt(ref b, ref part, p, speed, b.Sprint(speed));
+        public static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed) => FootAt(ref b, ref part, p, speed, b.Sprint(speed), GaitStyle.Plain);
 
         /// <summary>FootAt for this creature as it is now (its Sprint can depend on what it's doing: a chase's gallop).</summary>
         public static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, in CreatureState s) =>
-            FootAt(ref b, ref part, p, s.GaitSpeed, b.Sprint(s, s.GaitSpeed));
+            FootAt(ref b, ref part, p, s.GaitSpeed, b.Sprint(s, s.GaitSpeed), GaitStyle.Of(ref b, s.Individual));
 
-        static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed, float sprint)
+        /// <param name="gait">The person's way of walking (A-124 row 2), posing the legs as the animator does.</param>
+        static float3 FootAt(ref CreatureBlob b, ref CreaturePart part, float p, float speed, float sprint, in GaitStyle gait)
         {
             var move = math.smoothstep(0.03f, math.max(0.3f * b.WalkSpeed, 0.05f), speed);
             var run = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), speed);
+            var legStride = gait.LegStride(ref part, run);
             var pos = part.Socket;
             var rot = part.Rest;
             for (int j = 0; j < part.SegmentCount; j++)
             {
                 var seg = part.FirstSegment + j;
-                rot = math.mul(rot, quaternion.EulerZXY(b.LegAngles(seg, math.frac(p - j * part.JointPhaseStep), move, run, sprint)));
+                rot = math.mul(rot, quaternion.EulerZXY(b.LegAngles(seg, math.frac(p - j * part.JointPhaseStep), move, run, sprint, legStride)));
                 pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length));
             }
             return pos;
@@ -150,16 +174,16 @@ namespace Punchy.Fauna
 
         /// <summary>
         /// How far forward a leg's foot is (unscaled) at a point in its cycle, with the body pitched by rock (radians,
-        /// nose up as the animator pitches it).
+        /// nose up as the animator pitches it), and the leg's swing scaled by legStride (GaitStyle.LegStride).
         /// </summary>
-        static float FootZ(ref CreatureBlob b, ref CreaturePart part, float p, float move, float run, float sprint, float rock)
+        static float FootZ(ref CreatureBlob b, ref CreaturePart part, float p, float move, float run, float sprint, float rock, float legStride)
         {
             var pos = part.Socket;
             var rot = part.Rest;
             for (int j = 0; j < part.SegmentCount; j++)
             {
                 var seg = part.FirstSegment + j;
-                rot = math.mul(rot, quaternion.EulerZXY(b.LegAngles(seg, math.frac(p - j * part.JointPhaseStep), move, run, sprint)));
+                rot = math.mul(rot, quaternion.EulerZXY(b.LegAngles(seg, math.frac(p - j * part.JointPhaseStep), move, run, sprint, legStride)));
                 pos += math.mul(rot, new float3(0f, 0f, b.Segments[seg].Length));
             }
             return math.mul(quaternion.RotateX(rock), pos).z;
@@ -228,6 +252,7 @@ namespace Punchy.Fauna
             float run0 = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), before),
                   run1 = math.smoothstep(b.WalkSpeed * 1.1f, math.max(b.WalkSpeed * 1.2f, b.RunSpeed * 0.7f), s.GaitSpeed);
             float sprint0 = b.Sprint(s, before), sprint1 = b.Sprint(s, s.GaitSpeed);
+            var gait = GaitStyle.Of(ref b, s.Individual);
             var shift = 0f;
             var planted = 0;
             for (int i = 0; i < b.Parts.Length; i++)
@@ -238,7 +263,7 @@ namespace Punchy.Fauna
                 var p = math.frac(s.Phase + b.LegPhase(ref part, sprint1));
                 if (p < 0.03f || p > 0.47f)
                     continue;   // swinging, or just touching down or lifting off
-                shift += FootZ(ref b, ref part, p, move1, run1, sprint1, 0f) - FootZ(ref b, ref part, p, move0, run0, sprint0, 0f);
+                shift += FootZ(ref b, ref part, p, move1, run1, sprint1, 0f, gait.LegStride(ref part, run1)) - FootZ(ref b, ref part, p, move0, run0, sprint0, 0f, gait.LegStride(ref part, run0));
                 planted++;
             }
             if (planted == 0 || shift <= 0f)
@@ -278,10 +303,20 @@ namespace Punchy.Fauna
         public static float Ground(in TerrainSource terrain, float2 xz, float y)
         {
             var surface = terrain.SampleHeight(xz);
+            // (Only a cave mouth has a carved floor under its hole. A temple entrance or scarp strip (GroundHoles) has none
+            // here: Solid stops a creature at its edge as a lip, and spawns keep off it (OnHole).)
             if (!terrain.Caves.IsCreated || !CaveSampling.NearColumn(ref terrain.Caves.Value, xz) || terrain.MouthCut(xz, surface) >= 0f)
                 return surface;
             return terrain.FloorUnder(new float3(xz.x, math.max(y, surface - 2f), xz.y), out _);
         }
+
+        /// <summary>
+        /// A-135 (#405): whether a point is on ground the hole mask removed (a cave mouth, a temple entrance or a scarp
+        /// strip, GroundHoles.Removed) at about surface height, so nothing is there to stand on. Well below the surface (in
+        /// a cave or a temple) isn't on it.
+        /// </summary>
+        public static bool OnHole(in TerrainSource terrain, float3 at) =>
+            at.y > terrain.SampleHeight(at.xz) - 1f && GroundHoles.Removed(terrain, at.xz);
 
         /// <summary>
         /// Whether a land animal's body at xz (feet at feetY, facing forward) would be in a solid the player is kept out of:
@@ -334,7 +369,15 @@ namespace Punchy.Fauna
                 sink = rockSink;
             // (The lip of an entrance: a shallow scoop is walked into, a pit isn't stepped off.)
             var surface = terrain.SampleHeight(nose);
-            if (!hit && terrain.MouthCut(nose, surface) < 0f && noseGround < feetY - math.max(0.5f, height))
+            var mouth = terrain.MouthCut(nose, surface) < 0f;
+            if (!hit && mouth && noseGround < feetY - math.max(0.5f, height))
+            {
+                hit = true;
+                kind = SolidKind.Lip;
+            }
+            // (A-135: a temple entrance or scarp strip has no floor under its hole, so from surface height it is a drop,
+            // never walked onto. Down inside the temple it is the roof's business, not the feet's.)
+            else if (!hit && !mouth && feetY > surface - 1f && GroundHoles.Removed(terrain, nose))
             {
                 hit = true;
                 kind = SolidKind.Lip;

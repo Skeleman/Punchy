@@ -846,7 +846,6 @@ namespace Punchy.Rendering
         /// <summary>Hands the laid map to the terrain and flora shaders (globals; Params.x 0 turns their read off).</summary>
         void SetReceivers(Light sun, float up)
         {
-            var shadowDistance = ShadowDistance();
             Shader.SetGlobalTexture(TexId, front);
             Shader.SetGlobalMatrix(MatrixId, frontUv);
             Shader.SetGlobalVector(FrontSunId, frontSun);
@@ -857,8 +856,28 @@ namespace Punchy.Rendering
             Shader.SetGlobalMatrix(OldMatrixId, oldUv);
             Shader.SetGlobalVector(OldSunId, oldSun);
             Shader.SetGlobalVector(OldEyeId, new Vector4(oldEye.x, oldEye.y, oldEye.z, oldInvRange));
-            // In over the real shadows' last quarter (the shaders take the darker of the two there, so it can't double).
-            Shader.SetGlobalVector(FadeId, new Vector4(shadowDistance * 0.75f, shadowDistance, 0f, 0f));
+            Shader.SetGlobalVector(FadeId, HandOff(sun));
+        }
+
+        /// <summary>R-40: the wide map's share of the shadow by distance, as saturate(distance^2 * x + y): URP's own
+        /// fade-out of the real shadows (its linear-distance fade over the cascade border), so the two weights add to 1
+        /// and each point shows one shadow (WideShadow.hlsl, PunchyShadowHandOff). With the real shadows off the wide
+        /// map has the whole share (x 0, y 1).</summary>
+        static Vector4 HandOff(Light sun)
+        {
+            var urp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+            var cam = Camera.main;
+            var distance = ShadowDistance();
+            if (cam != null)
+                distance = math.min(distance, cam.farClipPlane);
+            if (sun.shadows == LightShadows.None || (urp != null && !urp.supportsMainLightShadows) || distance <= 0f)
+                return new Vector4(0f, 1f, 0f, 0f);
+            var border = urp != null ? urp.cascadeBorder : 0.2f;
+            var max2 = distance * distance;
+            if (border < 0.0001f)
+                return new Vector4(1000f, -max2 * 1000f, 0f, 0f);
+            var near2 = (1f - border) * (1f - border) * max2;
+            return new Vector4(1f / (max2 - near2), -near2 / (max2 - near2), 0f, 0f);
         }
 
         /// <summary>How far the last swapped-in map has blended over the one before (1 when done or there was none).</summary>

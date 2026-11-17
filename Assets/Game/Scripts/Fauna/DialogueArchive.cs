@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -9,7 +8,7 @@ namespace Punchy.Fauna
 {
     /// <summary>
     /// What folk say, read from StreamingAssets/dialogue.json (outside the build, edited by hand, read again whenever
-    /// the file changes). Each culture (a species' name, "Human", "Dwarf", "HumanChild", then the species it's based on,
+    /// the file changes, LiveJsonFile). Each culture (a species' name, "Human", "Dwarf", "HumanChild", then the species it's based on,
     /// then "Any") has word lists and lines; a line's {slots} are filled from the speaker (its culture's words, its
     /// trade, its home town, the time of day, the player's body). The format is written up in HANDOFF-animal.md.
     /// Local only: each machine picks its own lines, nothing is sent.
@@ -62,56 +61,26 @@ namespace Punchy.Fauna
 
         public readonly Dictionary<string, Culture> Cultures = new Dictionary<string, Culture>(StringComparer.OrdinalIgnoreCase);
 
-        static DialogueArchive loaded;
-        static DateTime loadedTime;
-        static float nextCheck;
-        /// <summary>The last parse error (shown once in the log), or null.</summary>
-        public static string Error;
-
         /// <summary>The "conversation" section (FolkConversation, A-93), or null when the file has none.</summary>
         public FolkConversation.TalkBook Talk;
         /// <summary>The "beastTalk" section: what folk say and do to an animal player (A-93 row 3), or null.</summary>
         public FolkConversation.TalkBook BeastTalk;
 
-        public static string Path =>System.IO.Path.Combine(Application.streamingAssetsPath, FileName);
+        static readonly LiveJsonFile<DialogueArchive> file =
+            new LiveJsonFile<DialogueArchive>(FileName, "Dialogue", Parse, a => $"{a.Count} lines, {a.Talk?.Count ?? 0} talk lines");
 
-        /// <summary>The archive, read again if the file has changed (checked once a second); null if there's none.</summary>
-        public static DialogueArchive Current
-        {
-            get
-            {
-                // (The clock restarts with each play session but this static doesn't: a check more than a second
-                // away is a stale one from the last session, so check now.)
-                if (loaded == null || Time.realtimeSinceStartup >= nextCheck || nextCheck - Time.realtimeSinceStartup > 1f)
-                {
-                    nextCheck = Time.realtimeSinceStartup + 1f;
-                    try
-                    {
-                        var path = Path;
-                        if (File.Exists(path))
-                        {
-                            var time = File.GetLastWriteTimeUtc(path);
-                            if (loaded == null || time != loadedTime)
-                            {
-                                loadedTime = time;
-                                var parsed = Parse(File.ReadAllText(path));
-                                loaded = parsed;
-                                Error = null;
-                                Debug.Log($"Dialogue: read {path} ({parsed.Count} lines)");
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        // (A typo mid-edit: keep the last good archive, and say what's wrong once.)
-                        if (Error != e.Message)
-                            Debug.LogWarning($"Dialogue: couldn't read {FileName}, keeping the last good one: {e.Message}");
-                        Error = e.Message;
-                    }
-                }
-                return loaded;
-            }
-        }
+        /// <summary>Where it's read from (JsonFiles.PathOf: beside the exe in a build, if there's a copy there).</summary>
+        public static string Path => file.Path;
+
+        /// <summary>Why the newest dialogue.json was turned down (each bad entry named), or null (A-129).</summary>
+        public static string Error => file.Error;
+
+        /// <summary>Read dialogue.json again now, changed or not.</summary>
+        public static void Reload() => file.Reload();
+
+        /// <summary>The archive, read again if the file has changed (checked once a second); null if there's none. A
+        /// version with a bad entry is turned down whole and the last good one kept (LiveJsonFile).</summary>
+        public static DialogueArchive Current => file.Current;
 
         public int Count
         {
@@ -124,44 +93,95 @@ namespace Punchy.Fauna
             }
         }
 
-        public static DialogueArchive Parse(string json)
+        /// <summary>Reads the archive (throws only on broken JSON); bad entries go in problems, none if null.</summary>
+        public static DialogueArchive Parse(string json, JsonProblems problems = null)
         {
+            problems ??= new JsonProblems();
             var root = JObject.Parse(json);
             var archive = new DialogueArchive();
             // (The talk window's lines, A-93: FolkConversation reads them.)
-            archive.Talk = FolkConversation.Parse(root["conversation"]);
-            archive.BeastTalk = FolkConversation.Parse(root["beastTalk"]);
-            if (root["cultures"] is JObject cultures)
-                foreach (var pair in cultures)
+            archive.Talk = FolkConversation.Parse(root["conversation"], problems);
+            archive.BeastTalk = FolkConversation.Parse(root["beastTalk"], problems);
+            var cultures = root["cultures"];
+            if (cultures != null && !(cultures is JObject))
+                problems.Add(cultures, "\"cultures\" should be an object of culture name: { words, lines }");
+            if (cultures is JObject all)
+                foreach (var pair in all)
                 {
-                    if (!(pair.Value is JObject c))
+                    if (pair.Key.StartsWith("_"))
                         continue;
+                    if (!(pair.Value is JObject c))
+                    {
+                        problems.Add(pair.Value, "a culture should be an object with \"words\" and \"lines\"");
+                        continue;
+                    }
                     var culture = new Culture();
-                    if (c["words"] is JObject words)
-                        foreach (var w in words)
-                            culture.Words[w.Key] = Strings(w.Value);
-                    if (c["lines"] is JArray lines)
-                        foreach (var l in lines)
+                    var words = c["words"];
+                    if (words is JObject w)
+                    {
+                        foreach (var list in w)
+                            if (!list.Key.StartsWith("_"))
+                            {
+                                var options = problems.Strings(list.Value, list.Key) ?? Array.Empty<string>();
+                                foreach (var word in options)
+                                    problems.Slots(list.Value, word);
+                                culture.Words[list.Key] = options;
+                            }
+                    }
+                    else if (words != null)
+                        problems.Add(words, "\"words\" should be an object of list name: [ words ]");
+                    var lines = c["lines"];
+                    if (lines is JArray arr)
+                    {
+                        foreach (var l in arr)
                         {
-                            if (l.Type == JTokenType.String)
-                                culture.Lines.Add(new Line { Text = (string)l });
-                            else if (l is JObject o && o["text"] != null)
-                                culture.Lines.Add(new Line
-                                {
-                                    Text = (string)o["text"],
-                                    When = (string)o["when"],
-                                    Trades = o["trade"] != null ? Strings(o["trade"]) : null,
-                                    Emotes = o["emote"] != null ? Strings(o["emote"]) : null,
-                                    Stances = o["stance"] != null ? Strings(o["stance"]) : null,
-                                    Moods = o["mood"] != null ? Strings(o["mood"]) : null,
-                                    Dry = DryOf(o["state"]),
-                                    Weight = o["weight"] != null ? (float)o["weight"] : 1f,
-                                    Raw = o
-                                });
+                            var line = ParseLine(l, problems);
+                            if (line != null)
+                                culture.Lines.Add(line);
                         }
+                    }
+                    else if (lines != null)
+                        problems.Add(lines, "\"lines\" should be a list");
                     archive.Cultures[pair.Key] = culture;
                 }
             return archive;
+        }
+
+        /// <summary>The "when" words a culture line can have (InHours).</summary>
+        static readonly string[] Whens = { "day", "night", "dawn", "morning", "afternoon", "evening", "dusk" };
+
+        /// <summary>One culture line, or null (and a problem) if it isn't a string or an object with text.</summary>
+        static Line ParseLine(JToken l, JsonProblems problems)
+        {
+            if (l.Type == JTokenType.String)
+            {
+                problems.Slots(l, (string)l);
+                return new Line { Text = (string)l };
+            }
+            if (!(l is JObject o))
+            {
+                problems.Add(l, $"a line should be text or an object with \"text\", not {JsonProblems.Kind(l)}");
+                return null;
+            }
+            var text = problems.Text(o);
+            if (text == null)
+                return null;
+            var when = problems.Str(o, "when");
+            problems.OneOf(o, "when", when, Whens);
+            var state = problems.Str(o, "state");
+            problems.OneOf(o, "state", state, "dry", "!dry");
+            return new Line
+            {
+                Text = text,
+                When = when,
+                Trades = problems.Strings(o["trade"], "trade"),
+                Emotes = problems.Strings(o["emote"], "emote"),
+                Stances = problems.Strings(o["stance"], "stance"),
+                Moods = problems.Strings(o["mood"], "mood"),
+                Dry = DryOf(o["state"]),
+                Weight = problems.Num(o, "weight", 1f),
+                Raw = o
+            };
         }
 
         /// <summary>A culture line's "state": "dry" (true), "!dry" (false), anything else or none (null).</summary>
@@ -171,9 +191,6 @@ namespace Punchy.Fauna
             return string.Equals(s, "dry", StringComparison.OrdinalIgnoreCase) ? true
                 : string.Equals(s, "!dry", StringComparison.OrdinalIgnoreCase) ? false : (bool?)null;
         }
-
-        static string[] Strings(JToken t) =>
-            t is JArray a ? new List<string>(a.Values<string>()).ToArray() : t.Type == JTokenType.String ? new[] { (string)t } : Array.Empty<string>();
 
         /// <summary>The cultures a speaker draws on, most particular first: its species, the one it's based on, Any.</summary>
         IEnumerable<Culture> Chain(Speaker who)
@@ -368,12 +385,27 @@ namespace Punchy.Fauna
                 var value = Slot(slot, who, ref rng, depth);
                 if (value == null)
                     return null;
+                Article(sb, value);
                 sb.Append(value);
                 i = close;
             }
             var s = sb.ToString();
             // (A line starting with a filled-in word gets its capital: "{trade}s are..." -> "Smiths are...".)
             return s.Length > 0 && char.IsLower(s[0]) && text.StartsWith("{") ? char.ToUpperInvariant(s[0]) + s.Substring(1) : s;
+        }
+
+        /// <summary>A lone "a" just before a filled-in word that starts with a vowel becomes "an" ("I'm a {trade}" ->
+        /// "I'm an innkeeper"), so line writers can write "a" before any slot.</summary>
+        static void Article(StringBuilder sb, string value)
+        {
+            var n = sb.Length;
+            if (n < 2 || sb[n - 1] != ' ' || (sb[n - 2] != 'a' && sb[n - 2] != 'A') || value.Length == 0)
+                return;
+            if (n > 2 && char.IsLetter(sb[n - 3]))
+                return;
+            if ("aeiouAEIOU".IndexOf(value[0]) < 0)
+                return;
+            sb.Insert(n - 1, 'n');
         }
 
         string Slot(string slot, Speaker who, ref Unity.Mathematics.Random rng, int depth)

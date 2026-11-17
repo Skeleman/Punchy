@@ -10,10 +10,12 @@ namespace Punchy.Fauna
     /// birds circling on a thermal by day. Nothing is simulated or sent: each 512 m patch of sky has a few flight lanes,
     /// and every 90 s a hash of (patch, lane, slot) decides whether a flight goes over and what it is, so every machine
     /// works out the same birds in the same places from the shared day and time.
+    /// A-108 row 4: a lone eagle over a high summit by day, wheeling slow and wide just above the top (each sky cell's
+    /// summit found once from a coarse grid of its ground).
     /// </summary>
     public partial class CreatureRenderSystem
     {
-        enum SkyKind : byte { Geese, Cranes, Soarers }
+        enum SkyKind : byte { Geese, Cranes, Soarers, Eagle }
 
         struct SkyFlight
         {
@@ -37,11 +39,15 @@ namespace Punchy.Fauna
         readonly List<SkyFlight> skyFlights = new List<SkyFlight>();
         /// <summary>#63: each sky cell's ground height (the island's terrain, keyed by its landmarks blob).</summary>
         readonly Dictionary<int2, float> skyGround = new Dictionary<int2, float>();
+        /// <summary>A-108 row 4: each sky cell's highest ground (xyz) on a coarse grid, for an eagle over its summit.</summary>
+        readonly Dictionary<int2, float3> skySummit = new Dictionary<int2, float3>();
+        /// <summary>How high (m above the sea) and how far over its cell's middle a summit stands for an eagle to hold it.</summary>
+        const float EagleSummit = 140f, EagleRise = 30f;
         int skyGroundKey;
         /// <summary>How many sky cell grounds were sampled since the start (A-48 check: a handful, not 9 a frame).</summary>
         public static int SkyGroundSamples;
 
-        static int SkyParts(SkyKind kind) => kind == SkyKind.Cranes ? 5 : 4;
+        static int SkyParts(SkyKind kind) => kind == SkyKind.Cranes || kind == SkyKind.Eagle ? 5 : 4;
 
         /// <summary>
         /// The flights over the sky round the camera now (t: seconds on the shared clock, counting days; hour: the time
@@ -62,6 +68,7 @@ namespace Punchy.Fauna
             if (islandKey != skyGroundKey || skyGround.Count > 256)
             {
                 skyGround.Clear();
+                skySummit.Clear();
                 skyGroundKey = islandKey;
             }
             var centreCell = (int2)math.floor(cam.xz / SkyCell);
@@ -77,19 +84,48 @@ namespace Punchy.Fauna
                     skyGround[cell] = ground;
                     SkyGroundSamples++;
                 }
+                if (!skySummit.TryGetValue(cell, out var summit))
+                {
+                    // (A 5 x 5 grid over the cell, once: its highest point, near enough to the top for a bird 30 m up.)
+                    summit = new float3(middle.x, float.MinValue, middle.y);
+                    for (int sz = 0; sz < 5; sz++)
+                    for (int sx = 0; sx < 5; sx++)
+                    {
+                        var xz = (float2)cell * SkyCell + (new float2(sx, sz) + 0.5f) * (SkyCell / 5f);
+                        var y = terrain.SampleHeight(xz);
+                        if (y > summit.y)
+                            summit = new float3(xz.x, y, xz.y);
+                    }
+                    skySummit[cell] = summit;
+                    SkyGroundSamples += 25;
+                }
+                var peak = summit.y >= EagleSummit && summit.y - ground >= EagleRise;
                 for (int lane = 0; lane < SkyLanes; lane++)
                 {
-                    var laneShift = (math.hash(new int3(cell, lane)) % 1000u) / 1000.0 * SkySlot;
+                    // (Scrambled: math.hash of a vector has no final mix, so next-door patches' draws would rise in step.)
+                    var laneShift = (BiomeSampling.Scramble(math.hash(new int3(cell, lane))) % 1000u) / 1000.0 * SkySlot;
                     var slot = (long)math.floor((t + laneShift) / SkySlot);
                     // (This slot's flight and the last one's, which may still be crossing.)
                     for (long n = slot - 1; n <= slot; n++)
                     {
-                        var rng = new Random(math.hash(new int4(cell, lane, (int)n)) | 1u);
+                        var rng = new Random(BiomeSampling.Scramble(math.hash(new int4(cell, lane, (int)n))) | 1u);
                         var start = n * (double)SkySlot - laneShift + rng.NextFloat(0f, SkySlot * 0.4f);
                         var roll = rng.NextFloat();
                         SkyFlight f = default;
                         f.Seed = rng.NextUInt();
-                        if (lane == 0 && day && roll < 0.35f)
+                        if (lane == 1 && peak && (day || dusk) && roll < (day ? 0.6f : 0.25f))
+                        {
+                            // An eagle holding the summit: alone, wide and slow just above the top, for a few slots.
+                            f.Kind = SkyKind.Eagle;
+                            f.Count = 1;
+                            f.Centre = new float3(summit.x, summit.y + rng.NextFloat(25f, 55f), summit.z);
+                            f.Radius = rng.NextFloat(40f, 75f);
+                            var u = (float)(t - start) / (SkySlot * 2f);
+                            if (u < 0f || u > 1f)
+                                continue;
+                            f.Faded = 1f - math.smoothstep(0f, 0.08f, u) * (1f - math.smoothstep(0.92f, 1f, u));
+                        }
+                        else if (lane == 0 && day && roll < 0.35f)
                         {
                             // A spell of soaring over this patch: a few slots long, the birds fading in and out at its ends.
                             f.Kind = SkyKind.Soarers;
@@ -135,7 +171,7 @@ namespace Punchy.Fauna
         }
 
         static float3 SkyLeader(in SkyFlight f, double t) =>
-            f.Kind == SkyKind.Soarers ? f.Centre : f.From + f.Heading * (float)((t - f.Start) * f.Speed);
+            f.Kind == SkyKind.Soarers || f.Kind == SkyKind.Eagle ? f.Centre : f.From + f.Heading * (float)((t - f.Start) * f.Speed);
 
         /// <summary>Writes the gathered flights' birds.</summary>
         int WriteSkyBirds(double t, NativeArray<SegmentInstance> output, int at)
@@ -149,10 +185,12 @@ namespace Punchy.Fauna
                 {
                     float3 p, ahead;
                     var phase = rng.NextFloat(0f, 6.28f);
-                    if (f.Kind == SkyKind.Soarers)
+                    if (f.Kind == SkyKind.Soarers || f.Kind == SkyKind.Eagle)
                     {
-                        // Round and round the thermal, each at its own height and pace, banking into the turn.
-                        var w = rng.NextFloat(0.08f, 0.14f) * (rng.NextBool() ? 1f : -1f);
+                        // Round and round the thermal, each at its own height and pace, banking into the turn (an
+                        // eagle slower and wider, rising and sinking a little as it goes round).
+                        var eagle = f.Kind == SkyKind.Eagle;
+                        var w = (eagle ? rng.NextFloat(0.05f, 0.08f) : rng.NextFloat(0.08f, 0.14f)) * (rng.NextBool() ? 1f : -1f);
                         var a = phase + time * w;
                         var r = f.Radius * rng.NextFloat(0.7f, 1.2f);
                         p = f.Centre + new float3(math.cos(a) * r, rng.NextFloat(-12f, 12f) + math.sin(time * 0.05f + phase) * 4f, math.sin(a) * r);
@@ -189,6 +227,11 @@ namespace Punchy.Fauna
                     body = 0.75f; girth = 0.13f; neck = 0.65f; span = 0.95f; chord = 0.14f; rate = 2.2f; beat = 0.45f;
                     colour = new float4(0.6f, 0.62f, 0.64f, 0f); neckColour = new float4(0.15f, 0.15f, 0.16f, 0f);
                     break;
+                case SkyKind.Eagle:
+                    // Big and dark, wings long and broad, held out flat with the odd slow beat.
+                    body = 0.85f; girth = 0.17f; neck = 0.24f; span = 1.6f; chord = 0.3f; rate = 0.9f; beat = 0.06f;
+                    colour = new float4(0.16f, 0.11f, 0.07f, 0f); neckColour = new float4(0.55f, 0.42f, 0.24f, 0f);
+                    break;
                 case SkyKind.Soarers:
                     body = 0.6f; girth = 0.13f; neck = 0.22f; span = 1.05f; chord = 0.19f; rate = 1.4f; beat = 0.08f;
                     colour = new float4(0.2f, 0.15f, 0.11f, 0f); neckColour = new float4(0.3f, 0.24f, 0.18f, 0f);
@@ -210,6 +253,9 @@ namespace Punchy.Fauna
             }
             if (kind == SkyKind.Cranes)
                 output[at++] = Part(p - ahead * body * 0.45f, quaternion.LookRotationSafe(-ahead, up), 0.7f, 0.02f, 0.012f, 1f, neckColour, faded);
+            else if (kind == SkyKind.Eagle)
+                // A broad fanned tail behind.
+                output[at++] = Part(p - ahead * body * 0.95f, quaternion.LookRotationSafe(-ahead, up), 0.4f, 0.1f, 0.16f, 0.2f, colour, faded);
             return at;
         }
     }

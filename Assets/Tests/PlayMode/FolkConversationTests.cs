@@ -70,9 +70,57 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// Target (A-129 row 1): the shipped dialogue.json and weather-lines.json name no bad entry; on a scratch copy, a
+        /// version with five bad entries (a line with no text, a "when" that isn't a time, a number in a word list, an
+        /// unclosed {slot} and an unknown key in a talk line) is turned down with all five named by path and line, the
+        /// last good lines are kept, and the fixed version is read again.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Archive_BadEntriesNamed_OldLinesKept()
+        {
+            var shipped = Game.Hook<string[]>("ArchiveProblems");
+            var r = Game.Hook<float[]>("ArchiveReload");
+            var why = Game.HookField<string>("ReloadError") ?? "";
+            LogWatch.Measure($"archive: shipped problems {shipped.Length}; reload {r[0]:F0} lines, bad version kept {r[1]:F0}, " +
+                             $"{r[2]:F0} named, fixed {r[3]:F0}\n{why}\n{string.Join("\n", shipped)}");
+            Assert.AreEqual(0, shipped.Length, string.Join("\n", shipped));
+            Assert.Greater(r[0], 0f, "the scratch copy wasn't read");
+            Assert.AreEqual(r[0], r[1], "the bad version replaced the good lines");
+            Assert.AreEqual(5f, r[2], why);
+            foreach (var part in new[] { "no \"text\"", "midnight", "broken_list", "never closed", "unknown key \"moood\"", "(line " })
+                StringAssert.Contains(part, why);
+            Assert.AreEqual(r[0], r[3], "the fixed version wasn't read again");
+            yield return null;
+        }
+
+        /// <summary>
         /// Target: 20 folk of one town (mixed trades, conditions and hours) feel distinct: at least 18 give a set of
         /// answers nobody else gives, and each topic has at least 6 different lines among them. Logs 10 folk x 3 topics.
         /// </summary>
+        /// <summary>
+        /// Target: the quest phrasings and an animal player's topic labels come from dialogue.json (A-129 row 2), with
+        /// every slot filled: each said form is the file's entry with its slots put in.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Archive_QuestWordsAndBeastLabels()
+        {
+            yield return null;
+            var w = Game.Hook<string[]>("ArchiveWords");
+            LogWatch.Measure("archive words:\n" + string.Join("\n", w));
+            for (int i = 0; i < 7; i++)
+            {
+                Assert.IsFalse(string.IsNullOrEmpty(w[i + 7]), $"dialogue.json has no entry for word {i}");
+                StringAssert.DoesNotContain("{", w[i], $"word {i} has an unfilled slot");
+            }
+            Assert.AreEqual(w[7].Replace("{item}", "silver key"), w[0]);
+            Assert.AreEqual(w[8].Replace("{creatures}", "crows"), w[1]);
+            Assert.AreEqual(w[9].Replace("{item}", "berry"), w[2]);
+            Assert.AreEqual(w[10].Replace("{count}", "5").Replace("{items}", "berries"), w[3]);
+            Assert.AreEqual(w[11], w[4]);
+            Assert.AreEqual(w[12], w[5]);
+            Assert.AreEqual(w[13], w[6]);
+        }
+
         [UnityTest]
         public IEnumerator Town_TwentyFolkDistinct()
         {
@@ -212,6 +260,81 @@ namespace Punchy.Tests
         }
 
         /// <summary>
+        /// A-131 row 1, target: a line's replies read from JSON, and each bad one is named (not a list, five replies, no
+        /// say, an unknown do, a gesture that isn't one, accept with no offer to take, a then with no lines, an unknown
+        /// key) while a good one reads clean.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_ParseAndNameBadOnes()
+        {
+            const string good = @"{ ""Any"": { ""work"": [ { ""text"": ""Bees."", ""offer"": ""quest"", ""options"": [
+                { ""say"": ""Sure."", ""do"": ""accept"", ""then"": ""more"" }, { ""say"": ""Wave."", ""do"": ""gesture:Wave"", ""stance"": ""Warm"" },
+                { ""say"": ""Bye."", ""do"": ""end"" } ] } ], ""more"": [ ""More bees."" ] } }";
+            var clean = Game.Hook<string[]>("OptionProblems", good);
+            Assert.IsEmpty(clean, "a good options list read with problems:\n" + string.Join("\n", clean));
+            var bad = new (string Json, string Named)[]
+            {
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": ""yes"" } ] } }", "should be a list"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ {""say"":""1""},{""say"":""2""},{""say"":""3""},{""say"":""4""},{""say"":""5""} ] } ] } }", "5 replies"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""then"": ""work"" } ] } ] } }", "no \"say\""),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""do"": ""pay"" } ] } ] } }", "isn't accept, decline, end"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""do"": ""gesture:Juggle"" } ] } ] } }", "no gesture called"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""do"": ""accept"" } ] } ] } }", "needs the line to offer"),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""then"": ""nowhere"" } ] } ] } }", "no lines for topic \"nowhere\""),
+                (@"{ ""Any"": { ""work"": [ { ""text"": ""a"", ""options"": [ { ""say"": ""x"", ""text"": ""y"" } ] } ] } }", "unknown key \"text\""),
+            };
+            foreach (var (json, named) in bad)
+            {
+                var problems = Game.Hook<string[]>("OptionProblems", json);
+                LogWatch.Measure($"options problem ({named}): {string.Join(" / ", problems)}");
+                Assert.IsTrue(System.Array.Exists(problems, p => p.Contains(named)), $"expected a problem naming '{named}', got: {string.Join(" / ", problems)}");
+            }
+            yield return null;
+        }
+
+        /// <summary>
+        /// A-131 row 1, target: Choose follows a reply's then to the next answer, one deeper, three deep at most; accept
+        /// carries the offer; a gesture or no then goes back to the topic list; end ends; a filtered reply isn't shown.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_ChooseChain()
+        {
+            var bad = Game.Hook<string[]>("OptionChain");
+            LogWatch.Measure("options chain:\n" + Game.HookField<string>("OptionsTrail"));
+            Assert.IsEmpty(bad, string.Join("\n", bad));
+            yield return null;
+        }
+
+        /// <summary>
+        /// A-131 row 1, target: a quest or item offer with no replies of its own still gets Accept then Decline (the
+        /// talk window's old pair, now the first options list); other answers get none.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_DefaultAcceptDeclineUnchanged()
+        {
+            var bad = Game.Hook<string[]>("OptionDefaults");
+            LogWatch.Measure("options defaults:\n" + Game.HookField<string>("OptionsTrail"));
+            Assert.IsEmpty(bad, string.Join("\n", bad));
+            yield return null;
+        }
+
+        /// <summary>
+        /// A-131 row 2, target: the shipped hermit, guard and innkeeper each answer with a branching exchange (dialogue.json
+        /// conversation, reply-only topics), and every reply walked to the depth cap is answered with filled words.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Options_SampleBranchesWalk()
+        {
+            foreach (var job in new[] { "Hermit", "Guard", "Innkeeper" })
+            {
+                var bad = Game.Hook<string[]>("OptionWalk", job);
+                LogWatch.Measure($"options walk, {job}:\n" + Game.HookField<string>("OptionsTrail"));
+                Assert.IsEmpty(bad, $"{job}: " + string.Join("\n", bad));
+            }
+            yield return null;
+        }
+
+        /// <summary>
         /// Target: live village folk answer every topic through the entity path (persona, condition, town, stance).
         /// A-96 row 0: folk answer a beast differently (no "[who]" line for a crow), and every tree shares the editor's
         /// PlayerPrefs, so the saved body (Punchy.Character.Body) may be anything: the test plays a human itself and puts
@@ -239,6 +362,113 @@ namespace Punchy.Tests
                     Game.Hook<string>("SetBody", was);
                 Game.Hook<object>("PutBodyPref", pref);
             }
+        }
+
+        /// <summary>
+        /// The innkeeper tests' start: at the village at 11, its members made again for that hour. Its creatures may
+        /// have been made at another hour (at load, or in a test before) and keep the leg they were made on, so the
+        /// innkeeper could be off its job with no Job at all: the test then passed or failed by load time and order.
+        /// </summary>
+        static IEnumerator AtTheInnBy11()
+        {
+            yield return TestSceneSetup.Place("HumanVillage", 10f);
+            yield return TestSceneSetup.TimeOfDay(11f);
+            yield return TestSceneSetup.Seconds(1f);
+            Game.Hook<int>("RemakeTownMembers");
+            yield return TestSceneSetup.Seconds(10f);
+        }
+
+        /// <summary>
+        /// A-132 row 1, target: a town's inn has a Counter, a live innkeeper works it by day (within a few metres of it,
+        /// at its post), FolkConversation takes it as a talker and its "work" answer is the innkeeper's line.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator LiveFolk_InnkeeperAtCounter()
+        {
+            yield return AtTheInnBy11();
+            // (It may still be walking over from home: give it up to 40 s to reach its post, stage 10 = FolkJobs.Serving.)
+            var r = Game.Hook<float[]>("InnkeeperAtCounter");
+            for (int i = 0; i < 40 && !(r[1] == 1f && r[14] == 10f); i++)
+            {
+                yield return TestSceneSetup.Seconds(1f);
+                r = Game.Hook<float[]>("InnkeeperAtCounter");
+            }
+            LogWatch.Measure($"innkeeper: counter {r[0]} keeper {r[1]} {r[10]:F1} m from it, mode {r[11]} stage {r[14]} " +
+                             $"{r[15]:F1} m from its spot\n{Game.HookField<string>("InnTrail")}");
+            Assert.AreEqual(1f, r[0], "no inn Counter anchor near the village");
+            Assert.AreEqual(1f, r[1], "no live innkeeper");
+            Assert.AreEqual(10f, r[14], "the innkeeper never reached its post");
+            Assert.Less(r[10], 4f, "the innkeeper isn't at its counter by day");
+            Assert.AreEqual(1f, r[12], "the innkeeper isn't a talker");
+            Assert.AreEqual(1f, r[13], "the innkeeper's work answer isn't its own line");
+        }
+
+        /// <summary>Target: "a" before a slot that fills with a vowel word reads "an" (A-132), and stays "a" otherwise.</summary>
+        [UnityTest]
+        public IEnumerator Fill_ArticleFitsTheWord()
+        {
+            var inn = Game.Hook<string>("FillForJob", "I'm a {trade}.", "Innkeeper");
+            var baker = Game.Hook<string>("FillForJob", "A {trade}, from here.", "Baker");
+            var elder = Game.Hook<string>("FillForJob", "A {trade}, from here.", "Elder");
+            LogWatch.Measure($"article: '{inn}' / '{baker}' / '{elder}'");
+            Assert.AreEqual("I'm an innkeeper.", inn);
+            Assert.AreEqual("A baker, from here.", baker);
+            Assert.AreEqual("An elder, from here.", elder);
+            yield return null;
+        }
+
+        /// <summary>A-132 row 1 shot: the innkeeper at its counter on the inn's porch, seen from the street.</summary>
+        [UnityTest, Explicit("shots, run on demand"), Timeout(600000)]
+        public IEnumerator Innkeeper_Shot()
+        {
+            yield return AtTheInnBy11();
+            var r = Game.Hook<float[]>("InnkeeperAtCounter");
+            for (int i = 0; i < 40 && !(r[1] == 1f && r[14] == 10f); i++)
+            {
+                yield return TestSceneSetup.Seconds(1f);
+                r = Game.Hook<float[]>("InnkeeperAtCounter");
+            }
+            Assert.AreEqual(1f, r[1], "no live innkeeper");
+            var keeper = new Vector3(r[7], r[8] + 1f, r[9]);
+            var street = new Vector3(-r[5], 0f, -r[6]);
+            var from = keeper + street * 7f + Vector3.up * 2.5f;
+            Game.RunOptions(string.Format(System.Globalization.CultureInfo.InvariantCulture, "-shotcam {0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}", from.x, from.y, from.z, keeper.x, keeper.y, keeper.z));
+            try { yield return Shots.Settled("a132-innkeeper", 1280, 720); }
+            finally { Game.RunOptions("-shotcam off"); }
+            LogWatch.Measure("innkeeper shot: " + Game.HookField<string>("InnTrail"));
+        }
+
+        /// <summary>A-132 row 2 shots: the innkeeper's chores at its counter, close up: two frames a moment apart (the
+        /// hands moving) and one about half a minute on (the other chore, wiping or stacking).</summary>
+        [UnityTest, Explicit("shots, run on demand"), Timeout(600000)]
+        public IEnumerator Innkeeper_ChoreShots()
+        {
+            yield return AtTheInnBy11();
+            var r = Game.Hook<float[]>("InnkeeperAtCounter");
+            for (int i = 0; i < 90 && !(r[1] == 1f && r[14] == 10f); i++)
+            {
+                if (i % 10 == 0)
+                    LogWatch.Measure($"innkeeper walk {i} s: keeper {r[1]} mode {r[11]} stage {r[14]} {r[15]:F1} m from its spot, {r[10]:F1} m from the counter at ({r[7]:F0}, {r[9]:F0})");
+                yield return TestSceneSetup.Seconds(1f);
+                r = Game.Hook<float[]>("InnkeeperAtCounter");
+            }
+            Assert.AreEqual(10f, r[14], "the innkeeper never reached its post");
+            var keeper = new Vector3(r[7], r[8] + 1f, r[9]);
+            var street = new Vector3(-r[5], 0f, -r[6]);
+            var side = new Vector3(street.z, 0f, -street.x);
+            var from = keeper + street * 2.6f + side * 1.2f + Vector3.up * 0.3f;
+            Game.RunOptions(string.Format(System.Globalization.CultureInfo.InvariantCulture, "-shotcam {0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}", from.x, from.y, from.z, keeper.x, keeper.y, keeper.z));
+            try
+            {
+                yield return Shots.Settled("a132-chore-a", 960, 540);
+                yield return TestSceneSetup.Seconds(1.2f);
+                yield return Shots.Settled("a132-chore-b", 960, 540);
+                yield return TestSceneSetup.Seconds(28f);
+                yield return Shots.Settled("a132-chore-c", 960, 540);
+            }
+            finally { Game.RunOptions("-shotcam off"); }
+            r = Game.Hook<float[]>("InnkeeperAtCounter");
+            LogWatch.Measure($"innkeeper chores: stage {r[14]} mode {r[11]} {r[15]:F1} m from its spot");
         }
     }
 }

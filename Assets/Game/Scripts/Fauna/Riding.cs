@@ -54,7 +54,9 @@ namespace Punchy.Fauna
         /// <summary>A child's ride home: the grown-up is nearly at its door (or has given up going home).</summary>
         Home,
         /// <summary>The ride's time is up.</summary>
-        Done
+        Done,
+        /// <summary>P-43: a player's rider and mount no longer fit (a body changed: Riding.Check's mass rule, or wings).</summary>
+        Size
     }
 
     /// <summary>
@@ -148,6 +150,30 @@ namespace Punchy.Fauna
         public const float MassRatio = 1.5f;
         /// <summary>CreatureState.Holder of a rider whose mount has no ghost id (solo, or before the first snapshot).</summary>
         public const int SoloMount = int.MinValue + 1;
+
+        /// <summary>
+        /// A-119 (#339): one rider on one mount as one thing for the detail rules, written into both their PairNext
+        /// wherever a rider is seated (RideSystem, RideSeatSystem, PlayerRideSystem): as big as the larger of each
+        /// alone and the two stacked (the mount's back plus the rider's seated trunk), measured from the mount's
+        /// position at the mount's speed. Held in full with a puppet mount, as a player's body or a steered creature is.
+        /// </summary>
+        public static void Pair(ref CreatureBlob rb, ref CreatureState r, ref CreatureBlob mb, ref CreatureState m)
+        {
+            var stacked = CreatureMotion.Height(ref mb, m.Scale) + CreatureMotion.Height(ref rb, r.Scale) - rb.StandHeight * math.max(r.Scale, 0.01f);
+            var pair = new RidePair
+            {
+                At = m.Position,
+                Size = math.max(math.max(CreatureMotion.OwnSize(m.Scale, ref mb), CreatureMotion.OwnSize(r.Scale, ref rb)), stacked),
+                Speed = m.Speed,
+                Reach = math.max(mb.SeenFrom, rb.SeenFrom),
+                Full = m.Mode == CreatureMode.Puppet || m.Mode == CreatureMode.Held
+            };
+            // (Two on one mount: the mount takes the larger.)
+            if (m.PairNext.Size > pair.Size)
+                pair.Size = m.PairNext.Size;
+            r.PairNext = pair;
+            m.PairNext = pair;
+        }
 
         /// <summary>A-117: how far a led or ridden horse (or the one leading it) keeps from walls, by its body: a horse
         /// at least 0.55 m, folk 0.3 m (CreatureBrainSystem.LeadOn, and FaunaDirector's clearance check).</summary>
@@ -505,7 +531,7 @@ namespace Punchy.Fauna
             riders = SystemAPI.QueryBuilder().WithAll<Rider, CreatureState, CreatureBody>().Build();
             state.RequireForUpdate(riders);
             state.RequireForUpdate<TerrainSource>();
-            states = state.GetComponentLookup<CreatureState>(true);
+            states = state.GetComponentLookup<CreatureState>();
             bodies = state.GetComponentLookup<CreatureBody>(true);
             ghosts = state.GetComponentLookup<GhostInstance>(true);
         }
@@ -532,8 +558,9 @@ namespace Punchy.Fauna
         [BurstCompile]
         partial struct SeatJob : IJobEntity
         {
-            // (Mounts are read while riders are written: a mount is never itself riding, Riding.Check.)
-            [ReadOnly, NativeDisableContainerSafetyRestriction] public ComponentLookup<CreatureState> States;
+            // (Mounts are read while riders are written: a mount is never itself riding, Riding.Check. A-119: written
+            // too, for their pair; one thread, Schedule.)
+            [NativeDisableContainerSafetyRestriction] public ComponentLookup<CreatureState> States;
             [ReadOnly] public ComponentLookup<CreatureBody> Bodies;
             [ReadOnly] public ComponentLookup<GhostInstance> Ghosts;
             [ReadOnly] public TerrainSource Terrain;
@@ -585,6 +612,8 @@ namespace Punchy.Fauna
                 var ghostId = Ghosts.HasComponent(mount) ? Ghosts[mount].ghostId : 0;
                 s.Holder = ghostId != 0 ? -ghostId : Riding.SoloMount;
                 Riding.Place(ref body.Blob.Value, ref s, body.Coat, ref mBody.Blob.Value, m, mBody.Coat, Terrain);
+                Riding.Pair(ref body.Blob.Value, ref s, ref mBody.Blob.Value, ref m);
+                States[mount] = m;
             }
 
             void Off(Entity self, RideOff why, RideKind kind, in CreatureState s, float3 mountAt, int side, float floor, float room)
@@ -622,16 +651,17 @@ namespace Punchy.Fauna
             if (HeldPoseSystem.Needed.Data == 0)
                 return;
             // (Each creature ghost's state and body, by ghost id: the mounts are among them.)
-            var mounts = new NativeHashMap<int, (CreatureState state, CreatureBody body)>(64, Allocator.Temp);
+            var mounts = new NativeHashMap<int, (CreatureState state, CreatureBody body, Entity entity)>(64, Allocator.Temp);
             var any = false;
-            foreach (var (ghost, s, body) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<CreatureState>, RefRO<CreatureBody>>())
+            foreach (var (ghost, s, body, e) in SystemAPI.Query<RefRO<GhostInstance>, RefRO<CreatureState>, RefRO<CreatureBody>>().WithEntityAccess())
             {
-                mounts[ghost.ValueRO.ghostId] = (s.ValueRO, body.ValueRO);
+                mounts[ghost.ValueRO.ghostId] = (s.ValueRO, body.ValueRO, e);
                 any |= s.ValueRO.Mode == CreatureMode.Ride;
             }
             if (!any)
                 return;
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
+            var states = SystemAPI.GetComponentLookup<CreatureState>();
             foreach (var (s, body) in SystemAPI.Query<RefRW<CreatureState>, RefRO<CreatureBody>>().WithAll<GhostInstance>())
             {
                 if (s.ValueRO.Mode != CreatureMode.Ride || s.ValueRO.Holder >= 0 || s.ValueRO.Holder == Riding.SoloMount ||
@@ -639,9 +669,57 @@ namespace Punchy.Fauna
                     continue;
                 var r = s.ValueRO;
                 Riding.Place(ref body.ValueRO.Blob.Value, ref r, body.ValueRO.Coat, ref mount.body.Blob.Value, mount.state, mount.body.Coat, terrain);
+                // (A-119: the pair's size into both, the mount as it is now, so a second rider's merge sees the first.)
+                var m = states[mount.entity];
+                Riding.Pair(ref body.ValueRO.Blob.Value, ref r, ref mount.body.Blob.Value, ref m);
+                states[mount.entity] = m;
                 s.ValueRW = r;
             }
             HeldPoseSystem.Ran.Data = 1;
+        }
+    }
+
+    /// <summary>
+    /// A-119 (#339): a riding pair as the detail rules see it (CreatureState.Pair; Riding.Pair writes it). Local to each
+    /// machine, never sent: every machine seats its riders and works it out alike.
+    /// </summary>
+    public struct RidePair
+    {
+        /// <summary>Where both are measured from: the mount's position.</summary>
+        public float3 At;
+        /// <summary>The pair's size (m), ApparentSize for both; 0 = not riding or ridden.</summary>
+        public float Size;
+        /// <summary>The mount's speed, how active both look.</summary>
+        public float Speed;
+        /// <summary>The further SeenFrom of the two.</summary>
+        public float Reach;
+        /// <summary>The mount is a puppet or carried (a player's body, a steered creature): both drawn in full.</summary>
+        public bool Full;
+    }
+
+    /// <summary>
+    /// A-119: at the start of each frame, each creature's pair from the last frame's seating (PairNext) becomes the one
+    /// every system reads this frame (Pair), and PairNext is cleared for this frame's seating, so a ride that ends lets
+    /// both go back to their own size the next frame, and every reader in a frame sees the same pair.
+    /// </summary>
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
+    [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
+    public partial struct RidePairSystem : ISystem
+    {
+        [BurstCompile]
+        public void OnCreate(ref SystemState state) => state.RequireForUpdate<CreatureState>();
+
+        [BurstCompile]
+        public void OnUpdate(ref SystemState state) => state.Dependency = new SwapJob().ScheduleParallel(state.Dependency);
+
+        [BurstCompile]
+        partial struct SwapJob : IJobEntity
+        {
+            void Execute(ref CreatureState s)
+            {
+                s.Pair = s.PairNext;
+                s.PairNext = default;
+            }
         }
     }
 }

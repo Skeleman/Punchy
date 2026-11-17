@@ -71,7 +71,7 @@ namespace Punchy.Fauna
         public static readonly Unity.Burst.SharedStatic<SearchCounts> Searches = Unity.Burst.SharedStatic<SearchCounts>.GetOrCreate<SearchCountsKey2>();
         // (Key renamed when the struct grew in A-47: a SharedStatic keeps its first size until the editor restarts.)
         struct SearchCountsKey2 { }
-        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips; }
+        public struct SearchCounts { public long Predator, Alarm, Chat, PredatorFlee, AlarmFlee, PlayerFlee, Thinks, LodSkips, Legs; }
         /// <summary>
         /// A-72: the walking colossi (<see cref="ColossusWalker"/>), one column each: (x, z, radius m, heading radians);
         /// radius 0 is an empty column. Creatures inside a circle get out of the way (A-72 row 2).
@@ -92,6 +92,15 @@ namespace Punchy.Fauna
         public static readonly float2 BrainLodDefault = new float2(80f, 4f);
         static float BrainLodRange => BrainLod.Data.x > 0f ? BrainLod.Data.x : BrainLodDefault.x;
         static uint BrainLodFrames => BrainLod.Data.y >= 1f ? (uint)BrainLod.Data.y : (uint)BrainLodDefault.y;
+        /// <summary>
+        /// How near a player (m, from CreatureMotion.SeenAt) a creature thinks every frame: BrainLodRange, further for
+        /// the big (refactor 3.7: as far out as it looks as big as a deer does at BrainLodRange), and for a riding pair
+        /// the pair's size (A-119), so a rider and its mount think at one rate. Sizes and a fixed reference view only,
+        /// so every machine would agree.
+        /// </summary>
+        public static float ThinkRange(in CreatureState s, ref CreatureBlob b)
+            => BrainLodRange * math.max(1f, Punchy.Settings.DetailPolicy.SimulationReach(
+                   CreatureMotion.ApparentSize(s, ref b), Punchy.Settings.DetailPolicy.CreatureThinkPixels) / BrainLodDefault.x);
         /// <summary>#57: each creature looks for predators, alarms and someone asking it to chat once per this (s), phased
         /// by its Individual on the shared clock (the same on every machine); fleeing ones still look every frame.</summary>
         const float SearchPeriod = 0.2f;
@@ -163,6 +172,12 @@ namespace Punchy.Fauna
         /// <summary>A-121: empty stand-ins for FireSpots in a world without the list (a job can't carry unmade ones).</summary>
         NativeArray<FireSpot> noFires;
         NativeParallelMultiHashMap<int2, int> noFireCells;
+        /// <summary>A-134: an empty stand-in for HouseDoors before the households are built.</summary>
+        NativeHashSet<int> noHouseDoors;
+        /// <summary>P-37 r3 row 2: an empty stand-in for WalkInWalls before its system has made it.</summary>
+        WalkInWalls noWalkIn;
+        /// <summary>How many walk-in boxes the footprints were baked with (a change: bake again, walk-ins included).</summary>
+        int footprintWalkInBoxes;
         /// <summary>A-70: settlements and landmarks are baked once a player is within this (m) of their edge: past the
         /// brain LOD's range, so a creature that thinks every frame near a player always finds its walls baked.</summary>
         const float FootprintRange = 200f;
@@ -186,6 +201,8 @@ namespace Punchy.Fauna
             spreadTicks = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * 3, Allocator.Persistent);
             noFires = new NativeArray<FireSpot>(0, Allocator.Persistent);
             noFireCells = new NativeParallelMultiHashMap<int2, int>(1, Allocator.Persistent);
+            noHouseDoors = new NativeHashSet<int>(1, Allocator.Persistent);
+            noWalkIn = WalkInWalls.Empty(Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -210,6 +227,9 @@ namespace Punchy.Fauna
                 noFires.Dispose();
             if (noFireCells.IsCreated)
                 noFireCells.Dispose();
+            if (noHouseDoors.IsCreated)
+                noHouseDoors.Dispose();
+            noWalkIn.Dispose();
         }
 
         /// <summary>A-70 row 2: adds the last brain job's spread over the workers to Spread, and clears it for this one.</summary>
@@ -245,10 +265,13 @@ namespace Punchy.Fauna
         BuildingFootprints FootprintsFor(ref SystemState state, in TerrainSource terrain, BlobAssetReference<FloraBlob> flora, bool hasFlora,
                                       NativeArray<float3> players)
         {
+            // P-37 r3 row 2: walk-in houses' walls (empty until WalkInWallsSystem has the flora models, or on a world without them).
+            var walkIn = SystemAPI.TryGetSingleton<WalkInWalls>(out var w) && w.Boxes.IsCreated && w.Models.IsCreated && w.OpenDoors.IsCreated ? w : noWalkIn;
             // (Off, the brain still gets the containers: a job can't carry unmade ones.)
             if (!hasFlora || BuildingFootprints.Off.Data != 0)
-                return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = false };
-            if (terrain.Settlements != footprintTownBlob || terrain.Landmarks != footprintLandmarkBlob || flora != footprintFloraBlob)
+                return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = false, WalkIn = walkIn };
+            if (terrain.Settlements != footprintTownBlob || terrain.Landmarks != footprintLandmarkBlob || flora != footprintFloraBlob ||
+                walkIn.Boxes.Length != footprintWalkInBoxes)
             {
                 // (A re-bake or a new flora table: what was placed is stale. Rare, so waiting on the brain here is fine.)
                 state.Dependency.Complete();
@@ -260,6 +283,7 @@ namespace Punchy.Fauna
                 footprintTownBlob = terrain.Settlements;
                 footprintLandmarkBlob = terrain.Landmarks;
                 footprintFloraBlob = flora;
+                footprintWalkInBoxes = walkIn.Boxes.Length;
             }
             var towns = new NativeList<int>(Allocator.TempJob);
             var landmarks = new NativeList<int>(Allocator.TempJob);
@@ -308,14 +332,15 @@ namespace Punchy.Fauna
                     LandmarkInstances = landmarks.AsArray(),
                     Plots = footprintPlots,
                     Landmarks = footprintLandmarks,
-                    Props = footprintProps
+                    Props = footprintProps,
+                    WalkIn = walkIn
                 }.Schedule(state.Dependency);
             }
             towns.Dispose(state.Dependency);
             landmarks.Dispose(state.Dependency);
             BuildingFootprints.Stats.Data.x = footprintTowns.Count;
             BuildingFootprints.Stats.Data.y = footprintLandmarkSet.Count;
-            return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = true };
+            return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = true, WalkIn = walkIn };
         }
 
         [BurstCompile]
@@ -408,6 +433,7 @@ namespace Punchy.Fauna
                 Footprints = footprints,
                 Fires = SystemAPI.TryGetSingleton<FireSpots>(out var fires) && fires.Spots.IsCreated && fires.Cells.IsCreated
                     ? fires : new FireSpots { Spots = noFires, Cells = noFireCells, On = false },
+                HouseDoors = SystemAPI.TryGetSingleton<HouseDoors>(out var houseDoors) && houseDoors.Anchors.IsCreated ? houseDoors.Anchors : noHouseDoors,
                 ColossusColumns = colossi.Columns,
                 ColossusCircles = colossi.Circles,
                 ColossusRanges = colossi.Ranges,
@@ -439,6 +465,7 @@ namespace Punchy.Fauna
                 Bodies = bodies,
                 Lookup = lookup,
                 Grid = grid,
+                Ghosts = SystemAPI.GetComponentLookup<Unity.NetCode.GhostInstance>(true),
                 Hunters = hunters.AsArray(),
                 Thinking = thinking,
                 StateRW = SystemAPI.GetComponentLookup<CreatureState>(false),
@@ -503,6 +530,9 @@ namespace Punchy.Fauna
             public BuildingFootprints Footprints;
             /// <summary>A-121: the fires walkers keep out of (FireSpotSystem's list, by 16 m cell).</summary>
             public FireSpots Fires;
+            /// <summary>A-134 row 1: the Door anchors that are households' own (FaunaDirector's HouseDoors): FindDoor
+            /// keeps a folk with no house out of them.</summary>
+            [ReadOnly] public NativeHashSet<int> HouseDoors;
             /// <summary>A-77: the colossi's columns, each colossus's circle (xy centre, z reach) and its run of columns
             /// (ColossusCollision.Snapshot, a frame old): Steer bends a ground walker's way round them.</summary>
             [ReadOnly] public NativeArray<ColossusCylinder> ColossusColumns;
@@ -548,6 +578,8 @@ namespace Punchy.Fauna
             [ReadOnly] public NativeArray<CreatureBody> Bodies;
             [ReadOnly] public NativeHashMap<Entity, int> Lookup;
             [ReadOnly] public NativeParallelMultiHashMap<int2, int> Grid;
+            /// <summary>A-120: ghost ids (a server's creatures), for the Holder key of one of the folk petting or carrying.</summary>
+            [ReadOnly] public ComponentLookup<Unity.NetCode.GhostInstance> Ghosts;
             /// <summary>Snapshot indices of the hunters out after game now (FolkHunting stages).</summary>
             [ReadOnly] public NativeArray<int> Hunters;
 
@@ -582,6 +614,9 @@ namespace Punchy.Fauna
                 // A-104: a rider has no mind of its own while it rides; RideSystem puts it on its mount.
                 if (s.Mode == CreatureMode.Ride)
                     return;
+                // A-110 row 5: a town member far from every player only follows its day (Legs) until something wakes it.
+                if (M.Legs != 0 && Legs(self, ref s, in body))
+                    return;
                 // #59 brain LOD: far from every player it thinks only on its turn, for the time since its last think; on
                 // the frames between, anything moving coasts along its heading (taken back before it next thinks, so the
                 // think moves it the whole way): a walker on open ground follows the ground, a flier or swimmer keeps its
@@ -590,13 +625,12 @@ namespace Punchy.Fauna
                 var frameDt = Dt;
                 var frameStep = Step;
                 var far = BrainLodOff.Data == 0 && !s.Gone && s.Mode != CreatureMode.Held && s.Mode != CreatureMode.Puppet;
-                // (Refactor 3.7: the range grows with the creature's size, as its pose detail does, so a sky serpent seen
-                // from far off thinks every frame as far out as it looks as big as a deer does at BrainLodRange. Sizes and
-                // a fixed reference view only, so every machine would agree.)
-                var lodRange = BrainLodRange * math.max(1f, Punchy.Settings.DetailPolicy.SimulationReach(
-                    CreatureMotion.ApparentSize(s, ref body.Blob.Value), Punchy.Settings.DetailPolicy.CreatureThinkPixels) / BrainLodDefault.x);
+                // (Refactor 3.7: the range grows with the creature's size, as its pose detail does: ThinkRange.)
+                var lodRange = ThinkRange(s, ref body.Blob.Value);
+                // (A-119: a mount carrying a rider measured from where it stands for both, as the renderer does.)
+                var seenAt = CreatureMotion.SeenAt(s);
                 for (int p = 0; p < Players.Length && far; p++)
-                    far = math.distancesq(Players[p].xz, s.Position.xz) > lodRange * lodRange;
+                    far = math.distancesq(Players[p].xz, seenAt.xz) > lodRange * lodRange;
                 // (A fish near a bobber thinks every frame: its nibbles are what the player reads. The bobber is near its
                 // caster anyway, so this only matters for a long cast on a low setting.)
                 for (int l = 0; l < Lures.Length && far; l++)
@@ -680,7 +714,7 @@ namespace Punchy.Fauna
                     return;
                 }
                 var g = Terrain.SampleGround(s.Position.xz);
-                var head = Breath.Head(s, ref b);
+                var head = Breath.Head(s, ref b, g.WaterSurface - g.Height);
                 var water = g.HasWater && g.WaterSurface > g.Height && head > g.Height - 0.5f;
                 // First where it may be (the think doesn't know its breath, so a walker is back on the bottom each
                 // tick), then whether that puts its head under. (Where it is when its head is just out: surfaced.)
@@ -738,7 +772,9 @@ namespace Punchy.Fauna
                 s.Clock += dt;
                 if (s.Mode == CreatureMode.Puppet)
                 {
-                    Advance(ref s, ref b, dt);
+                    // (An animal a player rides and steers, Holder naming the player: placed by SteeredMountSystem, A-126 row 4.)
+                    if (s.Holder <= 0)
+                        Advance(ref s, ref b, dt);
                     return;
                 }
                 // A sand or snow worm lives its own life under the ground, heeding nothing.
@@ -808,10 +844,12 @@ namespace Punchy.Fauna
                 // Climbing, flying and hanging in a web move the animal themselves.
                 var custom = false;
                 float lie = 0f, headDown = 0f, bow = 0f, curl = 0f, sit = 0f, vertical = 0f;
-                // Each individual walks a little faster or slower than the next.
+                // Each individual walks a little faster or slower than the next (A-124 row 2: and in their own gait
+                // style, brisk or ambling; running, half as much).
                 var pace = 1f + CreatureBlob.Trait(s.Individual, 5) * 0.08f;
-                var walk = b.WalkSpeed * s.Scale * pace;
-                var run = b.RunSpeed * s.Scale * pace;
+                var stylePace = GaitStyle.Of(ref b, s.Individual).Pace;
+                var walk = b.WalkSpeed * s.Scale * pace * stylePace;
+                var run = b.RunSpeed * s.Scale * pace * (1f + (stylePace - 1f) * 0.5f);
                 // A-103 row 2b: a sea folk out of the water trudges (slower, stooped in CreatureAnimator).
                 if (FolkState.OutOfWater(s.Position, b.WalksBed, Terrain))
                 {
@@ -1275,7 +1313,7 @@ namespace Punchy.Fauna
 
                 // Bat folk (#35): a light coming near breaks off what it was doing, to cover its face at once
                 // (DecideShield) rather than when its timer runs out.
-                if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && s.Held != HeldItem.Goggles &&
+                if (b.ShunsLight && s.Action != IdleAction.ShieldEyes && !Punchy.Items.FolkKits.Shaded(in s) &&
                     (Free(s.Mode) || s.Mode == CreatureMode.Work) && !(s.Mode == CreatureMode.Idle && s.Timer <= 0.6f))
                     // (Straight into the cover, not via Decide next tick: a moment idle and facing the light, it would
                     // see the player and bolt instead. A-68.)
@@ -1343,6 +1381,17 @@ namespace Punchy.Fauna
                     desiredLook = 0f;
                     return;
                 }
+                // A-120 rows 2-3: going over to an animal, petting it, shooing it off, or fetching it to carry (Petting.cs).
+                if (s.Stage >= CreatureAnimator.PetGo && s.Stage <= CreatureAnimator.PetFetch)
+                {
+                    if (Petting(self, ref s, ref b, ref rng, dt))
+                    {
+                        targetSpeed = walk;
+                        moving = true;
+                    }
+                    desiredLook = 0f;
+                    return;
+                }
                 if (s.Stage >= MessageWait)
                 {
                     Receiving(ref s, ref b, ref rng, dt);
@@ -1352,7 +1401,7 @@ namespace Punchy.Fauna
                 if (s.Action == IdleAction.None)
                     s.Timer -= dt;
                 desiredLook = idleLook;
-                if (s.Timer <= 0f)
+                if (s.Timer <= 0f && !NoticePlayerAnimal(ref s, ref b, ref rng))
                     Decide(self, ref s, ref b, species, ref rng, perched, player);
             }
 
@@ -1784,7 +1833,9 @@ namespace Punchy.Fauna
                 {
                     s.Speed *= 0.5f;
                     // (A-88 row 1: one following a player veers too, for a moment, rather than crawl into it.)
-                    var following = M.FollowHolder != 0 && M.FollowDetourTime <= 0f;
+                    // (A-110 row 4: so does one walking to its door, which stood against a wall or a bank before, far
+                    // out of its town, till its brain gave the door up: GoIndoors keeps to the spot as Follow does.)
+                    var following = (M.FollowHolder != 0 || s.Mode == CreatureMode.Home && s.Stage == 0) && M.FollowDetourTime <= 0f;
                     if (s.Mode == CreatureMode.Flee || s.Mode == CreatureMode.Play && s.Stage == 1 || following)
                     {
                         // Running, it veers along whatever's in the way: to the side its run leans to (head-on, its
@@ -1909,8 +1960,9 @@ namespace Punchy.Fauna
                     var tool = ((s.Individual >> 9) % 3u) switch { 0u => HeldItem.Staff, 1u => HeldItem.Stick, _ => HeldItem.None };
                     if (s.Mode == CreatureMode.Wander && s.Stage == CarryGoods)
                         tool = HeldItem.OreSack;
-                    s.Held = !Below(s, ref b) && Night < 0.5f ? HeldItem.Goggles
-                           : s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
+                    // (Smoked goggles on the surface by day: a head item, so its hands stay free; P-38 row 3.)
+                    Punchy.Items.FolkKits.SetShades(ref s, !Below(s, ref b) && Night < 0.5f);
+                    s.Held = s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? tool : HeldItem.None;
                 }
                 else if (b.Blind && b.Hands)
                     s.Held = ((s.Individual >> 7) & 3u) != 0 && s.Mode != CreatureMode.Sleep && s.Mode != CreatureMode.Rest ? HeldItem.Staff : HeldItem.None;

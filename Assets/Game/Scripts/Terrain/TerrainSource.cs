@@ -103,6 +103,9 @@ namespace Punchy.Terrain
         public BlobAssetReference<HeightmapBlob> Heightmap;
         /// <summary>Generator version 2 only: metres added to the biome shape heights (ridges between realms, the lake bowl).</summary>
         public BlobAssetReference<HeightmapBlob> Island;
+        /// <summary>M-07 r2b (#260): the map editor's painted height offsets, added to the base height before every place
+        /// is laid out (unset with no edits file: the bake is then byte-identical).</summary>
+        public BlobAssetReference<PaintedEditsBlob> Edits;
 
         public BiomeSourceKind BiomeKind;
         public BiomeNoiseSettings BiomeNoise;
@@ -130,14 +133,21 @@ namespace Punchy.Terrain
         public BlobAssetReference<AnchorSetBlob> Anchors;
         /// <summary>Bat folk settlements (#35, baked after caves, read by nothing else): their chambers and which cave pools are white.</summary>
         public BlobAssetReference<BatFolkSetBlob> BatFolk;
+        /// <summary>W-168: every cave's dungeon sockets (baked last, kept in the island file); unset on v1, where CaveSocketSystem builds them.</summary>
+        public BlobAssetReference<CaveSocketSetBlob> CaveSockets;
         /// <summary>Icebergs off the cold coasts (W-28, baked last, scenery with its own seed stream) and the one berg's ice cave.</summary>
         public BlobAssetReference<IcebergSetBlob> Icebergs;
+        /// <summary>W-150: the cliff kit pieces on sea cliff and mesa faces (CliffKitBaking), built after every place.</summary>
+        public BlobAssetReference<CliffKitSetBlob> CliffKit;
         /// <summary>The grand falls (W-29, v2 only, baked after every place): a stepped mountain stream into the central lake.</summary>
         public BlobAssetReference<GrandFallsBlob> GrandFalls;
         /// <summary>The archipelago off the dune coast (W-30, v2 only, baked after every place): islets raised out of the sea floor.</summary>
         public BlobAssetReference<ArchipelagoBlob> Archipelago;
         /// <summary>The scarps (W-155, baked after every place): rim lines where the ground is cut to a true step, each drawn by a skin mesh.</summary>
         public BlobAssetReference<ScarpSetBlob> Scarps;
+        /// <summary>The herds (A-108 row 2, v2 only, baked last; animal lane): read by fauna alone, never by the ground. Left out of
+        /// Equals on purpose: it is rebuilt with the blobs above, so they already tell one bake from another.</summary>
+        public BlobAssetReference<Punchy.Fauna.HerdSetBlob> Herds;
         /// <summary>Set when every place is baked: biome ponds are dug only after that, so they never move a landmark, road, cave or anchor.</summary>
         public bool PondsOn;
         /// <summary>W-43c: set with <see cref="PondsOn"/>: riverbanks get their seeded width, slope and shoreline wobble (v2 rivers only).</summary>
@@ -294,6 +304,30 @@ namespace Punchy.Terrain
 
         // ---------------------------------------------------------------- heights
 
+        /// <summary>W-70b: pass corridor weight (0..1) at a point: how much biome shape relief to fade out.</summary>
+        float PassTrack(float2 xz)
+        {
+            // W-174 (#403): the pass corridor is an 18 m raster, so its bank followed the raster's straight cell lines
+            // in places. Sampled through a two-scale warp (~16 m), the bank wanders like a natural valley side.
+            var warp = new float2(noise.snoise(xz * 0.014f + 5.7f), noise.snoise(xz * 0.014f - 21.3f)) * 12f
+                     + new float2(noise.snoise(xz * 0.045f - 9.1f), noise.snoise(xz * 0.045f + 2.9f)) * 4f;
+            return Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz + warp);
+        }
+
+        /// <summary>
+        /// W-174 (#403): 1 in a pass-box gully, 0 between them. The gullies run along the walls of a jittered cell
+        /// network (cells ~96 m) seen through a two-scale domain warp, about 12-50 m wide as the edge noise wanders.
+        /// </summary>
+        static float PassGully(float2 xz)
+        {
+            var warp = new float2(noise.snoise(xz * 0.006f + 11.3f), noise.snoise(xz * 0.006f - 7.9f)) * 28f
+                     + new float2(noise.snoise(xz * 0.025f + 3.1f), noise.snoise(xz * 0.025f + 17.7f)) * 7f;
+            var c = noise.cellular((xz + warp) / 96f);
+            var wall = (c.y - c.x) * 48f;   // ~metres to the nearest cell wall
+            var wide = 0.6f + 0.8f * GroundEdits.EdgeNoise(xz, 0.012f, 41f);
+            return 1f - math.smoothstep(6f * wide, 28f * wide, wall);
+        }
+
         /// <summary>Biome base elevations plus each biome's relief, blended by shape weight. No rivers.</summary>
         public float ShapeHeight(float2 xz, in BiomeWeights shape)
         {
@@ -303,19 +337,17 @@ namespace Punchy.Terrain
             ref var set = ref Biomes.Value;
             float height = 0f;
             // Island v3 (W-70b): the biome relief fades out in a pass corridor, so a pass is walkable.
-            var track = V3Ground.IsCreated ? Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz) : 0f;
+            var track = V3Ground.IsCreated ? PassTrack(xz) : 0f;
             var relief = 1f - track;
-            // In the rest of the pass box, long walls of relief are notched: gullies on a 96 m grid of world lines
-            // keep 40% of the relief, so any straight face crossing the pass is broken every 96 m or less.
+            // In the rest of the pass box, long walls of relief are notched: gullies keep 40% of the relief, so any
+            // straight face crossing the pass is broken every ~100 m. W-174 (#403): the gullies were a 96 m grid of
+            // world lines and left square mesas with ruler-straight rims; they now follow the walls of a domain-warped
+            // cell network (cells ~96 m) with a width that wanders, so they read as eroded gullies.
             if (V3Ground.IsCreated)
             {
                 var box = Punchy.Terrain.V3Ground.PassBox(ref V3Ground.Value, xz);
                 if (box > 0.001f)
-                {
-                    var dd = math.abs(math.frac(xz / 96f) - 0.5f) * 96f;
-                    var notch = 1f - math.smoothstep(6f, 28f, math.min(dd.x, dd.y));
-                    relief *= 1f - 0.6f * box * notch;
-                }
+                    relief *= 1f - 0.6f * box * PassGully(xz);
             }
             // Island v3 (W-72): on range tops (range field 35-95 m and up) ridged biome relief gets rounded creases,
             // fewer fine octaves and less height, so crests read as soft ridges and domed summits; the lower flanks
@@ -372,6 +404,9 @@ namespace Punchy.Terrain
             }
             if (Island.IsCreated)
                 height += Island.Value.Sample(xz);
+            // M-07 r2b: painted edits go into the base height, so rivers, places, roads, ponds and scarps fit them.
+            if (Edits.IsCreated)
+                height += PaintedEditsBlob.Sample(ref Edits.Value, xz);
             return World.SeaLevel + height;
         }
 
@@ -613,7 +648,7 @@ namespace Punchy.Terrain
             if (Archipelago.IsCreated)
                 h = Punchy.Terrain.Archipelago.Shape(ref Archipelago.Value, xz, h);
             if (Rivers.IsCreated)
-                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h);
+                h = RiverSampling.Carve(RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz)), RiverSettings, h, xz);
             if (Landmarks.IsCreated)
                 h = LandmarkSampling.Shape(ref Landmarks.Value, xz, h);
             if (GrandFalls.IsCreated)
@@ -636,7 +671,7 @@ namespace Punchy.Terrain
         {
             if (!V3Ground.IsCreated)
                 return float.MaxValue;
-            var track = Punchy.Terrain.V3Ground.PassFlat(ref V3Ground.Value, xz);
+            var track = PassTrack(xz);
             return track > 0.001f ? math.lerp(1.25f, 0.5f, math.smoothstep(0f, 0.6f, track)) : float.MaxValue;
         }
 
@@ -661,7 +696,7 @@ namespace Punchy.Terrain
                 {
                     ref var bed = ref set.Beds[type.FirstBed + b];
                     if (LandmarkBeds.Reach(inst, type.Radius * inst.Scale, bed, xz, out var centre, out var distance, out var ring))
-                        h = LandmarkBeds.Level(h, Unbedded(centre), distance, bed.Radius, ring);
+                        h = LandmarkBeds.Level(xz, h, Unbedded(centre), distance, bed.Radius, ring);
                 }
             }
             return h;
@@ -697,7 +732,7 @@ namespace Punchy.Terrain
                 var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
-                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height);
+                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height, xz);
                 g.River = RiverSampling.ChannelMask(river);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
@@ -889,8 +924,8 @@ namespace Punchy.Terrain
             return glow.y;
         }
 
-        /// <summary>Whether the ground surface here is cut away by a cave entrance.</summary>
-        public bool IsCaveHole(float2 xz) => MouthCut(xz, SampleHeight(xz)) < 0f || TempleCut(xz) < 0f;
+        /// <summary>Whether the ground surface here is removed: the one hole mask (GroundHoles.Removed; cave mouths, temple entrances, scarp strips).</summary>
+        public bool IsCaveHole(float2 xz) => GroundHoles.Removed(this, xz);
 
         /// <summary>
         /// W-56: signed distance (m) to the sunken temple's entrance cut (its open ruin rooms), negative inside: the
@@ -926,7 +961,7 @@ namespace Punchy.Terrain
             // faces, where straight down is somewhere else entirely.
             var normal = SampleNormal(xz, 0.5f);
             cave = CaveDistance(new float3(xz.x, h, xz.y) - normal * depth);
-            return math.min(CaveSampling.SmoothMin(depth - CaveSampling.SkinGap, cave, CaveSampling.MouthBlend), 100f);
+            return math.min(CaveSampling.SmoothMin(depth - CaveSampling.CutGap, cave, CaveSampling.MouthBlend), 100f);
         }
 
         /// <summary>How far into the ground MouthCut samples the cave field.</summary>
@@ -938,6 +973,19 @@ namespace Punchy.Terrain
         /// mean 0.1-0.3 m over the skin. (Placement and creatures keep MouthCutDepth, so baking is unchanged.)
         /// </summary>
         public const float MeshCutDepth = 0.15f;
+
+        /// <summary>
+        /// W-174 r6: the factor that turns a height above the ground at xz into a distance across the slope
+        /// (rsqrt(1 + slope^2), slope by central differences half a metre each way). The cave walls' field and the
+        /// mouth collars' feet both measure depth with it.
+        /// </summary>
+        public float AcrossSlope(float2 xz)
+        {
+            const float e = 0.5f;
+            var slope = new float2(SampleHeight(xz + new float2(e, 0f)) - SampleHeight(xz - new float2(e, 0f)),
+                                   SampleHeight(xz + new float2(0f, e)) - SampleHeight(xz - new float2(0f, e))) / (2f * e);
+            return math.rsqrt(1f + math.lengthsq(slope));
+        }
 
         /// <summary>
         /// W-128: the ground as the terrain mesh draws it on a grid of this step (corners at multiples of it, each quad
@@ -1089,6 +1137,12 @@ namespace Punchy.Terrain
                 deck = room;
                 onDeck = true;
             }
+            // W-150 row 2: a cliff kit piece's top (a shelf, a slab, a fallen block) stands bodies too.
+            if (CliffKit.IsCreated && Punchy.Terrain.CliffKit.Deck(this, p, out var shelf) && (!onDeck || shelf > deck))
+            {
+                deck = shelf;
+                onDeck = true;
+            }
             return onDeck;
         }
 
@@ -1183,10 +1237,19 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock); the point's own height if
-        /// it isn't in cave air.
+        /// The cave ceiling straight above a point in cave air (sphere-traced up to rock). Out of cave air, the underside
+        /// of a cliff kit piece hanging over it (W-150 row 2: an overhang), else the point's own height.
         /// </summary>
         public float CeilingOver(float3 p)
+        {
+            var cave = CaveCeilingOver(p);
+            // Cave air answers alone (cave drips and bakes keep their numbers); the kit only roofs open air.
+            if (cave == p.y && CliffKit.IsCreated && Punchy.Terrain.CliffKit.Ceiling(this, p, out var roof))
+                return roof;
+            return cave;
+        }
+
+        float CaveCeilingOver(float3 p)
         {
             // Up by part of the distance to rock (as FloorUnder marches down): angular or ribbed walls make the
             // field rise faster than the true distance, and a longer step would end up inside the ceiling. Then
@@ -1325,8 +1388,8 @@ namespace Punchy.Terrain
         }
 
         public bool Equals(TerrainSource o) =>
-            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island &&
+            World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island && Edits == o.Edits &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && Anchors == o.Anchors && PondMask == o.PondMask && Paddies == o.Paddies && V3Ground == o.V3Ground;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && Paddies == o.Paddies && V3Ground == o.V3Ground;
     }
 }

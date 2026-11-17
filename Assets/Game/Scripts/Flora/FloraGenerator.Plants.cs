@@ -221,40 +221,98 @@ namespace Punchy.Flora
             var s = g.S;
             var b = g.B;
             var height = g.Range(s.Height);
-            var r = Mathf.Max(height * s.Thickness, 0.16f);
+            var green = g.FoliageColor();
+            // The colour, lean and arm count keep their old places in the draw order, so each plant keeps its arm count
+            // (and triangle budget); the new draws come after.
+            var leanDir = g.Flat(g.R() * 6.28f);
+            var leanPick = g.R();
+            var armCount = g.Count(s.Branches);
+            // A-113 row 3: real saguaros are never quite plumb or even. Each plant draws its own girth, lean, bow, swell
+            // and taper, and each arm its own kind (stub, drooping, short, long) - from the same point counts and sides.
+            var girth = g.Range(0.85f, 1.2f);
+            var r = Mathf.Max(height * s.Thickness * girth, 0.16f);
             g.Height = height;
             g.Width = r * 2f;
             g.TrunkRadius = r;
-            var green = g.FoliageColor();
 
-            var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, 0.03f) * height;
+            // Lean grows toward the top (a trunk settling over years); a bow bends the middle, sometimes into an S.
+            // Three in ten stand nearly plumb; the rest lean 3-9% of their height.
+            var lean = leanDir * (leanPick < 0.3f ? leanPick / 0.3f * 0.02f : Mathf.Lerp(0.03f, 0.09f, (leanPick - 0.3f) / 0.7f)) * height;
+            var bowDir = g.Flat(g.R() * 6.28f);
+            var bow = bowDir * g.Range(0f, 0.045f) * height;
+            var sBend = g.R() < 0.25f;
+            // Girth: a swell where a wet year fattened it (or a pinch where a dry one thinned it), and a top that narrows.
+            var swellAt = g.Range(0.3f, 0.75f);
+            var swell = g.Range(-0.06f, 0.14f);
+            var tip = g.Range(0.72f, 0.95f);
+            var wobble = g.R() * 6.28f;
             var trunk = new List<Vector3>();
             var radii = new List<float>();
             for (int i = 0; i <= 7; i++)
             {
                 var t = i / 7f;
-                trunk.Add(Vector3.up * Mathf.Lerp(-0.5f, height - r * 0.9f, t) + lean * t);
-                radii.Add(r * (0.88f + 0.12f * FloraMeshBuilder.Smooth(0f, 0.25f, t)) * (1f + 0.04f * Mathf.Sin(t * 9f + g.Variant)));
+                var bend = sBend ? Mathf.Sin(t * 6.28f) * 0.6f : Mathf.Sin(t * 3.14f);
+                trunk.Add(Vector3.up * Mathf.Lerp(-0.5f, height - r * 0.9f, t) + lean * Mathf.Pow(t, 1.6f) + bow * bend);
+                var bump = 1f + swell * Mathf.Exp(-Mathf.Pow((t - swellAt) / 0.18f, 2f));
+                var taper = Mathf.Lerp(1f, tip, FloraMeshBuilder.Smooth(0.65f, 1f, t));
+                radii.Add(r * (0.88f + 0.12f * FloraMeshBuilder.Smooth(0f, 0.25f, t)) * bump * taper * (1f + 0.04f * Mathf.Sin(t * 9f + wobble)));
             }
+            g.TrunkAxis = trunk;   // collision follows the lean (FloraObstacle)
 
-            var armCount = g.Count(s.Branches);
             if (height < 3.5f) armCount = 0;
             else if (height < 5f) armCount = Mathf.Min(armCount, 1);
             var arms = new List<(List<Vector3> path, float radius)>();
             for (int i = 0; i < armCount; i++)
             {
-                var dir = g.Flat((i + g.Range(-0.2f, 0.2f)) / Mathf.Max(armCount, 1) * 6.28f + g.Variant);
-                var y0 = height * g.Range(0.3f, 0.55f);
-                var outward = r * g.Range(1.6f, 2.8f);
-                var rise = Mathf.Min(height * g.Range(0.18f, 0.4f), height * 0.92f - y0);
-                var p0 = PointOnPath(trunk, y0);
-                var elbow = p0 + dir * outward + Vector3.up * r * 1.1f;
+                var dir = g.Flat((i + g.Range(-0.3f, 0.3f)) / Mathf.Max(armCount, 1) * 6.28f + g.Variant);
+                var side = Vector3.Cross(Vector3.up, dir);
+                var kind = g.R();
                 var path = new List<Vector3>();
-                for (int k = 0; k <= 4; k++)
-                    path.Add(Bezier(p0, p0 + dir * outward * 1.05f, elbow, k / 4f));
-                path.Add(elbow + Vector3.up * rise * 0.5f + dir * r * 0.15f);
-                path.Add(elbow + Vector3.up * rise + dir * r * 0.25f);
-                arms.Add((path, r * g.Range(0.65f, 0.8f)));
+                float radius;
+                if (kind < 0.15f)
+                {
+                    // A stub: a young arm only just budding out and turning up.
+                    var y0 = height * g.Range(0.3f, 0.7f);
+                    var p0 = PointOnPath(trunk, y0);
+                    var outward = r * g.Range(0.9f, 1.4f);
+                    var up = r * g.Range(0.5f, 1.4f);
+                    var elbow = p0 + dir * outward + Vector3.up * r * 0.6f;
+                    for (int k = 0; k <= 4; k++)
+                        path.Add(Bezier(p0, p0 + dir * outward, elbow, k / 4f));
+                    path.Add(elbow + Vector3.up * up * 0.5f + dir * r * 0.1f);
+                    path.Add(elbow + Vector3.up * up + dir * r * 0.15f);
+                    radius = r * g.Range(0.55f, 0.72f);
+                }
+                else if (kind < 0.32f)
+                {
+                    // A drooping arm (frost or its own weight): out and down past its root, the tip turning back up.
+                    var y0 = height * g.Range(0.5f, 0.78f);
+                    var p0 = PointOnPath(trunk, y0);
+                    var outward = r * g.Range(1.6f, 2.6f);
+                    var drop = Mathf.Min(height * g.Range(0.12f, 0.3f), y0 - r * 2f);
+                    var low = p0 + dir * outward - Vector3.up * drop + side * r * g.Range(-0.6f, 0.6f);
+                    for (int k = 0; k <= 4; k++)
+                        path.Add(Bezier(p0, p0 + dir * outward * 0.8f + Vector3.up * r * 0.8f, low, k / 4f));
+                    path.Add(low + dir * r * 0.5f + Vector3.up * r * 0.3f);
+                    path.Add(low + dir * r * 0.7f + Vector3.up * r * g.Range(0.8f, 1.8f));
+                    radius = r * g.Range(0.6f, 0.75f);
+                }
+                else
+                {
+                    // The classic arm, short or long, low or high, its upright part curving in or out a little.
+                    var y0 = height * g.Range(0.25f, 0.62f);
+                    var p0 = PointOnPath(trunk, y0);
+                    var outward = r * g.Range(1.4f, 3.2f);
+                    var rise = Mathf.Min(height * g.Range(0.12f, 0.45f), height * 0.95f - y0);
+                    var elbow = p0 + dir * outward + Vector3.up * r * g.Range(0.7f, 1.5f);
+                    var curl = dir * r * g.Range(-0.4f, 0.9f) + side * r * g.Range(-0.5f, 0.5f);
+                    for (int k = 0; k <= 4; k++)
+                        path.Add(Bezier(p0, p0 + dir * outward * 1.05f, elbow, k / 4f));
+                    path.Add(elbow + Vector3.up * rise * 0.5f + dir * r * 0.15f + curl * 0.35f);
+                    path.Add(elbow + Vector3.up * rise + dir * r * 0.25f + curl);
+                    radius = r * g.Range(0.62f, 0.85f);
+                }
+                arms.Add((path, radius));
             }
             var blooms = g.HasAccent && g.Variant % 2 == 0;
             var bloomSpots = new List<Vector3>();
@@ -434,6 +492,8 @@ namespace Punchy.Flora
             // Puffballs (a very short stem share): round balls on a stub. Giants (over 2 m): domed or bell caps on
             // stems that flare into roots and bend, the smaller ones gathered close round the biggest.
             var puff = s.TrunkFraction < 0.12f;
+            // W-177: wall-grown clusters spread over the wall (the model's XY plane at Z 0), not over the ground.
+            var wall = s.WallGrown && !puff && height <= 2f;
             var count = g.Count(s.Branches);
             for (int i = 0; i < count; i++)
             {
@@ -441,6 +501,8 @@ namespace Punchy.Flora
                 var offset = i == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * height * s.Spread * g.Range(giant ? 0.18f : 0.25f, giant ? 0.45f : 0.7f);
                 var h = height * (i == 0 ? 1f : g.Range(giant ? 0.25f : 0.4f, giant ? 0.65f : 0.85f));
                 var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, giant ? 0.18f : 0.25f) + (i > 0 ? offset.normalized * 0.15f : Vector3.zero);
+                if (wall)
+                    offset = new Vector3(offset.x, offset.z, 0f);
                 var capRadius = h * s.Spread * g.Range(0.35f, 0.55f);
                 var capHeight = capRadius * (giant ? g.Range(0.55f, 0.95f) : g.Range(0.4f, 0.65f));
                 if (puff)
@@ -453,6 +515,12 @@ namespace Punchy.Flora
                 var seed = g.R() * 100f;
                 var top = offset + lean * h + Vector3.up * h;
                 var tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean).normalized);
+                // Wall-grown: out from the wall, then up, the cap only a little tipped away from the rock.
+                if (wall)
+                {
+                    top = offset + Vector3.forward * h * 0.5f + Vector3.up * h * 0.6f + lean * h * 0.3f;
+                    tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean * 0.6f + Vector3.forward * 0.2f).normalized);
+                }
 
                 // A giant mushroom's main stem stops walkers like a trunk.
                 if (i == 0 && h > 2f)
@@ -483,6 +551,9 @@ namespace Punchy.Flora
                                    new List<float> { stemRadius * 0.55f, stemRadius * 0.35f, stemRadius * 0.12f }, g.Sides(5, 4, 3), g.Bark * 0.85f, FloraPart.Bark);
                         }
                 }
+                else if (wall)
+                    b.Tube(new List<Vector3> { offset + Vector3.back * 0.02f, offset + Vector3.forward * h * 0.32f + Vector3.up * h * 0.12f, top },
+                           new List<float> { stemRadius * 1.4f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
                 else
                     b.Tube(new List<Vector3> { offset + Vector3.down * 0.02f, offset + lean * h * 0.45f + Vector3.up * h * 0.55f, top },
                            new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);

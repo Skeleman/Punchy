@@ -7,7 +7,8 @@ namespace Punchy.UI
     /// <summary>
     /// Controller and keyboard focus for the IMGUI main menu. IMGUI only gives keyboard focus to text fields, so the menu's
     /// controls (buttons, toggles, sliders, text fields) go through this instead: each one drawn becomes a focus stop, in
-    /// draw order. The UI action map's Navigate (d-pad, left stick, arrows/WASD) moves the focus, with key repeat; left
+    /// draw order. The d-pad and the arrow keys move the focus, with key repeat (never a stick or WASD: P-39, #397, those
+    /// keep walking the player while the in-world menu is up); left
     /// and right step a focused slider. Submit (A / Cross / Enter) presses the focused control. The mouse works as it
     /// always has. The focus only shows once the menu has been navigated, and hides again on a mouse click.
     /// P-32: the focus moves by the layout, not the draw order. Each stop's screen rect is kept from the last Repaint;
@@ -52,13 +53,12 @@ namespace Punchy.UI
         float noKeyboardUntil;
         int noKeyboardFor = -1;
 
-        InputAction navigate, submitAction;
+        InputAction submitAction;
 
         /// <summary>Reads the menu's navigation input; called from the menu's Update while it's open.</summary>
         public void ReadInput()
         {
             var actions = InputSystem.actions;
-            navigate ??= actions?.FindAction("UI/Navigate");
             submitAction ??= actions?.FindAction("UI/Submit");
             // (Not while a text field is being typed in: there the arrows, WASD and Enter belong to the field.)
             if (GUIUtility.keyboardControl != 0)
@@ -69,7 +69,7 @@ namespace Punchy.UI
             var mouse = Mouse.current;
             if (mouse != null && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame))
                 Active = false;
-            var direction = navigate != null ? navigate.ReadValue<Vector2>() : Vector2.zero;
+            var direction = Direction();
             if (TestPress(out var pressed, out var pressSubmit))
                 direction = pressed;
             // One step on a fresh push, then repeats after a moment while held.
@@ -110,6 +110,27 @@ namespace Punchy.UI
                     submit = true;
                 Active = true;
             }
+        }
+
+        /// <summary>The d-pad (any pad's, so a virtual test pad counts) and the arrow keys; the larger push wins.</summary>
+        static Vector2 Direction()
+        {
+            var direction = Vector2.zero;
+            foreach (var pad in Gamepad.all)
+            {
+                var d = pad.dpad.ReadValue();
+                if (d.sqrMagnitude > direction.sqrMagnitude)
+                    direction = d;
+            }
+            var keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                var k = new Vector2((keyboard.rightArrowKey.isPressed ? 1f : 0f) - (keyboard.leftArrowKey.isPressed ? 1f : 0f),
+                                    (keyboard.upArrowKey.isPressed ? 1f : 0f) - (keyboard.downArrowKey.isPressed ? 1f : 0f));
+                if (k.sqrMagnitude > direction.sqrMagnitude)
+                    direction = k;
+            }
+            return direction;
         }
 
         /// <summary>Starts a pass of the menu's OnGUI. In Layout, uses up the navigation caught since the last frame.</summary>

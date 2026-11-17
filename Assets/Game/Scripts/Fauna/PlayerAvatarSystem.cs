@@ -168,7 +168,9 @@ namespace Punchy.Fauna
             }
         }
 
-        static void Drive(ref CreatureState c, ref CreatureBlob b, in LocalTransform player, bool grounded, float dt)
+        /// <summary>Puts body c where the player is, facing its way, its gait run by the distance covered (also an
+        /// animal a player rides and steers, SteeredMountSystem and PlayerRideSystem, A-126 row 4).</summary>
+        internal static void Drive(ref CreatureState c, ref CreatureBlob b, in LocalTransform player, bool grounded, float dt)
         {
             var forward = math.mul(player.Rotation, new float3(0f, 0f, 1f));
             var yaw = math.atan2(forward.x, forward.z);

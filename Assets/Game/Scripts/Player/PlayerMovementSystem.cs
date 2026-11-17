@@ -52,8 +52,34 @@ namespace Punchy.Player
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var dt = SystemAPI.Time.DeltaTime;
+            // P-52 (#518): a long frame (a hitch, a load) is moved in pieces of at most MaxStep, so the body never jumps
+            // further in one go than the walls' tests can catch: a 0.31 s frame once carried it off a stair tread and
+            // out through a tower wall. Past MaxSteps pieces the rest of the frame is dropped (the game slows instead).
+            // A normal frame (over 20 fps) is one piece, as before. Each machine moves its own player (client-authoritative),
+            // so this needs nothing from the network.
+            var frame = SystemAPI.Time.DeltaTime;
+            var steps = NoSubstep.Data ? 1 : math.clamp((int)math.ceil(frame / MaxStep), 1, MaxSteps);
+            var dt = NoSubstep.Data ? frame : math.min(frame, MaxStep * MaxSteps) / steps;
+            for (int i = 0; i < steps; i++)
+                Move(ref state, dt, i == 0);
+        }
+
+        /// <summary>The longest piece of a frame the player is moved by at once (s), and the most pieces in a frame (P-52).</summary>
+        const float MaxStep = 0.05f;
+        const int MaxSteps = 8;
+        /// <summary>Tests ("-nosubstep" with -climbtower -stallframe): long frames moved in one piece again, the old way.</summary>
+        public static readonly SharedStatic<bool> NoSubstep = SharedStatic<bool>.GetOrCreate<PlayerMovementSystem, NoSubstepKey>();
+        struct NoSubstepKey { }
+
+        /// <summary>One piece of a frame: every player body moved by dt. Presses (jump, crouch) count in the first piece only.</summary>
+        void Move(ref SystemState state, float dt, bool first)
+        {
             var rawInput = SystemAPI.GetSingleton<PlayerInput>();
+            if (!first)
+            {
+                rawInput.JumpPressed = false;
+                rawInput.CrouchPressed = false;
+            }
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             var body = SystemAPI.TryGetSingleton<PlayerBody>(out var playerBody) ? playerBody : new PlayerBody { SpeedFactor = 1f };
             SystemAPI.TryGetSingletonBuffer<FloraObstacle>(out var obstacles, true);
@@ -73,11 +99,19 @@ namespace Punchy.Player
             foreach (var avatar in SystemAPI.Query<RefRO<Punchy.Fauna.CreatureState>>().WithAll<Punchy.Fauna.PlayerAvatar>())
                 down = math.max(avatar.ValueRO.Lie, avatar.ValueRO.Sit);
 
-            // (A rider is carried, not moved: PlayerRideSystem puts it on its mount, A-104 row 3.)
-            foreach (var (transform, motor, motion) in
+            // (A rider is carried, not moved: PlayerRideSystem puts it on its mount, A-104 row 3. A-126 row 4: unless it
+            // steers a creature, when it moves as ever with the creature's abilities, the body's seat not holding it.)
+            foreach (var (transform, motor, motion, entity) in
                      SystemAPI.Query<RefRW<LocalTransform>, RefRO<PlayerMotor>, RefRW<PlayerMotion>>().WithAll<PlayerTag>()
-                         .WithNone<Punchy.Fauna.PlayerRide>())
+                         .WithEntityAccess())
             {
+                var steering = false;
+                if (SystemAPI.HasComponent<Punchy.Fauna.PlayerRide>(entity))
+                {
+                    if (!SystemAPI.GetComponent<Punchy.Fauna.PlayerRide>(entity).Steering)
+                        continue;
+                    steering = true;
+                }
                 ref var t = ref transform.ValueRW;
                 ref var m = ref motion.ValueRW;
                 var settings = motor.ValueRO;
@@ -85,7 +119,7 @@ namespace Punchy.Player
                 // Getting up comes before going anywhere: lying or sitting, the body stands first (moving gets it up,
                 // InteractionInputSystem) rather than crawling off with its folded legs dragging under it. A jump
                 // pressed meanwhile only gets it up.
-                if (down > 0.25f && m.Grounded)
+                if (down > 0.25f && m.Grounded && !steering)
                 {
                     input.MoveDirection = float2.zero;
                     input.JumpPressed = false;
@@ -268,6 +302,23 @@ namespace Punchy.Player
                 if (inCave)
                     position.xz = KeepOutOfCaveWalls(terrain, from, position.xz, settings.Radius);
                 var probeCave = position.xz;
+                // W-162 row 3 (#327): rock stops a move as a wall does: a cave wall (cut above) or, on open ground, a cliff
+                // (CliffRise) not under a prop's or kit's top. Either sets blocked below, so a body with the rock's grade
+                // climbs it (RockClimbs) and one without stands at its foot.
+                var rockCut = math.any(probeCave != probeSlid);
+                // (A cave wall's foot is often floor rising too steeply, which stops the body further on with no cut here:
+                // rock within a hand's reach the way it walks counts too.)
+                var caveStep = probeSlid - from.xz;
+                if (inCave && !rockCut && math.lengthsq(caveStep) > 1e-8f &&
+                    !Clear(terrain, from, from.xz + math.normalize(caveStep) * (settings.Radius + 0.25f), settings.Radius))
+                    rockCut = true;
+                var cliffTo = position.xz;
+                if (!inCave && !swimming && !m.OnProp && CliffAhead(terrain, from, position.xz, stepUp) &&
+                    !TopUnder(tops, grids, props, hasKit, kitBoxes, new float3(position.x, from.y, position.z), settings.Radius, stepUp, out _))
+                {
+                    position.xz = from.xz;
+                    rockCut = true;
+                }
                 // Props' tops too high to step onto are walls (a boulder, a fountain's rim from outside): slid along.
                 var blocked = false;
                 // (#33: a wall climber counts anything it can't step onto as a wall, however far above its own head the
@@ -290,6 +341,7 @@ namespace Punchy.Player
                 }
                 // The salt tower's body and its steps from below (W-27): slid along the same way.
                 position.xz = KeepOutOfTower(terrain, from, position.xz, stepUp, 1.7f * size, ref blocked);
+                blocked |= rockCut;
                 // (#33 probe, -place wall only: every term of the wall latch below, and what stopped the move first.)
                 if (WallProbe.Data == 1 && climbsWall)
                 {
@@ -373,6 +425,10 @@ namespace Punchy.Player
                         continue;
                     }
                     position.y = from.y + rising * wallSpeed * dt;
+                    // (A cliff leans back, unlike a building's wall: climbing up it, the body creeps into the face as far as
+                    // the rock stays under it, so it keeps to the face and walks off over the rim at the top.)
+                    if (rockCut && !inCave && rising > 0f && terrain.SampleHeight(cliffTo) <= position.y)
+                        position.xz = cliffTo;
                     if (wasOnWall && rising < 0f && Floor(terrain, position, settings.SwimDepth, out var foot, out _) && position.y <= foot)
                     {
                         // Down at the foot of it: off, standing.
@@ -1215,6 +1271,25 @@ namespace Punchy.Player
         /// <summary>A cave floor rising more than this per metre (60°) over <see cref="SlopeSpan"/> the way the body walks can't
         /// be walked up: the body slides back. Real cave slopes run to about 57° over that span (seg 245 on v2, A-37).</summary>
         public const float SteepRise = 1.73f;
+        /// <summary>W-162 row 3: open ground rising more than this per metre (60 deg, as SteepRise in caves) over SlopeSpan
+        /// the way the body moves is a cliff: the move is cut and counts as blocked (a wall to climb or stand under).</summary>
+        public const float CliffRise = SteepRise;
+
+        /// <summary>Whether the open ground at <paramref name="to"/> rises steeper than CliffRise over SlopeSpan the way
+        /// from it, with the ground ahead still more than a step above the feet (near a cliff's top, a climber walks on).</summary>
+        static bool CliffAhead(in TerrainSource terrain, float3 from, float2 to, float stepUp)
+        {
+            var way = to - from.xz;
+            var len = math.length(way);
+            if (len < 1e-5f)
+                return false;
+            way /= len;
+            var half = SlopeSpan * 0.5f;
+            var ahead = terrain.SampleHeight(to + way * half);
+            var behind = terrain.SampleHeight(to - way * half);
+            return ahead - behind > CliffRise * SlopeSpan && ahead - from.y > math.max(stepUp, 0.5f);
+        }
+
         /// <summary>The stretch of floor (m, centred on the feet) a cave slope's steepness is judged over: about a stride
         /// either side, so one lump or ledge in it doesn't count as the slope.</summary>
         public const float SlopeSpan = 2f;

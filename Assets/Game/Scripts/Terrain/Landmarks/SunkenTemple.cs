@@ -161,6 +161,64 @@ namespace Punchy.Terrain
             return best;
         }
 
+        /// <summary>How far outside an open room's face the entrance walls read the ground for their top (m).</summary>
+        public const float WallTopOut = 0.3f;
+        /// <summary>How far above that ground the walls stand (m).</summary>
+        public const float WallTopLift = 0.05f;
+
+        /// <summary>
+        /// W-174 r6 (#405): the top of the entrance walls (world height) on an open room's face e (0 -u, 1 +u, 2 -v,
+        /// 3 +v), whose line is u = c (e 0-1) or v = c (e 2-3), at s along it (v or u): the ground WallTopOut outside the
+        /// face plus WallTopLift, read every half metre of s and straight between. It depends on the face's line only,
+        /// not the room, so SunkenTempleSystem's walls and the terrain chunks' collars (BuildChunkMeshJob) meet on it.
+        /// </summary>
+        public static float WallTop(in TerrainSource source, in SunkenTempleLayout l, int e, float c, float s)
+        {
+            var k = math.floor(s * 2f) * 0.5f;
+            var t = (s - k) * 2f;
+            var a = WallKnot(source, l, e, c, k);
+            return t <= 0f ? a : math.lerp(a, WallKnot(source, l, e, c, k + 0.5f), t);
+        }
+
+        static float WallKnot(in TerrainSource source, in SunkenTempleLayout l, int e, float c, float s)
+        {
+            var o = c + ((e & 1) == 0 ? -WallTopOut : WallTopOut);
+            var q = e < 2 ? new float3(o, 0f, s) : new float3(s, 0f, o);
+            return source.SampleHeight(World(l, q).xz) + WallTopLift;
+        }
+
+        /// <summary>
+        /// The open-room face nearest a point on the entrance cut's outline (local u, v): its face e (as WallTop) and
+        /// line c, and the point's s along it. False when there are no open rooms.
+        /// </summary>
+        public static bool Face(ref LandmarkSetBlob set, float u, float v, out int e, out float c, out float s)
+        {
+            e = 0;
+            c = s = 0f;
+            var best = float.MaxValue;
+            for (int i = 0; i < set.RuinRooms.Length; i++)
+            {
+                var r = set.RuinRooms[i];
+                if (r.Kind != 1)
+                    continue;
+                var d = new float4(r.U0 - u, u - r.U1, r.V0 - v, v - r.V1);
+                // |signed distance| to this room's outline (as Cut): outside, the length past it; inside, to the nearest face.
+                var sd = math.length(new float2(math.max(math.max(d.x, d.y), 0f), math.max(math.max(d.z, d.w), 0f)));
+                var score = sd > 0f ? sd : -math.cmax(d);
+                if (score >= best)
+                    continue;
+                best = score;
+                int f = 0;
+                for (int k = 1; k < 4; k++)
+                    if (d[k] > d[f])
+                        f = k;
+                e = f;
+                c = f == 0 ? r.U0 : f == 1 ? r.U1 : f == 2 ? r.V0 : r.V1;
+                s = f < 2 ? v : u;
+            }
+            return best < float.MaxValue;
+        }
+
         /// <summary>
         /// Whether a body with its feet at p (radius Margin) would stand in a box, or in the ground beside a room,
         /// anywhere between stepUp above its feet and its head: sampled at its centre and four sides, at three heights.

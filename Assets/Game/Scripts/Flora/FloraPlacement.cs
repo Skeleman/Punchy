@@ -140,6 +140,8 @@ namespace Punchy.Flora
         public BlobArray<int2> SettlementSpecies;
         /// <summary>Per settlement layout (Layouts order): its Kit Building species and layer, or -1 (#24).</summary>
         public BlobArray<int2> LayoutKit;
+        /// <summary>Per settlement building (Buildings order): 1 if it keeps its own species in a kit town (an elf tower).</summary>
+        public BlobArray<byte> KeepsOwn;
         /// <summary>W-127: street-light rows (SettlementLayout.Fixtures, LandmarkType.Fixtures), flattened.</summary>
         public BlobArray<FloraPlacement.FloraFixture> Fixtures;
         /// <summary>W-127: per settlement layout (Layouts order) and per landmark type, its rows in Fixtures (first, count).</summary>
@@ -465,6 +467,7 @@ namespace Punchy.Flora
                 settlementSpecies[i] = buildings[i].Species != null
                     ? new int2(species.IndexOf(buildings[i].Species), (int)buildings[i].Species.Layer)
                     : new int2(-1, -1);
+            BakeKeepsOwn(ref builder, ref root, buildings);
             var layoutKit = builder.Allocate(ref root.LayoutKit, layouts.Count);
             for (int i = 0; i < layouts.Count; i++)
                 layoutKit[i] = layouts[i].KitBuilding != null
@@ -568,31 +571,6 @@ namespace Punchy.Flora
         /// Buildings and fences win: whatever else would stand in them isn't placed (scattered plants and rocks, a
         /// neighbouring landmark's props, road clutter), rather than the fence giving way.
         /// </summary>
-        /// <summary>
-        /// What stands on a plot: its layout building's species and layer, except that the island's biggest settlement
-        /// (largest radius, lowest index on a tie) builds its house, seat, inn, smithy, store and workshop plots from its
-        /// layout's Kit Building (#24), each a variant drawn as before. Plots, roles and placement draws are unchanged.
-        /// </summary>
-        public static int2 PlotSpecies(ref FloraBlob f, ref SettlementSetBlob towns, in SettlementPlot plot)
-        {
-            var species = f.SettlementSpecies[plot.Building];
-            if (f.LayoutKit.Length == 0 || species.x < 0 || plot.Settlement < 0 || plot.Settlement >= towns.Settlements.Length)
-                return species;
-            if (plot.Role != PlotRole.House && plot.Role != PlotRole.Seat && plot.Role != PlotRole.Inn &&
-                plot.Role != PlotRole.Smithy && plot.Role != PlotRole.Store && plot.Role != PlotRole.Workshop)
-                return species;
-            ref var town = ref towns.Settlements[plot.Settlement];
-            if (town.Layout < 0 || town.Layout >= f.LayoutKit.Length || f.LayoutKit[town.Layout].x < 0)
-                return species;
-            for (int i = 0; i < towns.Settlements.Length; i++)
-            {
-                var r = towns.Settlements[i].Radius;
-                if (r > town.Radius || (r == town.Radius && i < plot.Settlement))
-                    return species;
-            }
-            return f.LayoutKit[town.Layout];
-        }
-
         static bool OnBuiltPlot(ref FloraBlob f, in TerrainSource source, float2 xz, float radius)
         {
             if (!source.Settlements.IsCreated || f.SettlementSpecies.Length == 0)
@@ -2330,6 +2308,9 @@ namespace Punchy.Flora
                 if (c.w > 0f && math.distancesq(xz, c.xy) < c.z * c.z)
                     return none;
             }
+            // W-150/W-174: nor under a cliff kit piece or on removed ground (the one hole mask).
+            if (GroundHoles.Blocked(source, xz))
+                return none;
             var roll = rng.NextFloat();
             var area = cellSize * cellSize / 100f;
             // Room for 31 (a four-biome border plus a landmark's props; a fuller list would silently drop species).

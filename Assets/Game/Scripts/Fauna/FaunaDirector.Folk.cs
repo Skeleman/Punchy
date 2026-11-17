@@ -95,6 +95,7 @@ namespace Punchy.Fauna
                         Settle(ref st, PinHut(home.OwnerIndex, home.Position.xz));
                     }
                     em.SetComponentData(e, st);
+                    ApplyBuild(em, e, false); // (A-124: the hut's Individual now, so its build.)
                     hermits[i] = e;
                     settledCount++;
                 }
@@ -311,10 +312,15 @@ namespace Punchy.Fauna
                 var nextPost = 0;
                 jobCounts.Clear();
                 var stayFree = 0;
+                var membersTown = TownOfMembers(source, i);
                 foreach (var r in landmarks[inst.Type].Residents)
                 {
                     var index = SpeciesIndex(r.Species);
                     if (index < 0)
+                        continue;
+                    // (A-110 row 3: a town's housed folk are its household members, each spawned as itself by
+                    // SpawnMembers; its rows no longer draw any. Its pens and other animals keep their rows.)
+                    if (membersTown && HousedFolk(index, out _))
                         continue;
                     var count = rng.NextInt(math.max(0, r.Count.x), math.max(r.Count.x, r.Count.y) + 1);
                     // Residents with a leash live round their own home spot (a pen); workers at their post (and stay near
@@ -391,6 +397,7 @@ namespace Punchy.Fauna
                     }
                 }
                 SpawnStableHorses(source, i);   // (A-117: after the residents, so none of their draws move)
+                SpawnHouseholdPets(source, i);  // (A-120 row 1: the same, from each house's key)
                 if (jobCounts.Count > 0 || stayFree > 0)
                 {
                     var line = new System.Text.StringBuilder();
@@ -423,7 +430,7 @@ namespace Punchy.Fauna
         /// The village posts (FolkJobs.VillagePosts) a landmark can staff with this many free folk: each by the
         /// nearest unused anchor of its kind. Standing a step from the anchor, toward the village centre, facing it;
         /// a fisher at the water's edge (its brain finds the shore from there). A-106: a harsh biome's work set adds its
-        /// posts after the usual ones that need as many free folk; a door job stands on the doorstep facing the door.
+        /// posts after the usual ones that need as many free folk; a door job stands on the doorstep facing the door, an innkeeper behind its counter (A-132).
         /// No rng, and with no work set the posts are exactly the usual ones.
         /// </summary>
         static void VillagePosts(in TerrainSource source, float2 centre, float radius, int free, FolkWorkSet workSet, List<Post> into)
@@ -473,9 +480,10 @@ namespace Punchy.Fauna
                 var spot = set.Anchors[best].Position.xz;
                 var toCentre = centre - spot;
                 var dir = math.lengthsq(toCentre) > 0.01f ? math.normalize(toCentre) : new float2(0f, 1f);
-                if (p.Kind == AnchorKind.Door)
+                if (p.Kind == AnchorKind.Door || p.Kind == AnchorKind.Counter)
                 {
-                    // (The door anchor already stands outside the door, facing out: work a step further out, facing in.)
+                    // (The door anchor already stands outside the door, facing out: work a step further out, facing in.
+                    // A counter faces back toward its inn, so its keeper stands behind it facing the street.)
                     var outward = set.Anchors[best].Facing;
                     outward = math.lengthsq(outward) > 0.01f ? math.normalize(outward) : dir;
                     into.Add(new Post { Job = p.Job, Task = p.Task, Stand = spot + outward * 0.9f, Face = spot - outward });

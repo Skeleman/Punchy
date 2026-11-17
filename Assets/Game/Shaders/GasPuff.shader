@@ -21,7 +21,7 @@ Shader "Punchy/Gas Puff"
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
 
             struct Attributes
             {

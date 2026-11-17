@@ -21,12 +21,17 @@ Shader "Punchy/Grass Blades"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            // R-25: no Forward+ variant here (its cost, profiler job 45j); real lights come from LightBudget's list.
+            #define PUNCHY_NEAR_REAL_LIST
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
+            #define PUNCHY_SURFACE_REAL_LIGHTS
+            #define PUNCHY_SURFACE_SHADOW_FADE
+            #include "Surface.hlsl"
             #include "GroundDetail.hlsl"
 
             StructuredBuffer<Blade> _Blades;
@@ -66,15 +71,20 @@ Shader "Punchy/Grass Blades"
                 // R-32 row 2: the same shadow tiers as the ground under the blades. URP's shadow fade (the ground's
                 // UniversalFragmentPBR fades its real-time shadow the same way), then the wide shadow past it, the darker
                 // of the two winning as on the terrain. The flora cache tier is laid on top by its receiver.
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS), input.positionWS, half4(1, 1, 1, 1));
-                half sunShadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0)));
-                half shadow = sunShadow * (1 - PunchyCloudShadow(input.positionWS));
+                // (Surface.hlsl: PUNCHY_SURFACE_SHADOW_FADE for the fade, the wide map biased straight up like plants.)
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
+                ps.wideNormalWS = half3(0, 1, 0);
+                ps.caveAir = 0; // grass only grows outside
+                ps.positionCS = input.positionCS;
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
                 half wrap = saturate(dot(n, light.direction) * 0.6 + 0.4);
                 half through = pow(saturate(dot(-v, light.direction)), 4) * t * 0.6;   // sunlight through the blade
                 // Glowing plants and molten pools nearby light the grass round them too.
-                half3 color = albedo * (light.color * shadow * (wrap + through) + SampleSH(n) + PunchyGlowLight(input.positionWS, n));
+                half3 color = albedo * (light.color * shadow * (wrap + through) + lit.ambient + lit.glow + lit.lights);
 
-                color = PunchyAtmosphere(color, input.positionWS);
+                color = PunchySurfaceFinish(color, ps);
                 return half4(color, 1);
             }
             ENDHLSL

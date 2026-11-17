@@ -64,8 +64,35 @@ namespace Punchy.Flora
         /// Timber (Z-30): while set, bark is marked as wood (Bark + 0.02) and carries its grain's direction, the object
         /// axis nearest the length of the piece being built (each primitive sets it: GrainAlong), in its vertex colour's
         /// alpha (0.25 X, 0.5 Y, 0.75 Z), for the flora shader's grain. Builders set it round planks, posts and beams.
+        /// Shorthand for Family == Punchy.Terrain.MaterialFamily.Wood (W-166): clearing it returns to the builder's BaseFamily.
         /// </summary>
-        public bool Wood;
+        public bool Wood
+        {
+            get => Family == Punchy.Terrain.MaterialFamily.Wood;
+            set
+            {
+                if (value) Family = Punchy.Terrain.MaterialFamily.Wood;
+                else if (Family == Punchy.Terrain.MaterialFamily.Wood) Family = BaseFamily == Punchy.Terrain.MaterialFamily.Wood ? Punchy.Terrain.MaterialFamily.None : BaseFamily;
+            }
+        }
+        /// <summary>
+        /// W-166: what the bark built next is made of (MaterialLibrary). Wood draws through Shaders/Materials/Wood.hlsl;
+        /// the other families are counted (BarkFamilies) so a test can tell no built piece is left without a material.
+        /// </summary>
+        public Punchy.Terrain.MaterialFamily Family;
+        /// <summary>The family a built form's untagged bark is (FloraGenerator.FormFamily): Family returns to it on Clear.</summary>
+        public Punchy.Terrain.MaterialFamily BaseFamily;
+        /// <summary>
+        /// W-166: the kind of wood (MaterialLibrary.Wood) the wood built next is: it rides on the wood mark as
+        /// Bark + 0.015 + kind * 0.0025, which the flora shader decodes to pick the kind's grain and tone.
+        /// </summary>
+        public Punchy.Terrain.WoodKind WoodKind;
+        /// <summary>W-166 row 3: stone built next is rubble (packed irregular stones), not cut courses: it rides on the
+        /// stone mark as + 0.002 (Materials/Stone.hlsl's PunchyStoneBlocks). Cleared with the builder.</summary>
+        public bool Rubble;
+        readonly int[] barkFamilies = new int[16];
+        /// <summary>Bark vertices built per Punchy.Terrain.MaterialFamily since the last Clear (W-166's material test).</summary>
+        public int BarkVerticesOf(Punchy.Terrain.MaterialFamily family) => barkFamilies[(int)family];
         /// <summary>
         /// A built surface's look (W-99), while non-zero: 1 planks, 2 shingles, 3 thatch (StructureKit.KitSurface), 4 a
         /// shingle course laid as geometry (FloraGenerator.RoofCourses: the shader draws only its tiles), 5 a sawn log end
@@ -102,8 +129,10 @@ namespace Punchy.Flora
             colors.Clear();
             data.Clear();
             indices.Clear();
-            Wood = false;
+            Family = BaseFamily;
+            System.Array.Clear(barkFamilies, 0, barkFamilies.Length);
             Surface = 0;
+            Rubble = false;
             Unfounded = false;
             unfounded.Clear();
         }
@@ -118,16 +147,30 @@ namespace Punchy.Flora
             var wood = (Wood || Surface > 0) && part == FloraPart.Bark && !BarkVeins && !BarkSeams && !BarkStrata;
             if (wood)
                 c.a = grainCode + Mathf.Clamp(Surface, 0, 5) * 0.02f;
+            if (part == FloraPart.Bark)
+                barkFamilies[(int)(Surface == 3 ? Punchy.Terrain.MaterialFamily.Thatch : wood ? Punchy.Terrain.MaterialFamily.Wood : Family)]++;
             if (Unfounded)
                 unfounded.Add(positions.Count);
             positions.Add(p);
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.02f : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
+
+        /// <summary>W-166 row 3: the fraction a built family's plain bark carries on the part, so Flora.shader draws it
+        /// through that family's include (Shaders/Materials). Slots sit between the wood band (0.01-0.035) and the
+        /// glowing seams (over 0.15), clear of rock strata (0.08); 0 for families drawn the default way.</summary>
+        public static float FamilyMark(Punchy.Terrain.MaterialFamily family) => family switch
+        {
+            Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
+            Punchy.Terrain.MaterialFamily.Brick => 0.115f,
+            Punchy.Terrain.MaterialFamily.Ice => 0.13f,
+            Punchy.Terrain.MaterialFamily.Stone => 0.142f,
+            _ => 0f
+        };
 
         public void Triangle(int a, int b, int c)
         {
@@ -201,6 +244,16 @@ namespace Punchy.Flora
                 positions[v] = position(positions[v]);
                 normals[v] = normal(normals[v]);
             }
+        }
+
+        /// <summary>
+        /// Turns the triangles added since <paramref name="firstIndex"/> inside out (W-175 row 4: a mirrored part, whose
+        /// mirrored vertices would otherwise face away).
+        /// </summary>
+        public void FlipWinding(int firstIndex)
+        {
+            for (int i = firstIndex; i + 2 < indices.Count; i += 3)
+                (indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
         }
 
         /// <summary>Recolours vertices by position and normal (moss on the tops of rocks).</summary>

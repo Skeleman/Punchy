@@ -60,6 +60,7 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
             var r = Mathf.Max(s.Thickness, 0.02f);
             var sides = g.Sides(6, 4, 4);
+            b.Family = Timber(g);   // W-166: pit-props, pine by its form
             for (int side = -1; side <= 1; side += 2)
             {
                 var foot = new Vector3(side, -0.05f, 0f);
@@ -71,6 +72,7 @@ namespace Punchy.Flora
             }
             b.Tube(new List<Vector3> { new Vector3(-1.12f, 1.02f * tall + r, 0f), new Vector3(1.12f, 1.02f * tall + r, 0f) },
                    new List<float> { r * 1.1f, r * 1.1f }, sides, g.Bark * 0.95f, FloraPart.Bark);
+            b.Family = b.BaseFamily;
         }
 
         /// <summary>A wall torch: a stick leaning out from its bracket with a charred head (the flame is FireSystem's).</summary>
@@ -85,7 +87,9 @@ namespace Punchy.Flora
             var r = Mathf.Max(length * s.Thickness, 0.015f);
             // Leaning out (+Z, away from the wall it's on) by about 20°.
             var top = new Vector3(0f, length * 0.94f, length * 0.34f);
+            b.Family = Timber(g);   // W-166: the stick is wood, the bracket iron, the head a pitch-soaked rag
             b.Tube(new List<Vector3> { Vector3.zero, top }, new List<float> { r * 0.8f, r }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
+            b.Family = Punchy.Terrain.MaterialFamily.Metal;
             // The bracket: a band round the stick a third of the way up, and its arm back to the wall.
             if (g.Lod < 2)
             {
@@ -93,9 +97,11 @@ namespace Punchy.Flora
                 b.Tube(new List<Vector3> { band + new Vector3(0f, 0f, -r * 3f), band }, new List<float> { r * 0.5f, r * 0.5f }, 4, g.Accent, FloraPart.Bark);
                 b.Blob(band, new Vector3(r * 1.4f, r * 0.9f, r * 1.4f), Quaternion.identity, 0, 0f, 0f, g.Accent, FloraPart.Bark);
             }
+            b.Family = Punchy.Terrain.MaterialFamily.Cloth;
             var head = b.Blob(top, new Vector3(r * 1.6f, r * 2.4f, r * 1.6f), Quaternion.FromToRotation(Vector3.up, top.normalized),
                               g.Lod == 0 ? 1 : 0, 0.2f, g.R() * 100f, g.FoliageColor(), FloraPart.Bark);
             b.Occlude(head, (p, n) => 0.7f);
+            b.Family = b.BaseFamily;
         }
 
         // Seats: fixed sizes (a sitter's hips go at the seat's height, and towns' Sit anchors expect it), scaled by the
@@ -110,6 +116,7 @@ namespace Punchy.Flora
             g.Width = 1.8f;
             g.TrunkRadius = 0f;
             var stone = g.FoliageColor();
+            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the feet, and a stone seat's slab
             for (int side = -1; side <= 1; side += 2)
                 b.Box(new Vector3(side * 0.62f, (BenchSeat - 0.06f) * 0.5f, 0f), new Vector3(0.22f, BenchSeat - 0.06f, 0.36f),
                       Quaternion.Euler(0f, g.Range(-3f, 3f), 0f), stone, FloraPart.Bark);
@@ -120,12 +127,12 @@ namespace Punchy.Flora
                       Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.95f, 1.03f), FloraPart.Bark);
             else
             {
-                b.Wood = true;
+                b.Family = Timber(g);
                 for (int k = 0; k < 2; k++)
                     b.Box(new Vector3(0f, BenchSeat - 0.03f, (k - 0.5f) * 0.2f), new Vector3(1.8f, 0.06f, 0.18f),
                           Quaternion.Euler(0f, g.Range(-1f, 1f), 0f), g.Bark * g.Range(0.92f, 1.05f), FloraPart.Bark);
-                b.Wood = false;
             }
+            b.Family = b.BaseFamily;
             g.Colliders.Add(new Vector4(-0.5f, 0f, 0.3f, BenchSeat));
             g.Colliders.Add(new Vector4(0.5f, 0f, 0.3f, BenchSeat));
         }
@@ -210,60 +217,8 @@ namespace Punchy.Flora
             g.Colliders.Add(new Vector4(0f, 0f, r + 0.05f, StumpSeat));
         }
 
-        /// <summary>
-        /// A fire pit: stones in a ring round a sunken ash bed, three or four charred logs leaning together over the
-        /// middle, and embers glowing in the ash (the flames are a landmark Flame effect drawn by FireSystem).
-        /// </summary>
-        static void FirePit(Grower g)
-        {
-            var s = g.S;
-            var b = g.B;
-            var radius = g.Range(s.Height);
-            var stones = Mathf.Max(6, g.Count(s.Branches));
-            g.Height = radius * 0.8f;
-            g.Width = radius * 2.4f;
-            g.TrunkRadius = 0f;
-            // The ash bed, a little below the stones' feet.
-            b.Blob(Vector3.up * 0.01f, new Vector3(radius * 0.9f, 0.04f, radius * 0.9f), Quaternion.identity, 1, 0.2f, g.R() * 50f,
-                   new Color(0.09f, 0.085f, 0.08f), FloraPart.Bark);
-            // The ring: rough stones of varied size, each turned its own way.
-            var turn = g.R() * 6.28f;
-            for (int k = 0; k < stones; k++)
-            {
-                var a = turn + k * Mathf.PI * 2f / stones + g.Range(-0.12f, 0.12f);
-                var size = radius * g.Range(0.2f, 0.3f);
-                var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius + Vector3.up * size * 0.35f;
-                var stone = b.Blob(at, new Vector3(size, size * g.Range(0.6f, 0.85f), size * g.Range(0.8f, 1.1f)),
-                                   Quaternion.Euler(0f, -a * Mathf.Rad2Deg + g.Range(-20f, 20f), 0f), g.Lod == 0 ? 1 : 0, 0.35f, g.R() * 50f,
-                                   g.Bark * g.Range(0.85f, 1.1f), FloraPart.Bark);
-                b.Occlude(stone, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.5f)));
-            }
-            // Charred logs leaning together over the middle, blackening towards the burning ends.
-            var logs = g.R() < 0.5f ? 3 : 4;
-            var lean = g.R() * 6.28f;
-            var top = Vector3.up * radius * 0.55f;
-            for (int k = 0; k < logs; k++)
-            {
-                var a = lean + k * Mathf.PI * 2f / logs;
-                var foot = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * 0.7f + Vector3.up * 0.03f;
-                b.Tube(new List<Vector3> { foot, Vector3.Lerp(foot, top, 0.6f), top + (foot - top) * -0.08f },
-                       new List<float> { radius * 0.09f, radius * 0.08f, radius * 0.05f }, g.Sides(6, 5, 4),
-                       g.FoliageColor() * 0.6f, FloraPart.Bark);
-            }
-            // Embers in the ash and on the logs' charred ends.
-            if (g.Lod < 2)
-            {
-                var ember = AccentAt(g, 0);
-                for (int k = 0; k < 9; k++)
-                {
-                    var a = g.R() * 6.28f;
-                    var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * g.Range(0.05f, 0.55f) + Vector3.up * 0.04f;
-                    b.Blob(at, Vector3.one * radius * g.Range(0.04f, 0.08f), Quaternion.identity, 0, 0.3f, g.R() * 50f,
-                           ember * g.Range(0.7f, 1.2f), FloraPart.Glow);
-                }
-            }
-            g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
-        }
+        // W-175 row 3: the fire pit is a unit of library parts (FloraGenerator.Units.FirePitUnit).
+        static void FirePit(Grower g) => BuildUnit(g, FirePitUnit);
 
         /// <summary>
         /// Bracket fungus (FloraSpecies.Brackets, a share of a tree's variants): half-moon shelves stepping up one side

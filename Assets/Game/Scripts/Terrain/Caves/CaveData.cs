@@ -323,8 +323,14 @@ namespace Punchy.Terrain
         public const float MouthBlend = 1.2f;
         /// <summary>How far under the terrain surface the cave walls end (m, measured across the slope). W-112: was 10 cm,
         /// which showed as a lip round every mouth where the terrain's cut (wider by up to half a quad) exposed the
-        /// walls' skin; at 2 cm the skin sits flush with the surface and still stays under it.</summary>
-        public const float SkinGap = 0.02f;
+        /// walls' skin; at 2 cm the skin sat flush with the surface. W-162 row 4: 20 cm, since the mouth collars (W-174
+        /// r6) now hang from the cut's rim down onto the walls and hide the skin there, while 2 cm let the skin poke
+        /// through the drawn ground in pale patches all round a mouth (the walls' cells cut corners off the field).</summary>
+        public const float SkinGap = 0.2f;
+        /// <summary>The terrain's own mouth cut (TerrainSource.MouthCut) keeps the old 2 cm gap: at SkinGap its 15 cm
+        /// mesh depth went below zero and the cut ate the ground for metres round every mouth. The collars cover the
+        /// 18 cm step between the cut's rim and the walls' top (it's under their CollarDepth).</summary>
+        public const float CutGap = 0.02f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
         /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>
@@ -447,11 +453,41 @@ namespace Punchy.Terrain
                 ref var pool = ref set.Pools[i];
                 if (pool.Hall > 0f)
                     continue;   // a lake carries its own floor (HallFloor), under its hall
-                var d = math.distance(xz, pool.Centre.xz);
-                if (d < pool.Radius * 1.2f)
-                    shape -= pool.Depth * math.smoothstep(pool.Radius * 1.2f, pool.Radius * 0.7f, d);
+                // Lobes only pull the rim in, so the plain distance is a safe first test (the noise is skipped far off).
+                if (math.distancesq(xz, pool.Centre.xz) >= pool.Radius * pool.Radius * 1.44f)
+                    continue;
+                var u = PoolAcross(pool, xz);
+                if (u < 1.2f)
+                    shape -= pool.Depth * math.smoothstep(1.2f, 0.7f, u);
             }
             return shape;
+        }
+
+        /// <summary>
+        /// W-172 (#277): how far across a pool's basin a spot is, 0 at the middle and 1 at the rim. A water pool's rim is
+        /// pulled in by up to about a third in a few smooth lobes (seeded by where the pool is), so no basin, and so no
+        /// shoreline, is a perfect disc. Inward only: a pool never reaches past its Radius, so every rim check and box
+        /// made from the Radius still holds. Lava keeps its round basin (its glow and surface are drawn as discs),
+        /// and a lake its own floor (HallFloor).
+        /// </summary>
+        public static float PoolAcross(in CavePool pool, float2 xz)
+        {
+            var off = xz - pool.Centre.xz;
+            var d = math.length(off);
+            if (pool.Lava > 0.5f || pool.Hall > 0f || d < 1e-4f)
+                return d / pool.Radius;
+            return d / (pool.Radius * PoolLobe(pool.Centre.xz, off / d));
+        }
+
+        /// <summary>
+        /// W-172: how far a water pool's rim reaches in a direction (unit, world xz), as a share of its Radius
+        /// (0.62..1): a few smooth lobes seeded by where the pool is. Shared by PoolAcross and a lake room's basin.
+        /// </summary>
+        public static float PoolLobe(float2 centre, float2 dir)
+        {
+            var seed = centre * 0.173f;
+            return 1f - 0.26f * (0.5f + 0.5f * noise.snoise(dir * 1.1f + seed))
+                      - 0.12f * (0.5f + 0.5f * noise.snoise(dir * 2.6f - seed));
         }
 
         /// <summary>
@@ -500,7 +536,9 @@ namespace Punchy.Terrain
                 var rib = Rib(c, p);
                 n += (rib * rib - 0.4f) * 0.75f * c.Wall.z * math.smoothstep(0.06f, 0.3f, up) * lift;
             }
-            return n;
+            // W-172 row 6: near the floor the relief never pushes rock in further than the height above it, so a strong
+            // facet or ridge can't leave a slab of rock floating at a rider's chest over a main path (c21's fin).
+            return math.min(n, math.max(0f, p.y - floorY - 0.35f) * 0.8f);
         }
 
         /// <summary>
@@ -829,10 +867,13 @@ namespace Punchy.Terrain
             air = math.max(air, -fill);
             if (r.Type == (int)CaveRoomType.Lake)
             {
-                // A round basin in the middle of the floor. A-91: a bowl, its sides sloping in (1 down in 1.6 across)
+                // A basin in the middle of the floor. A-91: a bowl, its sides sloping in (1 down in 1.6 across)
                 // rather than a sheer 1.6 m drop, so whoever walks in can walk back out (a main path may end here).
-                var radius = LakeRadius(r);
-                var across = math.length(l.xz - new float2(0f, r.HZ));
+                // W-172: its rim lobed like every water pool's (PoolLobe, in world directions so it matches the pool
+                // record's PoolAcross), so the lake's shoreline is not a disc.
+                var off = p.xz - r.Centre.xz;
+                var across = math.length(off);
+                var radius = LakeRadius(r) * (across > 1e-4f ? PoolLobe(r.Centre.xz, off / across) : 1f);
                 var side = (across - math.max(radius + math.min(l.y, 0f) * 1.6f, 0.5f)) * 0.53f;
                 air = math.min(air, math.max(side, math.max(-l.y - LakeDepth, l.y - 0.5f)));
             }
@@ -1075,11 +1116,13 @@ namespace Punchy.Terrain
                     ref var pool = ref set.Pools[i];
                     if (pool.Lava > 0.5f || pool.Centre.y <= surface)
                         continue;
-                    var d = math.distance(p.xz, pool.Centre.xz);
-                    if (d >= pool.Radius)
+                    if (math.distancesq(p.xz, pool.Centre.xz) >= pool.Radius * pool.Radius)
                         continue;
-                    // The floor at the middle is 0.12 m over the surface, sunk by FloorShape's basin.
-                    var b = pool.Centre.y + 0.12f - pool.Depth * math.smoothstep(pool.Radius * 1.2f, pool.Radius * 0.7f, d);
+                    var u = PoolAcross(pool, p.xz);
+                    if (u >= 1f)
+                        continue;
+                    // The floor at the middle is 0.12 m over the surface, sunk by FloorShape's (lobed) basin.
+                    var b = pool.Centre.y + 0.12f - pool.Depth * math.smoothstep(1.2f, 0.7f, u);
                     if (p.y > pool.Centre.y + WaterReachAbove || p.y < b - WaterReachBelow)
                         continue;
                     surface = pool.Centre.y;
@@ -1167,6 +1210,38 @@ namespace Punchy.Terrain
             }
             return false;
         }
+
+        /// <summary>
+        /// Whether any cave segment's box overlaps a ground rectangle (#400: the terrain streamer charges a chunk over
+        /// a cave more, since its vertices sample the mouth cut several times each).
+        /// </summary>
+        public static bool NearRect(ref CaveSetBlob set, float2 min, float2 max)
+        {
+            if (set.Cells.Length == 0)
+                return false;
+            var c0 = math.max((int2)math.floor((min - set.GridOrigin) / set.CellSize), 0);
+            var c1 = math.min((int2)math.floor((max - set.GridOrigin) / set.CellSize), set.GridSize - 1);
+            for (int y = c0.y; y <= c1.y; y++)
+            for (int x = c0.x; x <= c1.x; x++)
+            {
+                var range = set.Cells[y * set.GridSize.x + x];
+                for (int k = range.x; k < range.x + range.y; k++)
+                {
+                    ref var seg = ref set.Segments[set.Items[k]];
+                    if (math.all(max >= seg.Min.xz) && math.all(min <= seg.Max.xz))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// W-174 r6: the cave walls' field (negative in rock) at height y over a column whose drawn surface is surface,
+        /// with scale the across-slope factor (TerrainSource.AcrossSlope) and cave the cave distance there. CaveSystem's
+        /// FieldJob builds the walls from it; the terrain's mouth collars end on it.
+        /// </summary>
+        public static float WallField(float y, float surface, float scale, float cave) =>
+            -SmoothMin(-((y - surface) * scale + SkinGap), cave, MouthBlend);
 
         internal static float SmoothMin(float a, float b, float k)
         {

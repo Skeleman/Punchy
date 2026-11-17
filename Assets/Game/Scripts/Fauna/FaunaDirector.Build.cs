@@ -54,8 +54,8 @@ namespace Punchy.Fauna
                         None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>() }
                     };
                     simCreatureQuery = sem.CreateEntityQuery(wild);
-                    // (Dungeon creatures are their own tier (#24): kept at their posts for the dungeon's life, never
-                    // let go by distance nor counted towards the wild, settled or cave caps.)
+                    // (Dungeon creatures are their own tier (#24): made and let go by their dungeon's records
+                    // (FaunaDirector.Dungeons.cs), never counted towards the wild, settled or cave caps.)
                     wild.None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>(), ComponentType.ReadOnly<DungeonPost>() };
                     wildQuery = sem.CreateEntityQuery(wild);
                     netPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
@@ -90,6 +90,9 @@ namespace Punchy.Fauna
                     species.Add(s);
             }
             biomes = palette.Biomes;
+            // (M-06: entries a previous build added from species' Homes come out first, so they're never counted as
+            // the biome's own and a rebuild doesn't add them twice.)
+            StripHomes();
             foreach (var biome in biomes)
                 if (biome != null)
                     foreach (var f in biome.Fauna)
@@ -114,9 +117,18 @@ namespace Punchy.Fauna
             for (int i = 1; i < species.Count; i++)
                 if (species[i].name == species[i - 1].name)
                     Debug.LogError($"FaunaDirector: two species are both named '{species[i].name}'; creature indices would be ambiguous over the network.");
+            // M-06: the Model Lab's species after all of these, in the order they were made (LabSpeciesList), so a new
+            // one never moves a built-in's index. Then every species' Homes join those biomes' animals.
+            builtInSpecies = species.Count;
+            foreach (var s in LabSpeciesList.All())
+                if (s != null && !named.Add(s.name))
+                    Debug.LogError($"FaunaDirector: Lab species '{s.name}' has a built-in species' name; it is left out.");
+                else if (s != null)
+                    species.Add(s);
             speciesByName.Clear();
             for (int i = 0; i < species.Count; i++)
                 speciesByName[species[i].name] = i;
+            MergeHomes();
             Stage("species");
             // Who hunts whom: a listed species covers its variants too. Matched by name, not by object: in a built
             // player a species loaded from Resources (the Domestics table's Dog) points at Resources copies of its
@@ -167,6 +179,7 @@ namespace Punchy.Fauna
                 Regards(i, out var regard, out var kinship);
                 Vector2? home = homes.TryGetValue(species[i].name, out var sum) ? new Vector2(sum.x / sum.z, sum.y / sum.z) : null;
                 blobs.Add(CreatureBlobBuilder.Build(species[i], preyLists[i], hunted[i], regard, kinship, home));
+                blobInputs.Add(new BlobInputs { Prey = preyLists[i], Hunted = hunted[i], Regard = regard, Kinship = kinship, Home = home });
             }
             Stage("blobs");
 
@@ -230,6 +243,7 @@ namespace Punchy.Fauna
                 ClimbLadders.Flora.Data = floraBlob;
                 Stage("flora");
             }
+            BuildHerdKinds();
             Debug.Log($"[fauna build] {species.Count} species, ms:{stages} fingerprint {BuildFingerprint():X8}");
             lastSource = source;
             configStamp = ConfigStamp();
@@ -379,6 +393,51 @@ namespace Punchy.Fauna
         }
 
         /// <summary>A species' index (by name: a build can hold more than one copy of the same species asset).</summary>
+        /// <summary>How many species have built-in indices (sorted by name); Lab species follow from here (M-06).</summary>
+        public int BuiltInSpeciesCount => builtInSpecies;
+        int builtInSpecies;
+
+        /// <summary>
+        /// M-06: adds each species' Homes to those biomes' Fauna lists (by biome name), marked FromHomes, after the
+        /// biome's own entries, so every reader of a biome's animals (spawning, LivesAt, home climate) sees them and
+        /// no existing slot moves. The world signature's biome list skips them; the herd bake takes them through
+        /// HerdBaking.Sources, in the same slots (#412).
+        /// </summary>
+        void MergeHomes()
+        {
+            for (int i = 0; i < species.Count; i++)
+            {
+                var homes = species[i].Homes;
+                if (homes == null)
+                    continue;
+                foreach (var home in homes)
+                {
+                    if (home == null || string.IsNullOrEmpty(home.Biome))
+                        continue;
+                    var found = false;
+                    foreach (var biome in biomes)
+                        if (biome != null && biome.name == home.Biome)
+                        {
+                            biome.Fauna.Add(new BiomeFauna { Species = species[i], Density = home.Density, FromHomes = true });
+                            found = true;
+                        }
+                    if (!found)
+                        Debug.LogWarning($"FaunaDirector: {species[i].name} lives in biome '{home.Biome}', which the palette lacks.");
+                }
+            }
+        }
+
+        /// <summary>Takes out the entries MergeHomes added (before each build and at teardown): they live on the biome
+        /// assets only while the game runs, and must never be saved with one.</summary>
+        void StripHomes()
+        {
+            if (biomes == null)
+                return;
+            foreach (var biome in biomes)
+                if (biome != null && biome.Fauna != null)
+                    biome.Fauna.RemoveAll(f => f != null && f.FromHomes);
+        }
+
         public int SpeciesIndex(CreatureSpecies s) => s != null ? SpeciesIndex(s.name) : -1;
         public int SpeciesIndex(string name) => name != null && speciesByName.TryGetValue(name, out var i) ? i : -1;
         /// <summary>The first species playing a part for the director (CreatureSpecies.Role), or -1.</summary>

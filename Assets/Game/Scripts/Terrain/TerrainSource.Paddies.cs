@@ -137,9 +137,10 @@ namespace Punchy.Terrain
             if (!poolA && rim <= 0f)
                 return h;
             var g = math.lerp(h + rim, poolA ? levelA + PoolProfile(h - levelA) : h, math.smoothstep(0f, 1f, inner));
-            // Out towards the pond's edge the paddy blends back into the ground, past its rim first.
+            // Out towards the pond's edge the paddy blends back into the ground, past its rim first (W-174: on the
+            // shared ground-edit falloff).
             var inside = math.smoothstep(0.3f, 0.65f, math.saturate(cover));
-            g = math.lerp(h, math.lerp(h + rim, g, inside), math.smoothstep(0f, 0.3f, cover));
+            g = GroundEdits.Apply(xz, h, math.lerp(h + rim, g, inside), GroundEdits.Falloff(1f - cover / 0.3f), 0f);
             if (poolA && inside > 0f && h > levelA - 0.25f && g < levelA - 0.02f)
                 level = levelA;
             return g;

@@ -902,6 +902,7 @@ namespace Punchy.Debugging
             var length = math.length((b - a).xz);
             var steps = math.max(1, (int)math.ceil(length / 0.25f));
             var floor = source.FloorUnder(a + new float3(0f, 0.5f, 0f), out _);
+            var side = math.normalizesafe(new float3(a.z - b.z, 0f, b.x - a.x)) * 0.35f * dwSize;
             for (int i = 1; i <= steps; i++)
             {
                 var p = math.lerp(a, b, i / (float)steps);
@@ -926,6 +927,17 @@ namespace Punchy.Debugging
                     why = $"drop {V(floor - f)} m";
                     return false;
                 }
+                // (P-48: a pit beside the line, within the body's width, tips a walker in: a cave passage cut by a
+                // lower chamber can leave a rim the line runs along.)
+                for (int e = -1; e <= 1; e += 2)
+                {
+                    var q = p + side * e;
+                    if (source.FloorUnder(new float3(q.x, floor + 0.7f, q.z), out _) < f - 3f)
+                    {
+                        why = "pit beside the line";
+                        return false;
+                    }
+                }
                 floor = f;
                 floorMin = math.min(floorMin, f);
                 var feet = new float3(p.x, f, p.z);
@@ -943,6 +955,14 @@ namespace Punchy.Debugging
                     why = "temple wall";
                     return false;
                 }
+            }
+            // (P-48: the floor the line ends on must be the target's. Following floors from a's height never meets a
+            // target on a floor stacked over or under the line's, such as a passage above a chamber, so the body walked
+            // to the spot 25 m under it and timed out.)
+            if (!dwFlier && math.abs(floor - b.y) > 1.5f)
+            {
+                why = $"target on another floor ({V(b.y - floor)} m)";
+                return false;
             }
             return true;
         }

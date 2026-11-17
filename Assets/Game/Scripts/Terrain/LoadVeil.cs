@@ -32,11 +32,17 @@ namespace Punchy.Terrain
 
         static LoadVeil instance;
         static readonly bool Off = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-noveil") >= 0;
+        /// <summary>P-37 row 1 (#369, Zach 11-14: no loading screen for now): a load is watched but not painted; the game
+        /// camera holds on the sky instead (ThirdPersonCamera). "-loadveil" paints it as before. Jumps still paint.</summary>
+        static readonly bool PaintLoad = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-loadveil") >= 0;
 
         /// <summary>The veil covers the screen at all (fully or fading out).</summary>
         public static bool Showing => instance != null && instance.alpha > 0f;
         /// <summary>Why the veil last went up ("load", "jump 812 m"), for logs and tests.</summary>
         public static string Reason => instance != null ? instance.reason : null;
+        /// <summary>P-37: the first load or a join's re-bake is still coming in (up for "load", not yet lifted).</summary>
+        public static bool FirstLoad => instance != null && instance.up && instance.reason == "load";
+        internal bool Painted => reason != "load" || PaintLoad;
 
         float alpha;
         bool up;
@@ -164,7 +170,7 @@ namespace Punchy.Terrain
         void OnGUI()
         {
             var alpha = veil != null ? veil.Alpha : 0f;
-            if (alpha <= 0f || Event.current.type != EventType.Repaint || Punchy.UI.MainMenu.Open)
+            if (alpha <= 0f || Event.current.type != EventType.Repaint || Punchy.UI.MainMenu.Open || !veil.Painted)
                 return;
             if (pixel == null)
             {

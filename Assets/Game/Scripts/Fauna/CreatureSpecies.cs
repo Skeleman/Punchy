@@ -25,6 +25,9 @@ namespace Punchy.Fauna
         [Min(0.1f)] public float VariantThickness = 1f;
         [Tooltip("Variants only: leg length relative to the body it's based on (children: shorter, about 0.8).")]
         [Min(0.1f)] public float VariantLegs = 1f;
+        [Tooltip("A-124: how far one individual's build strays from this species' (or variant's) own: picked per " +
+                 "individual on every machine. Narrow for animals; folk wider, their children about half.")]
+        public BuildRange BuildRange = BuildRange.Narrow;
 
         [Header("Body")]
         [Tooltip("Length of the torso, nose-end to tail-end of the trunk, in metres.")]
@@ -55,6 +58,9 @@ namespace Punchy.Fauna
         public CoatKind Coat;
         [Tooltip("Fur length on the body and on parts that don't set their own (Fur coats only).")]
         public FurLength FurLength;
+        [Tooltip("M-06 row 4: what the body (trunk) is made of, from the W-166 library (MaterialLibrary.FamilyOf). " +
+                 "Body = its coat, as always; Bone reads as horn or shell, Leather as hide.")]
+        public SegmentMaterial BodyMaterial;
 
         [Header("Parts")]
         public List<LimbSlot> Parts = new List<LimbSlot>();
@@ -106,7 +112,7 @@ namespace Punchy.Fauna
                  "worked out (Breath.DefaultHold): folk 30, animals that swim across water 20, waterfowl 12, others 8.")]
         [Min(0f)] public float HoldBreath;
         [Tooltip("How its eyes take the light as a player's body (A-103 row 5, BatVision): 0 normal; 1 a bat's, caves and " +
-                 "night bright but the open midday sun a glare. Glasses (Eyewear) make it 0, glow goggles 1. Not baked.")]
+                 "night bright but the open midday sun a glare. Glasses (a head item, Eyewear) make it 0, glow goggles 1. Not baked.")]
         [Range(0f, 1f)] public float Vision;
 
         [Header("Activities (each species' own, variants included)")]
@@ -289,6 +295,11 @@ namespace Punchy.Fauna
         [Tooltip("Its calls (CreatureAudioSystem plays them near the listener, each individual on its own clock): a hen's " +
                  "cluck, a duck's quack, a dog's bark. A variant with none uses the species it's based on.")]
         public List<CreatureCall> Calls = new List<CreatureCall>();
+
+        [Header("Homes")]
+        [Tooltip("Biomes this species lives in, beyond the biomes' own Fauna lists (M-06: species saved from the Model " +
+                 "Lab). FaunaDirector.Build adds each to that biome's animals at its density. Empty for built-in species.")]
+        public List<SpeciesHome> Homes = new List<SpeciesHome>();
 
         /// <summary>The species whose body, gait and behaviour this one uses (itself unless it's a variant).</summary>
         public CreatureSpecies Body
@@ -485,6 +496,24 @@ namespace Punchy.Fauna
     public class BiomeFauna
     {
         public CreatureSpecies Species;
+        [Tooltip("Animals per hectare (10 000 m²).")]
+        [Min(0f)] public float Density = 0.5f;
+        /// <summary>Added at run time from a species' Homes (FaunaDirector.Build), not part of the biome asset: taken
+        /// out again before each build and at teardown. The world signature's biome list skips them; the herd bake
+        /// keeps them (HerdBaking.Sources lists them after the biome's own entries, #412).</summary>
+        [NonSerialized] public bool FromHomes;
+    }
+
+    /// <summary>
+    /// A biome a species lives in and how many (M-06): the species-side twin of a biome's Fauna entry, so a species
+    /// saved from the Model Lab names its own biomes without editing the biome assets. The biome is named, not
+    /// referenced, so a species loaded from Resources doesn't pull copies of the biome assets into a build.
+    /// </summary>
+    [Serializable]
+    public class SpeciesHome
+    {
+        [Tooltip("The biome's asset name, as in the world's biome palette.")]
+        public string Biome;
         [Tooltip("Animals per hectare (10 000 m²).")]
         [Min(0f)] public float Density = 0.5f;
     }

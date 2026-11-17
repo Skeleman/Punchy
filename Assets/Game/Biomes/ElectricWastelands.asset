@@ -90,6 +90,8 @@ MonoBehaviour:
   Particles:
   - Type: {fileID: 11400000, guid: 77e8d1d8ea738fc4480ba5b7e8f07230, type: 2}
     Density: 10
+  ClearingAmount: 0.3
+  ClearingSize: 190
   Flora:
   - Species: {fileID: 11400000, guid: 4858eecc8347b8a4c8d2e390e83e5d95, type: 2}
     Density: 0.18

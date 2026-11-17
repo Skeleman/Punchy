@@ -201,10 +201,17 @@ Shader "Punchy/Creature"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP   // R-10: street lights and lanterns as Forward+ real lights
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "Glow.hlsl"
-            #include "Metal.hlsl"
+            #include "WideShadow.hlsl"
+            #include "Surface.hlsl"
+            // W-166 row 3: gear draws from the one material library, as built pieces do.
+            #include "Materials/Metal.hlsl"
+            #include "Materials/Wood.hlsl"
+            #include "Materials/Cloth.hlsl"
+            #include "Materials/Bone.hlsl"
             #include "Grounding.hlsl"
 
             float _PunchyNoFur; // A-92, #230: 0 gives bodies fur strands and coat patches, 1 ("-nofur") plain
@@ -251,17 +258,22 @@ Shader "Punchy/Creature"
 
             // What gear is made of, shaded so it reads for what it is from across a town, not just close to: metal
             // mirrors the sky and the ground and flashes in the sun; leather has a soft sheen, cloth none; wood is
-            // grained along its length; bone is ivory and waxy. (Bodies keep their own soft light, in Frag.)
-            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS)
+            // grained along its length; bone is ivory and waxy. (Bodies keep their own soft light, in Frag.) W-166: each
+            // surface comes from its family's include (MaterialLibrary.FamilyOf(SegmentMaterial)), so gear wood is the
+            // wood of a town's beams, gear cloth its awnings; only the lighting is the creature's own.
+            half3 Material(uint material, half3 albedo, half3 n, float3 v, Light light, half shadow, float3 surface, float along, float3 positionWS, float4 positionCS, float footprint)
             {
                 half3 sun = light.color * shadow;
                 half ndl = dot(n, light.direction);
                 half ndv = saturate(dot(n, v));
-                half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n);
+                // (Real lights too, R-10: Glow.hlsl's shared falloff, so a lantern lights gear as it lights the ground.)
+                half3 ambient = SampleSH(n) + PunchyGlowLight(positionWS, n) + PunchyRealLights(positionWS, n, positionCS);
                 float angle = atan2(surface.y, surface.x);
+                // The piece's own surface, unrolled: (around, along) in metres, for the cloth and bone includes.
+                float2 unrolled = float2(angle * length(surface.xy), surface.z);
                 if (material == 3)
                 {
-                    // Metal: the shared look (Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
+                    // Metal: the shared look (Materials/Metal.hlsl, as Flora's metal parts): tinted reflections of the sky, a sharp
                     // highlight and glints, on a diffuse dimmed to under half, here on a hammered face (the normal
                     // nudged a little, cell by cell).
                     float3 dent = float3(Noise3(surface * 38), Noise3(surface * 38 + 7.1), Noise3(surface * 38 + 13.7)) - 0.5;
@@ -271,8 +283,9 @@ Shader "Punchy/Creature"
                 }
                 if (material == 2)
                 {
-                    // Leather: fine grain, worn darker towards its ends, a line of stitches down one side, a soft sheen.
-                    half grain = 0.88 + 0.24 * Noise3(surface * 55);
+                    // Leather: the shared hide (Cloth.hlsl), worn darker towards its ends, a line of stitches down one
+                    // side, a soft sheen.
+                    half grain = PunchyHide(float3(unrolled.x, 0, unrolled.y), float3(0, 1, 0), footprint);
                     half worn = lerp(0.72, 1, saturate(min(along, 1 - along) * 5));
                     half stitch = abs(angle - 1.5708) < 0.06 && frac(surface.z * 28) < 0.55 ? 0.55 : 1;
                     half sheen = pow(1 - ndv, 2.5) * 0.22;
@@ -282,28 +295,28 @@ Shader "Punchy/Creature"
                 }
                 if (material == 1)
                 {
-                    // Cloth: matte, a weave too fine to see far off but a soft rise and fall of folds that is.
-                    half weave = 0.93 + 0.07 * sin(surface.x * 140) * sin(surface.z * 140);
+                    // Cloth: matte, the shared linen (Cloth.hlsl, fading with the pixels) and a soft rise and fall of
+                    // folds that reads far off.
+                    half weave = PunchyLinen(float3(unrolled.x, 0, unrolled.y), float3(0, 1, 0), footprint);
                     half folds = 0.86 + 0.14 * sin(surface.z * 16 + angle * 2.5 + Noise3(surface * 4) * 3);
                     half diffuse = saturate(ndl * 0.75 + 0.25);
                     return albedo * weave * folds * (sun * diffuse + ambient * 1.05);
                 }
                 if (material == 4)
                 {
-                    // Wood: grain running along its length, wavering, with darker streaks.
-                    half grain = sin(angle * 7 + surface.z * 1.3 + Noise3(float3(surface.xy * 6, surface.z * 0.8)) * 5);
-                    half streak = 0.8 + 0.2 * grain + 0.1 * (Noise3(float3(surface.xy * 30, surface.z * 2)) - 0.5);
+                    // Wood: the shared look (Materials/Wood.hlsl, as every plank and post in the world), grained
+                    // along the piece's length (surface.z, metres) and across its face; oak, the gear's own colour.
+                    half3 wood = PunchyWoodGrain(albedo, surface.z, surface.xy, footprint, PUNCHY_WOOD_OAK, 0);
                     half diffuse = saturate(ndl * 0.75 + 0.25);
                     half gloss = pow(saturate(dot(reflect(-v, n), light.direction)), 16) * 0.08;
-                    return albedo * streak * (sun * diffuse + ambient) + sun * gloss;
+                    return wood * (sun * diffuse + ambient) + sun * gloss;
                 }
-                // Bone: towards ivory, a waxy sheen, small dark pits.
-                half3 ivory = lerp(albedo, half3(0.86, 0.81, 0.68), 0.35);
-                half pits = Noise3(surface * 95) > 0.78 ? 0.7 : 1;
+                // Bone: the shared bone (Bone.hlsl: ivory, growth lines, pits), a waxy sheen.
+                half3 ivory = PunchyBone(albedo, unrolled, footprint);
                 half sheen = pow(1 - ndv, 2) * 0.2;
                 half gloss = pow(saturate(dot(reflect(-v, n), light.direction)), 20) * 0.3;
                 half diffuse = saturate(ndl * 0.7 + 0.3);
-                return ivory * pits * (sun * diffuse + ambient) + sun * gloss + ambient * sheen * 0.5;
+                return ivory * (sun * diffuse + ambient) + sun * gloss + ambient * sheen * 0.5;
             }
 
             half4 Frag(Varyings input) : SV_Target
@@ -316,9 +329,15 @@ Shader "Punchy/Creature"
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
                 half3 n = SafeNormal(input.normalWS, v);
                 probe |= SparkleBad((float3)n) ? 2u : 0u;
+                // How much world one pixel spans (m), taken here outside any branch, for the gear includes' fades.
+                float footprint = length(fwidth(input.positionWS));
                 half3 albedo = input.color.rgb * lerp(1, 0.75, PunchyWetnessAt(input.positionWS.xz).r) * (1 + 0.07 * _Shell);
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half shadow = light.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS));
+                // The sun and its shadow tiers (real-time, wide, cloud) from Surface.hlsl, so a colossus's wide shadow
+                // darkens the deer standing in it as it darkens the ground.
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
                 half3 color;
                 // (_PunchyPlainGear, set by a debug probe: everything shaded as a body, for before/after shots.)
                 uint material = _PunchyPlainGear > 0.5 ? 0 : (uint)(input.material + 0.5);
@@ -536,11 +555,12 @@ Shader "Punchy/Creature"
                     // A little soft sheen at the silhouette, like fur or feathers catching the light.
                     half ndv = saturate(dot(n, v));
                     half rim = pow(1 - ndv, 3) * rimK;
-                    // (Plus the light of glowing plants and hot rock near it: W-18.)
+                    // (Plus the light of glowing plants and hot rock near it, W-18, and real lights with the same falloff, R-10.)
                     // Grounded (Grounding.hlsl): darker underneath (belly, chin, the undersides of limbs) and where it
                     // meets the ground; the ambient light dimmed fully, the sun's in part.
                     half ground = _PunchyNoGrounding > 0.5 ? 1 : PunchyCreatureGrounding(input.positionWS.y - input.ground, n.y);
-                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n));
+                    color = albedo * (light.color * shadow * diffuse * lerp(1, ground, 0.5) + SampleSH(n) * (1 + rim) * ground + PunchyGlowLight(input.positionWS, n)
+                            + PunchyRealLights(input.positionWS, n, input.positionCS));
                     if (spec > 0)
                     {
                         // The highlight (A-97), white rather than the albedo's colour, kept within a few times the sun.
@@ -554,11 +574,11 @@ Shader "Punchy/Creature"
                 }
                 else
                     // (Gear is grounded by its downward faces only: it carries no ground height.)
-                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS) *
+                    color = Material(material, albedo, n, v, light, shadow, input.surface, input.along, input.positionWS, input.positionCS, footprint) *
                             lerp(1, PunchyCreatureGrounding(100, n.y), 0.75);
                 // Glowing parts (alpha): embers, toxic markings, eye sockets. Bright enough to bloom.
                 color += input.color.rgb * input.color.a * (2.2 + 0.4 * sin(_Time.y * 2.1 + input.positionWS.x * 3.0));
-                half3 final = PunchyAtmosphere(color, input.positionWS);
+                half3 final = PunchySurfaceFinish(color, ps);
                 [branch] if (_PunchySparkleProbe > 0)
                 {
                     probe |= SparkleBad((float3)color) ? 8u : 0u;

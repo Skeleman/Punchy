@@ -27,7 +27,7 @@ namespace Punchy.Terrain
     public static class IslandCache
     {
         /// <summary>Bumped whenever the file layout changes (old files then miss and are rewritten).</summary>
-        public const int Format = 2;
+        public const int Format = 6;   // 2: W-155 scarps, W-150 cliff kit; 3: W-168 cave sockets; 4: A-108 herds; 5: M-07 painted edits; 6: W-153 paddies
         static readonly byte[] Magic = Encoding.ASCII.GetBytes("PICF");
         const int KeyBytes = 32, SumBytes = 32, BlobHeaderBytes = 32;
 
@@ -60,6 +60,10 @@ namespace Punchy.Terrain
             v.Visit(nameof(s.Scarps), ref s.Scarps);
             v.Visit(nameof(s.Anchors), ref s.Anchors);
             v.Visit(nameof(s.PondMask), ref s.PondMask);
+            v.Visit(nameof(s.CliffKit), ref s.CliffKit);
+            v.Visit(nameof(s.CaveSockets), ref s.CaveSockets);
+            v.Visit(nameof(s.Herds), ref s.Herds);
+            v.Visit(nameof(s.Edits), ref s.Edits);
             v.Visit(nameof(s.Paddies), ref s.Paddies);
         }
 
@@ -132,6 +136,9 @@ namespace Punchy.Terrain
                 Text(GrandFalls.LakeShelfOn() ? "lakeshelf" : "-");
                 Text(Environment.GetEnvironmentVariable("PUNCHY_SPRINGS")); Part("flags");
                 Text(stamp); Part("stamp");
+                // M-07 r2b: the painted edits' content hash, only when there are some (no file keeps the old key bytes).
+                var editsHash = PaintedEdits.Hash(PaintedEdits.FileBytes());
+                if (editsHash != null) { Text("edits " + editsHash); Part("edits"); }
                 // The subscene's inputs, byte for byte.
                 Struct(ms, ref source.World); Part("World"); Struct(ms, ref source.BiomeNoise); Part("BiomeNoise");
                 Struct(ms, ref source.RiverSettings); Part("RiverSettings"); Struct(ms, ref source.SpawnCell); Part("SpawnCell");
@@ -225,6 +232,8 @@ namespace Punchy.Terrain
 #if UNITY_EDITOR
         /// <summary>The scene that holds the island's subscene (its TerrainAuthoring and palette).</summary>
         public const string WorldScene = "Assets/Game/Scenes/World.unity";
+        /// <summary>The Model Lab's species list, whose Homes the herd bake reads.</summary>
+        const string LabSpeciesAsset = "Assets/Game/Resources/LabSpecies.asset";
 
         /// <summary>
         /// Editor: a hash of the game assembly, the Unity version, the package lock, and the dependency hash of every asset
@@ -244,6 +253,9 @@ namespace Punchy.Terrain
                 var roots = new List<string> { WorldScene };
                 foreach (var guid in UnityEditor.AssetDatabase.FindAssets("t:" + nameof(LandmarkType)))
                     roots.Add(UnityEditor.AssetDatabase.GUIDToAssetPath(guid));
+                // (The herd bake reads the Model Lab species' Homes, #412: a saved Lab species must re-bake the herds.)
+                if (File.Exists(Path.Combine(root, LabSpeciesAsset)))
+                    roots.Add(LabSpeciesAsset);
                 var paths = new SortedSet<string>(UnityEditor.AssetDatabase.GetDependencies(roots.ToArray(), true), StringComparer.Ordinal);
                 if (!paths.Contains(WorldScene)) { reason = "no stamp (no world scene)"; return null; }
                 if (types != null)
