@@ -120,6 +120,26 @@ namespace Punchy.Terrain
         /// rivers on island v2 so their bends lengthen with width. Empty in a blob baked before W-37.
         /// </summary>
         public BlobArray<float2> Points;
+        /// <summary>W-153: lowest pre-river ground just outside each river cell's banks (float.MaxValue off rivers and in lakes).</summary>
+        public BlobArray<float> BankLow;
+        /// <summary>W-153: each cell's segment kind (RiverProfileKind bits, 0 off the rivers).</summary>
+        public BlobArray<byte> Kind;
+
+        /// <summary>W-153: the profile of the segment from cell start to the cell it drains into. Sampling reads rivers through this.</summary>
+        public RiverProfile Profile(int start)
+        {
+            var down = Down[start];
+            var end = down >= 0 ? down : start;
+            return new RiverProfile
+            {
+                Start = start, Down = down,
+                BedA = Bed[start], BedB = Bed[end],
+                WaterA = WaterLevel[start], WaterB = WaterLevel[end],
+                WidthA = Width[start], WidthB = down >= 0 && Width[down] > 0f ? Width[down] : Width[start],
+                BankLow = BankLow.Length > 0 ? BankLow[start] : float.MaxValue,
+                Kind = Kind.Length > 0 ? (RiverProfileKind)Kind[start] : RiverProfileKind.None,
+            };
+        }
 
         public float2 Point(int index) => Points.Length > 0 ? Points[index] : JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
 
@@ -314,13 +334,12 @@ namespace Punchy.Terrain
                 distance = math.distance(xz, a + ab * t);
             }
 
-            var endLevel = down >= 0 ? map.Bed[down] : map.Bed[start];
-            var endWidth = down >= 0 && map.Width[down] > 0f ? map.Width[down] : map.Width[start];
-            // A waterfall is a step in the bed half way along the segment.
-            var fall = s.FallDrop > 0f && map.Bed[start] - endLevel >= s.FallDrop;
-            var tl = fall ? math.smoothstep(0.46f, 0.54f, t) : t;
-            var level = math.lerp(map.Bed[start], endLevel, tl);
-            var baseWidth = math.lerp(map.Width[start], endWidth, t);
+            // W-153: bed, water and width come from the segment's profile. A waterfall is a step half way along it.
+            var profile = map.Profile(start);
+            var fall = profile.Falls;
+            var tl = profile.Along(t);
+            var level = profile.Bed(tl);
+            var baseWidth = profile.Width(t);
             var width = baseWidth * bank.WidthScale;
             var carve = Profile(distance, level, width, Depth(baseWidth, s), bank);
 
@@ -328,10 +347,10 @@ namespace Punchy.Terrain
             if (carve < q.Carve)
             {
                 q.Carve = carve;
-                q.Water = math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], tl);
+                q.Water = profile.Water(tl);
             }
             if (fall && tl < 0.5f && distance < width * 0.5f)
-                q.FallWater = math.max(q.FallWater, math.lerp(map.WaterLevel[start], map.WaterLevel[down], tl));
+                q.FallWater = math.max(q.FallWater, profile.Water(tl));
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
             {
                 q.Found = true;
