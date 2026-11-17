@@ -8665,3 +8665,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - world/cave-seam b3117cad: the apron test is now below the floor. A cut point stays open only if the walls' air is straight under it, or it sits at most 1 m (ApronRise) above the floor under the mouth with an open line to the mouth.
 - c6: the island left of the mouth is gone, and the floor exit stays one piece (a 0.5 m rise broke it into slabs). The top-left rim patch is a real mouth edge joined to the hole, so it stays. Debug (unlit) and shaded 5 m/20 m shots at c0/c3/c6 checked.
 - Next: step B (cave walls clip to a shared CaveSampling.MouthRing), then C, the guard and the re-pin.
+
+## W-174 row 3 step B (walls clip to the ring), 11-17: verified
+- world/cave-seam 86094e80: CaveSampling.MouthRing (RingDepth 0.4) is the one sheet the collars' feet use (FootSheet, FootField, CollarDepth) and the cave walls clip to (rule 33). CaveSystem.MeshJob.OntoRing drops a wall or roof vertex onto the ring when it sits inside a mouth's cut (MouthCutKept < 0.5) and above the ring. The cell's corner columns skip most vertices before MeshHeight is read.
+- Floors facing up (normal.y > 0.6) are not clipped: dropping them showed a buried terrain spike at the c6 floor exit. c6 debug view: the stray wall patch at the top left and the ragged top fringe are now covered by the collar. Shaded c0/c3/c6 at 5 m and 20 m look clean.
+- Next: step C, the band-weight block in the shader.
