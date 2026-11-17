@@ -17,7 +17,7 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 | world/ambient-details | W-142 | world | Job 69 FAIL at lava cave: fix seeps first. |
 | world/cave-trickles | W-141 | world | Job 68 FAIL: cheaper version. |
 | world/far-lite | W-132 | world | Check overlap with R-22/R-23. |
-| world/cave-climbs | W-144 | world | Waits on Zach's look at 1b pairs. |
+| world/cave-climbs | W-144 | world | Folded into W-162 row 3 (11-17): routes rebuilt on the shared grade source; hangings reuse W-178. Don't land. |
 | render/cobble-depth | R-28 r2 | render | Terrain shader vs puddle-edges. |
 | b/cloud-shadow-map | profiler | profiler | Rework: store raw density, apply R-20 r4 soft edge after the read; BENCH cost check. |
 | render/foliage-realism | R-30 r1-r2c (#323) | render | Draft PR #457 (main merged in at 161ecc3a); waits on editor checks and job 102. |
