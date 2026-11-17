@@ -1229,6 +1229,14 @@ namespace Punchy.Terrain
             return false;
         }
 
+        /// <summary>
+        /// W-174 r6: the cave walls' field (negative in rock) at height y over a column whose drawn surface is surface,
+        /// with scale the across-slope factor (TerrainSource.AcrossSlope) and cave the cave distance there. CaveSystem's
+        /// FieldJob builds the walls from it; the terrain's mouth collars end on it.
+        /// </summary>
+        public static float WallField(float y, float surface, float scale, float cave) =>
+            -SmoothMin(-((y - surface) * scale + SkinGap), cave, MouthBlend);
+
         internal static float SmoothMin(float a, float b, float k)
         {
             var h = math.saturate(0.5f + 0.5f * (b - a) / k);

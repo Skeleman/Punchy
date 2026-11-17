@@ -1979,11 +1979,8 @@ namespace Punchy.Terrain
             {
                 var xz = (float2)(Origin.xz + new int2(i % Points.x, i / Points.x)) * Voxel;
                 var h = GridStep > 0f ? Source.MeshHeight(xz, GridStep) : Source.SampleHeight(xz);
-                const float e = 0.5f;
-                var slope = new float2(Source.SampleHeight(xz + new float2(e, 0f)) - Source.SampleHeight(xz - new float2(e, 0f)),
-                                       Source.SampleHeight(xz + new float2(0f, e)) - Source.SampleHeight(xz - new float2(0f, e))) / (2f * e);
                 Surface[i] = h;
-                SurfaceScale[i] = math.rsqrt(1f + math.lengthsq(slope));
+                SurfaceScale[i] = Source.AcrossSlope(xz);
             }
         }
 
@@ -2016,7 +2013,7 @@ namespace Punchy.Terrain
                     // Air is above the surface or in the cave; a smooth union, so a lip of rock thinner than about half
                     // a metre between them (a thin roof at a mouth) opens up instead of hanging as a floating slab. The
                     // terrain cuts its own surface from this same field (TerrainSource.MouthCut), so the two agree.
-                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + CaveSampling.SkinGap), cave, CaveSampling.MouthBlend);
+                    Field[i] = CaveSampling.WallField(p.y, Surface[column], SurfaceScale[column], cave);
                 }
             }
         }
