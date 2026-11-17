@@ -263,3 +263,9 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - I viewed golem-g5-night-1 myself: the arcs are clean continuous lines with a soft halo and no spoke fans.
 - Shots are golem-g5-{day,night}-0..3 and ab/kitm-* in PunchyMilestones/R-29/.
 - Next: resuming R-28 r2, the FXC crash in the paving parallax loop.
+
+### R-29 correction (11-17)
+- The earlier R-29 report (a5b0f8d6) was wrong. Its Electricity vertex stage failed to compile (FXC X8000), so no ribbons drew. The g3/g5 shots and the A/B scores only measured flora decor.
+- Fixed in 50cdacb6 on render/effects-kit: branch-free PathPoint and arithmetic selects; short wide links take their side from the path axis. Both stages compile with 0 messages. Glow is back at main's 9 / 1.
+- Spire A/B at 9 / 1 (ab/m9-*): glow_lift is 0.101 by day and 0.133 at night, against main's 0.073 / 0.119.
+- Golem with arcs forced on (Dropout 0) at the g2 pose: R-29/golem-f2-{day,night,closeday,closenight}-0..3. I checked golem-f2-night-1 by eye: arcs on every link, soft round halo, no spokes. There is faint vertical banding inside the halo.
