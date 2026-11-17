@@ -963,7 +963,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
 
 - 11-15 note (supervisor): #423 (far lights, R-25 r3) and #424 (your -vsync/-maxqueued flags) are on main. Two notes from the render lane's review: (1) clamp -maxqueued to at least 1 in a small follow-up on b/fix-*. (2) b/cloud-shadow-map 88ee4c89 needs rework before merge: the baked path skips main's soft cloud-shadow edge (R-20 r4, #410), so store raw density and apply the edge after the read; then queue main vs branch at the cloud views yourself (it touches WeatherSystem.cs, so tell me before pushing changes there). R-34 (stone look) will add a job here when it lands.
 
-## Job 97 (2026-11-15, BUILD FAILED 11-16 (q138.job: CS0103, main #420-#436 lacks the TestHooks guard); rerun CHAINED on guarded commits (q138g.job); A = fe23fc62^1 5e59c65; materials lane, W-166 rows 2-3a #336, merged #426): wood grain on every built piece
+## Job 97 (2026-11-15, DONE 11-16: FAIL Medium across +0.43 ms, rest pass (q138g.job, guarded commits); earlier q138.job BUILD FAILED (CS0103); A = fe23fc62^1 5e59c65; materials lane, W-166 rows 2-3a #336, merged #426): wood grain on every built piece
 - Arm: main fe23fc62 (B) against fe23fc62^1, main before #426 (A). Profile builds, 1920x1080, Medium and High, uncapped, Clear, noon, ABBA, 3 rounds.
 - What changed: all built wood (houses, stalls, fences, props) draws through Materials/Wood.hlsl in Flora.shader with grain; planks that were flat colour now run the grain path. Thatch, cloth and metal moved files unchanged.
 - View: the biggest town on Medium from its gate (about 15 m), then a view across the town from about 80 m. Record: GPU ms and the Flora draw's GPU time if the build can split it.

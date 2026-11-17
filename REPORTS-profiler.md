@@ -2,6 +2,20 @@
 
 Newest first.
 
+## Job 97: W-166 rows 2-3a wood grain (main fe23fc62 = B vs fe23fc62^1 5e59c65 = A, #426), 2026-11-16 (q138g.job): **FAIL at Medium across the town (+0.43 ms); the rest pass**
+Both arms built with the TestHooks.Options.cs guard (bench-only local commits f69d867 / c14a674; main #420-#436 can't build a player without it). Profile builds, 1920x1080, uncapped, noon Clear, 3 rounds, arms alternated. Town 73 from the south, yaw 0: near = 15 m out (2972,-900), across = 80 m out (2972,-965); the card's gate isn't located.
+
+| view | preset | A GPU ms (rounds) | B GPU ms (rounds) | B vs A | bar |
+|---|---|---|---|---|---|
+| near | Medium | 16.27 (16.6, 16.1, 16.1) | 16.47 (16.6, 16.4, 16.4) | +0.20 | +0.3 PASS |
+| across | Medium | 15.80 (15.9, 15.8, 15.7) | 16.23 (16.4, 16.1, 16.2) | **+0.43** | +0.3 **FAIL** |
+| near | High | 20.77 | 20.93 | +0.17 | +0.5 PASS |
+| across | High | 20.00 | 20.13 | +0.13 | +0.5 PASS |
+
+- The Medium-across fail is steady: every B round sits above every A round. The across view has the most built wood in frame (a plank house at left, fences, log piles and the town's stalls behind), so the grain path's per-pixel cost shows there. Near Medium is +0.20, under the bar.
+- CPU main thread is level at Medium (18.8 / 18.9 ms across). At High, B's across CPU mean (27.77 vs 24.17) carries one stalled round (r2: 34 ms, 1% low 0.9 fps); the other two rounds match A.
+- The shots are the same scene in both arms. The laptop's GPU pass timers read nothing, so the Flora draw isn't split; a RenderDoc frame could split it if the materials lane wants it.
+- Suggestion for the owner: a Medium-and-down switch that skips the grain path, or its cheaper octave at distance, would likely clear the bar.
 ## Job 105: W-174 row 2 ground-edit profile cost (world/ground-edits 3c3b50b1 = B vs its merge-base main 2b6ef9e3 = A), 2026-11-16 (q142.job): **PASS, no frame or load cost**
 Medium, 1920x1080, uncapped, noon Clear, 3 rounds, arms alternated, each game a fresh launch. Views: #403's cut (1116,42.7,1634, on the floor) and the dwarf mining camp (-1966,651), yaw 0.
 
