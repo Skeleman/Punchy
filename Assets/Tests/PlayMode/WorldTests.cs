@@ -114,7 +114,9 @@ namespace Punchy.Tests
         // Main merge (W-174 rivers and cave mouths, M-07 painted edits, W-162): the river graph changed under the probe,
         // so the graph-only kinds moved (bend 80 -> 82, uphillGraph 31 -> 62) with deep 42 -> 43, step 959 -> 964 and
         // fallFoot 4 -> 5; dryRun 10 -> 9, wall 988 -> 972, tilt 31 -> 29, fallHead 47 -> 46. Re-based here.
-        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 9, 62, 0, 972, 43, 29, 964, 46, 5 };
+        // uphillGraph 62 -> 10: 52 of the 62 were lake edges, where a lake cell's Bed holds the lake surface (flat water,
+        // uphillSampled 0), so the probe no longer compares beds across a lake edge. The 10 left are bed rises under 0.25 m.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 9, 10, 0, 972, 43, 29, 964, 46, 5 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
