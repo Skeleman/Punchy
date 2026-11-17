@@ -199,7 +199,7 @@ Shader "Punchy/Electricity"
         float d = abs(input.across.x);
         float coreEdge = 1.0 / max(_PunchyArcShape.y, 1.0);
         float core = 1.0 - smoothstep(coreEdge * 0.5, coreEdge, d);
-        float glow = input.core.a * exp(-d * 4.0) * (1.0 - d);
+        float glow = input.core.a * (1.0 - d) * (1.0 - d); // soft halo out to the ribbon edge, past the core
         half3 color = (half3)(input.core.rgb * core + input.glow * glow) * input.alpha;
         color = MixFogColor(color, half3(0, 0, 0), input.fogFactor);
         return half4(color, 1);
