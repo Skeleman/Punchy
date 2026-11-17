@@ -2,6 +2,31 @@
 
 Newest first.
 
+## Job 107 (R-22 row 1, #298): whole-island far mesh, FAIL on the flights (ground and summit pass, except High ground)
+
+render/far-island 3d03c3cb, one Profile build: B as is, A `-farisland 0`. 1920x1080 uncapped, noon Clear, 3 rounds alternated.
+Views: ground = `-place meadow`; peak = summit -3460,2425 looking west; fly300 / fly1000 = `-benchline -1460,2425 -> -3460,2425`
+at 60 m/s, 300 m and 1000 m up, `-hitchms 33`. Laptop GTX 1060 Max-Q. Spec q147.job.
+
+| gfx | view | A GPU mean | B GPU mean | B vs A | bar | verdict | A / B CPU |
+|---|---|---|---|---|---|---|---|
+| Medium | ground | 16.77 | 16.97 | +0.20 | 0.5 | PASS | 27.9 / 28.6 |
+| Medium | peak | 10.57 | 10.70 | +0.13 | 1.5 | PASS | 16.1 / 16.3 |
+| Medium | fly300 | 10.63 | 14.43 | **+3.80** | 1.5 | FAIL | 26.0 / 31.4 |
+| Medium | fly1000 | 7.33 | 12.77 | **+5.43** | 1.5 | FAIL | 20.6 / 24.2 |
+| High | ground | 28.50 | 29.37 | +0.87 | 0.5 | FAIL (noisy) | 162 / 152 |
+| High | peak | 15.37 | 14.53 | -0.83 | 1.5 | PASS | 35.6 / 36.1 |
+| High | fly300 | 24.33 | 27.77 | **+3.43** | 1.5 | FAIL | 71 / 90 |
+| High | fly1000 | 21.77 | 26.50 | **+4.73** | 1.5 | FAIL | 62 / 81 |
+
+- **The flights fail at both presets by 2-4x the bar.** Every round agrees: Medium fly1000 A 6.9-7.7 ms, B 12.6-13.0 ms. That is the whole-island mesh plus the pushed-out far plane (shadow cascades stretch with it) costing about 4-5 ms GPU from the air. CPU is also up 4-6 ms (Medium) and 18-19 ms (High) on the flights.
+- **New multi-second frames on High fly1000 B:** 3830 ms at -2089,1124,2425 (round 1) and 4895 + 2815 ms around -2046 / -1597 (round 2). A's worst on the same route is 722-736 ms. High fly300 B has one 1044 ms frame (A's worst 758 ms). This breaks "no new hitch over 2x median". Medium flights: B's worst 515-554 ms vs A 245-547 ms, and B has about 20 more frames over 33 ms.
+- Ground: Medium passes. High +0.87 ms, but A's rounds spread 27.4-30.0 and B's 28.1-31.1; B's worst frame (557 ms) is below A's (677 ms). A rerun would likely land inside 0.5 ms.
+- Summit (the card's main view): passes at both presets; High B is 0.8 ms cheaper (the far mesh may stand in for more expensive far ground).
+- Island bake/build time at load: no change (island ready 8.3-9.7 s in both arms).
+- The fly1000 screenshots show only fog and sky in both arms (the camera looks level at 1000 m), so they can't show the far mesh. A downward pitch would make the shot useful.
+- Main is on neither arm (A is this branch with the flag off); world/far-lite (job 56) is not merged.
+- Ask for the render lane: the air cost and the multi-second frames on High flights need a look before merge. A Profiler capture of a High fly1000 B round would show whether the long frames are mesh build or shadow.
 ## Job 106 (fauna #24 phase 2 row 2): dungeon creatures by nearness, MIXED (temple PASS; walk-in fails on one round; no load saving)
 
 fauna/dungeon-spawns ba6a6c90 (B: eca2aaec with main merged) vs its merge-base main 53cc5e36 (A). High, 1920x1080, uncapped,
