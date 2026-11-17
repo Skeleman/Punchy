@@ -8547,3 +8547,30 @@ Plan:
 - Pushed in play: roots part around the player, rope belly moves 0.25 m. Tests 19/19. Shots in PunchyMilestones/W-178 (roots-push, rope-push, vines, tendrils-crystal).
 - Tendril glow and rock are tinted toward each style's GlowColor (Crystal tendrils now violet, not off-hue).
 - Rope bridges pushed back: they need chasm data the cave set doesn't have. Strung mine ropes are the cheaper version on the same PinEnd path. No PR opened (standing rule: lanes don't open PRs); branch is ready for the supervisor.
+
+## W-162 (#327) row 1 plan - shared rock wall (branch world/rock-walls off main d3e66f50, no code yet)
+**Today.** The fine surface is already shared: R-34's PunchyStoneSurface (Materials/Stone.hlsl) runs on steep terrain, the scarp skins and cliff kit (both drawn with the terrain material), and cave walls (Cave.shader). The two still split on:
+- colour: cliffs use the biome's vertex colour plus ScarpPaint bed tints, streaks and moss. Caves use the style's RockColor/DarkColor with their own blotch and sine strata, and only take the terrain colour in the mouth fade (Look() data.x, first few metres).
+- big shapes: cliffs use R-19 height beds and ledges in TerrainSurface.shader; caves use a sine strata (s1.w).
+- moss, wet streaks and dark bases: each shader has its own copy.
+- climbing: any unmarked wall falls back to grade Smooth (Climbing.WallGrade). WorldClimbs reads only debug bands, ladders and colossi.
+- mouths: W-174 r6 collars (BuildChunkMeshJob.Mouths, LOD0-1) hang from the rim to the wall field 0.4 m down. The field keeps the 2 cm SkinGap, and the rim is a hard colour edge from ground to cave rock.
+
+**Row 2, one rock wall.** Move the R-19 beds and ledges, wet streaks, up-facing and damp moss and the darkened base into shared functions that both shaders call.
+- Cave keeps: darkness, drips, ribs, ice, crystal facets, cut stone and floors.
+- Cliff keeps: sky light, the turf cap and the toe.
+- Cave colour: a per-cave "country rock" colour (the steep-rock colour round its mouth). It goes into the per-vertex rgb that Look() already writes, and blends into the style colour with depth: full at the mouth, the style's own about 30 m in. Crystal, ice and volcanic styles keep more of their own colour.
+- Cost class: shader maths only, no new texture reads. The cave's own blotch and strata go, so interiors should come out neutral or cheaper. A BENCH job goes through the supervisor.
+
+**Row 3, one grade source.** Add a rock source to WorldClimbs:
+- craggy 4 or smooth 5, from a seed-hashed value noise over about 2 m patches. The noise is identical in C# and HLSL, so smooth patches also look smoother, with no ghost field.
+- scarp ledges and cracks lower the grade.
+- roots, vines and rope (W-178 CaveHangings) are grade 2.
+
+The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records read through the same source. Its Roots, Vines and Rope kinds reuse the CaveHanging looks (rule 33), so no cave-only path is left.
+
+**Row 4, mouths like cliffs.** Paint the collar and the wall's first metres with ScarpPaint's ragged toe band, so the colour matches. Drop ScarpDebris stone round the lip on its own hash stream. No landmark moves in any row.
+
+**Asks.**
+1. Render: where should the shared functions live? Options are extending Materials/Stone.hlsl or a new Materials/RockWall.hlsl. TerrainSurface.hlsl is untouched either way.
+2. Supervisor: rebase world/cave-climbs into row 3, or retire it and rebuild its routes on the new source?
