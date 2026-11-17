@@ -303,10 +303,20 @@ namespace Punchy.Fauna
         public static float Ground(in TerrainSource terrain, float2 xz, float y)
         {
             var surface = terrain.SampleHeight(xz);
+            // (Only a cave mouth has a carved floor under its hole. A temple entrance or scarp strip (GroundHoles) has none
+            // here: Solid stops a creature at its edge as a lip, and spawns keep off it (OnHole).)
             if (!terrain.Caves.IsCreated || !CaveSampling.NearColumn(ref terrain.Caves.Value, xz) || terrain.MouthCut(xz, surface) >= 0f)
                 return surface;
             return terrain.FloorUnder(new float3(xz.x, math.max(y, surface - 2f), xz.y), out _);
         }
+
+        /// <summary>
+        /// A-135 (#405): whether a point is on ground the hole mask removed (a cave mouth, a temple entrance or a scarp
+        /// strip, GroundHoles.Removed) at about surface height, so nothing is there to stand on. Well below the surface (in
+        /// a cave or a temple) isn't on it.
+        /// </summary>
+        public static bool OnHole(in TerrainSource terrain, float3 at) =>
+            at.y > terrain.SampleHeight(at.xz) - 1f && GroundHoles.Removed(terrain, at.xz);
 
         /// <summary>
         /// Whether a land animal's body at xz (feet at feetY, facing forward) would be in a solid the player is kept out of:
@@ -359,7 +369,15 @@ namespace Punchy.Fauna
                 sink = rockSink;
             // (The lip of an entrance: a shallow scoop is walked into, a pit isn't stepped off.)
             var surface = terrain.SampleHeight(nose);
-            if (!hit && terrain.MouthCut(nose, surface) < 0f && noseGround < feetY - math.max(0.5f, height))
+            var mouth = terrain.MouthCut(nose, surface) < 0f;
+            if (!hit && mouth && noseGround < feetY - math.max(0.5f, height))
+            {
+                hit = true;
+                kind = SolidKind.Lip;
+            }
+            // (A-135: a temple entrance or scarp strip has no floor under its hole, so from surface height it is a drop,
+            // never walked onto. Down inside the temple it is the roof's business, not the feet's.)
+            else if (!hit && !mouth && feetY > surface - 1f && GroundHoles.Removed(terrain, nose))
             {
                 hit = true;
                 kind = SolidKind.Lip;

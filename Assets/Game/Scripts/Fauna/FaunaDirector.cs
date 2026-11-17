@@ -654,7 +654,7 @@ namespace Punchy.Fauna
             }
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
-            Init(e, speciesIndex, position, yaw);
+            Init(e, speciesIndex, OffHole(position), yaw);
             ApplyBuild(em, e, true);
             return e;
         }
@@ -665,6 +665,14 @@ namespace Punchy.Fauna
         /// </summary>
         void Enqueue(int speciesIndex, float3 position, SpawnTier tier, System.Action<Entity> then = null, float yaw = float.NaN)
         {
+            // (A-135, #405: never on ground the hole mask removed, such as a goblin over a temple's entrance cut. Dropped,
+            // not moved: a dungeon resident's Pending stays set, so it isn't asked for again this session.)
+            if (built && CreatureMotion.OnHole(lastSource, position))
+            {
+                if (holeRejects++ < 3)
+                    Debug.Log($"[fauna] spawn on removed ground at ({position.x:F1}, {position.y:F1}, {position.z:F1}) ({tier}) left out");
+                return;
+            }
             pendingSpawns.Enqueue(new PendingSpawn { Species = speciesIndex, Position = position, Yaw = yaw, Tier = tier, Then = then });
             pendingTiers[(int)tier]++;
             switch (tier)
@@ -677,6 +685,30 @@ namespace Punchy.Fauna
                 case SpawnTier.Dungeon: dungeonCount++; break;
                 default: wildCount++; break;
             }
+        }
+
+        /// <summary>A-135: spawns left out for standing on removed ground (GroundHoles), this session.</summary>
+        public int HoleRejects => holeRejects;
+        int holeRejects;
+
+        /// <summary>
+        /// A-135: a point moved off ground the hole mask removed (cave mouth, temple entrance, scarp strip) to the nearest
+        /// clear ground within 16 m, for a spawn whose caller needs the creature made; unchanged when it's clear or nothing
+        /// clear is near.
+        /// </summary>
+        float3 OffHole(float3 at)
+        {
+            if (!built || !CreatureMotion.OnHole(lastSource, at))
+                return at;
+            for (var r = 1f; r <= 16f; r += 1f)
+                for (int k = 0; k < 12; k++)
+                {
+                    var a = k * (math.PI / 6f);
+                    var xz = at.xz + new float2(math.cos(a), math.sin(a)) * r;
+                    if (!GroundHoles.Removed(lastSource, xz))
+                        return new float3(xz.x, lastSource.SampleHeight(xz), xz.y);
+                }
+            return at;
         }
 
         /// <summary>
