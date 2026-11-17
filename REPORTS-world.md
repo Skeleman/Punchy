@@ -8534,3 +8534,9 @@ Plan:
 - Still skips: items (ItemMaterial is URP Lit, belongs to W-166), and transparent/emissive shaders (drips, mist, glow, flame, particles, plumes, waterfall, window spill, far lights), which is intended.
 - Stark look is the colours, not missing haze: haze-off the tendrils and bat look the same; the teal own glow against the purple Crystal wash is what reads stark. Density and glow emission unchanged. WorldTests 19/19.
 - Shots: D:/Unity/PunchyMilestones/W-179 tendrils-bat-before/-after/-hazeoff (same camera), fungi-before/-after/-plain.
+
+## W-179 (#528) row 2 cave detail audit - findings, no code (shots only, haze off by zeroing GlowEverywhere in an eval, nothing shipped)
+- Shots at 3 m and 15 m: D:/Unity/PunchyMilestones/W-179 r2-Crystal/Mine/Ice/Rock-3m/-15m. Limestone has no cave on this seed (0 of 31), so Rock (9 caves) stands in. Against W-142 r3 cave4/14/18 (11-13): those were black with warm lantern pools; now the walls carry their own colour, with no lantern in frame.
+- glowfungi-wide is Crystal (cave 2). The purple is the style itself: RockColor lavender, DarkColor deep violet, GlowColor violet, authored in 2a72fccc (glassy crystals, Zach). Intended. With the haze off it is still violet-blue, so the haze is only a small part of it.
+- Haze is per style: only Crystal (0.08) and Ice (0.55) have GlowEverywhere above 0. The other 8 styles get no cave air.
+- #377/#386/#440 touched no cave files. What changed the walls is R-34 row 2 (#427, wet stone as the base rock). On plain, non-faceted, non-slick rock: Detail and DetailScale no longer nudge the normal or the tone; Gloss gives way to the stone's wet lobes; RockColor, DarkColor and Strata are greyed at the stone's edges and browned in its crevices. Every packed field is still read. Facets, Slick, Moss, Ice and floor fields are untouched. Folding these into one stone look is W-166 work.
