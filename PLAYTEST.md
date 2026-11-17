@@ -213,3 +213,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 2026-11-16: #524 P-52 tail (#518) a joiner no longer slips out through tower 75's wall on a slow frame on the stair (player). Playtest: join a host, climb a walk-in tower while the game hitches.
 - 2026-11-16: #525 A-135 (#405, #406) creatures keep off removed ground: no goblins in the temple entrance cut, none walk over scarp holes (fauna). Playtest: visit the sunken temple entrance.
 - 2026-11-16: #526 W-174 r6 row 2 (#405) cave mouths: the ground meets the cave walls with no gap or lip, even on steep slopes (world). Playtest: walk into a cave on a hillside and look back at the rim.
+- 2026-11-16: #527 W-177 (#522) cave fungi patches grow real mushroom clusters, glowing caps on GlowFungi, caps turned up on walls (world). Playtest: find a fungal cave or glowing wall patch.
