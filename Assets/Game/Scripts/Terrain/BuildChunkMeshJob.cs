@@ -123,10 +123,13 @@ namespace Punchy.Terrain
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
             var glows = new NativeArray<float2>(v * v, Allocator.Temp);
             var pooled = new NativeArray<bool>(v * v, Allocator.Temp);
-            // W-174 r6: the sunken temple's entrance cut per vertex (and where each vertex lies), for its collar.
+            // W-174 r6: the entrance cut per vertex (the sunken temple's, and from row 2 the cave mouths'), and where each
+            // vertex lies, for the collars.
             var templeLod = request.Lod <= TempleMaxLod && Source.Landmarks.IsCreated && TerrainLayout.IsCreated;
-            var templeCut = new NativeArray<float>(templeLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-            var worlds = new NativeArray<float2>(templeLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var mouthLod = request.Lod <= MouthMaxLod && Source.Caves.IsCreated && TerrainLayout.IsCreated;
+            var entranceLod = templeLod || mouthLod;
+            var templeCut = new NativeArray<float>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var worlds = new NativeArray<float2>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
             var collared = false;
             var corners = new NativeList<float2>(16, Allocator.Temp);
             if (templeLod)
@@ -166,11 +169,11 @@ namespace Punchy.Terrain
                     ground = Source.SampleGround(world);
                     h = ground.Height;
                 }
-                // W-174 r6: the temple's cut is not snapped to; its triangles are split on the rim (Collars). It still goes
+                // W-174 r6: entrance cuts are not snapped to; their triangles are split on the rim (Collars). They still go
                 // into the vertex's cut, so a triangle Collars can't split is clipped per pixel as before.
-                if (templeLod)
+                if (entranceLod)
                 {
-                    var tc = Source.TempleCut(world);
+                    var tc = math.min(templeLod ? Source.TempleCut(world) : 100f, mouthLod ? MouthCutAt(Source, world, step) : 100f);
                     templeCut[z * v + x] = tc;
                     worlds[z * v + x] = world;
                     collared |= tc < 0f;
@@ -647,7 +650,7 @@ namespace Punchy.Terrain
         /// <summary>Cut without the temple (W-174 r6: Collars splits the triangles on its rim, so Seam leaves it alone).</summary>
         float SeamCut(float2 xz, float h, float step, bool cutHoles, int lod, out float strip, out float stripY)
         {
-            var cave = cutHoles ? MouthCut(xz, h, step) : 100f;
+            var cave = cutHoles ? MouthCut(Source, xz, h, step) : 100f;
             strip = 100f;
             stripY = 0f;
             if (lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, xz, step, h, out var s, out var sy))
@@ -669,7 +672,7 @@ namespace Punchy.Terrain
         /// </summary>
         public float2 Seam(float2 grid, float h, float step, int lod, out float cave, out float strip, out float stripY)
         {
-            var cutHoles = lod <= 1 && Source.Caves.IsCreated;
+            var cutHoles = false;   // W-174 r6 row 2: cave mouths are split on their rim by Collars, not snapped to
             cave = SeamCut(grid, h, step, cutHoles, lod, out strip, out stripY);
             if (!(cave > 0f && cave < 1.3f * step) || !SeamSnap(grid, cave, step, cutHoles, lod, out var rim))
                 return grid;
@@ -724,14 +727,14 @@ namespace Punchy.Terrain
         /// spanning it would stay, a strip of ground bridging the slit; this way the triangles round it are cut, and
         /// the cave walls' skin under the terrain fills in.
         /// </summary>
-        float MouthCut(float2 xz, float h, float step)
+        static float MouthCut(in TerrainSource source, float2 xz, float h, float step)
         {
-            var cut = Source.MouthCut(xz, h, TerrainSource.MeshCutDepth, out var cave);
+            var cut = source.MouthCut(xz, h, TerrainSource.MeshCutDepth, out var cave);
             if (cut >= 100f)
                 return cut;
             var r = step * 0.5f;
             var at = new float2x4(xz + new float2(r, 0f), xz - new float2(r, 0f), xz + new float2(0f, r), xz - new float2(0f, r));
-            var heights = new float4(Source.SampleHeight(at.c0), Source.SampleHeight(at.c1), Source.SampleHeight(at.c2), Source.SampleHeight(at.c3));
+            var heights = new float4(source.SampleHeight(at.c0), source.SampleHeight(at.c1), source.SampleHeight(at.c2), source.SampleHeight(at.c3));
             // Over most of a cave's footprint the passage is metres down. Once the field is at least SettledCave from
             // every neighbour's sample point, each neighbour's cut is the same settled value as this one's and can't
             // lower the min, so they're skipped: the samples lie within reach of this one (half a quad across, their
@@ -741,7 +744,7 @@ namespace Punchy.Terrain
             if (cave > SettledCave + FieldSlope * reach)
                 return cut;
             for (int k = 0; k < 4; k++)
-                cut = math.min(cut, Source.MouthCut(at[k], heights[k], TerrainSource.MeshCutDepth, out _));
+                cut = math.min(cut, source.MouthCut(at[k], heights[k], TerrainSource.MeshCutDepth, out _));
             return cut;
         }
 

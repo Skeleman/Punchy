@@ -1061,6 +1061,19 @@ namespace Punchy.Terrain
         public const float MeshCutDepth = 0.15f;
 
         /// <summary>
+        /// W-174 r6: the factor that turns a height above the ground at xz into a distance across the slope
+        /// (rsqrt(1 + slope^2), slope by central differences half a metre each way). The cave walls' field and the
+        /// mouth collars' feet both measure depth with it.
+        /// </summary>
+        public float AcrossSlope(float2 xz)
+        {
+            const float e = 0.5f;
+            var slope = new float2(SampleHeight(xz + new float2(e, 0f)) - SampleHeight(xz - new float2(e, 0f)),
+                                   SampleHeight(xz + new float2(0f, e)) - SampleHeight(xz - new float2(0f, e))) / (2f * e);
+            return math.rsqrt(1f + math.lengthsq(slope));
+        }
+
+        /// <summary>
         /// W-128: the ground as the terrain mesh draws it on a grid of this step (corners at multiples of it, each quad
         /// split along its anti-diagonal as BuildChunkMeshJob's triangles are), not the exact SampleHeight between the
         /// corners. Whatever must meet the drawn ground edge to edge uses it: the cave walls' skin round a mouth, built
