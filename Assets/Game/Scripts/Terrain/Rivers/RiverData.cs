@@ -1,5 +1,6 @@
 using System;
 using Unity.Entities;
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace Punchy.Terrain
@@ -120,6 +121,26 @@ namespace Punchy.Terrain
         /// rivers on island v2 so their bends lengthen with width. Empty in a blob baked before W-37.
         /// </summary>
         public BlobArray<float2> Points;
+        /// <summary>W-153: lowest pre-river ground just outside each river cell's banks (float.MaxValue off rivers and in lakes).</summary>
+        public BlobArray<float> BankLow;
+        /// <summary>W-153: each cell's segment kind (RiverProfileKind bits, 0 off the rivers).</summary>
+        public BlobArray<byte> Kind;
+
+        /// <summary>W-153: the profile of the segment from cell start to the cell it drains into. Sampling reads rivers through this.</summary>
+        public RiverProfile Profile(int start)
+        {
+            var down = Down[start];
+            var end = down >= 0 ? down : start;
+            return new RiverProfile
+            {
+                Start = start, Down = down,
+                BedA = Bed[start], BedB = Bed[end],
+                WaterA = WaterLevel[start], WaterB = WaterLevel[end],
+                WidthA = Width[start], WidthB = down >= 0 && Width[down] > 0f ? Width[down] : Width[start],
+                BankLow = BankLow.Length > 0 ? BankLow[start] : float.MaxValue,
+                Kind = Kind.Length > 0 ? (RiverProfileKind)Kind[start] : RiverProfileKind.None,
+            };
+        }
 
         public float2 Point(int index) => Points.Length > 0 ? Points[index] : JitteredPoint(index, Resolution, Origin, CellSize, Meander, Seed);
 
@@ -148,9 +169,9 @@ namespace Punchy.Terrain
         public float Distance;   // to the river centreline, metres
         public float Level;      // bank level of the river at its closest point
         public float Width;
-        public float Carve;      // lowest carved height among nearby rivers (handles confluences)
-        public float Water;      // water surface of the river that carved the ground lowest here
-        public float FallWater;  // upper surface of a waterfall whose channel covers this point above its lip (else MinValue)
+        public float Carve;      // carved height of the nearest river's profile, blended with others near joins
+        public float Water;      // water surface of the same profiles, blended the same way
+        public float FallWater;  // upper water of a fall whose channel covers this point above its lip line (else MinValue)
         public float2 Flow;      // downstream direction at the closest point
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
     }
@@ -230,13 +251,27 @@ namespace Punchy.Terrain
             var bank = Bank.At(ref map, s, xz, rough);
             bank.Slope = math.min(bank.Slope, maxBankSlope);
             var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
+            // W-153 row 2: each segment once (the cells' lists overlap), and the carve and water blended over them.
+            var seen = new FixedList128Bytes<int>();
+            var blend = new Join { Nearest = float.MaxValue };
             for (int y = -1; y <= 1; y++)
             for (int x = -1; x <= 1; x++)
             {
                 var c = math.clamp(cell + new int2(x, y), 0, map.Resolution - 1);
                 var candidates = map.Nearest[c.y * map.Resolution + c.x];
-                Consider(ref map, s, bank, xz, candidates.x, ref q);
-                Consider(ref map, s, bank, xz, candidates.y, ref q);
+                for (int k = 0; k < 2; k++)
+                {
+                    var start = k == 0 ? candidates.x : candidates.y;
+                    if (start < 0 || seen.Contains(start))
+                        continue;
+                    seen.Add(start);
+                    Consider(ref map, s, bank, xz, start, ref q, ref blend);
+                }
+            }
+            if (blend.Weight > 0f)
+            {
+                q.Carve = blend.Carve / blend.Weight;
+                q.Water = blend.Water / blend.Weight;
             }
             // Above a waterfall's lip the pool below carves its wide bowl back up under the upper river (cells are
             // narrower than the channel), so the lower water would win there and leave land between the two surfaces.
@@ -274,7 +309,38 @@ namespace Punchy.Terrain
             return Hermite(a, b, ta, tb, 0.5f);
         }
 
-        static void Consider(ref RiverMapBlob map, in RiverSettings s, in Bank bank, float2 xz, int start, ref RiverQuery q)
+        /// <summary>Over this many metres of edge distance, a further profile still shares the carve and water (joins).</summary>
+        public const float JoinBlend = 2f;
+
+        /// <summary>How far past a fall's lip line its upper water still reaches (m): the lip holds the upper water.</summary>
+        public const float LipHold = 0.9f;
+        public const float FootPoolDepth = 0.2f;  // a fall's foot pool sinks this share of its drop (at most 2.5 m)
+
+        /// <summary>
+        /// W-153 row 2: the carve and water of the nearby profiles, weighted by how close each one's edge is (the
+        /// nearest weighs 1, one JoinBlend further 1/e). Inside a channel its own profile rules; where two segments
+        /// meet (a join, a confluence) the ground and water slide from one to the other instead of jumping to whichever
+        /// carves lowest, and a segment's round end no longer digs back under the segment before it.
+        /// </summary>
+        struct Join
+        {
+            public float Nearest, Weight, Carve, Water;
+
+            public void Add(float edge, float carve, float water)
+            {
+                if (edge < Nearest)
+                {
+                    // Rescale what is summed so far to the new nearest (log-sum-exp, so far profiles never overflow).
+                    var scale = Weight > 0f ? math.exp((edge - Nearest) / JoinBlend) : 0f;
+                    Weight *= scale; Carve *= scale; Water *= scale;
+                    Nearest = edge;
+                }
+                var w = math.exp((Nearest - edge) / JoinBlend);
+                Weight += w; Carve += w * carve; Water += w * water;
+            }
+        }
+
+        static void Consider(ref RiverMapBlob map, in RiverSettings s, in Bank bank, float2 xz, int start, ref RiverQuery q, ref Join blend)
         {
             if (start < 0)
                 return;
@@ -314,24 +380,41 @@ namespace Punchy.Terrain
                 distance = math.distance(xz, a + ab * t);
             }
 
-            var endLevel = down >= 0 ? map.Bed[down] : map.Bed[start];
-            var endWidth = down >= 0 && map.Width[down] > 0f ? map.Width[down] : map.Width[start];
-            // A waterfall is a step in the bed half way along the segment.
-            var fall = s.FallDrop > 0f && map.Bed[start] - endLevel >= s.FallDrop;
-            var tl = fall ? math.smoothstep(0.46f, 0.54f, t) : t;
-            var level = math.lerp(map.Bed[start], endLevel, tl);
-            var baseWidth = math.lerp(map.Width[start], endWidth, t);
+            // W-153: bed, water and width come from the segment's profile. A waterfall is a step half way along it.
+            var profile = map.Profile(start);
+            var fall = profile.Falls;
+            var tl = profile.Along(t);
+            var level = profile.Bed(tl);
+            var baseWidth = profile.Width(t);
             var width = baseWidth * bank.WidthScale;
             var carve = Profile(distance, level, width, Depth(baseWidth, s), bank);
 
-            // The water here belongs to whichever river shaped the ground lowest, so water and banks always agree.
-            if (carve < q.Carve)
+            // Carve and water come from the same profile, so water and banks agree.
+            // A fall's water steps on its lip line, straight across the channel at the curve's middle (where FallShape
+            // and the curtain put it), so both banks agree at the lip; a little past it so the lip itself holds the upper water.
+            // Inside its channel above the lip the fall owns the water outright (a river doubling back beside its own
+            // fall would otherwise blend its lower water in across the bank).
+            // Below the lip line the bed sinks into a foot pool, deeper than the channel for about a channel width, so
+            // the curtain lands in a plunge pool rather than on a dry step. It keeps the channel's own width: a wider
+            // basin spilled the lower water out against the banks beside the lip.
+            var water = profile.WaterAt(t);
+            if (fall && s.Smooth && down >= 0)
             {
-                q.Carve = carve;
-                q.Water = math.lerp(map.WaterLevel[start], down >= 0 ? map.WaterLevel[down] : map.WaterLevel[start], tl);
+                var lip = CurveMid(ref map, start, out var lipFlow);
+                var past = math.dot(xz - lip, lipFlow);
+                var above = past <= LipHold;
+                water = above ? profile.WaterA : profile.WaterB;
+                if (above && distance < width * 0.38f)
+                    q.FallWater = math.max(q.FallWater, profile.WaterA);
+                if (!above)
+                {
+                    var drop = math.max(profile.BedA - profile.BedB, 0f);
+                    var sink = math.smoothstep(LipHold, LipHold + 2f, past)
+                             * (1f - math.smoothstep(LipHold + width * 0.6f, LipHold + width * 1.2f, past));
+                    carve = Profile(distance, level, width, Depth(baseWidth, s) + math.min(drop * FootPoolDepth, 2.5f) * sink, bank);
+                }
             }
-            if (fall && tl < 0.5f && distance < width * 0.5f)
-                q.FallWater = math.max(q.FallWater, math.lerp(map.WaterLevel[start], map.WaterLevel[down], tl));
+            blend.Add(distance - width * 0.5f, carve, water);
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
             {
                 q.Found = true;
@@ -358,11 +441,7 @@ namespace Punchy.Terrain
                 var centre = a - math.normalizesafe(ab) * poolWidth * 0.25f;
                 var pd = math.distance(xz, centre);
                 var pc = Profile(pd, map.Bed[start], poolWidth, Depth(map.Width[start], s) * 1.3f, bank);
-                if (pc < q.Carve)
-                {
-                    q.Carve = pc;
-                    q.Water = map.WaterLevel[start];
-                }
+                blend.Add(pd - poolWidth * 0.5f, pc, map.WaterLevel[start]);
                 if (pd - poolWidth * 0.5f < q.Distance - q.Width * 0.5f)
                 {
                     q.Found = true;

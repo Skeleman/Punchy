@@ -26,7 +26,9 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 114 landmarks, probe hash 9786243F since W-174 row 2 (one natural ground-edit profile: pass gullies, beds,
+        /// <summary>Target: 114 landmarks, probe hash 9113464F since W-153 rework row 3 (fall profiles and 138
+        /// described falls re-shape river ground). 4DC69668 since rework row 2 (river carve from the nearest
+        /// profile moved landmark spots by river ground). 9786243F since W-174 row 2 (one natural ground-edit profile: pass gullies, beds,
         /// pads and paddy rims re-shape the ground, so roadside picks re-draw: five campsites, a fairy ring, the small fungal grotto at
         /// (-1796,-201) and a grotto drop; a campsite, two burnt campfires, a cave network and a lone inn are new; the bear cave,
         /// a waterfall and the sea folk landing and village move). 117 / 547D4E79 since the W-172 lava half-row (VolcanoCone joins Ashlands' list and
@@ -45,7 +47,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("114 9786243F", hash);
+            Assert.AreEqual("114 9113464F", hash);
             yield return null;
         }
 
@@ -122,7 +124,12 @@ namespace Punchy.Tests
         // Reverted: that channel water stood over ground the lower valley had dug, so rivers made raised water blocks
         // with falls on every side. Notches stay; counts go back to dryRun 7, wall 972, deep 43, tilt 29, step 970,
         // fallFoot 5. The river rework (docs/agents/river-rework.md) is meant to take wall to 0.
-        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 7, 10, 0, 972, 43, 29, 970, 46, 5 };
+        // Rework row 2 (carve and water from the nearest profile, blended at joins): dryRun 7 -> 0, wall 972 -> 457,
+        // deep 43 -> 11, tilt 29 -> 18, step 970 -> 610, fallHead 46 -> 0, fallFoot 5 -> 0. Re-based here.
+        // Rework row 3 (fall profile: bed and water step on one straight lip line, a foot pool below, every bed step
+        // of 1 m or more a described fall, 75 -> 138 falls): wall 457 -> 397, deep 11 -> 10, tilt 18 -> 17,
+        // step 610 -> 225. Re-based here.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 0, 10, 0, 397, 10, 17, 225, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8

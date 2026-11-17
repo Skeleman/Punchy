@@ -154,10 +154,12 @@ namespace Punchy.Terrain
                 ReshapeLoweredLakes(source, settings, cellSize * 0.0005f, resolution, origin, cellSize, seed, elevation,
                                     points, down, order, lakesBefore, lakes, lakeLevel, floor, width, bed, water);
                 lakesBefore.Dispose();
-                FillRiverPits(settings, source.World.SeaLevel, down, order, lakes, width, bed, water);
+                RiverProfiles.FillPits(settings, source.World.SeaLevel, down, order, lakes, width, bed, water);
+                // W-153: the bank lows are measured once, for the dam cuts and the profiles' banks.
+                var bankLows = RiverProfiles.BankLows(source, points, width, lakes);
                 if (settings.Smooth && meander)
                 {
-                    CutDams(source, source.World.SeaLevel, points, down, lakes, lakeLevel, width, bed, water);
+                    CutDams(source.World.SeaLevel, bankLows, points, down, lakes, lakeLevel, width, bed, water);
                     SettleLakeRivers(settings, source.World.SeaLevel, down, order, lakes, lakeLevel, width, bed, water);
                 }
 
@@ -176,6 +178,9 @@ namespace Punchy.Terrain
                 Copy(ref builder, ref root.Nearest, nearest);
                 Copy(ref builder, ref root.LakeDepth, lakes);
                 Copy(ref builder, ref root.Points, points);
+                builder.Construct(ref root.BankLow, bankLows);
+                var kinds = RiverProfiles.Kinds(settings, source.World.SeaLevel, down, width, lakes, bed, water, bankLows);
+                builder.Construct(ref root.Kind, kinds);
                 // Each cell's highest lake level within two cells (for bays the cell grid misses).
                 // W-103: rows in parallel over managed copies (each cell is independent, so the result is identical).
                 var lakeDepths = lakes.ToArray();
@@ -213,32 +218,20 @@ namespace Punchy.Terrain
                     for (int i = 0; i < count; i++)
                     {
                         var d = down[i];
-                        if (width[i] <= 0f || d < 0 || width[d] <= 0f || lakes[i] > 0f || lakes[d] > 0f) continue;
-                        if (bed[i] - bed[d] < settings.FallDrop || bed[i] <= source.World.SeaLevel + 1f) continue;
+                        // W-153: the profile's fall segments, less those into lakes, the sea or dry ends.
+                        if ((kinds[i] & (byte)RiverProfileKind.Fall) == 0 || width[d] <= 0f || lakes[i] > 0f || lakes[d] > 0f) continue;
+                        if (bed[i] <= source.World.SeaLevel + 1f) continue;
                         fallCells.Add(i);
                     }
                 }
                 if (fallCells.Count > 0)
                 {
-                    // #42: a step whose water surface drops under 3 m shows no curtain (the bed steps, the water doesn't), and a
-                    // thin fall (under 8 m) within 60 m of a bigger one reads as the same cascade: both go, leaving one fall.
+                    // W-153 row 4: every bed step is a described fall, so the ground never steps without one. #42 dropped
+                    // steps under 3 m of water and thin falls within 60 m of a bigger one; those steps stayed in the bed as
+                    // walls of water with no curtain. Now only a step the water doesn't follow (under 1 m: it backs up
+                    // over it) goes, and close falls stand as a cascade.
                     float Drop(int c) => water[c] - water[down[c]];
-                    float2 Centre(int c) => origin + (new float2(c % resolution, c / resolution) + 0.5f) * cellSize;
-                    var big = new System.Collections.Generic.List<int>(fallCells);
-                    big.RemoveAll(c => Drop(c) < 3f);
-                    big.Sort((a, c) => Drop(c).CompareTo(Drop(a)));
-                    var kept = new System.Collections.Generic.List<int>();
-                    foreach (var c in big)
-                    {
-                        var thin = Drop(c) < 8f;
-                        var merged = false;
-                        if (thin)
-                            foreach (var k in kept)
-                                if (math.distance(Centre(c), Centre(k)) < 60f) { merged = true; break; }
-                        if (!merged) kept.Add(c);
-                    }
-                    kept.Sort();
-                    fallCells = kept;
+                    fallCells.RemoveAll(c => Drop(c) < 1f);
                 }
                 var fallArray = builder.Allocate(ref root.Falls, fallCells.Count);
                 for (int k = 0; k < fallCells.Count; k++)
@@ -479,35 +472,15 @@ namespace Punchy.Terrain
         /// sea downstream stands higher (backwater, which a cut can't drain), deeper than MaxCut, or longer than MaxLength.
         /// Only on the drawn (meandered) river map, so placement never sees it.
         /// </summary>
-        static void CutDams(in TerrainSource source, float seaLevel, NativeArray<float2> points, NativeArray<int> down,
+        static void CutDams(float seaLevel, float[] lows, NativeArray<float2> points, NativeArray<int> down,
                             NativeArray<float> lakes, NativeArray<float> lakeLevel, NativeArray<float> width,
                             NativeArray<float> bed, NativeArray<float> water)
         {
-            const float Margin = 0.3f, MaxCut = 16f, MaxLength = 900f;
+            const float Margin = RiverProfiles.BankMargin, MaxCut = 16f, MaxLength = 900f;
             var count = down.Length;
             var target = new NativeArray<float>(count, Allocator.Temp);
             for (int i = 0; i < count; i++) target[i] = float.MaxValue;
-            // The lowest ground just outside the banks, where the open-end rule looks. W-103: these samples were most
-            // of the rivers stage; they only read the ground, so they run in parallel (same managed maths, same result).
-            var widths = width.ToArray();
-            var depths = lakes.ToArray();
-            var centres = points.ToArray();
-            var ground = source;
-            var lows = new float[count];
-            BakeParallel.For(count, c =>
-            {
-                if (widths[c] <= 0f || depths[c] > 0f)
-                    return;
-                var low = float.MaxValue;
-                for (int k = 0; k < 8; k++)
-                {
-                    math.sincos(k * math.PI / 4f, out var sn, out var cs);
-                    var dir = new float2(cs, sn);
-                    for (float r = widths[c] * 0.5f + 4f; r <= widths[c] * 0.5f + 12f; r += 4f)
-                        low = math.min(low, ground.BaseHeight(centres[c] + dir * r));
-                }
-                lows[c] = low;
-            });
+            // The lowest ground just outside the banks (RiverProfiles.BankLows), where the open-end rule looks.
             for (int c = 0; c < count; c++)
             {
                 if (width[c] <= 0f || lakes[c] > 0f)
@@ -541,29 +514,6 @@ namespace Punchy.Terrain
                 water[i] = target[i];
             }
             target.Dispose();
-        }
-
-        /// <summary>
-        /// W-36: a river cell whose bed lies below the bed of the river cell it drains into is a pit: its water backs up
-        /// to the dam downstream, metres above its own channel, while its carve still digs the ground down to its low bed
-        /// across the whole width. The water then stood above the dug-out banks with open ends along the sides (65 of
-        /// the 106 open ends on v2). This raises such a bed to sit under its backed-up water like any river bed, so the
-        /// river is flat to the dam instead of a sunken channel. Downstream first, so a filled cell can be the dam of the
-        /// one above it. Rivers backed up by a lake or the sea are left alone, and water levels do not change.
-        /// </summary>
-        static void FillRiverPits(in RiverSettings settings, float seaLevel, NativeArray<int> down, NativeList<int> order,
-                                  NativeArray<float> lakes, NativeArray<float> width, NativeArray<float> bed, NativeArray<float> water)
-        {
-            for (int k = 0; k < order.Length; k++)
-            {
-                var c = order[k];
-                var d = down[c];
-                if (d < 0 || width[c] <= 0f || lakes[c] > 0f || lakes[d] > 0f || bed[d] <= bed[c] || water[c] < seaLevel + 0.5f)
-                    continue;
-                var under = RiverSampling.Depth(width[c], settings) * 0.25f;
-                if (water[c] > bed[c] - under + 0.05f)
-                    bed[c] = water[c] + under;
-            }
         }
 
         static void Copy<T>(ref BlobBuilder builder, ref BlobArray<T> target, NativeArray<T> source) where T : unmanaged
