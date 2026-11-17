@@ -8681,3 +8681,10 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Regressions vs r6 (slot 0, lip 0, every edge collared): mouths 0-4 now have slots up to 0.69 m and lips up to 1.67 m, and mouths 0 and 3 have 2-10 hole edges with no foot. Likely cause: the MouthCutKept speck gate (62d2474a, ApronRise b3117cad) makes the cut field too fine for the 0.5-1 m grid to follow.
 - The new ring-foot guard fails too: 1-183 feet per mouth/LOD stand above MouthRing (worst 0.11 m LOD0, 0.61 m LOD1). Partly by design (shallow fallback sheets 0.1-0.3 m; LOD1 reads MeshHeight at its own step while the walls use the LOD0 step). The guard needs a sheet-aware form.
 - Decision needed: keep the speck gate and widen the hook (specks vs seam truth), or drop the gate and remove the c6 speck another way. Hashes not re-pinned yet. Steps 5-6 wait.
+
+
+### W-174 r3 (#365) - DONE/verified, world/cave-seam 82caa471
+- Speck gate dropped; DropSpecks floods the cut grid after meshing (closed components <=6 m2, no chunk edge) and flips them. Signed ring guard: a foot off its sheet fails only when above the ground (tol 0.02 kept). WorldTests 20/20, seams clean (slot 0, lip 0, ring max 0.019); no hash re-pin needed.
+- Shots: PunchyMilestones/world/W-174r3-mouth-seam/after (same 6 poses). c6-5m viewed: both speck islands gone, but where they sat thin wedges into the cave now show (blue/dark slivers left of the mouth), and the older dark vertical slits remain. c6 is not a test mouth, so the guard does not see them. Suggest a follow-up: add c6 to the seam test mouths.
+- Temple shot not taken: the temple at the test source's spot (1320,-2720) is not in the v3 shot world (only sand there). Temple seams are still covered by the seams test. 4-43 feet per mouth/LOD sit off-sheet above the ring (tiny hidden gaps under the collar possible).
+- BENCH-QUEUE line added (collar + DropSpecks + OntoRing build cost). Next: W-153 rows 4-6 (rivers), then W-181 ledges.
