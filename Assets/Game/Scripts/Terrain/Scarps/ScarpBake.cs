@@ -38,20 +38,22 @@ namespace Punchy.Terrain
         public static BlobAssetReference<ScarpSetBlob> Build(in TerrainSource source, Allocator allocator)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            var records = ScarpRecords.All;
+            // W-153: the hand-placed scarps, then a river cut bank along each tall river notch.
+            var records = new List<ScarpRecord>(ScarpRecords.All);
+            records.AddRange(RiverNotches.Banks(source));
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<ScarpSetBlob>();
-            var scarps = builder.Allocate(ref root.Scarps, records.Length);
+            var scarps = builder.Allocate(ref root.Scarps, records.Count);
             var all = new float4(float.MaxValue, float.MaxValue, float.MinValue, float.MinValue);
-            var text = new System.Text.StringBuilder($"[scarps] {records.Length} scarps");
+            var text = new System.Text.StringBuilder($"[scarps] {records.Count} scarps");
             var points = new List<float2>();
             var drops = new List<float>();
-            for (int k = 0; k < records.Length; k++)
+            for (int k = 0; k < records.Count; k++)
             {
                 var rec = records[k];
                 ref var sc = ref scarps[k];
                 Style(rec.Kind, ref sc);
-                sc.Kind = rec.Kind; sc.Seed = rec.Seed; sc.Age = math.saturate(rec.Age);
+                sc.Kind = rec.Kind; sc.Seed = rec.Seed; sc.Age = math.saturate(rec.Age); sc.Late = rec.Late;
                 Resample(rec, points, drops);
                 int n = points.Count;
                 var nodes = builder.Allocate(ref sc.Nodes, n);
