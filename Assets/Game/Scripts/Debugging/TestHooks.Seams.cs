@@ -34,8 +34,9 @@ namespace Punchy.Debugging
         /// and how far the midpoint of an edge between two feet may bow into the cave's air (the wall curves between
         /// feet a few centimetres apart; the edge then sits in front of the wall skin, never behind a slot; up to 0.07).</summary>
         public const float CollarFootTolerance = 0.01f, CollarChordTolerance = 0.08f;
-        /// <summary>How far (m) a mouth's collar foot may stand above CaveSampling.MouthRing, the height the cave walls are clipped to
-        /// (W-174 r3): a foot above it hangs over the walls' clipped top and opens a gap.</summary>
+        /// <summary>How far (m) a mouth's collar foot may stand off its ring sheet (W-174 r3): CaveSampling.MouthRing at the depth it
+        /// uses (RingDepth, or a shallower fallback sheet), read from the surface at the walls' own grid step, as the walls clip to it; a foot on no
+        /// sheet (a straight-down drop, or a bow foot on the walls' unclipped field below the ring) must not stand above the ground.</summary>
         public const float RingFootTolerance = 0.02f;
         /// <summary>W-174 r6 row 2: feet closer than this (m) are the collar's finest split; a bow between them is a crease.</summary>
         const float CollarCrease = 0.03f;
@@ -273,7 +274,7 @@ namespace Punchy.Debugging
                 if (mouth)
                     for (int z = 0; z < n; z++)
                     for (int x = 0; x < n; x++)
-                        cut[z * n + x] = BuildChunkMeshJob.MouthCutKept(job.Source, corner + new float2(x, z) * TempleSeamStep, step);
+                        cut[z * n + x] = BuildChunkMeshJob.MouthCutAt(job.Source, corner + new float2(x, z) * TempleSeamStep, step);
                 var data = Mesh.AllocateWritableMeshData(count * 2);
                 var requests = new NativeArray<ChunkBuildRequest>(count, Allocator.TempJob);
                 var ranges = new NativeArray<float2>(count, Allocator.TempJob);
@@ -304,12 +305,14 @@ namespace Punchy.Debugging
                 build.WaterRanges = waterRanges;
 
                 var covered = new bool[n * n];
+                var dropped = new bool[n * n];   // fine points in the quads of a speck the mesh dropped (DropSpecks)
+                int specks = 0;
                 // Ground vertices on chunk edges, per chunk: world xz (to 0.1 mm) -> height.
                 var edges = new Dictionary<int2, Dictionary<long, float>>();
                 // Mouth collar feet: world xz -> height and chunk, the first chunk's (a foot two chunks share must match;
                 // within one chunk two feet may stand one above the other on a sheer wall).
                 var feetSeen = new Dictionary<long, (float y, int chunk)>();
-                int rims = 0, collars = 0, feet = 0, offFeet = 0, stepFeet = 0, stepChords = 0, badChords = 0, orphans = 0, footless = 0, sharedFeet = 0, strayFeet = 0, highFeet = 0;
+                int rims = 0, collars = 0, feet = 0, offFeet = 0, stepFeet = 0, stepChords = 0, badChords = 0, orphans = 0, footless = 0, sharedFeet = 0, strayFeet = 0, highFeet = 0, deepFeet = 0, bandFeet = 0;
                 float riser = 0f, footOff = 0f, chordOff = 0f, chordSpan = 0f, rockBow = 0f, ringOver = float.NegativeInfinity;
                 var why = "";
                 for (int i = 0; i < count; i++)
@@ -319,6 +322,24 @@ namespace Punchy.Debugging
                     var verts = data[i].GetVertexData<TerrainVertex>();
                     var tris = data[i].GetIndexData<uint>();
                     var skirts = BuildChunkMeshJob.VertexCount(quads);
+                    // A grid vertex whose kept cut has the other sign than the mouth cut there is in a speck DropSpecks
+                    // flipped: the fine points round it (one grid step) are its island, not a slot or a lip.
+                    if (mouth)
+                        for (int k = 0; k < (quads + 1) * (quads + 1); k++)
+                        {
+                            var w = verts[k].Position.xz + origin;
+                            var mc = BuildChunkMeshJob.MouthCutAt(job.Source, w, step);
+                            var kept = verts[k].Morph.w;
+                            // (a filled hole keeps a cut >= 0, where a hole vertex holds at most mc; an opened scrap holds -mc)
+                            if (math.abs(mc) <= 1e-4f || mc >= 100f || (mc < 0f ? kept < 0f : math.abs(kept + mc) > 1e-3f))
+                                continue;
+                            specks++;
+                            var a0 = (int2)math.ceil((w - step - corner) / TempleSeamStep);
+                            var a1 = (int2)math.floor((w + step - corner) / TempleSeamStep);
+                            for (int z = math.max(a0.y, 0); z <= math.min(a1.y, n - 1); z++)
+                            for (int x = math.max(a0.x, 0); x <= math.min(a1.x, n - 1); x++)
+                                dropped[z * n + x] = true;
+                        }
                     for (int k = skirts; k < verts.Length; k++)
                     {
                         if (verts[k].Morph.w == BuildChunkMeshJob.SeamEpsilon && (float)verts[k].Extra.w == 0f && verts[k].Normal.y != 0f)
@@ -327,7 +348,21 @@ namespace Punchy.Debugging
                         {
                             var w = verts[k].Position + new float3(origin.x, 0f, origin.y);
                             feet++;
-                            var over = w.y - CaveSampling.MouthRing(job.Source.MeshHeight(w.xz, step), job.Source.AcrossSlope(w.xz));
+                            var surface = job.Source.MeshHeight(w.xz, footStep);
+                            var scale = job.Source.AcrossSlope(w.xz);
+                            var sheet = math.clamp(math.round((surface - w.y) * scale / 0.1f) * 0.1f, 0.1f, CaveSampling.RingDepth);
+                            var over = math.abs(w.y - CaveSampling.MouthRing(surface, scale, sheet));
+                            // Off every sheet: MouthFoot's last resort drops straight down onto the walls (anywhere from the ground
+                            // to the RingDepth sheet), and a bow split moves a foot onto the walls' field, which below the ring
+                            // the walls keep unclipped (the field check below holds it there). Only a foot above the ground fails.
+                            if (over > RingFootTolerance)
+                            {
+                                if (w.y < CaveSampling.MouthRing(surface, scale) - RingFootTolerance)
+                                    deepFeet++;
+                                else
+                                    bandFeet++;
+                                over = math.max(0f, w.y - surface);
+                            }
                             ringOver = math.max(ringOver, over);
                             if (over > RingFootTolerance)
                                 highFeet++;
@@ -487,6 +522,8 @@ namespace Punchy.Debugging
                 for (int k = 0; k < cut.Length; k++)
                 {
                     var c = cut[k];
+                    if (dropped[k])
+                        continue;
                     if (c > tolerance && !covered[k]) { slots++; slot = math.max(slot, c); }
                     else if (c < -lipTolerance && covered[k]) { lips++; lip = math.max(lip, -c); }
                 }
@@ -525,10 +562,10 @@ namespace Punchy.Debugging
                     if (orphans + footless > 0)
                         problems.Add($"{where} LOD{lod}: {orphans + footless} edges of the hole with no collar ({footless} with no foot under an end{why})");
                     if (highFeet > 0)
-                        problems.Add($"{where} LOD{lod}: {highFeet} of {feet} collar feet above the walls' clipped top, the MouthRing (worst {ringOver:F3} m, max {RingFootTolerance:F2})");
+                        problems.Add($"{where} LOD{lod}: {highFeet} of {feet} collar feet off their ring sheet and above the ground (MouthRing at the walls' grid step; worst {ringOver:F3} m, max {RingFootTolerance:F2})");
                     if (strayFeet > 0)
                         problems.Add($"{where} LOD{lod}: {strayFeet} of {sharedFeet} feet shared across chunks differ");
-                    notes.Add($"LOD{lod} {rims} rim, {collars} collar tris, {feet} feet (off {footOff:F3}, {stepFeet} on field steps, chord {chordOff:F3} (into rock {rockBow:F3}), {stepChords} chords over steps, shared {sharedFeet}, ring {ringOver:F3}), " +
+                    notes.Add($"LOD{lod} {specks} speck vertices dropped, {rims} rim, {collars} collar tris, {feet} feet (off {footOff:F3}, {stepFeet} on field steps, chord {chordOff:F3} (into rock {rockBow:F3}), {stepChords} chords over steps, shared {sharedFeet}, ring {ringOver:F3}, {deepFeet} below the ring, {bandFeet} off-sheet above it), " +
                               $"riser {riser:F2} m, slot {slot:F2} lip {lip:F2}");
                 }
                 else

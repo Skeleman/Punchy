@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace Punchy.Terrain
@@ -32,6 +33,77 @@ namespace Punchy.Terrain
         /// <summary>The cut value a collar's foot vertices hold (kept, so never clipped; the seam guard tells them by it).</summary>
         public const float CollarFoot = 0.002f;
 
+        /// <summary>The largest stray island (m^2 of grid) DropSpecks removes: a hole speck beside a mouth, or a scrap of
+        /// ground left inside one.</summary>
+        public const float SpeckArea = 6f;
+
+        /// <summary>
+        /// W-174 r3 (#365): finds the small islands of the entrance cut on this chunk's v x v grid (cut &lt; 0 hole, &gt; 0
+        /// ground; 8-connected) that touch no chunk edge and cover at most SpeckArea, and flips each one's sign so the
+        /// mesh drops it (a hole speck is filled, a ground scrap is opened). Works at grid resolution, after the cut is
+        /// sampled, so the cut field itself stays as smooth as the grid can follow; an island on a chunk edge is kept, so
+        /// both chunks on the edge agree. Returns whether any island was flipped (flip[i] marks its vertices).
+        /// </summary>
+        public static bool DropSpecks(NativeArray<float> cut, int v, float step, NativeArray<bool> flip)
+        {
+            var label = new NativeArray<byte>(v * v, Allocator.Temp);   // in this flood
+            var seen = new NativeArray<bool>(v * v, Allocator.Temp);    // in any flood (rim vertices may be in several)
+            var stack = new NativeList<int>(64, Allocator.Temp);
+            var members = new NativeList<int>(64, Allocator.Temp);
+            var maxCount = math.max(1, (int)(SpeckArea / (step * step)));
+            var any = false;
+            for (int i = 0; i < flip.Length; i++)
+                flip[i] = false;
+            for (int start = 0; start < v * v; start++)
+            {
+                if (cut[start] == 0f)
+                    continue;
+                var hole = cut[start] < 0f;
+                var edge = false;
+                stack.Clear();
+                members.Clear();
+                if (seen[start])
+                    continue;
+                stack.Add(start);
+                label[start] = 1;
+                while (stack.Length > 0)
+                {
+                    var i = stack[stack.Length - 1];
+                    stack.RemoveAt(stack.Length - 1);
+                    members.Add(i);
+                    if (cut[i] != 0f)
+                        seen[i] = true;
+                    int x = i % v, z = i / v;
+                    edge |= x == 0 || z == 0 || x == v - 1 || z == v - 1;
+                    for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, nz = z + dz;
+                        if ((dx == 0 && dz == 0) || nx < 0 || nz < 0 || nx >= v || nz >= v)
+                            continue;
+                        var j = nz * v + nx;
+                        if (label[j] != 0 || (cut[j] != 0f && cut[j] < 0f != hole))
+                            continue;   // rim vertices (0) join either side, so a hole tied to its mouth only by rim is no speck
+                        label[j] = 1;
+                        stack.Add(j);
+                    }
+                }
+                // The flood stops only at the other side, so a small interior ground island is one ringed by hole.
+                for (int k = 0; k < members.Length; k++)
+                    label[members[k]] = 0;
+                if (edge || members.Length > maxCount)
+                    continue;
+                for (int k = 0; k < members.Length; k++)
+                    flip[members[k]] = cut[members[k]] != 0f;
+                any = true;
+            }
+            label.Dispose();
+            seen.Dispose();
+            stack.Dispose();
+            members.Dispose();
+            return any;
+        }
+
         /// <summary>The mesh's mouth cut at xz for a grid of this step (the 5-tap MouthCut; 100 away from caves).</summary>
         public static float MouthCutAt(in TerrainSource source, float2 xz, float step)
         {
@@ -39,75 +111,6 @@ namespace Punchy.Terrain
                 return 100f;
             return MouthCut(source, xz, source.SampleHeight(xz), step);
         }
-
-        /// <summary>
-        /// W-174 row 3: the mouth cut the mesh uses, with the specks and slivers beside a mouth taken out. The cut's smooth
-        /// blend (MouthBlend) also opens where the cave passes sideways under a thin roof; there the walls' skin dips into
-        /// a shallow dish with rock under it, and a hole in the ground showed that dish as a dark speck or slot. A cut
-        /// point stays open if the walls' air lies straight under it within GateDepth (the mouth itself, a skylight),
-        /// or if it lies no higher than ApronRise over the floor under its cave's mouth and the straight line there is open
-        /// all the way (the floor running out of the mouth). A point that fails both takes the larger of the two misses (positive), so the sign is continuous and the rim
-        /// bisection (Collars.Crossing) and both chunks on a shared edge read the same zero line.
-        /// </summary>
-        public static float MouthCutKept(in TerrainSource source, float2 xz, float step)
-        {
-            var cut = MouthCutAt(source, xz, step);
-            if (cut >= 0f)
-                return cut;
-            var h = source.SampleHeight(xz);
-            var p = new float3(xz.x, h, xz.y);
-            ref var set = ref source.Caves.Value;
-            CaveSampling.Distance(ref set, p, out var cave);
-            if (cave < 0 || set.Caves[cave].Tunnel != 0)
-                return cut;     // road tunnels have a portal at each end; their cut is left as it was
-            // the walls' field, not the cave's: where the cave runs under a thin roof the walls' skin closes it into
-            // a shallow dish, and the hole would show that dish
-            var below = float.MaxValue;
-            for (int k = 1; k <= GateSamples; k++)
-                below = math.min(below, GateAir - WallFieldAt(source, p - new float3(0f, GateDepth * k / GateSamples, 0f), step));
-            if (below < 0f)
-                return cut;
-            var mouth = set.Caves[cave].Mouth;
-            // the floor runs out of the mouth at about its own height; specks sit higher, beside or over the arch
-            var path = h - (MouthFloor(source, mouth, step) + ApronRise);
-            var len = math.distance(xz, mouth.xz);
-            if (len > PathMax)
-                path = math.max(path, len - PathMax);
-            else
-            {
-                // half-quad spacing, so a rock ridge one quad wide between a speck and the mouth is not stepped over
-                var n = math.clamp((int)math.ceil(len * PathEnd / (0.5f * step)), 1, PathSamplesMax);
-                for (int k = 1; k <= n; k++)
-                    path = math.max(path, MouthCutAt(source, math.lerp(xz, mouth.xz, PathEnd * k / n), step));
-            }
-            return path < 0f ? cut : math.min(below, path);
-        }
-
-        /// <summary>The height of the cave floor under a mouth's middle: the first rock (walls' field below zero) going
-        /// down from it in FloorStep steps, at most FloorDepth.</summary>
-        static float MouthFloor(in TerrainSource source, float3 mouth, float step)
-        {
-            for (var d = 0f; d < FloorDepth; d += FloorStep)
-                if (WallFieldAt(source, mouth - new float3(0f, d, 0f), step) < 0f)
-                    return mouth.y - d;
-            return mouth.y - FloorDepth;
-        }
-
-        const float FloorDepth = 6f;
-        const float FloorStep = 0.25f;
-        /// <summary>How far (m) over the mouth's floor a cut point still counts as the floor running out.</summary>
-        const float ApronRise = 1f;
-
-        /// <summary>How deep (m) and in how many samples MouthCutKept looks for cave air under a cut point.</summary>
-        const float GateDepth = 2.5f;
-        /// <summary>The walls' field (m into the air) that counts as cave air under a cut point; above the skin's dish.</summary>
-        const float GateAir = 0.3f;
-        const int GateSamples = 4;
-        /// <summary>The path to the mouth: most samples, the share of the way they reach (the mouth's middle can sit under its
-        /// arch), and the longest path (m) that still counts.</summary>
-        const int PathSamplesMax = 48;
-        const float PathEnd = 0.85f;
-        const float PathMax = 24f;
 
         /// <summary>The cave walls' field at p, from the surface the near grid draws (gridStep) and the slope there, as
         /// CaveSystem's ColumnJob and FieldJob build the walls.</summary>

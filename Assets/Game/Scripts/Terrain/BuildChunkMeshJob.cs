@@ -130,6 +130,7 @@ namespace Punchy.Terrain
             var entranceLod = templeLod || mouthLod;
             var templeCut = new NativeArray<float>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
             var worlds = new NativeArray<float2>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var rawCave = new NativeArray<float>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
             var collared = false;
             var corners = new NativeList<float2>(16, Allocator.Temp);
             if (templeLod)
@@ -173,10 +174,11 @@ namespace Punchy.Terrain
                 // into the vertex's cut, so a triangle Collars can't split is clipped per pixel as before.
                 if (entranceLod)
                 {
-                    var tc = math.min(templeLod ? Source.TempleCut(world) : 100f, mouthLod ? MouthCutKept(Source, world, step) : 100f);
+                    var tc = math.min(templeLod ? Source.TempleCut(world) : 100f, mouthLod ? MouthCutAt(Source, world, step) : 100f);
                     templeCut[z * v + x] = tc;
                     worlds[z * v + x] = world;
                     collared |= tc < 0f;
+                    rawCave[z * v + x] = cave;   // before the entrance cut, for a dropped speck (DropSpecks)
                     if (math.abs(tc) < RimOn)
                     {
                         tc = 0f;
@@ -248,6 +250,31 @@ namespace Punchy.Terrain
 
                 glows[z * v + x] = glow;
             }
+
+            // W-174 r3 (#365): stray specks of the mouth cut (a lone hole beside a mouth, a scrap of ground inside one)
+            // are dropped here, at the grid's own resolution: each flipped vertex takes back its cut without the entrance.
+            if (collared)
+            {
+                var flip = new NativeArray<bool>(v * v, Allocator.Temp);
+                if (DropSpecks(templeCut, v, step, flip))
+                {
+                    collared = false;
+                    for (int i = 0; i < v * v; i++)
+                    {
+                        if (flip[i])
+                        {
+                            var tc = -templeCut[i];
+                            templeCut[i] = tc;
+                            var vertex = verts[i];
+                            vertex.Morph.w = math.min(rawCave[i], tc);
+                            verts[i] = vertex;
+                        }
+                        collared |= templeCut[i] < 0f;
+                    }
+                }
+                flip.Dispose();
+            }
+            rawCave.Dispose();
 
             ExtendStillWater(verts, water, pooled, q, step, request.Origin);
             pooled.Dispose();

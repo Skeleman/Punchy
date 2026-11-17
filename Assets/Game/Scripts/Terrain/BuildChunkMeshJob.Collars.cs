@@ -250,7 +250,7 @@ namespace Punchy.Terrain
                         Collar(poly[k], poly[n]);
                     // Every rim-to-rim edge is a chord of the cut; it is a mouth's when the mouth's cut, not the temple's,
                     // is the one near zero along it (a 2 cm probe can land outside a rim that bows between grid edges).
-                    else if (mouths && (!hasTemple || math.abs(MouthCutKept(source, mid, step)) <
+                    else if (mouths && (!hasTemple || math.abs(MouthCutAt(source, mid, step)) <
                                                       math.abs(SunkenTempleShape.Cut(ref source.Landmarks.Value, l, mid))))
                         MouthCollar(poly[k], poly[n]);
                 }
@@ -446,10 +446,7 @@ namespace Punchy.Terrain
             // The entrance cut at p, as Execute reads it per vertex (EntranceCut).
             float EntranceAt(float2 p) =>
                 math.min(hasTemple ? SunkenTempleShape.Cut(ref source.Landmarks.Value, l, p) : 100f,
-                         mouths ? MouthCutKept(source, p, step) : 100f);
-
-            // Whether the raw mouth cut has the kept cut's sign at p.
-            bool RawAgrees(float2 p) => MouthCutAt(source, p, step) < 0f == MouthCutKept(source, p, step) < 0f;
+                         mouths ? MouthCutAt(source, p, step) : 100f);
 
             // The rim vertex on grid edge i-j (one inside, one outside): bisected from the edge's lower-z (then lower-x)
             // end, so the chunk across a shared edge finds the very same point.
@@ -463,15 +460,11 @@ namespace Punchy.Terrain
                 int a = swap ? j : i, b = swap ? i : j;
                 float2 pa = wl[a], pb = wl[b];
                 var inA = cut[a] < 0f;
-                // W-174 row 3: where the raw cut agrees with the kept one at both ends, its zero is bisected (the
-                // kept cut reads up to 17 cuts a point); only edges beside a removed slot or speck bisect the kept cut.
-                var cheap = !hasTemple && mouths && RawAgrees(pa) && RawAgrees(pb);
                 float lo = 0f, hi = 1f;
                 for (int k = 0; k < RimSteps; k++)
                 {
                     var m = 0.5f * (lo + hi);
-                    var pm = pa + (pb - pa) * m;
-                    if ((cheap ? MouthCutAt(source, pm, step) : EntranceAt(pm)) < 0f == inA)
+                    if (EntranceAt(pa + (pb - pa) * m) < 0f == inA)
                         lo = m;
                     else
                         hi = m;

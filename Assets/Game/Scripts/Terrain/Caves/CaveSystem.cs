@@ -2130,7 +2130,7 @@ namespace Punchy.Terrain
                 if (p.y < low - Voxel)
                     return p;
                 var ring = CaveSampling.MouthRing(Source.MeshHeight(p.xz, GridStep), Source.AcrossSlope(p.xz));
-                if (p.y <= ring || BuildChunkMeshJob.MouthCutKept(Source, p.xz, GridStep) > RingReach)
+                if (p.y <= ring || BuildChunkMeshJob.MouthCutAt(Source, p.xz, GridStep) > RingReach)
                     return p;
                 p.y = ring;
                 return p;
