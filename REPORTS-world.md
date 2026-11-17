@@ -8599,3 +8599,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - WorldTests 20/20. Landmarks unmoved (114 9786243F), temple sockets pin holds, so no re-pin or profiler note needed.
 - Water truth re-based (4eb0f654): main's river changes raised graph-only bend 80->82 and uphillGraph 31->62 (plus deep/step/fallFoot +1..5); dryRun, wall, tilt, fallHead fell. River turns max 121.2, p99 103.4.
 - Editor closed.
+
+## W-153 uphillGraph trace (world/uphill-graph b85e1fe8, pushed, not merged)
+- Cause: probe artifact. 52 of 62 hits are lake edges: a lake cell's Bed holds the lake surface (RiverBaking), so the bed seems to rise into or out of a lake under flat water (uphillSampled 0). Most are at one lake at 56.2 m near (-900, 700), which main's ground changes made or grew (not bisected; M-07 ships no data, W-174 r3 only changed the carve). The other 10 are bed rises under 0.25 m from the Floor clamp, not visible.
+- Fix (6 lines): WaterTruth compares beds only where neither cell is lake; water levels are still compared everywhere. Baseline uphillGraph 62 -> 10, other kinds unchanged, Water_TruthCounts passes. NaN probe: 0 bad heights or water levels of 262,144 (untracked Assets/Temp/Editor probe).
+- Notch question: later passes are not the cause. The river graph is baked on the bare ground before paddies, landmarks and plots, and those passes cannot change graph beds; ground raised under a river after the bake shows as dryRun (9: 3 are fall carves at lips), not uphillGraph. So moving the notch cut last does not apply here. A RockWall-banked notch for the 9 dry runs is a real row (re-apply bed after the ground passes plus cliff kit banks), medium size, fits as W-153 row 3 or 4 alongside the one course map.
