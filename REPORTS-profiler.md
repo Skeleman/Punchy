@@ -2,6 +2,18 @@
 
 Newest first.
 
+## Job 99a High vantage, with the Profiler (6fe2835 = 6ce454c2 + guard = B vs b93adb1 = 84d7d574 + guard = A), 2026-11-17 (q139h.job): **the stall is the Job 96 mechanism, in both arms; B's delta is still not clean (two heavy rounds of three)**
+High, 1920x1080, uncapped, noon Clear, summit vantage (-2496,294,960, yaw 55), -hitchms 100, 3 rounds alternated, then one Profiler run per arm analysed for every main frame over 100 ms.
+
+| arm | GPU ms (rounds) | CPU ms (rounds) | frames over 100 ms (rounds) | stalls start |
+|---|---|---|---|---|
+| A | 16.8, 16.5, 16.6 | 37.5, 36.9, 40.1 | 38, 35, 38 | 66-67 s (r1: 104 s) |
+| B | 19.3, 20.1, 16.9 | 80.5, 93.2, 37.2 | 51, 50, 33 | 63-67 s (r1: 112 s) |
+| Profiler run A / B | 17.3 / 17.8 | 44.3 / 48.0 | 39 / 38 | 67.5 / 67.2 s |
+
+- **Cause of the stalls (both arms, same shape):** in frames over 100 ms after 30 s, the main thread idles in WaitForJobGroupID (A 30.7 s in 72 frames, B 29.7 s in 67) under `JobHandle.Complete < CreatureRenderSystem` (400-480 ms each), while the workers run BuildChunkMeshJob (about 230 s of worker time across those frames in each arm; up to 3.0 s a frame). This is Job 96's mechanism: a burst of chunk meshing, here as the High view's far chunks stream in about 65 s after start, and CreatureRenderSystem completing its jobs in the same frame. Next come DXGI.WaitOnSwapChain (5.2 / 6.5 s), StoneColossi.Update (2.4 s in about 23 frames per arm) and ColossusWalker.Update (2.0 / 1.8 s).
+- **Not the herd change:** the profiles of A and B match. B's rounds 1-2 ran heavy (CPU 80-93 ms, GPU +2.5-3.5 ms), but its round 3 matches A (16.9 vs 16.6 GPU, 37.2 vs 40.1 CPU), and so does its Profiler run (+0.5 GPU). The heavy rounds are B's first two launches, so something run-order dependent (cache, shader warm-up, streaming order) is possible; not resolved.
+- **Verdict:** Job 99a's herds pass where the scene is clean (Medium both views, High dusk). The High vantage can't price them until the CreatureRenderSystem same-frame Complete (fauna, the c400 cull change) and the chunk-meshing bursts (world, see Job 96b) are fixed; worth a rerun then.
 ## W-174 r4a: ground holes' ScarpSet.Strip lookup (world/ground-holes 521ec1af = B vs its merge-base main d2ac9d1c = A), 2026-11-16 (q144.job): **GPU passes; the walk has about twice the frames over 30 ms; the town jump's world-ready is 3.4 s later**
 Medium, 1920x1080, uncapped, noon Clear, 3 rounds alternated, each a fresh launch. Walk: Job 81's open-country line (3244,-922 to 3664,-988 at 6 m/s). Jump: townjump (800 m out, jumped into the biggest town). -hitchms 30.
 
