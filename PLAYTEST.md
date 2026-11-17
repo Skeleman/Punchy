@@ -231,3 +231,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #545 W-166 (#336): MaterialLibrary tests follow includes; Cookhouse roofs plaster, door mats cloth, camp fire rings now stone.
 - 11-17 #546 W-166 (#336): creature coverings (fur, feathers, scales, skin, chitin) in the material library; no look change yet.
 - 11-17 #547 (#529): no see-through cave mouth on the frame after a camera cut or teleport.
+- 11-17 #548 W-166 (#336): creatures draw coats through the material library; no look change.
