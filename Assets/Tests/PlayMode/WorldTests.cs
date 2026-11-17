@@ -119,7 +119,10 @@ namespace Punchy.Tests
         // W-153 row 3 (river notches + small falls): notches cut rises left by later ground passes (dryRun 9 -> 7);
         // channel water held to a fall's lip (dryRun 7 -> 3, wall 972 -> 930, fallFoot 5 -> 2) makes each step a small
         // fall, which the probe counts as step 970 -> 1013, deep 43 -> 45 and tilt 29 -> 30 at the lips. Re-based here.
-        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 3, 10, 0, 930, 45, 30, 1013, 46, 2 };
+        // Reverted: that channel water stood over ground the lower valley had dug, so rivers made raised water blocks
+        // with falls on every side. Notches stay; counts go back to dryRun 7, wall 972, deep 43, tilt 29, step 970,
+        // fallFoot 5. The river rework (docs/agents/river-rework.md) is meant to take wall to 0.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 7, 10, 0, 972, 43, 29, 970, 46, 5 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
