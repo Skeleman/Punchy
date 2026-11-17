@@ -1098,7 +1098,7 @@ Main, Medium and High, no code change. Gates which audit items get cards (push b
 - Night town (`-benchspot 2988.8,-920`): GPU ms of the FarLights draw.
 - Log line `all impostors ... MB` after a full lap: impostor memory at Detail 32 and 64.
 
-## Job 114 (2026-11-16, QUEUED, render lane, R-31 row 2 #325, branch render/grass-fields@14f86b6d): grass e and f cost
+## Job 114 (2026-11-16, DONE 11-17: e +2.1/+2.0 ms, f +3.6/+6.2 ms GPU Medium/High, render lane, R-31 row 2 #325, branch render/grass-fields@14f86b6d): grass e and f cost
 Meadow at noon, Medium and High. Compare three arms: today, e, f (use the existing switch). Record GPU ms (opaque pass plus shadow
 casters) and CPU ms for each. About 3x the blades/m² (55 to 168), so expect a real cost. Zach is choosing between e and f; both are needed.
 - Addendum to 113 and 114 (supervisor, audit part 2 #311): in job 114, also run each arm once with grass shadow casting off, to get the grass-shadow share.

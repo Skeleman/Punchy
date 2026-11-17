@@ -2,6 +2,25 @@
 
 Newest first.
 
+## Job 114 (R-31 row 2, #325): grass today / e / f, DONE (report only)
+
+render/grass-fields@14f86b6d, one build, arms by `-grassproto` (today = no flag). `-place meadow -benchstops here`, noon, Clear,
+1920x1080 uncapped, 3 rounds per arm, interleaved. Laptop GTX 1060 Max-Q.
+
+| gfx | arm | GPU ms by round | mean GPU | vs today | median frame | 1% low |
+|---|---|---|---|---|---|---|
+| Medium | today | 15.6, 15.5, 15.5 | **15.53** | | 18.0 | 3.2 |
+| Medium | e | 17.9, 17.5, 17.4 | **17.60** | **+2.07** | 20.3 | 3.0 |
+| Medium | f | 19.4, 19.1, 19.0 | **19.17** | **+3.63** | 23.3 | 2.4 |
+| High | today | 26.8, 24.8, 25.1 | **25.57** | | 46 (r1 161) | 1.5 |
+| High | e | 27.2, 28.6, 27.0 | **27.60** | **+2.03** | 46.3 | 1.7 |
+| High | f | 32.2, 29.3, 33.7 | **31.73** | **+6.17** | 50.7 | 1.8 |
+
+- Medium is tight (rounds within 0.5 ms): e costs about 2.1 ms GPU, f about 3.6 ms. Both are far over a +0.3 ms Medium bar, if one applies.
+- High: e about +2 ms, f about +6 ms (its rounds spread 29.3-33.7, so ±1.5 ms). f costs roughly three times e at High.
+- CPU is the same in all arms (Medium 23-32 ms, High 160-180 ms mean, which is spikes in every arm, not grass). The High meadow view is CPU-bound and stutters in all three arms (median 46 ms, 1% low under 2 fps), so the GPU gap barely shows in frame time there.
+- Screenshots (q145-shots): f is visibly denser and taller than today; the tree shadow and flowers read the same.
+- Since the run, e has been dropped on the branch and f is the default, so the cost to weigh is f: **+3.6 ms Medium, +6 ms High** on this laptop. A cheaper Medium form (lower density or shorter draw distance) looks needed if Medium keeps a small budget.
 ## Job 99a High vantage, with the Profiler (6fe2835 = 6ce454c2 + guard = B vs b93adb1 = 84d7d574 + guard = A), 2026-11-17 (q139h.job): **the stall is the Job 96 mechanism, in both arms; B's delta is still not clean (two heavy rounds of three)**
 High, 1920x1080, uncapped, noon Clear, summit vantage (-2496,294,960, yaw 55), -hitchms 100, 3 rounds alternated, then one Profiler run per arm analysed for every main frame over 100 ms.
 
