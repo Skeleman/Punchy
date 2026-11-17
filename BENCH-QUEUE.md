@@ -1128,3 +1128,6 @@ SampleHeight now ends with TerrainSource.Notch (reuses the river query, adds one
 
 ## Request (2026-11-17, render-2, R-29 row 3 #320, branch render/effects-kit 87426738): spire bolt pairing cost
 FloraSystem.DrawBolts now gathers spires by screen size (ElectricitySystem.Reach) instead of a fixed 160 m, so on High it pairs more spires (N squared; editor view: 20 bolts, reach 281 m). One CPU check vs main: the DrawBolts / EffectsDriver main-thread ms and whole-frame GPU ms, standing near an ArcSpire grove (`-place tree:ArcSpire`) at Medium and High, uncapped, 300 frames. Report only.
+
+## Note (2026-11-17, supervisor, W-153 rework rows 1-3 #541, merged on main): river layout changed
+Rivers now have 138 falls (was 75) and Landmarks_V3 is re-pinned to 114 9113464F. Bench spots near rivers may have moved; re-check them after rework row 6. The river notch cost request above should run on main at or after #541.
