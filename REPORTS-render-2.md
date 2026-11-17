@@ -255,3 +255,11 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - (b) Golem arcs: blue arcs with visible glow, day and night (PunchyMilestones/R-29/golem-g2-*). Pass.
 - (c) FloraSystem.cs diff vs main only moves spire bolts into ElectricitySystem. WorldTests.Landmarks_V3 PASS (landmarks 114 9786243F), Flora_PlacementCost PASS. FloraHabitatTests are all Explicit shot tests, so they were not run.
 - Note: the open-editor CLI `test run` returns 0 tests for PlayMode here (sync is refused; async status stays empty). scripts/run-playmode-tests.sh with the editor closed works.
+
+## R-29 spoke fix (#540) - render/effects-kit a5b0f8d6
+- Fix is in the shared Electricity.shader, so golem arcs and spire bolts both get it. Each joint now has one side vector, taken from the tangent through it, so neighbouring segments share their edge. The path ends get round caps: a half-width extension with a radial falloff.
+- Night glow was weaker after the geometry change, so the glow is now width 12 and strength 1.5 (asset and code default).
+- Spire A/B glow_lift, day/night: main 0.073/0.119, kit 0.106/0.124.
+- I viewed golem-g5-night-1 myself: the arcs are clean continuous lines with a soft halo and no spoke fans.
+- Shots are golem-g5-{day,night}-0..3 and ab/kitm-* in PunchyMilestones/R-29/.
+- Next: resuming R-28 r2, the FXC crash in the paving parallax loop.
