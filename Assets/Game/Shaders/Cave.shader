@@ -98,6 +98,7 @@ Shader "Punchy/Cave"
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
+            float _PunchyTerrainDetailPpm;
             #include "Materials/RockWall.hlsl"
 
             Varyings Vert(CaveAttributes input)
@@ -216,6 +217,8 @@ Shader "Punchy/Cave"
                 // Where daylight comes in (a mouth) the fine detail fades towards the terrain's own level beside it, so
                 // the walls don't turn sharply grainier at the opening (G-35).
                 float detailStrength = s7.x * lerp(1, 0.35, openness);
+                // W-166 #336: fine detail fades out by on-screen size (DetailPolicy pixels per metre, as the terrain's), its features 4 px to 2 px.
+                detailStrength *= _PunchyTerrainDetailPpm > 0 ? saturate(_PunchyTerrainDetailPpm / (distance(p, GetCameraPositionWS()) * 8 * s7.y) * 0.5 - 1) : 1;
                 // R-34 row 2: bare rock and dressed stone take their surface from the shared stone (Stone.hlsl, below), so
                 // the cave's own fine grain stays off it (no double noise). Not ice, crystal facets, bone or wood.
                 float stoneShare = _PunchyCaveDetailReady > 0 && _Dressed > -0.5 && _Dressed < 1.5 ? (1 - terrain) * (1 - slick) * (1 - s3.z) : 0;

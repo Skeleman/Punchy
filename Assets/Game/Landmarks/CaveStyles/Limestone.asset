@@ -12,19 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
   m_Name: Limestone
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Stone: 2
   Biomes:
   - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
   - {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
   Width: 1
   Height: 1
-  Roughness: 1
-  Grain: 1
-  Jaggedness: 1.05
-  Blockiness: 0.3
-  Ribs: 0
-  RibSpacing: 1.6
-  Angularity: 0
-  FacetSize: 2.5
   Straightness: 0
   Frame: {fileID: 0}
   FrameSpacing: 4
@@ -91,8 +84,6 @@ MonoBehaviour:
   FloorDark: {r: 0.27, g: 0.24, b: 0.2, a: 1}
   FloorGrit: 0.5
   FloorGloss: 0.15
-  Detail: 0.3
-  DetailScale: 1.2
   Sheen: 0
   GlowColor: {r: 0.4, g: 0.8, b: 1, a: 1}
   Glow: 0

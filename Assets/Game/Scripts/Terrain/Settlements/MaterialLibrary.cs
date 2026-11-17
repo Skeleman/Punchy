@@ -32,6 +32,23 @@ namespace Punchy.Terrain
         Bleached = 4
     }
 
+    /// <summary>The kinds of natural stone (W-166 #336): rows of MaterialLibrary.Stone. Every bare rock wall names
+    /// one (cave walls now; cliff scarps and river notches next), and its relief (lumps, creases, bedding, ribs, faces,
+    /// fine grain) comes from that row, so a stone breaks the same way wherever it stands.</summary>
+    public enum StoneKind
+    {
+        Plain = 0,
+        Granite = 1,
+        Limestone = 2,
+        Sandstone = 3,
+        Basalt = 4,
+        Ice = 5,
+        Crystal = 6,
+        Ore = 7,
+        Shale = 8,
+        Tuff = 9
+    }
+
     /// <summary>
     /// W-166: the one material library. A table of kinds per family (base colour, grain scale, contrast, knots, wear),
     /// pushed to the shaders as globals so every piece of a kind looks the same wherever it's drawn, and the maps from
@@ -68,6 +85,50 @@ namespace Punchy.Terrain
             new WoodRow(new Color(0.52f, 0.47f, 0.40f), 0.014f, 0.7f, 0.2f, 0.85f, 1.4f),    // driftwood: washed, silver
             new WoodRow(new Color(0.27f, 0.18f, 0.12f), 0.009f, 0.6f, 0.3f, 0.0f, 0.8f),     // dark: walnut-brown, quiet
             new WoodRow(new Color(0.48f, 0.42f, 0.34f), 0.012f, 0.8f, 0.4f, 0.5f, 1.2f),     // bleached: sun-greyed
+        };
+
+        /// <summary>How one kind of stone breaks as a bare wall (W-166 #336). Roughness: lumps (0 smooth, 1 rock).
+        /// Grain: lump size, above 1 smaller. Jaggedness: ridges, creases and overhangs up high. Blockiness: 0..1,
+        /// blocky collapse hollows as a share of the jaggedness (bedded or jointed rock). Ribs, RibSpacing (m):
+        /// scalloped ribs. Angularity, FacetSize (m): flat faces meeting in edges. Detail, DetailScale: the shader's
+        /// fine relief strength and repeats per metre. Roughness, Jaggedness, Ribs, Angularity and FacetSize set how far
+        /// the wall reaches out of its face, so changing them can move what is fitted round it (cave nodes); Grain,
+        /// Blockiness, RibSpacing, Detail and DetailScale only change how the wall reads.</summary>
+        public readonly struct StoneRow
+        {
+            public readonly float Roughness, Grain, Jaggedness, Blockiness, Ribs, RibSpacing, Angularity, FacetSize,
+                Detail, DetailScale;
+
+            public StoneRow(float roughness, float grain, float jaggedness, float blockiness, float ribs, float ribSpacing,
+                float angularity, float facetSize, float detail, float detailScale)
+            {
+                Roughness = roughness;
+                Grain = grain;
+                Jaggedness = jaggedness;
+                Blockiness = blockiness;
+                Ribs = ribs;
+                RibSpacing = ribSpacing;
+                Angularity = angularity;
+                FacetSize = facetSize;
+                Detail = detail;
+                DetailScale = detailScale;
+            }
+        }
+
+        /// <summary>The stone kinds, by StoneKind. Columns: roughness, grain, jaggedness, blockiness, ribs, rib
+        /// spacing, angularity, facet size, detail, detail scale.</summary>
+        public static readonly StoneRow[] Stone =
+        {
+            new StoneRow(1.0f, 1.0f, 1.15f, 0.3f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // plain: ordinary lumpy rock
+            new StoneRow(1.3f, 0.8f, 1.4f, 0.5f, 0f, 1.6f, 0f, 2.5f, 0.35f, 1.5f),     // granite: big jointed blocks
+            new StoneRow(1.0f, 1.0f, 1.05f, 0.3f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // limestone: dissolved, rounded
+            new StoneRow(0.7f, 0.6f, 0.75f, 0.7f, 0f, 1.6f, 0f, 2.5f, 0.25f, 0.8f),    // sandstone: bedded slabs
+            new StoneRow(0.2f, 0.5f, 0.15f, 0f, 0f, 1.6f, 0f, 2.5f, 0.05f, 1f),        // basalt: smooth flow skin
+            new StoneRow(0.5f, 0.6f, 0.8f, 0.8f, 0.8f, 2.2f, 0f, 2.5f, 0.9f, 0.9f),    // ice: melt-scalloped ribs
+            new StoneRow(0.8f, 1.6f, 1f, 0.5f, 0f, 1.6f, 0.7f, 1.8f, 0.12f, 2f),       // crystal: faceted
+            new StoneRow(0.3f, 1.2f, 0.35f, 0.1f, 0f, 1.6f, 1f, 2.2f, 0.08f, 1.8f),    // ore: hard faces, worked
+            new StoneRow(0.6f, 1.0f, 0.35f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // shale: soft, crumbly
+            new StoneRow(1.2f, 1.3f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.5f),     // tuff: soft, pitted
         };
 
         public const int MaxWoodKinds = 8;
