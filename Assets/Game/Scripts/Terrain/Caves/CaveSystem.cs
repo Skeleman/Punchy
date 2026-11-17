@@ -197,6 +197,7 @@ namespace Punchy.Terrain
         void OnEnable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+            RenderPipelineManager.beginCameraRendering += DrawSkippedOnCut;
             // Quitting (or leaving play mode) frees the TerrainSource blobs before this is disabled, and the surface
             // glow's far scan job may still be reading them: finish every job first, while they are intact.
             Application.quitting += ReleaseWorld;
@@ -294,6 +295,7 @@ namespace Punchy.Terrain
         void OnDisable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing -= ReleaseWorld;
+            RenderPipelineManager.beginCameraRendering -= DrawSkippedOnCut;
             Application.quitting -= ReleaseWorld;
             Release();
         }
@@ -2298,6 +2300,7 @@ namespace Punchy.Terrain
         {
             openingsInView.Clear();
             openingRects.Clear();
+            NoteGathered(cam);
             GeometryUtility.CalculateFrustumPlanes(cam, viewPlanes);
             var ppm = DetailPolicy.Current.Data.PixelsPerMetre > 0f ? DetailPolicy.Current.Data.PixelsPerMetre
                 : DetailPolicy.PixelsPerMetreAt(cam.fieldOfView);
@@ -2443,6 +2446,7 @@ namespace Punchy.Terrain
                 GeometryUtility.CalculateFrustumPlanes(cam, statPlanes);
             }
             var skip = outside && !NoSurfaceSkip && !NoRoomCull && cam != null;
+            skippedChunks.Clear();
             if (skip)
                 GatherOpenings(camPos, cam);
             if (CountReveals && cam != null)
@@ -2464,6 +2468,8 @@ namespace Punchy.Terrain
                 if (b.LastSeen >= 0 && b.LastSeen != seen)
                     Counts.SkipFlips++;
                 b.LastSeen = seen;
+                if (seen < 2)
+                    skippedChunks.Add(b);   // drawn after all if the camera cuts before the render (CutGuard)
                 if (CountReveals)
                     CountReveal(b, seen == 2 && cam != null && GeometryUtility.TestPlanesAABB(revealPlanes, b.Mesh.bounds));
                 if (seen == 0 || seen == 1 && !b.CastsShadows)
