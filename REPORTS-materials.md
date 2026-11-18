@@ -303,3 +303,5 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - WorldTests 21/21 after repins: landmarks 120 5B47CDAE, fingerprint 436594EF, temple 646F01C4.
 - Shots: PunchyMilestones/castle-gatehouse/gate-15m-nz.png, gate-60m-nz.png (gate side; play world at 282,2837), plus lab-castle-gate-{0,180}, lab-castle-gate-raised-{0,180}, lab-castle-ruin-gate.
 - Next, on hold: BankRock and RiverRock onto MaterialLibrary.Stone once banks/river-details is on main.
+
+- river-rock-stone (materials/river-rock-stone): BankRock/RiverRock wet tint now x MaterialLibrary.StoneTintAt (biome StoneKind, as scarps); RiverRock joins the wet path. Placement unchanged, WorldTests 21/21. Shots: PunchyMilestones/river-rock-stone/{before,after}, bank-rock-pair.jpg. Cost: one biome lookup per wet rock at placement (BENCH line).
