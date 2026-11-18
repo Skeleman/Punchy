@@ -166,7 +166,7 @@ namespace Punchy.Terrain
                 var facetReach = style != null ? 0.64f * relief.FacetSize * relief.Angularity : 0f;
                 var horse = (RiderHead + CaveSampling.JaggedReach * rock.x * CeilingDip + (CaveSampling.NoiseReach * wall.x + facetReach) * WallDip) / tall;
                 var minMain = math.max(math.max(r * MinMain, MainHead / tall), horse);
-                void Grade(List<int> path, List<float> want, List<float> ceil, float grade = MainGrade)
+                void Grade(List<int> path, List<float> want, List<float> ceil, float grade = MainGrade, bool mouth = false)
                 {
                     var n = path.Count;
                     var up = new float[n];
@@ -213,6 +213,20 @@ namespace Punchy.Terrain
                     {
                         full[i] *= steepen;
                         gap[i] *= steepen;
+                    }
+                    // A mouth too high to get under the rock ahead at MaxGrade sinks rather than leave a ledge inside.
+                    if (mouth && need > MaxGrade)
+                    {
+                        var reach = 0f;
+                        for (int i = 1; i < n; i++)
+                        {
+                            reach += full[i];
+                            if (hard[i] != float.MaxValue)
+                                f[0] = math.min(f[0], hard[i] + reach);
+                        }
+                        var first = nodes[path[0]];
+                        first.Position.y = f[0] + FloorDrop(first.Radius);
+                        nodes[path[0]] = first;
                     }
                     // up is the ceiling made Lipschitz at the chamber-eased grade (where the floors aim); hard at the
                     // full grade (what they must stay under). When a path has to dive under low ground further on, the
@@ -282,7 +296,7 @@ namespace Punchy.Terrain
                     if (k >= 2)
                         attach.Add(new Attach { Node = node, Heading = heading });
                 }
-                Grade(chain, plan, tops);
+                Grade(chain, plan, tops, MainGrade, true);
                 mainEnds.x = previous - firstNode;
 
                 // A-91 row 3: whether the passages laid since segment `since` run into an earlier passage of this cave at

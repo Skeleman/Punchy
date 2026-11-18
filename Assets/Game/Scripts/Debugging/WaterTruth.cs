@@ -99,6 +99,28 @@ namespace Punchy.Debugging
 
         static readonly string[] TypeNames = { "dry", "sea", "river", "lake", "pool" };
 
+        /// <summary>#301: river falls whose sheet lands on ground, somewhere across its foot from a metre past one side to the other.</summary>
+        public static int DryFallFeet(in TerrainSource s)
+        {
+            ref var r = ref s.Rivers.Value;
+            int dry = 0;
+            for (int f = 0; f < r.Falls.Length; f++)
+            {
+                var shape = FallShape.River(s, r.Falls[f], math.frac((f + 1000000) * 0.618f));
+                var across = new float2(shape.Out.y, -shape.Out.x);
+                for (float t = -shape.Width * 0.5f - 1f; t <= shape.Width * 0.5f + 1f; t += 0.5f)
+                {
+                    var g = s.SampleGround(shape.Foot.xz + across * t);
+                    if (!(g.HasWater && g.WaterSurface > g.Height + WetDepth))
+                    {
+                        dry++;
+                        break;
+                    }
+                }
+            }
+            return dry;
+        }
+
         /// <summary>Runs both passes over the live TerrainSource. step is the grid spacing in metres.</summary>
         public static Result Measure(TerrainSource s, float step = 4f)
         {
