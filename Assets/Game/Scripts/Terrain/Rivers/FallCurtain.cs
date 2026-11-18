@@ -10,7 +10,7 @@ namespace Punchy.Terrain
     /// grand falls tiers and landmark falls all build here). A strip along the lip, as wide as the lip and following
     /// its skew and bow, that rolls over from the water behind the lip and arcs out and down to the foot, on the same
     /// path as the white sheet over it (FallPoint, LandmarkEffects.hlsl) a little behind it. Its edges are ragged
-    /// (hashed insets and gaps that grow down the arc). Drawn with the water material, which reads each vertex's
+    /// (an uneven inset that grows down the arc) and fade out. Drawn with the water material, which reads each vertex's
     /// steepness from the mesh (Vertex.Fall) so the falling look holds all down the arc, flat triangles too.
     /// </summary>
     public static class FallCurtain
@@ -89,6 +89,24 @@ namespace Punchy.Terrain
             return (h & 0xFFFFFF) / 16777216f;
         }
 
+        /// <summary>Fall.y on the curtain's outer edge: still over 0.5 (the curtain flag in Water.shader), and the
+        /// shader fades the curtain from 1 down to 0 here.</summary>
+        public const float CurtainMin = 0.55f;
+
+        /// <summary>0..1 along the curtain (f), smooth and uneven: value noise on hashed knots a varied distance
+        /// apart, so the edge's bites differ in size instead of repeating per row.</summary>
+        static float EdgeWander(float f, float seed)
+        {
+            var x = f * 7f;
+            var k = (int)math.floor(x);
+            var t = math.smoothstep(0f, 1f, x - k);
+            var v = math.lerp(Hash(k, 11, seed), Hash(k + 1, 11, seed), t);
+            var y = f * 17f + 0.37f;
+            var j = (int)math.floor(y);
+            var w = math.lerp(Hash(j, 12, seed), Hash(j + 1, 12, seed), math.smoothstep(0f, 1f, y - j));
+            return math.saturate(v * 0.7f + w * 0.3f);
+        }
+
         /// <summary>Appends one fall's curtain on this grid, in this water's look.</summary>
         public static void Add(in FallShape s, int2 grid, float4 look, float2 glow, List<Vertex> vertices, List<int> indices)
         {
@@ -102,11 +120,14 @@ namespace Punchy.Terrain
                 {
                     var u = i / (float)columns;
                     var tauHere = math.saturate((f - RunIn) / (1f - RunIn));
-                    // Ragged edges: each row's outer points pulled in by their own amount, more further down.
+                    // Ragged edges: the outer points wander in by an uneven, smooth amount, more further down (a hashed
+                    // inset per row read as a row of regular teeth). The outer column fades out (Fall.y), so the edge
+                    // reads soft rather than as hard triangles.
                     if (i == 0)
-                        u += Hash(r, 1, s.Seed) * 0.12f * tauHere;
+                        u += EdgeWander(f, s.Seed) * 0.12f * tauHere;
                     else if (i == columns)
-                        u -= Hash(r, 2, s.Seed) * 0.12f * tauHere;
+                        u -= EdgeWander(f, s.Seed + 0.53f) * 0.12f * tauHere;
+                    var edge = i == 0 || i == columns ? 0f : 1f;
                     var p = Point(s, u, f, out var tau, out var lipIn);
                     vertices.Add(new Vertex
                     {
@@ -114,16 +135,13 @@ namespace Punchy.Terrain
                         Data = new float4(s.Out * (0.6f + 0.6f * tau), 1.2f, 0.6f * lipIn),
                         Look = look,
                         Glow = glow,
-                        Fall = new float2(math.smoothstep(0.2f, 1f, lipIn), 1f)
+                        Fall = new float2(math.smoothstep(0.2f, 1f, lipIn), CurtainMin + (1f - CurtainMin) * edge)
                     });
                 }
             }
             for (int r = 0; r < rows; r++)
                 for (int i = 0; i < columns; i++)
                 {
-                    // Gaps in the edge columns lower down: strands torn off the sheet.
-                    if ((i == 0 || i == columns - 1) && r > 2 && Hash(r, 3 + i, s.Seed) < 0.45f * math.pow((r - 2f) / (rows - 2f), 2f))
-                        continue;
                     int a = start + r * (columns + 1) + i, b = a + 1, c = a + columns + 1, d = c + 1;
                     indices.Add(a);
                     indices.Add(c);
