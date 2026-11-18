@@ -190,6 +190,14 @@ namespace Punchy.Terrain
 
         public static float3 StoneTintAt(in TerrainSource source, float2 at) => StoneTint(ScarpBake.StoneAt(source, at));
 
+        // Flow in a wet rock tint's low bits (Flora.shader's splash band): an eighth-turn direction and a moving bit.
+        public static uint3 FlowMark(uint3 tint, float2 flow)
+        {
+            if (math.lengthsq(flow) < 0.01f) return tint & ~3u;
+            var dir = (uint)math.round(math.atan2(flow.y, flow.x) / (2f * math.PI) * 8f + 8f) & 7u;
+            return (tint & ~3u) | new uint3(dir & 3u, 0u, (dir >> 2) | 2u);
+        }
+
         /// <summary>One kind of creature covering (W-166 #336), read by Shaders/Materials/Coat.hlsl so a creature's coat
         /// and anything later made of it (a fur rug, a feathered cloak, a scale shield) look the same. Size: pattern
         /// size (1 = strands, feathers, scales, pores and plates as A-97 / A-123 drew them). Contrast: how strongly the
