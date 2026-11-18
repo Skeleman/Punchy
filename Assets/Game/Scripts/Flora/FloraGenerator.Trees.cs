@@ -501,5 +501,71 @@ namespace Punchy.Flora
             }
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.4f));
         }
+
+        // Own stream, so the tree's other draws stay put and every LOD agrees.
+        static void StranglerRoots(Grower g)
+        {
+            var rng = new System.Random(g.Seed ^ 0x51A6C3);
+            float R() => (float)rng.NextDouble();
+            float Range(float a, float c) => a + (c - a) * R();
+            if (R() >= g.S.Strangler || g.Lod == 2)
+                return;
+            var b = g.B;
+            var trunk = g.TrunkPath;
+            var radii = g.TrunkRadii;
+            var bottom = trunk[0].y;
+            var top = trunk[trunk.Count - 1].y;
+            var r0 = g.TrunkRadius;
+            var pale = Color.Lerp(g.Bark, new Color(0.62f, 0.56f, 0.46f).linear, 0.3f);
+            float TrunkRadiusAt(float y)
+            {
+                for (int i = 0; i < trunk.Count - 1; i++)
+                    if (y <= trunk[i + 1].y)
+                        return Mathf.Lerp(radii[i], radii[i + 1], Mathf.InverseLerp(trunk[i].y, trunk[i + 1].y, y));
+                return radii[radii.Count - 1];
+            }
+
+            var fat = 1 + (int)(R() * 2f);
+            var middle = 2;
+            var thin = 2 + (int)(R() * 3f);
+            var first = b.VertexCount;
+            var start = R() * Mathf.PI * 2f;
+            var total = fat + middle + thin;
+            for (int k = 0; k < total; k++)
+            {
+                var kind = k < fat ? 0 : k < fat + middle ? 1 : 2;
+                var thick = r0 * (kind == 0 ? Range(0.2f, 0.26f) : kind == 1 ? Range(0.12f, 0.16f) : Range(0.06f, 0.09f));
+                var turns = (kind == 0 ? Range(0.35f, 0.7f) : kind == 1 ? Range(0.6f, 1.2f) : Range(1f, 2f)) * (R() < 0.5f ? -1f : 1f);
+                var reach = kind == 0 ? Range(0.55f, 0.85f) : kind == 1 ? Range(0.4f, 0.8f) : Range(0.25f, 0.7f);
+                var angle0 = start + (k + Range(-0.3f, 0.3f)) / total * Mathf.PI * 2f;
+                float wobbleRate = Range(5f, 9f), wobblePhase = R() * 6.28f, wobble = Range(0.08f, 0.18f);
+                var splay = Range(1.4f, 2.2f);
+                var tint = Range(0.9f, 1.08f);
+                if (g.Lod == 1 && kind == 2)
+                    continue;
+                var points = g.Lod == 0 ? 18 : 9;
+                var sides = g.Lod == 0 ? (kind == 0 ? 6 : kind == 1 ? 5 : 4) : 4;
+                var path = new List<Vector3>(points);
+                var strandRadii = new List<float>(points);
+                var y0 = bottom + 0.35f;
+                var y1 = Mathf.Lerp(0f, top, reach);
+                for (int j = 0; j < points; j++)
+                {
+                    var t = j / (points - 1f);
+                    var y = Mathf.Lerp(y0, y1, t);
+                    var axis = PointOnPath(trunk, y);
+                    var angle = angle0 + turns * Mathf.PI * 2f * t + Mathf.Sin(t * wobbleRate + wobblePhase) * wobble;
+                    var dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                    var r = thick * Mathf.Lerp(1.35f, 0.3f, Mathf.Pow(t, 0.8f));
+                    var foot = Mathf.Clamp01(1f - t * 6f);
+                    var off = TrunkRadiusAt(y) + r * Mathf.Lerp(0.45f, -0.2f, t * t) + r0 * (splay - 1f) * foot * foot;
+                    path.Add(axis + dir * off + Vector3.down * 0.25f * foot * foot);
+                    strandRadii.Add(r);
+                }
+                b.Tube(path, strandRadii, sides, pale * tint, FloraPart.Bark, cap: true);
+            }
+            var height = g.Height;
+            b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.15f));
+        }
     }
 }

@@ -267,6 +267,9 @@ namespace Punchy.Flora
         [Range(0f, 1f)] public float Cocoons;
         [Tooltip("Trees: the share of variants with a face in the bark: hollow eyes that glow faintly and blink, and a mouth.")]
         [Range(0f, 1f)] public float BarkFace;
+        [Tooltip("Trees (BroadleafTree, HiveTree): the share of variants with strangler-fig roots twisting up the trunk from " +
+                 "a splayed foot, paler than the bark.")]
+        [Range(0f, 1f)] public float Strangler;
         [Tooltip("Bark veined with cool light that flows slowly up the trunk (weird biomes), instead of ember seams.")]
         public bool GlowingVeins;
         [Tooltip("Rock: banded strata by height, the same bands and colours as terrain surfaces with Strata (mesa cliffs), " +

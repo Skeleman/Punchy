@@ -39,6 +39,7 @@ MonoBehaviour:
   HangingWisps: 1
   Cocoons: 0
   BarkFace: 0
+  Strangler: 0.7
   GlowingVeins: 0
   Breathes: 0
   MaxSlope: 25

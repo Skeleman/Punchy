@@ -28,6 +28,37 @@ namespace Punchy.Tests
         static readonly (string include, string shader)[] Pending = { };
 
         [Test]
+        public void StranglerRootsAreStableAndLeaveTheFarLevelAlone()
+        {
+            var species = AssetDatabase.LoadAssetAtPath<ScriptableObject>("Assets/Game/Flora/Bogwood.asset");
+            var field = species.GetType().GetField("Strangler");
+            var grow = Game.GetType("Punchy.Flora.FloraGenerator").GetMethod("Grow", BindingFlags.Public | BindingFlags.Static);
+            int[] Count()
+            {
+                var counts = new List<int>();
+                for (int v = 0; v < 4; v++)
+                {
+                    var model = grow.Invoke(null, new object[] { species, v, false });
+                    var lods = (Mesh[])model.GetType().GetField("Lods").GetValue(model);
+                    counts.AddRange(lods.Select(m => m != null ? m.triangles.Length : 0));
+                }
+                return counts.ToArray();
+            }
+            var keep = (float)field.GetValue(species);
+            try
+            {
+                var on = Count();
+                Assert.AreEqual(on, Count(), "roots differ between two builds");
+                field.SetValue(species, 0f);
+                var off = Count();
+                for (int i = 2; i < on.Length; i += 3)
+                    Assert.AreEqual(off[i], on[i], "roots reached the far level");
+                Assert.Greater(on.Sum(), off.Sum(), "no variant grew roots");
+            }
+            finally { field.SetValue(species, keep); }
+        }
+
+        [Test]
         public void EveryBuiltPieceHasAMaterial()
         {
             var generator = Game.GetType("Punchy.Flora.FloraGenerator", true);

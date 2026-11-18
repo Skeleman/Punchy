@@ -353,6 +353,8 @@ namespace Punchy.Flora
                 }
                 if (species.BarkFace > 0f && g.TrunkPath != null)
                     BarkFace(g);
+                if (species.Strangler > 0f && g.TrunkPath != null)
+                    StranglerRoots(g);
                 if (Founded(species.Form))
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
