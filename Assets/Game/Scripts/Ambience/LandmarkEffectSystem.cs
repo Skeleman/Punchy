@@ -94,6 +94,10 @@ namespace Punchy.Ambience
         const int FineColumns = 32, FineRows = 48, CoarseColumns = 12, CoarseRows = 16;
 
         readonly List<Emitter> plumes = new List<Emitter>();
+        /// <summary>R-29 row 3: the steam and smoke among the plumes, drawn by the effects kit (PlumeSystem) instead of
+        /// here; handed over at the end of each gather.</summary>
+        readonly List<Punchy.Rendering.Effects.PlumeSystem.Plume> steam = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>(),
+            smoke = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>();
         /// <summary>Every fall in range, and the one description each was built from (FallShape), in step.</summary>
         readonly List<Emitter> falls = new List<Emitter>();
         readonly List<FallShape> fallShapes = new List<FallShape>();
@@ -144,6 +148,8 @@ namespace Punchy.Ambience
             plumeBuffer?.Release();
             fallBuffer?.Release();
             plumeBuffer = fallBuffer = null;
+            Punchy.Rendering.Effects.PlumeSystem.Steam.Set(this, null);
+            Punchy.Rendering.Effects.PlumeSystem.Smoke.Set(this, null);
             lastNearby.Clear();
             fineFalls.Clear();
             // (No curtains drawn: the water draws its falls' faces again.)
@@ -528,6 +534,8 @@ namespace Punchy.Ambience
             lastNearby.AddRange(nearby);
 
             plumes.Clear();
+            steam.Clear();
+            smoke.Clear();
             falls.Clear();
             fallShapes.Clear();
             WaterPatchSystem.Vents.Clear();
@@ -688,8 +696,17 @@ namespace Punchy.Ambience
                             {
                                 At = emitter.Position.xz, Period = effect.Period, Duty = effect.Duty, Seed = emitter.Seed
                             });
-                        plumes.Add(emitter);
-                        maxParticles = math.max(maxParticles, effect.Particles);
+                        // R-29: steam and smoke go to the effects kit; glowing or coloured plumes stay here.
+                        var family = effect.Kind == LandmarkEffectKind.Plume ? Punchy.Rendering.Effects.PlumeSystem.FamilyOf(effect.Color, effect.Glow) : null;
+                        if (family == Punchy.Rendering.Effects.PlumeSystem.Steam)
+                            steam.Add(ToKit(emitter));
+                        else if (family == Punchy.Rendering.Effects.PlumeSystem.Smoke)
+                            smoke.Add(ToKit(emitter));
+                        else
+                        {
+                            plumes.Add(emitter);
+                            maxParticles = math.max(maxParticles, effect.Particles);
+                        }
                         top = y + effect.Height * inst.Scale;
                     }
                     min = math.min(min, emitter.Position - radius);
@@ -700,8 +717,15 @@ namespace Punchy.Ambience
             bounds = new Bounds((min + max) * 0.5f, max - min);
             SetCurtainBoxes();
             Upload(ref plumeBuffer, plumes, ref plumeProps);
+            Punchy.Rendering.Effects.PlumeSystem.Steam.Set(this, steam);
+            Punchy.Rendering.Effects.PlumeSystem.Smoke.Set(this, smoke);
             return true;
         }
+
+        static Punchy.Rendering.Effects.PlumeSystem.Plume ToKit(in Emitter e) => new Punchy.Rendering.Effects.PlumeSystem.Plume
+        {
+            Position = e.Position, Seed = e.Seed, Color = e.Color, Shape = e.Shape, Timing = e.Timing, UnderRock = e.UnderRock
+        };
 
         /// <summary>The animals' placement tables (FloraLookup), which carry the buildings' chimney tops.</summary>
         bool TryGetFlora(out BlobAssetReference<Punchy.Flora.FloraBlob> blob)
@@ -768,7 +792,7 @@ namespace Punchy.Ambience
             Punchy.Flora.FloraPlacement.PlotChimneys(ref blob.Value, source, plotIndex, ref tops);
             for (int k = 0; k < tops.Length; k++)
             {
-                plumes.Add(new Emitter
+                smoke.Add(new Punchy.Rendering.Effects.PlumeSystem.Plume
                 {
                     Position = tops[k], Seed = math.frac(plotIndex * 0.618f + k * 0.37f), Color = new float4(0.5f, 0.5f, 0.52f, 0f),
                     Shape = new float4(9f, 0.5f, 1.3f, 7f), Timing = new float4(0f, 0.25f, 0.32f, SmokeParticles)
@@ -776,7 +800,6 @@ namespace Punchy.Ambience
                 min = math.min(min, tops[k] - 6f);
                 max = math.max(max, tops[k] + new float3(6f, 12f, 6f));
             }
-            maxParticles = math.max(maxParticles, SmokeParticles);
         }
 
         static void Upload(ref GraphicsBuffer buffer, List<Emitter> emitters, ref MaterialPropertyBlock props)
