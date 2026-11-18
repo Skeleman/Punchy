@@ -327,7 +327,7 @@ namespace Punchy.Flora
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
                     BiomeRock = s.TakeBiomeRock ? 1 : 0,
-                    Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
+                    Dirt = s.Form == FloraForm.Field ? 2 : FloraGenerator.Founded(s.Form) ? 1 : 0,
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
                     FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.Dock || s.KitShape == Punchy.Terrain.KitShape.Wharf) ? 2 : 0,
@@ -2420,7 +2420,7 @@ namespace Punchy.Flora
                                     spot = stiltPlot;
                                 // W-138: a pier stays where a road ends on it: the landing spur stops at its ramp foot,
                                 // so the road walks straight onto the deck.
-                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
+                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) || (placedRule.Dirt == 2 && WetPlot(source, spot, placedRule.Footprint * prop.Scale.y)) ||
                                     (placedRule.PierReach <= 0f && OnRoad(source, spot, placedRule.Footprint * prop.Scale.y)))
                                     return none;
                                 // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
