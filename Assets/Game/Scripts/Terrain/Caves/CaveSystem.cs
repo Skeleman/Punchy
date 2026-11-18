@@ -2110,15 +2110,20 @@ namespace Punchy.Terrain
             /// <summary>Walls facing up more than this (the floor running out of a mouth) are never clipped: the floor
             /// covers the collar's foot there, and dropping it uncovered slivers of buried ground.</summary>
             const float RingFloorUp = 0.6f;
+            /// <summary>The farthest (m, across) a dropped vertex is moved onto the collars' foot: half a voxel, so its
+            /// triangles never fold over (a longer move flipped one at c6).</summary>
+            const float RingSnap = 0.25f;
 
             /// <summary>
             /// W-174 row 3: a wall vertex inside a mouth's cut (or within RingReach of its rim) and above the mouth ring
             /// (CaveSampling.MouthRing, the sheet the terrain collars' feet stand on) is dropped onto the ring, so the walls
             /// end where the collars end instead of doubling them up to the ground. Under kept ground the skin is left
             /// alone, and so is the floor (RingFloorUp). The cell's corner columns rule out most vertices before the drawn
-            /// height is read.
+            /// height is read. A dropped vertex lands on the collars' own foot (BuildChunkMeshJob.MouthFoot under it) and takes
+            /// the foot's normal, so wall and collar share the rim line and its shading (#365: without, the wall's edge sat
+            /// up to ~0.2 m off the foot line, with a crease along it).
             /// </summary>
-            float3 OntoRing(float3 p, float3 normal, int x, int z)
+            float3 OntoRing(float3 p, ref float3 normal, int x, int z)
             {
                 if (GridStep <= 0f || normal.y > RingFloorUp || !CaveSampling.NearColumn(ref Source.Caves.Value, p.xz))
                     return p;
@@ -2135,6 +2140,12 @@ namespace Punchy.Terrain
                 if (p.y <= ring || BuildChunkMeshJob.MouthCutAt(Source, p.xz, GridStep) > RingReach)
                     return p;
                 p.y = ring;
+                if (BuildChunkMeshJob.MouthFoot(Source, p.xz, GridStep, out var foot, out var footNormal)
+                    && math.distancesq(foot.xz, p.xz) <= RingSnap * RingSnap)
+                {
+                    p = foot;
+                    normal = footNormal;
+                }
                 return p;
             }
 
@@ -2193,7 +2204,7 @@ namespace Punchy.Terrain
                     // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
                     p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
                     var normal = Gradient(p);
-                    p = OntoRing(p, normal, x, z);
+                    p = OntoRing(p, ref normal, x, z);
                     cellVertex[Cell(x, y, z)] = Positions.Length;
                     edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
