@@ -165,7 +165,11 @@ Shader "Punchy/Flora"
                 // A rock tint (ground alpha at its top value) or a built thing's dirt band (any other non-zero alpha).
                 bool rockTint = input.ground.a > 0.998;
                 // Item 13: a plant on grassy ground, its leaves leaning to the ground's green (FloraPlacement.GreenTint: alpha 254).
-                bool greenTint = input.ground.a > 0.99 && !rockTint;
+                bool greenTint = input.ground.a > 0.994 && !rockTint;
+                // A river rock (FloraPlacement.WetRockMark): tinted as a rock, with its wet band's top in the alpha.
+                half wetTop = input.ground.a * 255 - 224;
+                bool wetRock = wetTop > -0.5 && !greenTint && !rockTint;
+                rockTint = rockTint || wetRock;
                 bool built = input.ground.a > 0 && !rockTint && !greenTint;
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
@@ -333,7 +337,15 @@ Shader "Punchy/Flora"
                 {
                     half lum = dot(albedo, half3(0.3, 0.59, 0.11));
                     half rockLum = max(dot(input.ground.rgb, half3(0.3, 0.59, 0.11)), 0.02);
-                    albedo = lerp(albedo, input.ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85);
+                    // River rocks keep their moss's green over the wet stone.
+                    half moss = wetRock ? saturate((albedo.g - max(albedo.r, albedo.b)) / max(albedo.g, 0.02) * 4) : 0;
+                    albedo = lerp(albedo, input.ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85 * (1 - moss));
+                    if (wetRock)
+                    {
+                        half ragged = PunchyValueNoise(float2(input.positionWS.x + input.positionWS.z, input.positionWS.y) * 6.3);
+                        half top = wetTop * 0.04 * (0.85 + 0.3 * ragged);
+                        wet = max(wet, (1 - smoothstep(top - 0.03, top + 0.02, input.baseHeight.x)) * (1 - snow));
+                    }
                 }
                 else if (part == 0 && !greenTint)
                     albedo = PunchyDirt(albedo, input.ground, input.baseHeight.x, input.baseHeight.y, wet, input.positionWS);
