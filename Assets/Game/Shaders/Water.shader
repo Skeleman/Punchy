@@ -391,9 +391,7 @@ Shader "Punchy/Water"
                 return along * dot(g, along) + across * dot(g, across) * AcrossStretch;
             }
 
-            // Whitewater foam drifting downstream in two cross-fading reads (a fixed pattern read as a sliding decal),
-            // laid out in the flow's frame: streaks stretched along the flow and torn at the edges, not round blobs.
-            // q is anchored near the camera (see flowingSlope), dir the unit flow, drift how far it moves per cycle.
+            // Read in the flow's frame so foam stretches into streaks instead of round blobs.
             half FlowFoam(float2 q, float2 dir, float drift, float t)
             {
                 const float cycle = 1.6;
