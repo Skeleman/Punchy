@@ -236,3 +236,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #551 (#550): pier, dock and stilt-house decks show planks again, not shingles.
 - 11-17 #552 R-42: shore foam is a thin soft band at the waterline, no white haze on gentle beaches.
 - 11-17 #487 R-25 (#302): volcano smoke plumes hold from far away, no pop-in on approach.
+- 11-17 #553 W-174 r3 (#365): cave walls meet the mouth ring, specks gone (thin slits remain at one cave).
+- 11-17 #554 W-153 row 4 (#301): deep lakes have no dry holes; lake water walls 307 to 5.
