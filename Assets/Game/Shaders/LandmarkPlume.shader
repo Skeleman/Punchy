@@ -117,6 +117,9 @@ Shader "Punchy/Landmark Plume"
                 float2 screenUV = input.screen.xy / input.screen.w;
                 float sceneDepth = LinearEyeDepth(SampleSceneDepth(screenUV), _ZBufferParams);
                 alpha *= saturate((sceneDepth - input.positionCS.w) / 1.0);
+                // A plume on water (fall.x, its fade in metres) fades into the surface, which the scene depth lacks.
+                if (e.fall.x > 0)
+                    alpha *= saturate((input.positionWS.y - e.position.y) / e.fall.x);
                 clip(alpha - 0.002);
 
                 Light light = GetMainLight();
