@@ -151,6 +151,46 @@ namespace Punchy.Tests
             Assert.IsEmpty(problems, string.Join("\n", problems));
         }
 
+        // Stone (W-166 row 2): a plain scarp bakes exactly as before stone came in (no shape change, zero paint offsets),
+        // and every biome names a real row of MaterialLibrary.Stone, so its scarps and river notches have a rock to be.
+        [Test]
+        public void PlainStoneLeavesAScarpAlone()
+        {
+            var scarp = Game.GetType("Punchy.Terrain.Scarp", true);
+            var kind = Game.GetType("Punchy.Terrain.StoneKind", true);
+            var stone = Game.GetType("Punchy.Terrain.ScarpBake", true).GetMethod("Stone");
+            var sc = Activator.CreateInstance(scarp);
+            foreach (var (f, v) in new[] { ("Crack", 1.3f), ("Push", 2.1f), ("Setback", 0.7f) }) scarp.GetField(f).SetValue(sc, v);
+            var args = new object[] { Enum.ToObject(kind, 0), sc };
+            stone.Invoke(null, args);
+            sc = args[1];
+            float F(string f) => (float)scarp.GetField(f).GetValue(sc);
+            Assert.AreEqual(1.3f, F("Crack"), 1e-5f);
+            Assert.AreEqual(2.1f, F("Push"), 1e-5f);
+            Assert.AreEqual(0.7f, F("Setback"), 1e-5f);
+            foreach (var f in new[] { "Beds", "Joints", "Polish" }) Assert.AreEqual(0f, F(f), 1e-6f, f);
+            var tint = scarp.GetField("Tint").GetValue(sc);
+            foreach (var c in new[] { "x", "y", "z" }) Assert.AreEqual(0f, (float)tint.GetType().GetField(c).GetValue(tint), 1e-6f, "Tint." + c);
+        }
+
+        [Test]
+        public void EveryBiomeNamesAStone()
+        {
+            var kind = Game.GetType("Punchy.Terrain.StoneKind", true);
+            var biome = Game.GetType("Punchy.Terrain.BiomeDefinition", true);
+            var rows = (Array)Game.GetType("Punchy.Terrain.MaterialLibrary", true).GetField("Stone").GetValue(null);
+            var problems = new List<string>();
+            var guids = AssetDatabase.FindAssets("t:" + biome.Name);
+            Assert.IsNotEmpty(guids, "no biome assets found");
+            foreach (var guid in guids)
+            {
+                var asset = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(guid), biome);
+                var value = Convert.ToInt32(biome.GetField("Stone").GetValue(asset));
+                if (!Enum.IsDefined(kind, value) || value >= rows.Length) problems.Add($"{asset.name}: stone {value}");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
         // Gear (W-166 row 3): every creature gear material maps to a family, and Creature.shader is a user of that family's
         // include in the table above, so SegmentMaterial and the library cannot drift apart.
         [Test]

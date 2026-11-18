@@ -32,6 +32,7 @@ MonoBehaviour:
   TerraceSteps: 0
   WindDirection: 60
   Rainfall: 0.9
+  Stone: 2
   WaterMurk: 0.45
   WaterColor: {r: 0.22, g: 0.24, b: 0.13, a: 1}
   WaterGlow: 0
