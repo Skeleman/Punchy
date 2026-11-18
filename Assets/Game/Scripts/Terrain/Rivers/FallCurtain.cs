@@ -63,9 +63,7 @@ namespace Punchy.Terrain
             var x = (u - 0.5f) * s.Width;
             lipIn = math.saturate(f / RunIn);
             tau = math.saturate((f - RunIn) / (1f - RunIn));
-            // (No lip wave here: the sheet's 32 columns and the curtain's fewer cut its ~2 m ripples at different points,
-            // so the curtain's joins poked through the sheet as thin dark lines, fall-121. It lies the waves' whole
-            // height behind instead, behind any chord of the sheet's; its reach likewise takes the wave's least.)
+            // Lip waves sit at their lowest: the sheet's grid cuts them elsewhere, and the curtain poked through (fall-121).
             var lipShift = s.Skew * side * 0.5f - s.Bow * side * side - math.min(0.6f, s.Width * 0.08f);
             var run = s.Run * (0.9f + 0.15f * (1f - side * side));
             const float dip = 0.15f;
