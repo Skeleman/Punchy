@@ -252,7 +252,7 @@ namespace Punchy.Terrain
                     // is the one near zero along it (a 2 cm probe can land outside a rim that bows between grid edges).
                     else if (mouths && (!hasTemple || math.abs(MouthCutAt(source, mid, step)) <
                                                       math.abs(SunkenTempleShape.Cut(ref source.Landmarks.Value, l, mid))))
-                        MouthCollar(poly[k], poly[n]);
+                        MouthCollar(poly[k], poly[n], side);
                 }
             }
 
@@ -321,8 +321,9 @@ namespace Punchy.Terrain
 
             // W-174 r6 row 2: a mouth collar under rim edge a-b, from the edge down to its foot on the cave walls' field
             // (MouthFoot), read under a, b and each MouthKnot between. The feet under a and b depend only on where those
-            // rim points lie, so the chunk across a shared grid edge hangs its collar from the same foot.
-            void MouthCollar(int a, int b)
+            // rim points lie, so the chunk across a shared grid edge hangs its collar from the same foot. hole: the
+            // horizontal way off the kept ground across the edge, which the collar must face.
+            void MouthCollar(int a, int b, float2 hole)
             {
                 int fa = MouthFootVertex(a, out var wa), fb = MouthFootVertex(b, out var wb);
                 if (fa < 0 || fb < 0)
@@ -393,8 +394,8 @@ namespace Punchy.Terrain
                 }
                 var split = (n - 1) / 2;
                 for (int k = 0; k < n - 1; k++)
-                    Face3(k < split ? a : b, line[k], line[k + 1], vl[line[k]].Normal + vl[line[k + 1]].Normal);
-                Face3(a, line[split], b, vl[line[split]].Normal);
+                    Face3(k < split ? a : b, line[k], line[k + 1], IntoHole(vl[line[k]].Normal + vl[line[k + 1]].Normal, hole));
+                Face3(a, line[split], b, IntoHole(vl[line[split]].Normal, hole));
             }
 
             // The foot vertex under rim vertex r (made once per rim vertex), or -1 where the walls' field has no foot near it.
@@ -434,6 +435,17 @@ namespace Punchy.Terrain
             }
 
             // A collar triangle, wound to face along into (into the entrance, or out of the walls' rock into the air).
+            // #365: the walls' normal at a foot faces the cave's air, except on a fin or crease where the foot lands on
+            // the far side: there the collar would face back into the rock and show as a slit into the cave (c6). Its
+            // horizontal part is turned round to face the hole.
+            static float3 IntoHole(float3 normal, float2 hole)
+            {
+                var across = math.dot(normal.xz, hole);
+                if (across < 0f)
+                    normal -= 2f * across * new float3(hole.x, 0f, hole.y);
+                return normal;
+            }
+
             void Face3(int a, int b, int c, float3 into)
             {
                 float3 p0 = vl[a].Position, p1 = vl[b].Position, p2 = vl[c].Position;
