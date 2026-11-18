@@ -1180,3 +1180,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - 11-17 (render-2): b/salt-cracks@6023b11c R-33 salt-flat crack plates: TerrainSurface.shader adds 9-18 Voronoi taps + ~5 noise samples per salt-flat pixel (branched off elsewhere). Report-only: salt-flat view frame time, main vs branch.
 - #580 W-165 fields: frame time + flora vertex count at the human village and dwarf hold (seed 8121), uncapped, NaN 0, vs main 80d02c94 (see REPORTS-materials).
 - #582 W-165 row 2 crops: draw calls + flora verts at human village, Sonoran village, dwarf hold, uncapped, vs main 80d02c94 (expect flora verts down ~70% near fields).
+- #583 R-26 row 2: per-pixel cost of Cave.shader cracks (cave interior views) and Bark.hlsl furrows (forest close-up), uncapped, vs main before #583.
