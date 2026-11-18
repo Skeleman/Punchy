@@ -6,7 +6,7 @@
 //   TEXCOORD0  x = metallic,     y = grass density, z = snow depth, w = skirt drop (metres; 0 on the surface)
 //   TEXCOORD1  rgb = emission (HDR), w = geomorph offset (coarse-LOD height − height)
 //   TEXCOORD2  xy = distance from the terrain focus where the geomorph starts / completes, z = surface bumpiness
-//   TEXCOORD3  x = rock strata amount, y = cobble paving, z = hollow depth (puddles gather where it's positive)
+//   TEXCOORD3  x = rock strata (> 0) or cracks (< 0), y = cobble paving, z = hollow depth (puddles gather where it's positive)
 //   TEXCOORD4  x = porosity (how much rain soaks in: sand darkens rather than pooling), y = the coarser LOD's hollow depth
 // Grass density and snow depth are read by the (future) grass and snow-trail systems, not by this shader.
 
