@@ -348,7 +348,10 @@ namespace Punchy.Flora
             b.Surface = (int)look;
             // W-166: each part states its family; a ruin's bare walls are old stone, not plaster.
             // W-166 row 3: standing stone chimneys are laid in brick (Materials/Brick.hlsl); rune and trim stacks keep their own.
+            // A boat's painted strakes are timber under the paint (its hull reads as wood); a buoy's float is painted.
             b.Family = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
+                     : p.Afloat && p.Material == Punchy.Terrain.KitMaterial.Trim ? Punchy.Terrain.MaterialFamily.Wood
+                     : p.Piece == Punchy.Terrain.KitPiece.Trim && p.Material == Punchy.Terrain.KitMaterial.Roof && Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look) == Punchy.Terrain.MaterialFamily.Plaster ? Punchy.Terrain.MaterialFamily.Paint
                      : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
                      : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
             b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
