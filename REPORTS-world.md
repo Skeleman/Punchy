@@ -8712,3 +8712,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - WorldTests 19/20: only Fauna_Fingerprint, which reads 3B4B93C6, the same as on world/fall-walls without this change, so main's 2486F68F pin was already stale; repinned (no rerun after the pin-only edit). Landmarks pin unchanged, nothing moved.
 - Shots: PunchyMilestones/world/W-174r3b-c6/before + after (c6-5m, c6-5m-backfaces, temple-20m). The seam test runs on the test source, so it can't cover c6 or face direction.
 - W-181 scoped, not started: ClimbLedges (Fauna/LedgeHang.cs) is a 12-slot SharedStatic list that only debug lips fill; CliffKit already bakes CliffLedge rows. A world feeder would refill the nearest ledges around the player each frame. Question: may world write LedgeHang/ClimbLedges, or should fauna/player own the feeder? BENCH line added for the collar check.
+
+### W-153 fall-121 sliver + jagged edges - DONE/verified 11-17, world/fall-sliver@f21933e1 (from main)
+- Cause: beside the sheet, the upper water ran on past where the bed falls (thin floating slab); the curtain's edge columns were cut in square teeth. RiverData ends upper water where the bed starts to fall; FallCurtain edges get a noise inset with a soft alpha fade (Water.shader), no gap teeth.
+- WaterTruth 82,0,0,0,0,10,0,36,10,17,170,0,0 unchanged (wall set identical); lip grid col 7 dry/wet 13/29 -> 13/5. Pins unchanged, no landmark moved. WorldTests 20/20.
+- Shots: PunchyMilestones/world/W-153r3c-fallsliver/before + after (fall-121, fall-121-edge) viewed: slab gone, edges soft and uneven. BENCH line added.
