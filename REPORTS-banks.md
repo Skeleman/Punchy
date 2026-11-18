@@ -19,3 +19,9 @@
 - New RiverSpot.Undercut and a BankLip Boulder species, at density 10 in six biomes. Each lip is plaster-earth blocks with a turf (moss) top, a dark underside and hanging roots. The roots use a shared HangingRoot helper that the cave roots now use too (rule 33). Placement: dry outer bends only. The lip moves out to the bank edge and turns to face the water (331/331 face downhill). No river geometry files touched.
 - Shots: river-details/overhangs/overhang-5m.png and overhang-25m.png, at the steepest outer bend (-1266.9,68,641.6). The lips read clearly, but they sit on a gentle sandy bank, not in a real cut bank. A true undercut needs a bank-profile hook from world.
 - Fauna_Fingerprint repinned 696024B5; landmark and temple pins unchanged. WorldTests 21/21 after the repin; MaterialLibraryTests 13/13.
+
+## #301 row 2 rework (cut banks): banks/overhangs@58d1a8d2
+- RiverData.cs (minimal diff; functions touched: RiverQuery (+Cut), Bank/Bank.At (+Cut), Query, Consider, Profile). On outer bends the rough carve now makes a 0.5-1.5 m earth face, sized by bend strength. It has a waterline notch and a flatter grass terrace above, and it fades out by 14 m. Bakes are non-rough, so they are unchanged.
+- Lips find the face's top edge, so they line up along it. Each lip is a set of overlapping sheets, 0.6-1.6 m wide, with uneven gaps and lengths. 15% fall to the foot as half-sunk chunks. Density is now 30. The side-root comment is dropped (rule 35).
+- Shots: same 5 m and 25 m views. At 25 m the bare face shows, with turf strips along its grassy top.
+- Fauna_Fingerprint repinned 59A4BFD3; landmark and temple pins unchanged. WorldTests all pass except the fingerprint (repinned and re-run: pass); MaterialLibraryTests 13/13.

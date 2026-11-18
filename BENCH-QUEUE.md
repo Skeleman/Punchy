@@ -1200,4 +1200,5 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - materials/river-rock-stone: flora placement time with StoneTintAt on wet boulders vs main (expect ~0).
 - materials/river-beds: terrain chunk surface sampling cost vs main (one extra function on river-layer points; expect ~0).
 - 11-18 (banks): banks/overhangs@4c9a1510 #301 row 2 bank lips: BankLip boulders on outer bends (small, density 10, roots at LOD 0-1). Report-only: flora placement time and river frame cost at -1268,637, main vs branch.
+- 11-18 (banks): banks/overhangs@58d1a8d2 #301 row 2 rework: the rough river carve adds an outer-bend cut-bank term in Consider/Profile (a few extra math ops per terrain sample near rivers), and lip density goes 10 -> 30. Report-only: terrain chunk build time and flora placement at -1268,637, main vs branch.
 - materials/rock-moss-wet a11b0138: Flora.shader rock path adds one value noise and a smoothstep per pixel on wet river rocks only; check the flora pass at the rapid -1048,-1521.
