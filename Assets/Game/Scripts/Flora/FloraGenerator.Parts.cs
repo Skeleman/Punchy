@@ -36,6 +36,7 @@ namespace Punchy.Flora
         static Dictionary<string, PartBuild> WithBuildParts(Dictionary<string, PartBuild> library)
         {
             AddBuildParts(library);
+            AddCastleParts(library);
             return library;
         }
 

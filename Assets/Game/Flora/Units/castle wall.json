@@ -1,0 +1,53 @@
+{
+    "Id": "castle wall",
+    "DepthOfWidth": 1.0,
+    "WidthOfHeight": 0.0,
+    "Host": "StoneHall",
+    "Size": {
+        "x": 12.0,
+        "y": 8.0,
+        "z": 3.0
+    },
+    "PartStreams": true,
+    "Parts": [
+        {
+            "Part": "curtain wall",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": -6.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 6.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 0.0,
+                "y": 6.0,
+                "z": 2.6
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        }
+    ]
+}

@@ -1,0 +1,131 @@
+{
+    "Id": "castle tower",
+    "DepthOfWidth": 1.0,
+    "WidthOfHeight": 0.0,
+    "Host": "StoneHall",
+    "Size": {
+        "x": 8.0,
+        "y": 14.0,
+        "z": 8.0
+    },
+    "PartStreams": true,
+    "Parts": [
+        {
+            "Part": "castle tower",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 6.5,
+                "y": 11.0,
+                "z": 0.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        },
+        {
+            "Part": "door",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": -3.27,
+                "y": 6.0,
+                "z": 0.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 1.2,
+                "y": 2.2,
+                "z": 0.14
+            },
+            "Yaw": -90.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        },
+        {
+            "Part": "door",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 3.27,
+                "y": 6.0,
+                "z": 0.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 1.2,
+                "y": 2.2,
+                "z": 0.14
+            },
+            "Yaw": 90.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        }
+    ]
+}
