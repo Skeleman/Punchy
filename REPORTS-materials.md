@@ -83,3 +83,11 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Check: matched before/after shots with MatchedShot.Hold(xz,12,1000) of the pier with buoys, a plaster house and a turtle igloo. Mean diffs 1.9/2.0/2.0, with 3-4% of pixels changed. I viewed the pier pair: buoys are smooth and painted, walls lose the stone mottling. EditMode tests pass, 45/45.
 - Follow-up for cloth-metal: Copper and Lamp (Metal) still have mark 0, so they fall back to stone.
 - Unity commands still use --project-path D:/Unity/Punchy-materials.
+
+## 11-17 Cloth and metal rows (W-166 #336 phase A), materials/cloth-metal cc879e5b
+- MaterialLibrary: ClothKind (Linen, Hide) and MetalKind (Iron) rows, pushed as _PunchyClothKinds, _PunchyMetalLightKinds and _PunchyMetalGlintKinds. Cloth.hlsl and Metal.hlsl read their sizes, contrast, highlight and glints from them. The values match today's, so nothing changes on screen. The old PunchyMetalShade signature stays as an Iron overload.
+- Test EveryClothAndMetalKindHasARow. EditMode tests pass, 47/47.
+- Check: matched shots (pier, house, igloo) against main's: mean diffs 0.8/0.9/1.5, under the run-to-run noise, so no visible change, as intended.
+- It merges cleanly with b/fix-stone-fallback (merge-tree).
+- Phase B needs the OK of the lanes that own Flora.shader, Creature.shader and Colossus.shader. It would pass a kind (copper/bronze/gold, wool/felt), use the Wrap/Sheen/Diffuse columns, and give Copper and Lamp kit parts a Metal mark so they leave the stone fallback.
+- Unity commands still use --project-path D:/Unity/Punchy-materials.
