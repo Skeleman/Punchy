@@ -251,16 +251,26 @@ namespace Punchy.Terrain
             if (math.lengthsq(g) < 1e-12f)
                 return false;
             // In rock, towards the air; in air, back towards the rock.
-            var dir = math.normalize(g) * (f0 < 0f ? 1f : -1f);
+            var ahead = math.normalize(g) * (f0 < 0f ? 1f : -1f);
+            var dir = ahead;
             float lo = 0f, hi = -1f;
-            for (var t = FootMarch; t <= FootReach + 1e-4f; t += FootMarch)
+            // #365: the drawn field's kinks can tip the gradient away from the nearest crossing; take the nearest of five headings.
+            for (var t = FootMarch; t <= FootReach + 1e-4f && hi < 0f; t += FootMarch)
             {
-                if (FootField(source, xz + dir * t, gridStep, depth) < 0f != f0 < 0f)
+                for (int h = 0; h < 5; h++)
                 {
-                    hi = t;
-                    break;
+                    var turn = (h + 1) / 2 * (h % 2 == 0 ? -0.25f : 0.25f) * math.PI;
+                    math.sincos(turn, out var sin, out var cos);
+                    var d = new float2(ahead.x * cos - ahead.y * sin, ahead.x * sin + ahead.y * cos);
+                    if (FootField(source, xz + d * t, gridStep, depth) < 0f != f0 < 0f)
+                    {
+                        dir = d;
+                        hi = t;
+                        break;
+                    }
                 }
-                lo = t;
+                if (hi < 0f)
+                    lo = t;
             }
             if (hi < 0f)
                 return false;

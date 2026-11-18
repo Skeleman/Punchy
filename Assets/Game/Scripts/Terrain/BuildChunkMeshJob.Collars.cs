@@ -346,10 +346,13 @@ namespace Punchy.Terrain
                 line.Add(fa);
                 along.Add(0f);
                 world.Add(wa);
+                // #365: on the drawn field neighbouring searches can land on crossings out of order, folding the collar.
+                var axis = wb - wa;
                 for (int k = 1; k <= knots; k++)
                 {
                     var t = (float)k / (knots + 1);
-                    if (MouthFoot(source, math.lerp(pa, pb, t), normalEpsilon, out var foot, out var normal))
+                    if (MouthFoot(source, math.lerp(pa, pb, t), normalEpsilon, out var foot, out var normal) &&
+                        InOrder(world[world.Length - 1], foot, wb, axis))
                     {
                         line.Add(AddFoot(t < 0.5f ? a : b, foot, normal));
                         along.Add(t);
@@ -375,7 +378,8 @@ namespace Punchy.Terrain
                         if (along[k + 1] - along[k] > FootSplitMin &&
                             DrawnWallFieldAt(source, foot, normalEpsilon) > FootBow &&
                             (OntoWall(source, ref foot, normalEpsilon, out normal) ||
-                             MouthFoot(source, math.lerp(pa, pb, t), normalEpsilon, out foot, out normal)))
+                             MouthFoot(source, math.lerp(pa, pb, t), normalEpsilon, out foot, out normal)) &&
+                            InOrder(world[k], foot, world[k + 1], axis))
                         {
                             line.Insert(k + 1, AddFoot(t < 0.5f ? a : b, foot, normal));
                             along.Insert(k + 1, t);
@@ -397,6 +401,9 @@ namespace Punchy.Terrain
                     Face3(k < split ? a : b, line[k], line[k + 1], IntoHole(vl[line[k]].Normal + vl[line[k + 1]].Normal, hole));
                 Face3(a, line[split], b, IntoHole(vl[line[split]].Normal, hole));
             }
+
+            static bool InOrder(float3 before, float3 foot, float3 after, float3 axis) =>
+                math.dot(foot - before, axis) > 0f && math.dot(after - foot, axis) > 0f;
 
             // The foot vertex under rim vertex r (made once per rim vertex), or -1 where the walls' field has no foot near it.
             int MouthFootVertex(int r, out float3 world)
