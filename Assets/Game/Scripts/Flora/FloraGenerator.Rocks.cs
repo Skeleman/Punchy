@@ -237,6 +237,11 @@ namespace Punchy.Flora
                 BankLip(g);
                 return;
             }
+            if (s.RiverSpot == RiverSpot.Riffle || s.RiverSpot == RiverSpot.Splash)
+            {
+                if (s.RiverSpot == RiverSpot.Riffle) RiffleRow(g); else SplashRock(g);
+                return;
+            }
             var size = g.Range(s.Height);
             var family = g.Variant % 5;
             var detail = g.Sides(3, 2, 1);

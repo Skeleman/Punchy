@@ -13,7 +13,7 @@ namespace Punchy.Ambience
         const float RiverSprayMaxRange = 260f;
         const int RapidSpotsPerSegment = 3;
 
-        public static int LastRapids, LastMouths;
+        public static int LastRapids, LastMouths, LastSplash;
 
         readonly object riverOwner = new object();
         readonly List<Kit.Plume> riverSpray = new List<Kit.Plume>();
@@ -34,7 +34,7 @@ namespace Punchy.Ambience
             riverCellAt = cell;
             riverRangeAt = range;
             riverSpray.Clear();
-            int rapids = 0, mouths = 0;
+            int rapids = 0, mouths = 0, splash = 0;
             var n = (int)math.ceil(range / map.CellSize) + 1;
             for (int z = -n; z <= n; z++)
             for (int x = -n; x <= n; x++)
@@ -82,6 +82,12 @@ namespace Punchy.Ambience
                         });
                         rapids++;
                     }
+                    if (Punchy.Flora.FloraPlacement.SplashSpot(source, i, out var rock, out var rockScale) &&
+                        math.distance(rock, at) < math.min(Policy.ExtraReach(rockScale * 3f, gone), range))
+                    {
+                        SplashTail(source, rock, rockScale, (b - a) / length, strength, h);
+                        splash++;
+                    }
                 }
                 if ((kind & RiverProfileKind.Mouth) != 0)
                 {
@@ -105,7 +111,32 @@ namespace Punchy.Ambience
             }
             LastRapids = rapids;
             LastMouths = mouths;
+            LastSplash = splash;
             Kit.Spray.Set(riverOwner, riverSpray);
+        }
+
+        void SplashTail(in TerrainSource source, float2 rock, float scale, float2 flow, float strength, uint h)
+        {
+            var surface = source.SampleGround(rock).WaterSurface;
+            var radius = scale * 1.1f;
+            riverSpray.Add(new Kit.Plume
+            {
+                Position = new float3(rock.x + flow.x * radius, surface - 0.03f, rock.y + flow.y * radius),
+                Seed = ((h >> 6) & 0xFFF) / 4096f,
+                Color = new float4(0.94f, 0.96f, 0.98f, 0f),
+                Shape = new float4(0.12f, radius * 0.9f, 0.45f + 0.2f * strength, 2.6f),
+                Timing = new float4(0f, 0.25f, 0.5f + 0.2f * strength, 32),
+                Out = flow * (2.2f + 1.5f * strength)
+            });
+            riverSpray.Add(new Kit.Plume
+            {
+                Position = new float3(rock.x - flow.x * radius, surface, rock.y - flow.y * radius),
+                Seed = ((h >> 18) & 0xFFF) / 4096f,
+                Color = new float4(0.95f, 0.97f, 0.99f, 0f),
+                Shape = new float4(0.5f + 0.3f * strength, radius * 0.7f, 0.4f, 1.2f),
+                Timing = new float4(0f, 0.25f, 0.45f, 14),
+                Out = flow * 0.6f
+            });
         }
 
         void ClearRiverSpray()
