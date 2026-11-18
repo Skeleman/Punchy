@@ -106,6 +106,44 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         b.age = -max(bubbleAge, 0.001);
         return b;
     }
+    // A negative drop is a leaf afloat: it rides the flow (outDir, m/s) as its surface falls fall.w, or circles an eddy of signed radius fall.y.
+    if (e.drop < 0)
+    {
+        float fLife = e.shape.w;
+        float fPhase = _PunchyClock / fLife + r;
+        float fCycle = floor(fPhase);
+        float fAge = frac(fPhase);
+        float f1 = EffectHash(fCycle * 0.618 + r * 13.1), f2 = EffectHash(fCycle * 0.377 + r * 7.9), f3 = EffectHash(fCycle * 0.211 + r * 3.7);
+        float ft = fAge * fLife;
+        float2 fSpot;
+        if (e.fall.y != 0)
+        {
+            float ring = abs(e.fall.y) * lerp(0.3, 1.0, sqrt(f2)) * (1 + 0.15 * sin(ft * 0.3 + r * 6.2832));
+            float turn = f1 * 6.2832 + sign(e.fall.y) * ft * 0.22 / max(ring, 0.3);
+            fSpot = float2(cos(turn), sin(turn)) * ring;
+        }
+        else
+        {
+            float2 fFlow = normalize(e.outDir);
+            float2 fAcross = float2(-fFlow.y, fFlow.x);
+            fSpot = fAcross * ((f2 - 0.5) * 2 * e.shape.y + sin(ft * 0.7 + r * 6.2832) * 0.15) + e.outDir * ft;
+        }
+        float3 floatAt = e.position + float3(fSpot.x, 0.03 + 0.015 * sin(ft * 1.9 + r * 4.0) - e.fall.w * fAge, fSpot.y);
+        float yaw = f1 * 6.2832 + ft * (f3 < e.fall.z ? lerp(1.2, 2.6, f2) : 0.12) * (f1 < 0.5 ? -1 : 1);
+        float bob = 0.12 * sin(ft * 1.7 + r * 5.0);
+        float3 floatN = float3(sin(bob) * cos(yaw), cos(bob), sin(bob) * sin(yaw));
+        float3 floatRight = normalize(cross(floatN, float3(cos(yaw), 0, sin(yaw))));
+        float3 floatUp = cross(floatRight, floatN);
+        float floatAlpha = e.timing.z * smoothstep(0, 0.08, fAge) * (1 - smoothstep(0.88, 1, fAge)) * step(k, e.timing.w - 1);
+        floatAlpha *= 1 - smoothstep(0.8, 1, distance(floatAt, GetCameraPositionWS()) / max(e.shape.z * _PunchyPlumeReach, 1e-3));
+        float2 floatCorner = EffectCorner[vertex];
+        PlumeVertex g;
+        g.positionWS = floatAt + (floatRight * floatCorner.x * 0.6 + floatUp * floatCorner.y) * e.shape.z * lerp(0.8, 1.25, f3) * step(0.001, floatAlpha);
+        g.uv = floatCorner;
+        g.alpha = floatAlpha;
+        g.age = 2 + r;
+        return g;
+    }
     if (e.drop > 0)
     {
         float leafLife = e.shape.w;
