@@ -40,6 +40,7 @@ half3 PunchyEffectLight(LandmarkEmitter e, float3 p, half3 n, half3 sun, half3 s
     return lerp(light, dot(light, half3(0.3, 0.5, 0.2)) * half3(0.82, 0.95, 1.12), 0.6) + half3(0.02, 0.03, 0.04);
 }
 uint _MaxParticles;
+float _PunchyPlumeReach; // metres of reach per metre of plume (LandmarkEffectSystem.PlumeGonePixels, rule 20)
 float4 _WaterfallGrid;   // columns, rows, the first emitter of the draw
 float2 _PunchyWindDirection;
 half _PunchyWind;
@@ -115,7 +116,9 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
 
     float size = e.shape.z * (0.35 + 1.1 * age) * lerp(0.7, 1.3, EffectHash(r * 4.7));
     float alpha = e.timing.z * Eruption(e, born) * smoothstep(0, 0.12, age) * (1 - smoothstep(0.55, 1, age)) * step(k, e.timing.w - 1);
-    alpha *= 1 - smoothstep(600, 750, distance(centre, GetCameraPositionWS()));
+    // Fades out by the plume's own size on screen (rule 20), not at a fixed distance.
+    float plumeReach = max(max(e.shape.x, e.shape.y), e.shape.z) * _PunchyPlumeReach;
+    alpha *= 1 - smoothstep(plumeReach * 0.8, plumeReach, distance(centre, GetCameraPositionWS()));
 
     float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
     float2 corner = EffectCorner[vertex];
