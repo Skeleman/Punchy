@@ -275,6 +275,7 @@ namespace Punchy.Flora
                 builder.BarkSeams = species.GlowingSeams;
                 builder.BarkVeins = species.GlowingVeins;
                 builder.BarkStrata = species.RockStrata;
+                builder.BarkKind = species.BarkKind;
                 builder.BaseFamily = FormFamily(species.Form);
                 builder.Family = builder.BaseFamily;
                 builder.WoodKind = WoodKindFor(species);

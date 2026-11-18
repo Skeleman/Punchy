@@ -70,6 +70,15 @@ namespace Punchy.Terrain
         Copper = 1
     }
 
+    // Rides on the bark mark in 0.002 steps, under the wood band; values match the defines in Bark.hlsl.
+    public enum BarkKind
+    {
+        Furrowed = 0,
+        Plated = 1,
+        Checked = 2,
+        Smooth = 3
+    }
+
     /// <summary>
     /// W-166: the one material library. A table of kinds per family (base colour, grain scale, contrast, knots, wear),
     /// pushed to the shaders as globals so every piece of a kind looks the same wherever it's drawn, and the maps from

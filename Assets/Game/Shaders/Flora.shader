@@ -45,6 +45,7 @@ Shader "Punchy/Flora"
             #include "Materials/Brick.hlsl"
             #include "Materials/Ice.hlsl"
             #include "Materials/Paint.hlsl"
+            #include "Materials/Bark.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
             #define PUNCHY_SURFACE_GLOW_WORLD
@@ -280,28 +281,9 @@ Shader "Punchy/Flora"
                     half2 bump = (detail.rg - 0.5) * 0.9 * near;
                     n = normalize(n + float3(0, bump.x, bump.y) * w.x + float3(bump.x, 0, bump.y) * w.y + float3(bump.x, bump.y, 0) * w.z);
                 }
-                // Bark grain (item 28): furrows running up the trunk between raised plates, with fine fibres along them,
-                // laid out round the plant's own upright axis (its frame: the angle round it, and the height). Whole
-                // numbers of furrows round, so no seam; their path wanders with height. Fades by screen size alone (rule 20):
-                // out once a furrow would be under a few pixels wide, from its own pixel footprint, so no fixed metres.
                 if (detail && bark)
-                {
-                    float3 gp = input.grainPos;
-                    float ang = atan2(gp.z, gp.x);
-                    float2 ring = float2(cos(ang), sin(ang));
-                    float furrows = 5 + floor(r * 4);
-                    half wander = PunchyValueNoise(ring * 1.7 + float2(gp.y * 0.8, r * 17.0)) - 0.5;
-                    float phase = ang * furrows + wander * 3.0 + gp.y * 0.12;
-                    half furrow = 1 - smoothstep(0.0, 0.5, abs(sin(phase)));
-                    half fibre = 0.5 + 0.5 * sin(phase * 4 + PunchyValueNoise(float2(gp.y * 6.0, ang * 0.5 + r * 9.0)) * 4.0);
-                    // Plates break across now and then, so the ridges aren't endless rails.
-                    half crack = smoothstep(0.78, 0.92, PunchyValueNoise(ring * 3.1 + float2(gp.y * 3.3, 4.7)));
-                    half grainFade = (1 - smoothstep(0.35, 0.9, length(fwidth(ring)) * furrows));
-                    albedo *= lerp(1, (1 - max(furrow, crack) * 0.5) * (0.92 + 0.16 * fibre), grainFade);
-                    // The furrows' sides catch the light: lean the normal round the trunk with the ridge's slope.
-                    float3 around = normalize(float3(-n.z, 0, n.x) + 1e-5);
-                    n = normalize(n + around * cos(phase) * sign(sin(phase)) * 0.35 * grainFade);
-                }
+                    albedo *= PunchyBark(input.grainPos, input.positionWS, r, frac(input.extra.x) < 0.009 ? (int)round(frac(input.extra.x) / 0.002) : 0,
+                                         input.baseHeight.y, input.baseHeight.x, n);
                 if (part == 1)
                 {
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);

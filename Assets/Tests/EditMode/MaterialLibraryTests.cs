@@ -58,6 +58,38 @@ namespace Punchy.Tests
             finally { field.SetValue(species, keep); }
         }
 
+        // W-163 row 3: Flora.shader decodes kind * 0.002 under the wood band, so the mark must stay below 0.009.
+        [Test]
+        public void BarkKindReachesTheMark()
+        {
+            var species = AssetDatabase.LoadAssetAtPath<ScriptableObject>("Assets/Game/Flora/Birch.asset");
+            var field = species.GetType().GetField("BarkKind");
+            var grow = Game.GetType("Punchy.Flora.FloraGenerator").GetMethod("Grow", BindingFlags.Public | BindingFlags.Static);
+            var barkPart = (int)Enum.Parse(Game.GetType("Punchy.Flora.FloraPart", true), "Bark");
+            int Marked(int kind)
+            {
+                var model = grow.Invoke(null, new object[] { species, 0, false });
+                var mesh = ((Mesh[])model.GetType().GetField("Lods").GetValue(model))[0];
+                var uv = new List<Vector4>();
+                mesh.GetUVs(0, uv);
+                return uv.Count(u => Mathf.RoundToInt(u.y) == barkPart && Mathf.Abs(u.y - barkPart - kind * 0.002f) < 0.0005f);
+            }
+            var keep = field.GetValue(species);
+            Assert.AreEqual("Checked", keep.ToString(), "birch should have fine checks");
+            try
+            {
+                Assert.Greater(Marked(2), 0, "no birch bark carries the checked mark");
+                field.SetValue(species, Enum.ToObject(field.FieldType, 0));
+                Assert.AreEqual(0, Marked(2), "the mark stayed after the kind went back to furrowed");
+            }
+            finally { field.SetValue(species, keep); }
+            Assert.Less((Enum.GetValues(field.FieldType).Length - 1) * 0.002f, 0.009f, "bark kinds would reach the wood band");
+            var text = File.ReadAllText(Path.Combine(Application.dataPath, "Game", "Shaders", "Materials", "Bark.hlsl"));
+            foreach (var name in Enum.GetNames(field.FieldType))
+                StringAssert.Contains("#define PUNCHY_BARK_" + name.ToUpperInvariant() + " " + (int)Enum.Parse(field.FieldType, name), text,
+                    name + " has no matching define in Bark.hlsl");
+        }
+
         [Test]
         public void EveryBuiltPieceHasAMaterial()
         {

@@ -270,6 +270,9 @@ namespace Punchy.Flora
         [Tooltip("Trees (BroadleafTree, HiveTree): the share of variants with strangler-fig roots twisting up the trunk from " +
                  "a splayed foot, paler than the bark.")]
         [Range(0f, 1f)] public float Strangler;
+        [Tooltip("How the bark cracks: furrowed ridges, deep plates (old pines and oaks, deeper on bigger trees), fine " +
+                 "checks over a fissured dark base (birch) or nearly smooth (beech).")]
+        public Punchy.Terrain.BarkKind BarkKind;
         [Tooltip("Bark veined with cool light that flows slowly up the trunk (weird biomes), instead of ember seams.")]
         public bool GlowingVeins;
         [Tooltip("Rock: banded strata by height, the same bands and colours as terrain surfaces with Strata (mesa cliffs), " +
