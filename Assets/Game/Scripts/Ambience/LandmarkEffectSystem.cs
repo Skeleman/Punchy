@@ -94,10 +94,10 @@ namespace Punchy.Ambience
         const int FineColumns = 32, FineRows = 48, CoarseColumns = 12, CoarseRows = 16;
 
         readonly List<Emitter> plumes = new List<Emitter>();
-        /// <summary>R-29 row 3: the steam and smoke among the plumes, drawn by the effects kit (PlumeSystem) instead of
-        /// here; handed over at the end of each gather.</summary>
+        /// <summary>R-29 rows 3-4: the steam, smoke and waterfall spray among the plumes, drawn by the effects kit
+        /// (PlumeSystem) instead of here; handed over at the end of each gather.</summary>
         readonly List<Punchy.Rendering.Effects.PlumeSystem.Plume> steam = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>(),
-            smoke = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>();
+            smoke = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>(), spray = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>();
         /// <summary>Every fall in range, and the one description each was built from (FallShape), in step.</summary>
         readonly List<Emitter> falls = new List<Emitter>();
         readonly List<FallShape> fallShapes = new List<FallShape>();
@@ -150,6 +150,7 @@ namespace Punchy.Ambience
             plumeBuffer = fallBuffer = null;
             Punchy.Rendering.Effects.PlumeSystem.Steam.Set(this, null);
             Punchy.Rendering.Effects.PlumeSystem.Smoke.Set(this, null);
+            Punchy.Rendering.Effects.PlumeSystem.Spray.Set(this, null);
             lastNearby.Clear();
             fineFalls.Clear();
             // (No curtains drawn: the water draws its falls' faces again.)
@@ -337,13 +338,13 @@ namespace Punchy.Ambience
                 AddFall(shape, new float4(0.6f, 0.72f, 0.76f, 0f), main ? 2.4f : 1.3f, main ? 3.4f : 1.9f, 0.85f, ref min, ref max);
             }
             var foot = t.Lip + out3 * reach - new float3(0f, t.Drop, 0f);
-            plumes.Add(new Emitter
+            Spray(new Emitter
             {
                 Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
                 Shape = new float4(main ? 6f : 2.5f, t.Width * (main ? 1.4f : 0.9f), main ? 2.2f : 1f, main ? 2.2f : 1.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
             });
             if (!t.Shelf) // the shelf falls straight into the lake: the foot spray is its pool
-            plumes.Add(new Emitter
+            Spray(new Emitter
             {
                 Position = new float3(t.Pool.x, t.Pool.y + 0.1f, t.Pool.z), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
                 Shape = new float4(0.3f, t.PoolRadius * 1.3f, main ? 2f : 1.2f, 2.4f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
@@ -352,18 +353,17 @@ namespace Punchy.Ambience
             if (main)
             {
                 // Mist: two big soft plumes rising from the pool, the higher one drifting up the face.
-                plumes.Add(new Emitter
+                Spray(new Emitter
                 {
                     Position = foot + out3 * 4f, Seed = math.frac(seed + 0.13f), Color = new float4(0.93f, 0.95f, 0.98f, 0f),
                     Shape = new float4(t.Drop * 0.35f, t.PoolRadius * 1.6f, 6f, 5f), Timing = new float4(0f, 0.25f, 0.35f, 24f)
                 });
-                plumes.Add(new Emitter
+                Spray(new Emitter
                 {
                     Position = foot + out3 * 10f, Seed = math.frac(seed + 0.47f), Color = new float4(0.93f, 0.95f, 0.98f, 0f),
                     Shape = new float4(t.Drop * 0.6f, t.PoolRadius * 2.2f, 9f, 7f), Timing = new float4(0f, 0.25f, 0.22f, 24f)
                 });
             }
-            maxParticles = math.max(maxParticles, 24);
             min = math.min(min, foot - t.PoolRadius - 6f);
             max = math.max(max, t.Lip + t.PoolRadius + 6f);
         }
@@ -394,12 +394,11 @@ namespace Punchy.Ambience
         /// <summary>White water thrown off a fall's lip (Z-35): a low plume just out from it, as wide as given.</summary>
         void LipSpray(float3 lip, float2 pour, float width, float seed, float scale, float opacity)
         {
-            plumes.Add(new Emitter
+            Spray(new Emitter
             {
                 Position = lip + new float3(pour.x, -0.3f, pour.y) * 0.8f, Seed = seed, Color = new float4(0.94f, 0.96f, 1f, 0f),
                 Shape = new float4(1.2f * scale, width, 1.1f * scale, 1.4f), Timing = new float4(0f, 0.25f, opacity, 24f)
             });
-            maxParticles = math.max(maxParticles, 24);
         }
 
         /// <summary>
@@ -536,6 +535,7 @@ namespace Punchy.Ambience
             plumes.Clear();
             steam.Clear();
             smoke.Clear();
+            spray.Clear();
             falls.Clear();
             fallShapes.Clear();
             WaterPatchSystem.Vents.Clear();
@@ -563,13 +563,13 @@ namespace Punchy.Ambience
                     var seed = math.frac((-i - RiverSprayBase + RiverFallBase) * 0.618f);
                     var shape = FallShape.River(source, rf, seed);
                     var (lip, drop, width, foot) = (shape.Lip, shape.Drop, shape.Width, shape.Foot);
-                    plumes.Add(new Emitter
+                    Spray(new Emitter
                     {
                         Position = foot, Seed = math.frac(seed + 0.31f), Color = new float4(0.95f, 0.97f, 1f, 0f),
                         Shape = new float4(math.clamp(1.5f + drop * 0.15f, 2f, 6f), width * 0.9f, 0.9f, 1.4f + math.min(drop * 0.03f, 0.8f)),
                         Timing = new float4(0f, 0.25f, 0.6f, 24f)
                     });
-                    plumes.Add(new Emitter
+                    Spray(new Emitter
                     {
                         Position = foot + new float3(0f, 0.1f, 0f), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
                         Shape = new float4(0.3f, width * 1.3f, 1.2f, 2.2f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
@@ -598,7 +598,7 @@ namespace Punchy.Ambience
                     var caveShape = FallShape.Cave(fall, math.frac(-i * 0.618f));
                     AddFall(caveShape, new float4(0.3f, 0.43f, 0.47f, 0f), 0.6f, 2f, 0.75f, ref min, ref max);
                     var landing = caveShape.Foot;
-                    plumes.Add(new Emitter
+                    Spray(new Emitter
                     {
                         Position = landing,
                         Seed = math.frac(-i * 0.511f),
@@ -607,7 +607,7 @@ namespace Punchy.Ambience
                         Timing = new float4(0f, 0.25f, 0.75f, 24f),
                         UnderRock = 1f
                     });
-                    plumes.Add(new Emitter
+                    Spray(new Emitter
                     {
                         Position = landing + new float3(0f, 0.05f, 0f),
                         Seed = math.frac(-i * 0.733f),
@@ -616,7 +616,7 @@ namespace Punchy.Ambience
                         Timing = new float4(0f, 0.25f, 0.55f, 24f),
                         UnderRock = 1f
                     });
-                    plumes.Add(new Emitter
+                    Spray(new Emitter
                     {
                         Position = landing,
                         Seed = math.frac(-i * 0.377f),
@@ -625,7 +625,6 @@ namespace Punchy.Ambience
                         Timing = new float4(0f, 0.25f, 0.16f, 20f),
                         UnderRock = 1f
                     });
-                    maxParticles = math.max(maxParticles, 24);
                     continue;
                 }
                 ref var inst = ref set.Instances[i];
@@ -698,7 +697,9 @@ namespace Punchy.Ambience
                             });
                         // R-29: steam and smoke go to the effects kit; glowing or coloured plumes stay here.
                         var family = effect.Kind == LandmarkEffectKind.Plume ? Punchy.Rendering.Effects.PlumeSystem.FamilyOf(effect.Color, effect.Glow) : null;
-                        if (family == Punchy.Rendering.Effects.PlumeSystem.Steam)
+                        if (family == Punchy.Rendering.Effects.PlumeSystem.Steam && FallType(types[inst.Type]))
+                            spray.Add(ToKit(emitter)); // a waterfall landmark's pale plume is the spray where it lands
+                        else if (family == Punchy.Rendering.Effects.PlumeSystem.Steam)
                             steam.Add(ToKit(emitter));
                         else if (family == Punchy.Rendering.Effects.PlumeSystem.Smoke)
                             smoke.Add(ToKit(emitter));
@@ -719,7 +720,20 @@ namespace Punchy.Ambience
             Upload(ref plumeBuffer, plumes, ref plumeProps);
             Punchy.Rendering.Effects.PlumeSystem.Steam.Set(this, steam);
             Punchy.Rendering.Effects.PlumeSystem.Smoke.Set(this, smoke);
+            Punchy.Rendering.Effects.PlumeSystem.Spray.Set(this, spray);
             return true;
+        }
+
+        /// <summary>R-29 row 4: one waterfall's spray (lip white water, landing churn, foam, mist), to the kit's spray family.</summary>
+        void Spray(in Emitter e) => spray.Add(ToKit(e));
+
+        /// <summary>Whether a landmark type pours a waterfall (its pale plumes are then spray, not steam).</summary>
+        static bool FallType(LandmarkType type)
+        {
+            foreach (var effect in type.Effects)
+                if (effect.Kind == LandmarkEffectKind.Waterfall)
+                    return true;
+            return false;
         }
 
         static Punchy.Rendering.Effects.PlumeSystem.Plume ToKit(in Emitter e) => new Punchy.Rendering.Effects.PlumeSystem.Plume
