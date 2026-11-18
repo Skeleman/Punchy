@@ -283,3 +283,7 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Cause: the Lab preview bakes vertex colours (no Flora.shader), and in game the 0.34 m cut courses fade on 8-11 m faces, so the castle read as plaster boxes. Fix in geometry: alternating proud quoins (0.7 m courses) on tower and gatehouse corners, scattered putlog holes on wall faces and gatehouse piers. Fine pieces: LOD0-1 only, no boxes. Hash-placed, no new RNG draws, so worn variants keep their layout.
 - LOD0 verts: tower 1704->2952, corner 1752->3552, gatehouse 2552->3656, wall 336->792 (ruined corner 7020->8436). LOD2 and boxes unchanged. BENCH-QUEUE: castle LOD0 cost after world placement.
 - Shots: PunchyMilestones/castle-stone/castle-{tower,wall,gatehouse}.png. UnitLibraryTests 14/14.
+
+## 11-18 W-166 stone courses (materials/stone-courses@3a01acae)
+- Cause: built-stone courses faded at 3-8 px per 0.34 m course on length(fwidth) footprints, so oblique or 30 m+ faces went flat, and 12 mm joints went sub-pixel. Fix in Materials/Stone.hlsl only: courses and tint fade at 1.5-4 px per course, sub-pixel joints draw a pixel wide at coverage darkness, joint lean keeps the old fade. Reaches Flora built stone, Colossus, Temple and Cave stone (include only, no cave file touched).
+- Shots (in-game ruin tower, T-1 -camlook): PunchyMilestones/stone-courses/tower-{10m,30m}-{before,after}.png. 10 m about the same, joints a touch firmer; 30 m head joints and courses now read on the shaded face. Shader-only, no tests touch it.
