@@ -26,7 +26,7 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 120 landmarks, probe hash 5B47CDAE since W-182 row 4 (two CastleGateRuins on their own spots).
+        /// <summary>Target: 120 landmarks, probe hash E811A278 since #301 (fall foot pools re-shape river ground). 5B47CDAE since W-182 row 4 (two CastleGateRuins on their own spots).
         /// 5A21F052 since W-182 row 3 (four CastleRuins on their own spots in Temperate,
         /// Grassland and Tundra; the other 114 unmoved). DE33C724 since the W-153 row 3 tail (fall lip shoulders: the swamp
         /// campsite near -1626,33 settles 0.2 m; the other 113 unmoved). 9113464F since W-153 rework row 3 (fall profiles and 138
@@ -50,7 +50,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("120 5B47CDAE", hash);
+            Assert.AreEqual("120 E811A278", hash);
             yield return null;
         }
 
@@ -109,6 +109,16 @@ namespace Punchy.Tests
                 if (counts[k] > WaterTruthBaseline[k])
                     over.Add($"{WaterTruthKinds[k]} {counts[k]} > {WaterTruthBaseline[k]}");
             Assert.IsEmpty(over, $"more water defects than the baseline: {string.Join(", ", over)}");
+            yield return null;
+        }
+
+        /// <summary>#301: every river fall lands in water across its whole foot, a metre past each side of its sheet.</summary>
+        [UnityTest, Order(3)]
+        public IEnumerator Water_NoDryFallFeet()
+        {
+            var dry = Game.Hook<int>("DryFallFeet");
+            LogWatch.Measure($"dry fall feet: {dry}");
+            Assert.AreEqual(0, dry, "falls landing on ground instead of their plunge pool");
             yield return null;
         }
 

@@ -324,6 +324,8 @@ namespace Punchy.Debugging
         /// <summary>W-153: how many places the water breaks each rule of WaterTruth (one count per kind, in WaterTruth.Names order).</summary>
         public static int[] WaterTruthCounts() => Source(out var s) ? WaterTruth.Measure(s).Counts : new int[WaterTruth.Kinds];
 
+        public static int DryFallFeet() => Source(out var s) ? WaterTruth.DryFallFeet(s) : -1;
+
         /// <summary>W-153 row 6: counts in WaterTruth.Sheet order.</summary>
         public static int[] WaterSheet(float x, float z, int radius)
         {

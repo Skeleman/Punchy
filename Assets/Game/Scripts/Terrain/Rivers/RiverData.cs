@@ -173,6 +173,7 @@ namespace Punchy.Terrain
         public float Water;      // water surface of the same profiles, blended the same way
         public float FallWater;  // upper water of a fall whose channel covers this point above its lip line (else MinValue)
         public float ShoulderLevel, ShoulderWeight; // rock a fall's lip rises to beside its sheet, and how much (W-153)
+        public float PoolFloor, PoolWeight, PoolWater; // #301: floor and water of a fall's foot pool here, and how much it holds the carve down
         public float2 Flow;      // downstream direction at the closest point
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
         public float Cut;        // #301 row 2: height of the cut bank face here (outer side of a bend, else 0)
@@ -302,6 +303,10 @@ namespace Punchy.Terrain
                 if (q.Bar * bank.Cut > 0f)
                     q.Carve = PointBar(q.Carve, q.Distance - q.Width * 0.5f, q.Water, q.Bar * bank.Cut);
             }
+            // After the blend so neighbours can't lift the pool's edges dry; only under its own water, not a higher river's.
+            if (q.PoolWeight > 0f && q.FallWater == float.MinValue)
+                q.Carve = math.lerp(q.Carve, math.min(q.Carve, q.PoolFloor),
+                    q.PoolWeight * (1f - math.smoothstep(0.3f, 1f, q.Water - q.PoolWater)));
             // Above a waterfall's lip the pool below carves its wide bowl back up under the upper river (cells are
             // narrower than the channel), so the lower water would win there and leave land between the two surfaces.
             // The upper surface runs on to the lip instead, and the curtain falls from there (W-22).
@@ -345,6 +350,7 @@ namespace Punchy.Terrain
         /// <summary>How far past a fall's lip line its upper water still reaches (m): the lip holds the upper water.</summary>
         public const float LipHold = 0.9f;
         public const float FootPoolDepth = 0.2f;  // a fall's foot pool sinks this share of its drop (at most 2.5 m)
+        public const float FootPoolMargin = 4f;   // and reaches this far past the channel's edge
 
         /// <summary>
         /// W-153 row 2: the carve and water of the nearby profiles, weighted by how close each one's edge is (the
@@ -441,8 +447,7 @@ namespace Punchy.Terrain
             // Inside its channel above the lip the fall owns the water outright (a river doubling back beside its own
             // fall would otherwise blend its lower water in across the bank).
             // Below the lip line the bed sinks into a foot pool, deeper than the channel for about a channel width, so
-            // the curtain lands in a plunge pool rather than on a dry step. It keeps the channel's own width: a wider
-            // basin spilled the lower water out against the banks beside the lip.
+            // the curtain lands in a plunge pool rather than on a dry step; #301: its floor reaches past the banks the sheet's sides land on.
             if (fall && s.Smooth && down >= 0)
             {
                 var lip = CurveMid(ref map, start, out var lipFlow);
@@ -474,7 +479,18 @@ namespace Punchy.Terrain
                     var drop = math.max(profile.BedA - profile.BedB, 0f);
                     var sink = math.smoothstep(LipHold, LipHold + 2f, past)
                              * (1f - math.smoothstep(LipHold + width * 0.6f, LipHold + width * 1.2f, past));
-                    carve = Profile(distance, level, width, Depth(baseWidth, s) + math.min(drop * FootPoolDepth, 2.5f) * sink, bank);
+                    var pit = math.min(drop * FootPoolDepth, 2.5f);
+                    carve = Profile(distance, level, width, Depth(baseWidth, s) + pit * sink, bank);
+                    var rim = math.max(width, baseWidth) * 0.5f + FootPoolMargin;
+                    var pool = profile.WaterB - (Depth(baseWidth, s) * 0.75f + pit) * (1f - math.smoothstep(rim - 2.5f, rim, distance))
+                             + math.max(distance - rim, 0f) * bank.Slope;
+                    carve = math.lerp(carve, math.min(carve, pool), sink);
+                    if (sink > q.PoolWeight)
+                    {
+                        q.PoolWeight = sink;
+                        q.PoolFloor = pool;
+                        q.PoolWater = profile.WaterB;
+                    }
                 }
             }
             var isle = 0f;
