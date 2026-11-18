@@ -315,3 +315,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #630 W-142 (#262): leaves and petals float down wooded rivers, circle in eddies; riverside trees drop the odd leaf.
 - #631 W-166 (#336): river beds get gravel/sand patches in the shallows and dark silt in pools.
 - #632 #301 row 4: fallen logs bridge narrow streams; small gravel islands with reeds on wide slow reaches.
+- #633 #301: every river fall lands in a carved plunge pool (dry fall feet 120 -> 0); landmarks 120 E811A278 (lone inn moves 6 m, new cave entrance near -2239,-428).

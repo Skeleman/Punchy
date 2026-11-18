@@ -8789,3 +8789,6 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - New WaterTruth.DryFallFeet and WorldTests Water_NoDryFallFeet (target 0): main has 120 of 141 dry, this branch has 0. Truth counts go 83,0,0,0,0,19,1,49,14,17,104 -> 83,0,0,0,0,19,1,48,14,17,122: step +17 is pool water meeting the upper water beside each lip, still inside the 170 baseline.
 - Landmarks re-pinned 5B47CDAE -> 120 E811A278: a burnt campfire drops, the lone inn moves 6 m, the swamp campsite settles 0.2 m, and there is a new cave entrance near -2239,-428. That cave's mouth had a 0.85 ledge (rock too thin under the valley behind its ridge), so CaveBaking now sinks a mouth's entrance floor when even MaxGrade can't get under; caves now have 0 ledges and steepest grade 0.60.
 - WorldTests 21/22. The only fail is uphillGraph 19 > 10, which is on main too and fixed by b/fix-uphill-graph. Shots: PunchyMilestones/world/fall-pools/before|after (fall3 viewed: the sheet lands in water across its full width).
+
+## 11-18 #301 fall-pools rebased: world/fall-pools@0f04bb4d on main with #632
+- WorldTests 22/22. Pin unchanged at 120 E811A278, dry fall feet 0, caves 0 pits / 0 ledges. Truth 83,0,0,0,0,0,0,46,1,17,134,0,0. Rule 35 comment trims done. Next: fall-notch + #269 on world/fall-notch.
