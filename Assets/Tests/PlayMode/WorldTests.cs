@@ -378,6 +378,17 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>#301: each probed cave-mouth patch (three mouths, one on a chunk edge, one steep) shares the
+        /// terrain's rim vertices exactly at LOD0 and LOD1, with no hole, no gap and no flipped triangle.</summary>
+        [UnityTest, Order(90), Timeout(600000)]
+        public IEnumerator MouthPatch_ExactRims()
+        {
+            var problems = Game.Hook<string>("MouthPatchProblems");
+            LogWatch.Measure($"mouth patch: {Game.HookField<string>("MouthPatchTrail")}; {(problems == "" ? "exact rims" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
         /// <summary>W-175 #415: every species carrying a saved blueprint (Model Lab JSON) reads its parts at runtime and
         /// stands in at least one settlement that lists it.</summary>
         [UnityTest, Order(90)]

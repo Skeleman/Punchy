@@ -863,7 +863,7 @@ namespace Punchy.Terrain
         /// </summary>
         public float2 Seam(float2 grid, float h, float step, int lod, out float cave, out float strip, out float stripY)
         {
-            var cutHoles = false;   // W-174 r6 row 2: cave mouths are split on their rim by Collars, not snapped to
+            var cutHoles = false;   // #301: cave mouths are patched (MouthPatch), not cut
             cave = SeamCut(grid, h, step, cutHoles, lod, out strip, out stripY);
             if (!(cave > 0f && cave < 1.3f * step) || !SeamSnap(grid, cave, step, cutHoles, lod, out var rim))
                 return grid;

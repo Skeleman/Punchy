@@ -65,7 +65,7 @@ namespace Punchy.Terrain
             }
         }
 
-        class Built
+        partial class Built
         {
             public Mesh Mesh;
             public JobHandle Job;
@@ -137,6 +137,7 @@ namespace Punchy.Terrain
                 if (Rock.IsCreated) Rock.Dispose();
                 if (Indices.IsCreated) Indices.Dispose();
                 if (Mesh != null) Destroy(Mesh);
+                DisposePatch(true);
             }
         }
 
@@ -1714,7 +1715,9 @@ namespace Punchy.Terrain
                 if (b.Opens)
                     b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
                 b.OpeningSeen = false;
+                FinishPatch(b);
             }
+            b.DisposePatch(false);
             b.Field.Dispose();
             b.CaveField.Dispose();
             b.Surface.Dispose();
@@ -1951,8 +1954,9 @@ namespace Punchy.Terrain
             };
             // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
             var gridStep = configQuery.IsEmpty ? 0f : configQuery.GetSingleton<TerrainConfig>().ChunkSize / configQuery.GetSingleton<TerrainConfig>().Lod0Quads;
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
-                .Schedule(points.x * points.z, 64);
+            var patchJob = StartPatch(source, key, b, gridStep);
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale,
+                Patch = b.Patch, PatchMin = PatchMin(key) }.Schedule(points.x * points.z, 64, patchJob);
             var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = voxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
             b.Job = new MeshJob
@@ -1962,6 +1966,7 @@ namespace Punchy.Terrain
                 Surface = b.Surface, SurfaceScale = b.SurfaceScale, GridStep = gridStep,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Rock = b.Rock, Indices = b.Indices,
                 Opening = b.Opening, Gap = b.Gap, Contacts = b.Contacts,
+                Patch = b.Patch, PatchMin = PatchMin(key), PatchVerts = b.PatchVerts, PatchIndices = b.PatchIndices, PatchFlips = b.PatchFlips,
                 ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
@@ -1983,13 +1988,16 @@ namespace Punchy.Terrain
             /// between its corners, so the skin round a mouth stays under the drawn ground. 0: the exact height.</summary>
             public float GridStep;
             [WriteOnly] public NativeArray<float> Surface, SurfaceScale;
+            [ReadOnly] public NativeArray<bool> Patch;
+            public int2 PatchMin;
 
             public void Execute(int i)
             {
                 var xz = (float2)(Origin.xz + new int2(i % Points.x, i / Points.x)) * Voxel;
                 var h = GridStep > 0f ? Source.MeshHeight(xz, GridStep) : Source.SampleHeight(xz);
-                Surface[i] = h;
-                SurfaceScale[i] = Source.AcrossSlope(xz);
+                var scale = Source.AcrossSlope(xz);
+                Surface[i] = PatchSurface(Source, xz, h, scale, Patch, PatchMin);
+                SurfaceScale[i] = scale;
             }
         }
 
@@ -2062,8 +2070,7 @@ namespace Punchy.Terrain
             public int3 Cells;
             public float Voxel;
             [ReadOnly] public NativeArray<float> Field, CaveField;
-            /// <summary>W-174 row 3: the columns' drawn surface and slope (ColumnJob), and the near grid's step (0: no
-            /// clip to the mouth ring).</summary>
+            /// <summary>W-174 row 3: the columns' drawn surface and slope (ColumnJob), and the near grid's step (0: no patch).</summary>
             [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
             public float GridStep;
             public NativeList<float3> Positions, Normals;
@@ -2105,50 +2112,6 @@ namespace Punchy.Terrain
                 return shade;
             }
 
-            /// <summary>How far (m of the terrain's mouth cut) outside a mouth's rim the walls are still clipped to its ring.</summary>
-            const float RingReach = 0.5f;
-            /// <summary>Walls facing up more than this (the floor running out of a mouth) are never clipped: the floor
-            /// covers the collar's foot there, and dropping it uncovered slivers of buried ground.</summary>
-            const float RingFloorUp = 0.6f;
-            /// <summary>The farthest (m, across) a dropped vertex is moved onto the collars' foot: half a voxel, so its
-            /// triangles never fold over (a longer move flipped one at c6).</summary>
-            const float RingSnap = 0.25f;
-
-            /// <summary>
-            /// W-174 row 3: a wall vertex inside a mouth's cut (or within RingReach of its rim) and above the mouth ring
-            /// (CaveSampling.MouthRing, the sheet the terrain collars' feet stand on) is dropped onto the ring, so the walls
-            /// end where the collars end instead of doubling them up to the ground. Under kept ground the skin is left
-            /// alone, and so is the floor (RingFloorUp). The cell's corner columns rule out most vertices before the drawn
-            /// height is read. A dropped vertex lands on the collars' own foot (BuildChunkMeshJob.MouthFoot under it) and takes
-            /// the foot's normal, so wall and collar share the rim line and its shading (#365: without, the wall's edge sat
-            /// up to ~0.2 m off the foot line, with a crease along it).
-            /// </summary>
-            float3 OntoRing(float3 p, ref float3 normal, int x, int z)
-            {
-                if (GridStep <= 0f || normal.y > RingFloorUp || !CaveSampling.NearColumn(ref Source.Caves.Value, p.xz))
-                    return p;
-                var columns = Cells.x + 1;
-                var low = float.MaxValue;
-                for (int c = 0; c < 4; c++)
-                {
-                    var i = (z + (c >> 1)) * columns + x + (c & 1);
-                    low = math.min(low, CaveSampling.MouthRing(Surface[i], SurfaceScale[i]));
-                }
-                if (p.y < low - Voxel)
-                    return p;
-                var ring = CaveSampling.MouthRing(Source.MeshHeight(p.xz, GridStep), Source.AcrossSlope(p.xz));
-                if (p.y <= ring || BuildChunkMeshJob.MouthCutAt(Source, p.xz, GridStep) > RingReach)
-                    return p;
-                p.y = ring;
-                if (BuildChunkMeshJob.MouthFoot(Source, p.xz, GridStep, out var foot, out var footNormal)
-                    && math.distancesq(foot.xz, p.xz) <= RingSnap * RingSnap)
-                {
-                    p = foot;
-                    normal = footNormal;
-                }
-                return p;
-            }
-
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
             int Cell(int x, int y, int z) => (z * Cells.y + y) * Cells.x + x;
 
@@ -2163,6 +2126,8 @@ namespace Punchy.Terrain
                     cellVertex[i] = -1;
                 // Which vertices lie in the outermost cells the quads use (0 and Cells - 2 on any axis): the chunk's edge.
                 var edge = new NativeList<bool>(Allocator.Temp);
+                var columns = new NativeHashMap<int2, int>(64, Allocator.Temp);
+                var raw = new NativeHashMap<int, float3>(64, Allocator.Temp);
                 Opening[0] = new float3(float.MaxValue);
                 Opening[1] = new float3(float.MinValue);
 
@@ -2180,7 +2145,7 @@ namespace Punchy.Terrain
                         if (Field[i] < 0f) rock++;
                         nearCave |= CaveField[i] < WallReach;
                     }
-                    if (rock == 0 || rock == 8 || !nearCave)
+                    if (rock == 0 || rock == 8 || !nearCave && !PatchColumn(x, z))
                         continue;
 
                     var sum = float3.zero;
@@ -2204,8 +2169,10 @@ namespace Punchy.Terrain
                     // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
                     p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
                     var normal = Gradient(p);
-                    p = OntoRing(p, ref normal, x, z);
-                    cellVertex[Cell(x, y, z)] = Positions.Length;
+                    var shared = Snap(ref p, ref normal, x, y, z, columns, raw);
+                    cellVertex[Cell(x, y, z)] = shared >= 0 ? shared : Positions.Length;
+                    if (shared >= 0)
+                        continue;
                     edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
                     Normals.Add(normal);
@@ -2242,6 +2209,9 @@ namespace Punchy.Terrain
                         Quad(cellVertex, Cell(x - 1, y - 1, z), Cell(x, y - 1, z), Cell(x, y, z), Cell(x - 1, y, z), a);
                 }
                 cellVertex.Dispose();
+                SplitPatch(raw, edge);
+                columns.Dispose();
+                raw.Dispose();
                 if (Skirt > 0f)
                     Skirts(edge);
                 edge.Dispose();
@@ -2291,23 +2261,6 @@ namespace Punchy.Terrain
                     Rock.Add(Rock[v]);
                 }
                 return skirtOf[v];
-            }
-
-            void Quad(NativeArray<int> cellVertex, int c0, int c1, int c2, int c3, bool flip)
-            {
-                int v0 = cellVertex[c0], v1 = cellVertex[c1], v2 = cellVertex[c2], v3 = cellVertex[c3];
-                if (v0 < 0 || v1 < 0 || v2 < 0 || v3 < 0)
-                    return;
-                if (flip)
-                {
-                    Indices.Add(v0); Indices.Add(v2); Indices.Add(v1);
-                    Indices.Add(v0); Indices.Add(v3); Indices.Add(v2);
-                }
-                else
-                {
-                    Indices.Add(v0); Indices.Add(v1); Indices.Add(v2);
-                    Indices.Add(v0); Indices.Add(v2); Indices.Add(v3);
-                }
             }
 
             float RockAt(float3 p) => math.max(p.y - Source.SampleHeight(p.xz) + CaveSampling.SkinGap, -CaveSampling.Distance(ref Source.Caves.Value, p, out _));
@@ -2504,6 +2457,7 @@ namespace Punchy.Terrain
                 GeometryUtility.CalculateFrustumPlanes(cam, revealPlanes);
             foreach (var b in chunks.Values)
             {
+                DrawPatch(b);
                 if (b.Mesh == null)
                     continue;
                 if (CountStats)
