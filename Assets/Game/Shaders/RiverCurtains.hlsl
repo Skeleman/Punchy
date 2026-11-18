@@ -59,8 +59,8 @@ float PunchyFallLipShift(float4 foot, float acrossSigned, float halfWidth)
     return foot.x * side * 0.5 - foot.y * side * side;
 }
 
-// Whether a point of the water is on a river fall's face, below its lip and above its pool, inside the fall's box
-// (widened all round by side metres: steep water past a fall's ends steps between its levels in flat pale panes).
+// Whether a point of the water is on a river fall's face, below its lip and above its pool, inside the fall's box.
+// Widened on steep water: past a fall's ends it steps between levels in flat pale panes.
 bool PunchyWaterUnderCurtain(float3 p, float side)
 {
     if (_PunchyRiverCurtainCount < 0.5 || any(p.xz < _PunchyRiverCurtainRect.xy) || any(p.xz > _PunchyRiverCurtainRect.zw))
@@ -84,7 +84,6 @@ bool PunchyWaterUnderCurtain(float3 p, float side)
     return false;
 }
 
-// Up to 8 m where the water's face is steep (fragment stages only).
 float PunchyFallSide(float3 positionWS)
 {
     float3 face = normalize(cross(ddy(positionWS), ddx(positionWS)));
