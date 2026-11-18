@@ -271,3 +271,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #585 W-161 (#326, closed): elf towns in stone, with no wood signs, fences, bridges, doors or shingles; flora metal no longer renders white-hot (all metal props).
 - #586 R-26 row 3 (#304): cave wall detail at mouths matches the ground grain in every style; no far-from-origin blur on mouth ground.
 - #587 tooling: ShotTool no longer sticks in Waiting when play stops mid-shot (no leaked runners).
+- #588 cave veins: plain stone caves show a few faint rock-tinted seams instead of white netting; ore, crystal and ice caves keep bright veins.
