@@ -65,15 +65,15 @@ namespace Punchy.Flora
         /// Timber (Z-30): while set, bark is marked as wood (Bark + 0.02) and carries its grain's direction, the object
         /// axis nearest the length of the piece being built (each primitive sets it: GrainAlong), in its vertex colour's
         /// alpha (0.25 X, 0.5 Y, 0.75 Z), for the flora shader's grain. Builders set it round planks, posts and beams.
-        /// Shorthand for Family == Punchy.Terrain.MaterialFamily.Wood (W-166): clearing it returns to the builder's BaseFamily.
+        /// Setting it gives Family the builder's TimberFamily; clearing it returns to the builder's BaseFamily.
         /// </summary>
         public bool Wood
         {
             get => Family == Punchy.Terrain.MaterialFamily.Wood;
             set
             {
-                if (value) Family = Punchy.Terrain.MaterialFamily.Wood;
-                else if (Family == Punchy.Terrain.MaterialFamily.Wood) Family = BaseFamily == Punchy.Terrain.MaterialFamily.Wood ? Punchy.Terrain.MaterialFamily.None : BaseFamily;
+                if (value) Family = TimberFamily;
+                else if (Family == TimberFamily) Family = BaseFamily == Punchy.Terrain.MaterialFamily.Wood ? Punchy.Terrain.MaterialFamily.None : BaseFamily;
             }
         }
         /// <summary>
@@ -83,6 +83,8 @@ namespace Punchy.Flora
         public Punchy.Terrain.MaterialFamily Family;
         /// <summary>The family a built form's untagged bark is (FloraGenerator.FormFamily): Family returns to it on Clear.</summary>
         public Punchy.Terrain.MaterialFamily BaseFamily;
+        /// <summary>What a builder's timber is made of (FloraGenerator.Timber): Wood, except an elf's stone (W-161).</summary>
+        public Punchy.Terrain.MaterialFamily TimberFamily = Punchy.Terrain.MaterialFamily.Wood;
         /// <summary>
         /// W-166: the kind of wood (MaterialLibrary.Wood) the wood built next is: it rides on the wood mark as
         /// Bark + 0.015 + kind * 0.0025, which the flora shader decodes to pick the kind's grain and tone.
