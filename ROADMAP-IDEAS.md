@@ -28,7 +28,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Shadows (#286 closed; bias #354 closed 11-15: no visible difference, stays 0.1/0.5).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
   R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36), smooth cloud shadow reads (R-20 row 4, PR #410).
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
-  R-33), wet stone (#332, R-34, shipped PR #427), clouds from a reference shader (#333, R-35).** Next, render lane.
+  R-33, shipped PR #579), wet stone (#332, R-34, shipped PR #427), clouds from a reference shader (#333, R-35).** Next, render lane.
 - **Sun moves smoothly (R-38, 11-15).** Sun position every 0.1 s as a trial. Shipped (R-38, PRs #409, #423).
 - **Caves.** Shipped: screen-size cave LOD, cave water, dungeon texturing and collision. Shipped: no paddy spikes on slopes (W-172 row 1, PR #384). Shipped: playtest
   fixes and tunnel variety (W-172 rows 2-6, PR #451). Shipped: cave walls that fit the place (W-172 row 7, PR #507; brighter fungi caps shipped #521; next: volcanic cave details; moss only near light or damp,

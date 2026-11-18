@@ -262,3 +262,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #576 W-163 row 2 (#330): strangler-fig roots wrap swamp (Bogwood) trunks; braided roots on natural cave walls.
 - 11-17 #577 W-174 (#365): cave-mouth collar meets the wall more tightly (rim gap about halved); no faceted plate.
 - #578 W-163 row 3 (#330, closed): bark by species: plates on oak and pine, checks on birch, smooth beech, furrows elsewhere.
+- #579 R-33 (#331, closed): cracked salt crust on salt flats, plates and raised crack edges up close.
