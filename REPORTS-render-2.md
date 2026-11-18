@@ -418,3 +418,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Look 3 (crust rafts on open melt) is now the only lava melt (LavaMelt in Water.shader). Looks 1-2, the old vein melt, `_PunchyLavaLook`, LavaVein and LavaStir are removed. Shimmer, grit and the HDR heat glow are kept, faded by screen size.
 - R-25: the surface lava light (SurfaceGlow LavaLight, near splat and far cores) and the cave pool light now use the redder melt hue (1 : 0.27 : 0.025).
 - The world has no lava flows or seeps (a 25 m scan found only the VolcanoCone crater), so the crater is the only spot. Sheet: PunchyMilestones/W-154/row2/sheet.jpg (5 m and 25 m, noon and night, plus a far night view; viewed).
+
+## #262 row 1 ambient bits (11-18) - render/ambient-bits 0738ab59
+- Leaves fall from tall broadleaf crowns (55% of trees 8 m+, warm autumn tints by hash so they show against the canopy); fade by screen size, so they read at 5 m and are gone by 25 m. Caves have no canopy foliage, so there are no cave leaves.
+- Vent wisps: steam round geothermal landmarks (fumarole field), sparse pale smoke in vents-tagged biomes (Ashlands, Volcano); a quarter are intermittent. Hash per 12 m cell, no landmark or fingerprint change.
+- Shots: D:/Unity/PunchyMilestones/262/sheet.jpg (forest, steam, smoke; 5 m and 25 m; before/after). Merges origin/main (de1a60f8). BENCH line updated.
