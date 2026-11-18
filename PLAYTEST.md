@@ -253,3 +253,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #567 (W-166 row 2b, #336): a scarp's stone sets its gully spacing and chimneys, so granite canyon walls get deep blocky chimneys.
 - 11-17 #568 (W-153 r3, #301): no more floating water slab beside waterfall lips, and the curtain's sawtooth edges are now soft and uneven.
 - 11-17 #569 (W-166, #336): lantern caps, braziers, brackets, sign chains and barrel hoops are dark wrought iron instead of painted trim.
+- 11-17 #570 (R-29 row 4a, #320): every waterfall's spray mist uses one shared spray effect. Same look.
