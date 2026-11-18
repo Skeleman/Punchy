@@ -3,6 +3,7 @@
 Every unlanded branch on origin, checked with merge-tree against origin/main on 11-15. Only chemistry-* is left out (Zach: not this project). The first pass covered 36 branches and missed the 11-13 to 11-15 ones.
 
 ## Merged 11-15 (catch-up)
+- render/lava -> #601 (W-154 row 2, 11-18)
 far-towns #373, lamplighter #374, notice-board-life #362, fire-heat #375, door-sound #376, scarps #377, level-gardens #378,
 cave-entry #379, no-water-discs #380, puddle-edges #381, swell-noise #382, cliff-kit #386,
 individual-builds #387, style-parity #388, folk-pets #389, folk/playtest-1114 #390, spawn-wait-fix #391, cloth-legs #394,
