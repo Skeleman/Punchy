@@ -56,7 +56,6 @@ Shader "Punchy/Flora"
             /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
             float _PunchyFloraDetailOff;
-            // Screen pixels per metre at 1 m (TerrainStreamingSystem, from DetailPolicy); fades go by screen size (rule 20).
             float _PunchyTerrainDetailPpm;
 
             // A-115: the nearest town street lights a lamplighter hasn't lit yet (or has put out): xyz the light, w how

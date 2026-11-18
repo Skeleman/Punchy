@@ -171,7 +171,9 @@ float PunchyStoneRubble(float2 uv, float seed, out float2 toMiddle, out float2 c
 /// the doming); rubble picks the packed look over the cut courses; r is the piece's own random (0..1).
 half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, half r)
 {
-    half fade = PunchyStoneFade(rubble ? 0.22 : 0.34, footprint);
+    half period = rubble ? 0.22 : 0.34;
+    half fade = smoothstep(1.5, 4, period / max(footprint, 1e-5));
+    half fine = PunchyStoneFade(period, footprint);
     if (fade <= 0)
         return 1;
     float seed = r * 53;
@@ -179,6 +181,9 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
     float3 t, bt;
     PunchyStoneFrame(p + r * 41, n, uv, t, bt);
     half mortar = rubble ? 0.011 : 0.006;   // half a joint's width (m)
+    // Joints thinner than a pixel draw a pixel wide, as dark as the share of it they cover.
+    half drawn = max(mortar, footprint * 0.3);
+    half cover = sqrt(mortar / drawn);
     half joint, h;
     float edge;
     half2 lean;
@@ -186,7 +191,7 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
     {
         float2 toMiddle, cell;
         edge = PunchyStoneRubble(uv, seed, toMiddle, cell);
-        joint = 1 - smoothstep(mortar - footprint * 0.5, mortar + footprint * 0.5, edge);
+        joint = 1 - smoothstep(drawn - footprint * 0.5, drawn + footprint * 0.5, edge);
         h = PunchyStoneHash(cell + seed + 5.3);
         // Domed: the face leans away from each stone's middle, most near its edge.
         lean = -toMiddle / 0.17 * 0.5 * (1 - joint);
@@ -196,14 +201,14 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
         float2 side, cell;
         float2 d = PunchyStoneCourse(uv, seed, side, cell);
         edge = min(d.x, d.y);
-        joint = 1 - smoothstep(mortar - footprint * 0.5, mortar + footprint * 0.5, edge);
+        joint = 1 - smoothstep(drawn - footprint * 0.5, drawn + footprint * 0.5, edge);
         h = PunchyStoneHash(cell + seed + 5.3);
         // The softened arrises lean their light into the joints; each block's face pitched a touch its own way.
         lean = (1 - smoothstep(mortar, mortar + 0.025, d)) * step(mortar, d) * side * 0.45
              + (float2(h, PunchyStoneHash(cell + seed + 9.1)) - 0.5) * 0.08;
     }
-    joint *= fade;
-    lean *= fade;
+    joint *= fade * cover;
+    lean *= fine;
     n = normalize(n + t * lean.x + bt * lean.y);
     // Each stone its own shade (rubble more, gathered from many beds), a little warmer or cooler.
     half3 tint = rubble ? lerp(half3(0.72, 0.74, 0.79), half3(1.2, 1.16, 1.08), h) : lerp(half3(0.84, 0.85, 0.88), half3(1.12, 1.1, 1.05), h);

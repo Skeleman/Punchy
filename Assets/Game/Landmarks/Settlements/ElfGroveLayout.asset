@@ -102,7 +102,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 8b3d682c89ea4b3eba7de6d6165e262c, type: 2}
+    Species: {fileID: 11400000, guid: ab850296e97e4e458f458cb88ff291f8, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -110,7 +110,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 8b3d682c89ea4b3eba7de6d6165e262c, type: 2}
+    Species: {fileID: 11400000, guid: ab850296e97e4e458f458cb88ff291f8, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -118,7 +118,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 176d60675112466c9cadf46ed199e1aa, type: 2}
+    Species: {fileID: 11400000, guid: 9ac6e5a5fb304004b621535f0e56b42d, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -127,7 +127,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 176d60675112466c9cadf46ed199e1aa, type: 2}
+    Species: {fileID: 11400000, guid: 9ac6e5a5fb304004b621535f0e56b42d, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -136,21 +136,21 @@ MonoBehaviour:
     - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: f17cf23e30eb41419d78e68a143fcc1b, type: 2}
+    Species: {fileID: 11400000, guid: e94e822820944511aba7a4ae92513497, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
     - {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: f17cf23e30eb41419d78e68a143fcc1b, type: 2}
+    Species: {fileID: 11400000, guid: e94e822820944511aba7a4ae92513497, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
     - {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 14da0fe2e8e54b1fbe38b7f196fc16d7, type: 2}
+    Species: {fileID: 11400000, guid: fbd70697117d4606913d6fdf80128dcf, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -159,7 +159,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 14da0fe2e8e54b1fbe38b7f196fc16d7, type: 2}
+    Species: {fileID: 11400000, guid: fbd70697117d4606913d6fdf80128dcf, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:

@@ -78,6 +78,37 @@ namespace Punchy.Debugging
         static ShotTool runner;
         Camera lateRender;
 
+        // Play mode starts without a domain reload and the hidden runner outlives it, so a shot cut off by stopping play
+        // stayed Waiting for good and every session leaked a runner.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetOnPlay()
+        {
+            if (Busy)
+                Abort("play restarted");
+            runner = null;
+            foreach (var stale in Resources.FindObjectsOfTypeAll<ShotTool>())
+                Destroy(stale.gameObject);
+        }
+
+        void OnApplicationQuit()
+        {
+            if (runner != this)
+                return;
+            runner = null;
+            if (Busy)
+                Abort("play stopped");
+            Destroy(gameObject);
+        }
+
+        static void Abort(string why)
+        {
+            LastLog = $"[shot] FAIL '{System.IO.Path.GetFileNameWithoutExtension(LastPath)}' {why} mid-shot";
+            Debug.LogWarning(LastLog);
+            TargetCheck = null;
+            Retry = null;
+            Status = State.Failed;
+        }
+
         // Batch mode only: render the shot's camera after every other LateUpdate this frame (see the order attribute).
         void LateUpdate()
         {

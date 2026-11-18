@@ -48,5 +48,21 @@ namespace Punchy.Flora
             for (int i = 0; i < buildings.Count; i++)
                 keeps[i] = (byte)(KeepsOwnSpecies(buildings[i].Species) ? 1 : 0);
         }
+
+        // W-165 row 4: a sea village's bed or drying rack needs dry ground that falls at most 1.5 m across it.
+        static bool WetPlot(in TerrainSource source, float2 spot, float reach)
+        {
+            float low = float.MaxValue, high = float.MinValue;
+            for (int k = 0; k < 5; k++)
+            {
+                var p = spot + (k == 0 ? float2.zero : new float2(k == 1 ? reach : k == 2 ? -reach : 0f, k == 3 ? reach : k == 4 ? -reach : 0f));
+                var ground = source.SampleGround(p);
+                if (ground.HasWater && ground.WaterSurface > ground.Height - 0.2f || ground.Height < source.World.SeaLevel + 0.5f)
+                    return true;
+                low = math.min(low, ground.Height);
+                high = math.max(high, ground.Height);
+            }
+            return high - low > 1.5f;
+        }
     }
 }

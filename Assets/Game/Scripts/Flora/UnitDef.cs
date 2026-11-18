@@ -127,6 +127,8 @@ namespace Punchy.Flora
         /// (or the unit's own Size, or this unit's frame), its origin at At, turned and mirrored with the part.
         /// </summary>
         public string Unit;
+        /// <summary>W-182: how old the stone is, for the castle parts (0 new; moss from 0.3; missing merlons, breaches and rubble toward 1).</summary>
+        public float Wear;
     }
 
     /// <summary>A unit variant's frame: its width, height and depth in metres, which UnitPart's shares are of.</summary>

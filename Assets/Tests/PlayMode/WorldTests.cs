@@ -69,7 +69,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 9EA6387D", line);   // W-161 on rice: elf copies of the signpost, bridge, garden, hitch rail and stable
+            StringAssert.Contains("fingerprint 525F72BB", line);   // W-161 row 2: elf shelter houses
             yield return null;
         }
 
@@ -374,6 +374,17 @@ namespace Punchy.Tests
         {
             var problems = Game.Hook<string>("SeamProblems");
             LogWatch.Measure($"seams: {Game.HookField<string>("SeamTrail")}; {(problems == "" ? "no open seams" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>#301: each probed cave-mouth patch (three mouths, one on a chunk edge, one steep) shares the
+        /// terrain's rim vertices exactly at LOD0 and LOD1, with no hole, no gap and no flipped triangle.</summary>
+        [UnityTest, Order(90), Timeout(600000)]
+        public IEnumerator MouthPatch_ExactRims()
+        {
+            var problems = Game.Hook<string>("MouthPatchProblems");
+            LogWatch.Measure($"mouth patch: {Game.HookField<string>("MouthPatchTrail")}; {(problems == "" ? "exact rims" : problems)}");
             Assert.AreEqual("", problems);
             yield return null;
         }

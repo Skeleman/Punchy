@@ -34,6 +34,7 @@ Shader "Punchy/Ambient Mist"
                 float4 screen : TEXCOORD3;
                 float3 tint : TEXCOORD4;
                 float2 sizeRandom : TEXCOORD5;
+                float water : TEXCOORD6;
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
@@ -47,6 +48,7 @@ Shader "Punchy/Ambient Mist"
                 o.screen = ComputeScreenPos(o.positionCS);
                 o.tint = p.tint;
                 o.sizeRandom = float2(p.size, p.random);
+                o.water = p.water;
                 return o;
             }
 
@@ -69,7 +71,9 @@ Shader "Punchy/Ambient Mist"
                 // Soft where it meets the ground or anything else (a volume over a wider depth, so it sinks in).
                 float2 screenUV = input.screen.xy / input.screen.w;
                 float sceneDepth = LinearEyeDepth(SampleSceneDepth(screenUV), _ZBufferParams);
-                alpha *= saturate((sceneDepth - input.positionCS.w) / lerp(1.5, max(1.5, input.sizeRandom.x * 0.6), volume));
+                // The scene depth has no water in it, so fade into the water surface by height or the water cuts the quad off hard.
+                float soft = lerp(1.5, max(1.5, input.sizeRandom.x * 0.6), volume);
+                alpha *= saturate(min(sceneDepth - input.positionCS.w, input.positionWS.y - input.water) / soft);
                 clip(alpha - 0.002);
 
                 Light light = GetMainLight();
