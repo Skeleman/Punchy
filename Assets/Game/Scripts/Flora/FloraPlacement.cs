@@ -1244,10 +1244,21 @@ namespace Punchy.Flora
             var onLeft = sideways.Distance > q.Distance ? 1f : -1f;
             var bend = math.saturate(math.abs(turn) / 0.3f);
             var inner = turn * onLeft > 0f;
+            var bar = RiverSampling.BarMask(q);
+            var barHead = bar > 0.25f && RiverSampling.BarMask(up) < 0.1f;
+            var barTail = bar > 0.25f && RiverSampling.BarMask(down) < 0.1f;
             if (kind == (int)RiverSpot.InnerBend)
-                return inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
+            {
+                var fit = inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
+                return barTail && edge > -1.5f && edge < 1.5f ? math.max(fit, 0.8f) : fit * (1f - bar);
+            }
             if (kind == (int)RiverSpot.GravelBar)
-                return edge > -1.2f && edge < 2.5f ? (inner ? math.max(bend, 0.3f) : 0.08f) : 0f;
+            {
+                var fit = edge > -1.2f && edge < 2.5f ? (inner ? math.max(bend, 0.3f) : 0.08f) : 0f;
+                return math.max(fit, bar * math.smoothstep(-0.1f, 0.3f, noise.snoise(xz / 5f + 7.1f)));
+            }
+            if (kind == (int)RiverSpot.Snag && barHead && edge > -1.5f && edge < 3f)
+                return math.lerp(0.5f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind));
             if (!late || edge < -1.5f || edge > 2f)
                 return 0f;
             var draw = ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind);
@@ -1292,6 +1303,10 @@ namespace Punchy.Flora
                      && source.SampleHeight(edge - toWater * 0.5f) - top < 0.2f;
             }
             if (!found || source.SampleHeight(edge + toWater * 1.5f) > top - 0.6f)
+                return none;
+            var face = RiverSampling.Query(ref map, source.RiverSettings, edge);
+            var faceEdge = face.Distance - face.Width * 0.5f;
+            if (face.Cut < 0.45f || faceEdge < -0.6f || faceEdge > 1.5f || top - face.Water < 0.3f + 0.5f * face.Cut)
                 return none;
             var model = rule.FirstModel + rng.NextInt(rule.Variants);
             var yaw = FacingYaw(toWater) + rng.NextFloat(-0.2f, 0.2f);
