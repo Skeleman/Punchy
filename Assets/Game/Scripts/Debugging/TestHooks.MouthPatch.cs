@@ -9,7 +9,6 @@ using UnityEngine.Rendering;
 
 namespace Punchy.Debugging
 {
-    /// <summary>#301: the cave-mouth patch must meet the terrain bit for bit, with no hole and no flipped triangle.</summary>
     public static partial class TestHooks
     {
         public static string MouthPatchTrail;

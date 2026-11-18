@@ -381,8 +381,6 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>#301: each probed cave-mouth patch (three mouths, one on a chunk edge, one steep) shares the
-        /// terrain's rim vertices exactly at LOD0 and LOD1, with no hole, no gap and no flipped triangle.</summary>
         [UnityTest, Order(90), Timeout(600000)]
         public IEnumerator MouthPatch_ExactRims()
         {
