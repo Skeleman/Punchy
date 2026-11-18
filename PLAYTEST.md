@@ -249,3 +249,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #563 (W-174 r3, #365): cave mouth collars face into the hole, so the slits at cave c6 are gone (one small chip left).
 - 11-17 #564 (W-166 row 2, #336): scarps take their biome's stone (granite canyon and notch banks, basalt cut bank): blockier faces, bolder bedding.
 - 11-17 #565 (R-29 row 3, #320): geyser, hot-spring and mud-pit plumes use one shared steam effect, and fumaroles and chimneys use one shared smoke effect. Same look, one system.
+- 11-17 #566 (#365): cave mouth floors get the terrain's grain and relief instead of looking like smooth clay.
+- 11-17 #567 (W-166 row 2b, #336): a scarp's stone sets its gully spacing and chimneys, so granite canyon walls get deep blocky chimneys.
