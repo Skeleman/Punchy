@@ -7,15 +7,16 @@ using UnityEngine.Rendering;
 namespace Punchy.Rendering.Effects
 {
     /// <summary>
-    /// R-29 row 3 (#320, rule 30): steam and smoke, two families of rising puffs on the effects kit. Each family is one
-    /// asset (PlumeEffect: Resources/StandardSteam, Resources/StandardSmoke) and one draw path: callers hand it their
+    /// R-29 rows 3-4 (#320, rule 30): steam, smoke and spray, three families of puffs on the effects kit. Each family is
+    /// one asset (PlumeEffect: Resources/StandardSteam, StandardSmoke, StandardSpray) and one draw path: callers hand it their
     /// plumes whenever their own set changes (Set, keyed by the caller) and EffectsDriver draws every family once a
     /// frame in one procedural draw with the Landmark Plume shader, which animates every puff from the shared clock
     /// and the plume's seed (no simulation, the same on every machine). Fade by screen size (rule 20): each plume goes
     /// below its family's GonePixels (LandmarkEffects.hlsl, _PunchyPlumeReach).
     /// Callers: LandmarkEffectSystem (steam: geysers, hot springs, mud pits; smoke: chimneys, fumaroles and other dark
-    /// landmark plumes). Still on their own path: FireSystem's smoke over flames, waterfall mist and spray (the water
-    /// family), glowing or coloured plumes (embers, sparkles, toxic gas).
+    /// landmark plumes; spray: every waterfall's lip white water, landing churn, foam and mist, river, cave, grand and
+    /// landmark falls). Still on their own path: FireSystem's smoke over flames, glowing or coloured plumes (embers,
+    /// sparkles, toxic gas).
     /// </summary>
     public static class PlumeSystem
     {
@@ -36,6 +37,7 @@ namespace Punchy.Rendering.Effects
 
         public static readonly PlumeFamily Steam = new PlumeFamily("StandardSteam");
         public static readonly PlumeFamily Smoke = new PlumeFamily("StandardSmoke");
+        public static readonly PlumeFamily Spray = new PlumeFamily("StandardSpray");
 
         /// <summary>
         /// Which family a landmark-style plume of this authored (sRGB) colour and glow belongs to: pale grey-white is
@@ -57,6 +59,7 @@ namespace Punchy.Rendering.Effects
         {
             Steam.Draw(material);
             Smoke.Draw(material);
+            Spray.Draw(material);
         }
     }
 
