@@ -47,4 +47,5 @@ MonoBehaviour:
   Solid: 1
   SizeRange: {x: 0.85, y: 1.15}
   Variants: 2
+  KitCulture: 4
   Seed: 7801

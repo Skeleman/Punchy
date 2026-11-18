@@ -42,4 +42,5 @@ MonoBehaviour:
   OnlyNearWater: 0
   Solid: 1
   Variants: 4
+  KitCulture: 4
   Seed: 112

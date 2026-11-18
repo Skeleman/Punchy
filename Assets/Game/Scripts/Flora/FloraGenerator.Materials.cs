@@ -23,11 +23,8 @@ namespace Punchy.Flora
             _ => MaterialFamily.None
         };
 
-        /// <summary>
-        /// The family a builder's timber takes: wood, except an elf's (W-161: elf towns build nothing of wood), which
-        /// keeps its old plain look until W-161 gives it its own material.
-        /// </summary>
-        static MaterialFamily Timber(Grower g) => g.S.KitCulture == FolkCulture.Elf ? MaterialFamily.Plaster : MaterialFamily.Wood;
+        /// <summary>The family a builder's timber takes: wood, except an elf's stone (W-161: elf towns build nothing of wood).</summary>
+        static MaterialFamily Timber(Grower g) => g.B.TimberFamily;
 
         /// <summary>The wood a species' timber is (MaterialLibrary.Wood): set by the form where it says, else its folk.</summary>
         public static WoodKind WoodKindFor(FloraSpecies species) => species.Form switch
