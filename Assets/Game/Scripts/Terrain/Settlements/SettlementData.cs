@@ -404,6 +404,23 @@ namespace Punchy.Terrain
                 ref var p = ref set.Plots[set.PlotItems[k]];
                 if (p.Role != PlotRole.Field || math.any(xz < p.Min) || math.any(xz > p.Max))
                     continue;
+                var d = xz - p.Centre;
+                var ahead = math.dot(d, p.Facing) - p.Half.y;
+                if (ahead > -0.5f && ahead < FieldBaking.Track + 1f)
+                {
+                    var bend = math.sin(ahead * 0.3f + p.Centre.x * 0.7f) * 0.8f;
+                    var path = 1f - math.smoothstep(0.45f, 1.1f, math.abs(d.x * p.Facing.y - d.y * p.Facing.x - bend) + edgeNoise * 0.4f);
+                    path *= 1f - math.smoothstep(FieldBaking.Track - 4f, FieldBaking.Track + 1f, ahead);
+                    if (path > 0f)
+                    {
+                        var worn = props;
+                        worn.Albedo = new float3(0.2f, 0.15f, 0.1f) * (0.9f + colorNoise * 0.2f);
+                        worn.Grass = 0f;
+                        worn.Pebbles *= 0.5f;
+                        worn.Smoothness = 0.12f;
+                        props = SurfaceProps.Lerp(props, worn, path * 0.85f);
+                    }
+                }
                 var w = 1f - math.smoothstep(-0.6f, 0.9f, Outside(p, xz) + edgeNoise * 0.8f);
                 if (w <= 0f)
                     continue;

@@ -143,9 +143,9 @@ namespace Punchy.Flora
                  "ripe heads) along X on tilled ridges (Bark), Field Size across, inside its Border (Height the border's).")] Field
     }
 
-    public enum CropKind : byte { Grain, Cabbage, Beans, Agave, Potato, Kale }
+    public enum CropKind : byte { Grain, Cabbage, Beans, Agave, Potato, Kale, GlowHerb }
 
-    public enum FieldBorder : byte { Rail, Hedge, Wattle, DryStone }
+    public enum FieldBorder : byte { Rail, Hedge, Wattle, DryStone, Adobe, Brush, StoneKerb }
 
     /// <summary>
     /// W-63: where on a river a species grows (river dressing). None = anywhere its other rules allow; the rest only

@@ -10,6 +10,7 @@ namespace Punchy.Terrain
         const float RingStep = 21f;
         const float AngleStep = 9f;
         const float MaxRelief = 3f;
+        public const float Track = 13f;
 
         public static int LastCount;
 
@@ -67,6 +68,7 @@ namespace Punchy.Terrain
                         if (!Clear(source, centre, facing, half, s, settlements, streets, plots, roadside, out var pad))
                             continue;
                         var reach = math.length(half) + SettlementSampling.PadBlendMax;
+                        var track = centre + facing * (half.y + Track);
                         plots.Add(new SettlementPlot
                         {
                             Centre = centre,
@@ -76,8 +78,8 @@ namespace Punchy.Terrain
                             Role = PlotRole.Field,
                             Building = firstBuilding[town.Layout] + pick,
                             Settlement = s,
-                            Min = centre - reach,
-                            Max = centre + reach,
+                            Min = math.min(centre - reach, track - 2f),
+                            Max = math.max(centre + reach, track + 2f),
                             Tone = Tone(species)
                         });
                         made++;

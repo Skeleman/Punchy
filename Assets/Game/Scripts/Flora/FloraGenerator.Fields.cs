@@ -7,6 +7,8 @@ namespace Punchy.Flora
         static readonly Color Soil = new Color(0.32f, 0.22f, 0.14f);
         static readonly Color Straw = new Color(0.72f, 0.62f, 0.36f);
         static readonly Color HedgeGreen = new Color(0.17f, 0.3f, 0.11f);
+        static readonly Color AdobeMud = new Color(0.62f, 0.45f, 0.31f);
+        static readonly Color DryBrush = new Color(0.5f, 0.41f, 0.27f);
 
         static void Field(Grower g)
         {
@@ -30,6 +32,8 @@ namespace Punchy.Flora
             };
             var inner = 1.2f;
             var rows = Mathf.Max(2, Mathf.FloorToInt((hz - inner) * 2f / spacing) + 1);
+            var hut = g.Variant % 3 == 2 && hx > 5f && hz > 4.5f;
+            var hutAt = new Vector3((g.Variant / 3 % 2 == 0 ? -1f : 1f) * (hx - 2.3f), 0f, -hz + 2.1f);
 
             var strips = 2 + rng.Next(3);
             var growth = new float[strips];
@@ -76,6 +80,8 @@ namespace Punchy.Flora
                     foreach (var f in fails)
                         if (new Vector2(x - f.x, z - f.y).sqrMagnitude < f.z * f.z * Mathf.Lerp(0.6f, 1.2f, j))
                             failed = true;
+                    if (hut && Mathf.Abs(x - hutAt.x) < 2f && Mathf.Abs(z - hutAt.z) < 1.8f)
+                        continue;
                     if (failed)
                     {
                         if (j < 0.5f)
@@ -107,6 +113,8 @@ namespace Punchy.Flora
                 Scarecrow(g, spot, yaw, straw);
             else if (prop == 1)
                 ToolRack(g, new Vector3(2.4f, 0f, hz - 0.9f));
+            else if (hut)
+                FieldHut(g, hutAt, hutAt.x < 0f ? 1f : -1f, straw);
         }
 
         static float CropHeight(CropKind crop) => crop switch
@@ -116,6 +124,7 @@ namespace Punchy.Flora
             CropKind.Agave => 0.9f,
             CropKind.Potato => 0.35f,
             CropKind.Kale => 0.6f,
+            CropKind.GlowHerb => 0.45f,
             _ => 0.4f
         };
 
@@ -164,6 +173,19 @@ namespace Punchy.Flora
                     }
                     b.Beam(at, at + new Vector3(0f, h * 1.1f, 0f), 0.1f, 0.05f, leaf * 0.9f, FloraPart.Foliage);
                     break;
+                case CropKind.GlowHerb:
+                    var herb = 0.2f * grow + 0.06f;
+                    b.Blob(at + new Vector3(0f, herb * 0.7f, 0f), new Vector3(herb, herb * 0.9f, herb), Quaternion.identity, detail, 0.6f, seed, leaf, FloraPart.Foliage);
+                    if (grow < 0.5f)
+                        break;
+                    for (int p = 0; p < 3; p++)
+                    {
+                        var a = (p / 3f + j) * Mathf.PI * 2f;
+                        var tip = at + new Vector3(Mathf.Cos(a) * herb * 0.5f, h, Mathf.Sin(a) * herb * 0.5f);
+                        b.Beam(at + Vector3.up * herb, tip, 0.02f, 0.015f, leaf * 0.8f, FloraPart.Foliage);
+                        b.Blob(tip, Vector3.one * 0.06f, Quaternion.identity, 0, 0.2f, seed + p, ripe, FloraPart.Glow);
+                    }
+                    break;
             }
         }
 
@@ -174,7 +196,8 @@ namespace Punchy.Flora
             var wood = g.Bark;
             const float gate = 1.4f;
             float U() => (float)rng.NextDouble();
-            b.Family = kind == FieldBorder.DryStone ? Punchy.Terrain.MaterialFamily.Stone
+            b.Family = kind is FieldBorder.DryStone or FieldBorder.StoneKerb ? Punchy.Terrain.MaterialFamily.Stone
+                     : kind == FieldBorder.Adobe ? Punchy.Terrain.MaterialFamily.Plaster
                      : kind == FieldBorder.Hedge ? b.BaseFamily : Timber(g);
             var corners = new[] { new Vector3(-hx, 0f, hz), new Vector3(hx, 0f, hz), new Vector3(hx, 0f, -hz), new Vector3(-hx, 0f, -hz) };
             foreach (var c in corners)
@@ -230,6 +253,59 @@ namespace Punchy.Flora
                                           rot * Quaternion.Euler(0f, twist, 0f), stone * shade, FloraPart.Bark);
                                 }
                             break;
+                        case FieldBorder.Adobe:
+                            var mud = AdobeMud.linear;
+                            if (g.Lod == 2)
+                            {
+                                b.Box(mid + Vector3.up * height * 0.45f, new Vector3(0.45f, height * 0.9f, len), rot, mud, FloraPart.Bark);
+                                break;
+                            }
+                            var spans = Mathf.Max(1, Mathf.RoundToInt(len / 1.6f));
+                            for (int k = 0; k < spans; k++)
+                            {
+                                var at = Vector3.Lerp(p, q, (k + 0.5f) / spans);
+                                var tall = height * (U() * 0.25f + 0.8f);
+                                var shade = U() * 0.2f + 0.88f;
+                                b.Box(at + Vector3.up * tall * 0.5f, new Vector3(0.42f, tall, len / spans * 1.01f), rot, mud * shade, FloraPart.Bark);
+                                if (g.Lod == 0)
+                                    b.Box(at + Vector3.up * (tall + 0.04f), new Vector3(0.5f, 0.08f, len / spans * 0.9f), rot, mud * shade * 0.85f, FloraPart.Bark);
+                            }
+                            break;
+                        case FieldBorder.Brush:
+                            var dry = DryBrush.linear;
+                            if (g.Lod == 2)
+                            {
+                                b.Box(mid + Vector3.up * height * 0.4f, new Vector3(0.6f, height * 0.8f, len), rot, dry, FloraPart.Bark);
+                                break;
+                            }
+                            var stakes = Mathf.Max(1, Mathf.RoundToInt(len / 1.6f));
+                            for (int k = 0; k <= stakes; k++)
+                                b.Box(Vector3.Lerp(p, q, k / (float)stakes) + Vector3.up * height * 0.55f, new Vector3(0.08f, height * 1.1f, 0.08f),
+                                      rot * Quaternion.Euler((U() - 0.5f) * 10f, 0f, 0f), wood * 0.8f, FloraPart.Bark);
+                            b.Family = Punchy.Terrain.MaterialFamily.Thatch;
+                            for (int k = 0; k < stakes; k++)
+                            {
+                                var size = U() * 0.3f + 0.8f;
+                                b.Blob(Vector3.Lerp(p, q, (k + 0.5f) / stakes) + Vector3.up * height * 0.4f * size, new Vector3(0.35f, height * 0.42f * size, len / stakes * 0.62f),
+                                       rot * Quaternion.Euler(0f, (U() - 0.5f) * 14f, 0f), 0, 0.7f, U() * 50f, dry * (U() * 0.3f + 0.8f), FloraPart.Bark);
+                            }
+                            b.Family = Timber(g);
+                            break;
+                        case FieldBorder.StoneKerb:
+                            var pale = new Color(0.64f, 0.64f, 0.6f).linear;
+                            if (g.Lod == 2)
+                            {
+                                b.Box(mid + Vector3.up * height * 0.4f, new Vector3(0.5f, height * 0.8f, len), rot, pale, FloraPart.Bark);
+                                break;
+                            }
+                            var kerbs = Mathf.Max(1, Mathf.RoundToInt(len / 0.55f));
+                            for (int k = 0; k < kerbs; k++)
+                            {
+                                var size = U() * 0.3f + 0.8f;
+                                b.Blob(Vector3.Lerp(p, q, (k + 0.5f) / kerbs) + Vector3.up * height * 0.35f * size, new Vector3(0.28f, height * 0.4f * size, len / kerbs * 0.55f), rot,
+                                       0, 0.3f, U() * 50f, pale * (U() * 0.25f + 0.8f), FloraPart.Bark);
+                            }
+                            break;
                         default:
                             var wattle = kind == FieldBorder.Wattle;
                             var posts = Mathf.Max(1, Mathf.RoundToInt(len / (wattle ? 1.2f : 2.4f)));
@@ -264,6 +340,30 @@ namespace Punchy.Flora
             b.Blob(at + Vector3.up * 1.95f, new Vector3(0.28f, 0.06f, 0.28f), rot, 0, 0.2f, 9f, straw * 0.7f, FloraPart.Bark);
             b.Family = b.BaseFamily;
             g.Perches.Add(at + Vector3.up * 1.98f);
+        }
+
+        static void FieldHut(Grower g, Vector3 at, float side, Color straw)
+        {
+            var b = g.B;
+            const float w = 2.6f, d = 2.2f, eave = 1.9f;
+            b.Family = Timber(g);
+            foreach (var cx in new[] { -w * 0.5f, w * 0.5f })
+                foreach (var cz in new[] { -d * 0.5f, d * 0.5f })
+                    b.Box(at + new Vector3(cx, eave * 0.5f, cz), new Vector3(0.12f, eave, 0.12f), Quaternion.identity, g.Bark, FloraPart.Bark);
+            b.Box(at + new Vector3(0f, eave * 0.45f, -d * 0.5f), new Vector3(w, eave * 0.9f, 0.08f), Quaternion.identity, g.Bark * 0.85f, FloraPart.Bark);
+            b.Box(at + new Vector3(-side * w * 0.5f, eave * 0.45f, 0f), new Vector3(0.08f, eave * 0.9f, d), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            b.Box(at + new Vector3(side * 0.5f, 0.35f, 0.1f), new Vector3(0.9f, 0.08f, 0.5f), Quaternion.identity, g.Bark, FloraPart.Bark);
+            b.Family = Punchy.Terrain.MaterialFamily.Thatch;
+            foreach (var s in new[] { -1f, 1f })
+                b.Box(at + new Vector3(0f, eave + 0.38f, s * d * 0.3f), new Vector3(w + 0.5f, 0.16f, d * 0.68f), Quaternion.Euler(s * 30f, 0f, 0f), straw * 0.85f, FloraPart.Bark);
+            b.Blob(at + new Vector3(side * 0.6f, 0.25f, 0.3f), new Vector3(0.3f, 0.25f, 0.3f), Quaternion.identity, 0, 0.3f, 7f, straw, FloraPart.Bark);
+            b.Family = b.BaseFamily;
+            if (g.Lod == 0)
+            {
+                FenceColliders(g, at + new Vector3(-w * 0.5f, 0f, -d * 0.5f), at + new Vector3(w * 0.5f, 0f, -d * 0.5f), eave);
+                FenceColliders(g, at + new Vector3(-side * w * 0.5f, 0f, -d * 0.5f), at + new Vector3(-side * w * 0.5f, 0f, d * 0.5f), eave);
+            }
+            g.Perches.Add(at + Vector3.up * (eave + 0.7f));
         }
 
         static void ToolRack(Grower g, Vector3 at)
