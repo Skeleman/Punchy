@@ -259,7 +259,7 @@ namespace Punchy.Terrain
         public float River;        // 0..1, 1 inside a river channel
         public float Rapids;
         public float Inland;
-        public float Mouth, MouthStreak;
+        public float Mouth, MouthStreak, Spray;
         public float EdgeNoise;    // -1..1
         public float ColorNoise;   // -1..1
     }
@@ -1130,6 +1130,14 @@ namespace Punchy.Terrain
             var wet = g.MouthStreak * fan;
             s.Albedo = math.lerp(s.Albedo, new float3(0.13f, 0.11f, 0.085f), 0.85f * wet);
             s.Smoothness = math.lerp(s.Smoothness, 0.55f, wet);
+        }
+
+        public static void FallSpray(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Spray <= 0f || g.WaterDepth > 0.3f) return;
+            var wet = g.Spray * (1f - math.saturate(s.Snow)) * (1f - 0.4f * math.saturate(s.Grass));
+            s.Albedo *= math.lerp(1f, 0.5f, wet);
+            s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, 0.72f), wet);
         }
 
         static void DampBank(ref SurfaceProps s, in GroundContext g)

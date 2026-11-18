@@ -550,7 +550,7 @@ namespace Punchy.Flora
                 return 0u;
             var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
             var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow)) * (wet ? 0.55f * MaterialLibrary.StoneTintAt(source, at) : 1f)) * 255f);
-            return c.x | (c.y << 8) | (c.z << 16) | ((wet ? WetRockMark + (uint)math.clamp(math.round(((ground.HasWater ? math.max(ground.WaterSurface - ground.Height, 0f) : 0f) + 0.04f + 0.3f * ground.Rapids) / 0.04f), 0f, 29f) : RockTintMark) << 24);
+            return c.x | (c.y << 8) | (c.z << 16) | ((wet ? WetRockMark + (uint)math.clamp(math.round(((ground.HasWater ? math.max(ground.WaterSurface - ground.Height, 0f) : 0f) + 0.04f + 0.3f * math.max(ground.Rapids, ground.Spray)) / 0.04f), 0f, 29f) : RockTintMark) << 24);
         }
 
         /// <summary>

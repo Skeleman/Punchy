@@ -83,7 +83,7 @@ namespace Punchy.Terrain
         public float2 Flow;
         /// <summary>0..1: how steep the river is here (white water at 1).</summary>
         public float Rapids;
-        public float Mouth, MouthStreak;
+        public float Mouth, MouthStreak, Spray;
         /// <summary>W-134: the water is a cave pool's or stream's (from the float3 SampleGround, under the surface).</summary>
         public bool CaveWater;
 
@@ -747,6 +747,7 @@ namespace Punchy.Terrain
                 carved = g.Height;
                 g.River = RiverSampling.ChannelMask(river);
                 g.Mouth = MouthFan(ref Rivers.Value, xz, river, World.SeaLevel, out g.MouthStreak);
+                g.Spray = FallSpray(ref Rivers.Value, xz, river, g.Rapids);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
                 var riverLevel = float.MinValue;
@@ -1329,6 +1330,7 @@ namespace Punchy.Terrain
                 Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
                 Mouth = ground.Mouth,
                 MouthStreak = ground.MouthStreak,
+                Spray = ground.Spray,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1343,6 +1345,7 @@ namespace Punchy.Terrain
             if (V3Ground.IsCreated && context.WaterDepth < 0.3f)
                 Punchy.Terrain.V3Ground.Apply(ref V3Ground.Value, xz, math.max(context.Slope, FieldSlope(xz)),
                     Island.IsCreated ? math.max(Island.Value.Sample(xz), 0f) : 0f, context.EdgeNoise, ref result);
+            BiomeSampling.FallSpray(ref result, context);
             if (Landmarks.IsCreated)
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             if (Settlements.IsCreated)
@@ -1400,6 +1403,7 @@ namespace Punchy.Terrain
                 Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
                 Mouth = ground.Mouth,
                 MouthStreak = ground.MouthStreak,
+                Spray = ground.Spray,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1440,6 +1444,36 @@ namespace Punchy.Terrain
                 k = map.Down[k];
             }
             return 0f;
+        }
+
+        static float FallSpray(ref RiverMapBlob map, float2 xz, in RiverQuery river, float rapids)
+        {
+            if (!river.Found || river.Distance > river.Width * 0.5f + 40f) return 0f;
+            var spray = rapids * (1f - math.smoothstep(river.Width * 0.5f, river.Width * 0.5f + 4f, river.Distance)) * 0.6f;
+            if (map.Kind.Length == 0) return spray;
+            var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
+            for (int y = -1; y <= 1; y++)
+            for (int x = -1; x <= 1; x++)
+            {
+                var c = math.clamp(cell + new int2(x, y), 0, map.Resolution - 1);
+                var near = map.Nearest[c.y * map.Resolution + c.x];
+                for (int k = 0; k < 2; k++)
+                {
+                    var start = k == 0 ? near.x : near.y;
+                    if (start < 0 || map.Down[start] < 0 || ((RiverProfileKind)map.Kind[start] & RiverProfileKind.Fall) == 0) continue;
+                    var drop = map.WaterLevel[start] - map.WaterLevel[map.Down[start]];
+                    if (drop < 1f) continue;
+                    var lip = RiverSampling.CurveMid(ref map, start, out var flow);
+                    var width = math.max(map.Width[start], 3f);
+                    var d = xz - lip;
+                    var past = math.dot(d, flow);
+                    var side = math.abs(d.x * flow.y - d.y * flow.x);
+                    var box = math.length(math.max(new float2(math.abs(past - width * 0.5f) - width * 0.75f, side - width * 0.5f), 0f));
+                    var ring = math.lerp(3f, 8f, math.saturate((drop - 3f) / 9f));
+                    spray = math.max(spray, math.smoothstep(1f, 4f, drop) * (1f - math.smoothstep(ring * 0.4f, ring, box)));
+                }
+            }
+            return spray;
         }
 
         public bool Equals(TerrainSource o) =>
