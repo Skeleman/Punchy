@@ -46,7 +46,6 @@ namespace Punchy.Terrain
         /// <summary>Where a road leaves the settlement, beside it: no building, just the Gate anchor's spot (signposts
         /// stand only at forks, F-43).</summary>
         Gate,
-        /// <summary>W-165: a farm field out past the edge (FieldBaking), levelled, its gate facing the town.</summary>
         Field
     }
 

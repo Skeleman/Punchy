@@ -181,6 +181,13 @@ MonoBehaviour:
     OnlyIn: []
     Style: 
     MinPlots: 15
+  - Role: 16
+    Species: {fileID: 11400000, guid: 49bf6470e8d44a42aa908eee7b075218, type: 2}
+    Weight: 1
+    Count: 0
+    OnlyIn: []
+    Style: 
+    MinPlots: 0
   Fixtures:
   - Species: {fileID: 11400000, guid: c69b5618d012ba5439a218da0e61744c, type: 2}
     Spot: 1
