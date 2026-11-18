@@ -391,22 +391,22 @@ Shader "Punchy/Water"
                 return along * dot(g, along) + across * dot(g, across) * AcrossStretch;
             }
 
-            // Whitewater foam carried by the current (W-98): the foam pattern itself drifts downstream at the river's
-            // speed, in two reads half a short cycle apart that cross-fade, like the flowing ripples. (A pattern fixed in
-            // place under moving ripples read as a white decal sliding over the water.)
-            half FlowFoam(float2 p, float2 flow, float speed, float t)
+            // Read in the flow's frame so foam stretches into streaks instead of round blobs.
+            half FlowFoam(float2 q, float2 dir, float drift, float t)
             {
                 const float cycle = 1.6;
-                float jitter = PunchyValueNoise(p * 0.05 + 9.7) * 2;
+                float jitter = PunchyValueNoise(q * 0.05 + 9.7) * 2;
                 float phase0 = frac(t / cycle + jitter);
                 float phase1 = frac(t / cycle + jitter + 0.5);
                 float w0 = 1 - abs(1 - 2 * phase0);
-                float2 offset = flow * speed * cycle;
-                float2 q0 = p - offset * phase0;
-                float2 q1 = p - offset * phase1 + 4.7;
-                float n0 = PunchyValueNoise(q0 * 3.1) * 0.55 + PunchyValueNoise(q0 * 1.3 + 2.9) * 0.45;
-                float n1 = PunchyValueNoise(q1 * 3.1) * 0.55 + PunchyValueNoise(q1 * 1.3 + 2.9) * 0.45;
-                float s = n0 * w0 + n1 * (1 - w0);
+                float2 f = float2(dot(q, dir), dot(q, float2(-dir.y, dir.x)));
+                float2 q0 = f - float2(drift * phase0, 0);
+                float2 q1 = f - float2(drift * phase1, 0) + 4.7;
+                float n0 = PunchyValueNoise(q0 * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q0 * float2(0.45, 1.8) + 2.9) * 0.45
+                    - PunchyValueNoise(q0 * 9.0 + 1.3) * 0.22;
+                float n1 = PunchyValueNoise(q1 * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q1 * float2(0.45, 1.8) + 2.9) * 0.45
+                    - PunchyValueNoise(q1 * 9.0 + 1.3) * 0.22;
+                float s = (n0 * w0 + n1 * (1 - w0)) + 0.11;
                 // Cross-fading flattens the contrast mid-way; stretch it back out.
                 return saturate((s - 0.5) * (1.7 + 0.9 * (1 - abs(2 * w0 - 1))) + 0.5);
             }
@@ -661,6 +661,8 @@ Shader "Punchy/Water"
                 // and murky rings on clear water, the toxic swirl on plain water.)
                 float2 flowingSlope = 0;
                 float4 flowLines = 0;
+                half carried = 0;
+                bool foamy = rapids > 0.02 && flowAmount > 0.02;
                 [branch] if (flowAmount > 0 || rapids > 0)
                 {
                     // R-9 row 6: both patterns are turned to the flow, so reading them at the world position put the
@@ -686,6 +688,8 @@ Shader "Punchy/Water"
                             float2 q = p - float2(bx ? cellB.x : cellA.x, bz ? cellB.y : cellA.y);
                             flowingSlope += FlowingSlope(q, flowDir, riverSpeed, t) * w;
                             flowLines += PunchyFlowLines(q, flowDir, riverSpeed, t) * w;
+                            [branch] if (foamy)
+                                carried += FlowFoam(q * 1.8, flowDir, flowAmount * 1.8 * riverSpeed * 1.6, t) * w;
                         }
                     }
                     flowingSlope *= (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
@@ -1085,9 +1089,8 @@ Shader "Punchy/Water"
                 // W-98: the foam rides the current (FlowFoam) instead of sitting still under it, and covers more of the
                 // water the faster it runs: a few drifting patches as the river quickens, most of the surface in a rapid.
                 half whiteWater = 0;
-                [branch] if (rapids > 0.02 && flowAmount > 0.02)
+                [branch] if (foamy)
                 {
-                    half carried = FlowFoam(p * 1.8, flowDir * flowAmount * 1.8, riverSpeed, t);
                     half gather = saturate(max(1 - smoothstep(0.1, 0.7, thickness), standCrest * 1.5));
                     half cover = smoothstep(0.84 - 0.24 * gather * rapids, 0.95 - 0.15 * gather * rapids, carried);
                     // (From 0.1: cave brooks carry a floor of 0.12 down the middle and should stay clear there.)
