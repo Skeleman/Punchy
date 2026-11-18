@@ -127,6 +127,30 @@ namespace Punchy.Tests
             Assert.IsEmpty(problems, string.Join("\n", problems));
         }
 
+        // Cloth and metal (#336): one row per kind, none zero where Cloth.hlsl or Metal.hlsl divides or raises by it.
+        [TestCase("ClothKind", "Cloth", "MaxClothKinds", "Size", "Contrast")]
+        [TestCase("MetalKind", "Metal", "MaxMetalKinds", "SpecPower", "GlintPower")]
+        public void EveryClothAndMetalKindHasARow(string kindName, string table, string maxName, string first, string second)
+        {
+            var kind = Game.GetType("Punchy.Terrain." + kindName, true);
+            var library = Game.GetType("Punchy.Terrain.MaterialLibrary", true);
+            var rows = (Array)library.GetField(table).GetValue(null);
+            var max = (int)library.GetField(maxName).GetValue(null);
+            var kinds = Enum.GetValues(kind).Length;
+            Assert.AreEqual(kinds, rows.Length, $"MaterialLibrary.{table} needs one row per {kindName}");
+            Assert.LessOrEqual(kinds, max, $"{table}.hlsl holds at most {maxName} rows");
+            var problems = new List<string>();
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var row = rows.GetValue(i);
+                var a = (float)row.GetType().GetField(first).GetValue(row);
+                var b = (float)row.GetType().GetField(second).GetValue(row);
+                if (a <= 1e-3f || b <= 1e-3f)
+                    problems.Add($"{Enum.GetName(kind, i)}: {first} {a}, {second} {b} (0 reads as an unpushed row)");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
         // Gear (W-166 row 3): every creature gear material maps to a family, and Creature.shader is a user of that family's
         // include in the table above, so SegmentMaterial and the library cannot drift apart.
         [Test]
