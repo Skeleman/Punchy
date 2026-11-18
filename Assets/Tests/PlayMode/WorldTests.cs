@@ -26,7 +26,8 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 114 landmarks, probe hash DE33C724 since the W-153 row 3 tail (fall lip shoulders: the swamp
+        /// <summary>Target: 118 landmarks, probe hash 5A21F052 since W-182 row 3 (four CastleRuins on their own spots in Temperate,
+        /// Grassland and Tundra; the other 114 unmoved). DE33C724 since the W-153 row 3 tail (fall lip shoulders: the swamp
         /// campsite near -1626,33 settles 0.2 m; the other 113 unmoved). 9113464F since W-153 rework row 3 (fall profiles and 138
         /// described falls re-shape river ground). 4DC69668 since rework row 2 (river carve from the nearest
         /// profile moved landmark spots by river ground). 9786243F since W-174 row 2 (one natural ground-edit profile: pass gullies, beds,
@@ -48,7 +49,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("114 DE33C724", hash);
+            Assert.AreEqual("118 5A21F052", hash);
             yield return null;
         }
 
@@ -69,7 +70,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 525F72BB", line);   // W-161 row 2: elf shelter houses
+            StringAssert.Contains("fingerprint E7261508", line);   // W-182 row 3: CastleRuin species
             yield return null;
         }
 
@@ -403,8 +404,8 @@ namespace Punchy.Tests
         }
 
         /// <summary>P-46: the sunken temple's sockets are pinned (a hall torch too low for its prop dropped, clutter kept
-        /// off chest spots). A layout change moves the hash: re-pin it and add a BENCH-QUEUE note. C41A5BA2 since W-174 row 2 (same 73 sockets
-        /// on the re-shaped ground; was 2D2BFAEB).</summary>
+        /// off chest spots). A layout change moves the hash: re-pin it and add a BENCH-QUEUE note. B2ABB7FF since W-182 row 3 (same 73 sockets;
+        /// CastleRuins joins the landmark list). C41A5BA2 since W-174 row 2 (same 73 sockets on the re-shaped ground; was 2D2BFAEB).</summary>
         [UnityTest, Order(90)]
         public IEnumerator TempleSockets_Pinned()
         {
@@ -413,7 +414,7 @@ namespace Punchy.Tests
             if (line == null)
                 Assert.Inconclusive("the sunken temple was not built in this world");
             StringAssert.Contains("73 sockets", line);
-            StringAssert.Contains("hash C41A5BA2", line);
+            StringAssert.Contains("hash B2ABB7FF", line);
             yield return null;
         }
 
