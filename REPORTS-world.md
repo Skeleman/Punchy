@@ -8768,3 +8768,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Cause: CutDams cut a lake's outlet below the lake, so the lake sat metres above its own river. Fix in RiverBaking: after CutDams, breached lakes are lowered again, with the river's water as the spill level on river cells, then reshaped. The floor copy-back is fixed too.
 - WaterSheet at -490,546: 523322,2025,31,830,5248,58,2364,60 -> 460768,0,0,0,0,0,0,0. -2039,1715, -2729,546 and -1991,1970 are unchanged. Minor regression: 185,3200 over-bank 0 -> 14 (worst 58 mm).
 - WorldTests 20/21, the fail being Water_TruthCounts bend 83 > 82. Re-pinned to 83 in the same commit. Shots: PunchyMilestones/world/perched-lake/perched-{before,after}-c{a,b}.png. The water cliff across the valley is gone: a flat lake, then a short rapids line into the river.
+
+## 11-18 W-174 r3 #365 all-mouths: DONE (probe), WorldTests pending
+- world/mouth-all@2d28e76d, from main 132fba38. Collapse reaches 2 voxels at steep mouths, rim-corner folds are wound up, the hook skips vertical slivers and names the first gap.
+- All 23 mouths probed: problems 5 -> 1, open patch holes 0 everywhere. Mouths 6, 13 and 22 are clean. Mouth 21 has 7 flips -> 0, with 1 LOD0 terrain gap left at 1588,107,1051 (not visible in shots: PunchyMilestones/world/mouth-all).
+- WorldTests not run: free RAM fell to 4 GB, so the editor was closed. Run them before the PR. Collapse distance doubled, so BENCH-QUEUE should get a mesh-job cost check.
+- W-181 is still "needs owner call", so it stays blocked.

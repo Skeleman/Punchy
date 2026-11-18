@@ -1204,3 +1204,5 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - materials/rock-moss-wet a11b0138: Flora.shader rock path adds one value noise and a smoothstep per pixel on wet river rocks only; check the flora pass at the rapid -1048,-1521.
 - materials/damp-banks 7f4f12f4: DampBank adds a few math ops per terrain surface sample near inland water (EvaluateBiome); report-only terrain chunk build time at -1048,-1521, main vs branch, expect ~0.
 - render/river-clarity e9ecdcf7: Water.shader curtain clip (depth + forward) adds a ddx/ddy face normal and a wider box test per water pixel; report-only water pass at the rapid -1048,-1521, main vs branch, expect ~0.
+
+- 11-18 world: world/mouth-all@2d28e76d. Check the cave chunk MeshJob cost at mouths vs main 132fba38, because MouthPatch Collapse search now reaches 2 voxels (was 1).
