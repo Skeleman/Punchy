@@ -32,7 +32,7 @@ namespace Punchy.Ambience
             public float3 Position;   // home, on the ground (or water)
             public float Random;
             public float3 Ground;     // ground colour under it (types with GroundTint), else white
-            public float Pad;
+            public float Water;
         }
 
         class Tile
@@ -408,7 +408,7 @@ namespace Punchy.Ambience
                 var colour = new float3(1f);
                 if ((GroundTint[type] & 1) != 0)
                     colour = Source.SampleSurface(xz, ground, Source.SampleNormal(xz, 1f)).Albedo;
-                Output[i] = new Particle { Position = new float3(xz.x, y, xz.y), Random = rng.NextFloat(), Ground = colour };
+                Output[i] = new Particle { Position = new float3(xz.x, y, xz.y), Random = rng.NextFloat(), Ground = colour, Water = ground.WaterSurface };
                 Keep[i] = 1;
             }
         }
