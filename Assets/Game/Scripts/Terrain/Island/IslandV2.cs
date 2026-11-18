@@ -588,7 +588,10 @@ namespace Punchy.Terrain
             if (version == IslandV3.Version && IslandV2.AuditRequested())
             {
                 if (hit) Debug.Log("[island] audits skipped on a cache hit (-freshisland or PUNCHY_FRESHISLAND=1 runs them)");
-                else { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
+                else { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source));
+                    // W-153 row 6: the water-truth counts at the end of the bake, per kind (same order as WorldTests).
+                    var truth = Punchy.Debugging.WaterTruth.Measure(source);
+                    Debug.Log("[island] water truth " + string.Join(",", truth.Counts)); }
             }
             StartLedger.Add("island reports", report.Elapsed.TotalMilliseconds);
             StartLedger.Stamp("island ready");

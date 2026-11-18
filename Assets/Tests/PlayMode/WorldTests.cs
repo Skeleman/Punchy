@@ -129,7 +129,9 @@ namespace Punchy.Tests
         // Rework row 3 (fall profile: bed and water step on one straight lip line, a foot pool below, every bed step
         // of 1 m or more a described fall, 75 -> 138 falls): wall 457 -> 397, deep 11 -> 10, tilt 18 -> 17,
         // step 610 -> 225. Re-based here.
-        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 0, 10, 0, 397, 10, 17, 225, 0, 0 };
+        // Rework row 4 (lake clip kept to river channels): deep ground under a lake is lake bed, not a dry hole;
+        // wall 397 -> 89 (lake walls 307 -> 5, thin fringes the row 6 ground test covers). Re-based here.
+        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 0, 10, 0, 89, 10, 17, 225, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
