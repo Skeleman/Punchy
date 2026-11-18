@@ -1151,3 +1151,6 @@ Carve now adds a shoulder term beside each fall lip (138 sheets on v3). One chec
 
 ## Request (2026-11-17, world, #365 c6, branch world/cave-seam-2 e000362d): mouth collar facing check
 Collar faces now mirror their normal into the hole (one dot per triangle). One check vs origin/main: terrain chunk build ms on v3 at the temple 3510,366, High, uncapped, 300 frames. Expect no change. Report only.
+
+## Request (2026-11-17, render-2, R-29 row 3 #320, branch render/effects-kit-2 e6df4844): steam and smoke plume families cost
+Landmark steam/smoke plumes and chimney smoke now draw through PlumeSystem (two RenderPrimitives from EffectsDriver, one per family) instead of inside LandmarkEffectSystem's single plume draw. One check vs main 36d817c6: EffectsDriver and LandmarkEffectSystem main-thread ms and whole-frame GPU ms over the village at 2972,-885 (37 smoke plumes) and the geyser at -2427,2450, High, uncapped, 300 frames. Expect no change. Report only.
