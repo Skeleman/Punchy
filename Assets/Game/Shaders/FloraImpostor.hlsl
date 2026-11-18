@@ -125,7 +125,7 @@ struct ImpostorVaryings
     nointerpolation float3 weights : TEXCOORD7;
     nointerpolation float4 centre : TEXCOORD8;          // the sphere's centre (world), its radius (scaled)
     nointerpolation float4 plant : TEXCOORD9;           // yaw, fade, random, snow
-    nointerpolation float2 ground : TEXCOORD10;         // the plant's base height, its ground colour (packed, as FloraInstance)
+    nointerpolation float3 ground : TEXCOORD10;         // the plant's base height, its ground colour (packed, as FloraInstance), leaf thinness
     nointerpolation float4 frameQ : TEXCOORD11;         // the plant's turn (yaw, ground tilt, wind bend) as a quaternion
 };
 
@@ -222,7 +222,7 @@ ImpostorVaryings ImpostorVert(ImpostorAttributes input)
     o.weights = w;
     o.centre = float4(centre, radius);
     o.plant = float4(plant.yaw, asfloat(visible.y), plant.random, plant.snow);
-    o.ground = float2(plant.position.y, asfloat(plant.ground));
+    o.ground = float3(plant.position.y, asfloat(plant.ground), FloraSpeciesThin(plant.model));
     o.frameQ = q;
     return o;
 }

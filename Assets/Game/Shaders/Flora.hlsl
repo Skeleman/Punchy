@@ -24,6 +24,18 @@ struct FloraInstance
 
 StructuredBuffer<FloraInstance> _FloraInstances;
 StructuredBuffer<uint2> _FloraVisible;
+// R-30: each of the layer's models' leaf thinness (FloraSpecies.LeafThinness, by model less _FloraModelBase), for
+// FloraLeafTransmission. Unbound (caves) reads as 1.
+StructuredBuffer<float> _FloraLeafThin;
+int _FloraModelBase;
+
+half FloraSpeciesThin(int model)
+{
+    uint count, stride;
+    _FloraLeafThin.GetDimensions(count, stride);
+    uint local = (uint)(model - _FloraModelBase);
+    return local < count ? _FloraLeafThin[local] : 1;
+}
 // Each draw's region of _FloraVisible starts at its indirect arguments' startInstance (FloraSystem and CaveSystem
 // draw with RenderMeshIndirect), so draws share one material with no per-draw property block.
 #define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs
@@ -286,9 +298,13 @@ void FloraDither(float4 positionCS, float fade, float3 positionWS)
 // Moss sheets (FloraPart.Moss = 13, W-64 #24): x the cover from the vertex colour's alpha (1 in the sheet's middle,
 // 0 at its rim), or 2 on any other part; yzw the point in the plant's own frame. Every pass carries it and calls
 // FloraMossClip, so the holes and torn edge cut the same in the colour, shadows and depth.
+// R-30 row 1 (#323) leaf trial: plain foliage (part 1) with a colour alpha under 1 is a cut-out mark
+// (FloraMeshBuilder.LeafCards / LeafShell / LeafRim), carried as 3 + the mark.
 float4 FloraMossData(FloraAttributes input)
 {
-    return float4(abs(input.data.y - 13) < 0.5 ? input.color.a : 2, input.positionOS);
+    float part = input.data.y;
+    float x = abs(part - 13) < 0.5 ? input.color.a : abs(part - 1) < 0.5 && input.color.a < 0.99 ? 3 + input.color.a : 2;
+    return float4(x, input.positionOS);
 }
 
 float FloraMossHash(float3 p)
@@ -315,8 +331,60 @@ half FloraMossClump(float3 p)
     return FloraMossNoise(p * 9) * 0.6 + FloraMossNoise(p * 31 + 3.1) * 0.4;
 }
 
+// R-30 leaf trial cuts. How solid a cut-out part reads from its pixel footprint (rule 20: by screen size, no metres):
+// leaves under a few pixels close up, so cards turn into whole hexagons, shells thin away and the rim stops fraying.
+void FloraLeafClip(float mark, float3 p)
+{
+    float3 dx = ddx(p), dy = ddy(p);
+    float footprint = sqrt(max(dot(dx, dx), dot(dy, dy)));
+    half solid = saturate((footprint - 0.03) / 0.05);
+    if (mark < 0.5)
+    {
+        // A leaf card: 0 at its centre, 1 at the hexagon's corners. Its rim breaks into lobes.
+        half r = saturate((mark - 0.02) / 0.46);
+        half edge = 0.5 + 0.45 * FloraMossNoise(p * 9.0 + 2.7) + 0.15 * FloraMossNoise(p * 31.0);
+        clip(lerp(edge, 1.2, solid) - r);
+    }
+    else if (mark < 0.58)
+    {
+        // A silhouette ring on the solid crown: how edge-on the face is, from how stretched the pixel's footprint is.
+        float area = length(cross(dx, dy));
+        half facing = saturate(min(dot(dx, dx), dot(dy, dy)) / max(area, 1e-12));
+        half rim = smoothstep(0.55, 0.95, 1 - facing) * (1 - solid);
+        clip(FloraMossNoise(p * 11.0) * 0.7 + FloraMossNoise(p * 37.0 + 1.9) * 0.3 + 0.25 - rim);
+    }
+    else
+    {
+        // Shell k: clumps of leaves in 3D cells, a little sparser on each shell out; gone once leaves get small.
+        half k = (mark - 0.6) / 0.05;
+        half n = FloraMossNoise(p * 10.0 + k * 7.1) * 0.65 + FloraMossNoise(p * 33.0 + k * 3.3) * 0.35;
+        clip(n - (0.5 + 0.07 * k) - solid * 0.6);
+    }
+}
+
+// R-30 row 2: sunlight through leaves, shared by the mesh (Flora.shader) and the impostor (FloraImpostor.shader).
+// A back lobe round the sun, bent a little by the leaf's normal so a crown lights up across its edge rather than at
+// one spot, scaled by how thin the leaf is (1 at a crown's open edge, less where the vertex AO says it sits deep).
+// A crown's own shadow only dims it: light scatters on through the layers, so a backlit crown glows instead of going
+// black. The wide and cloud shadows (open) still block it. Tinted by the leaf twice over (light through a leaf is
+// filtered by it), so it reads warmer and more saturated than the lit side. Returns light to multiply by albedo.
+half3 FloraLeafTransmission(half3 albedo, half3 n, float3 v, half3 l, half3 lightColor, half selfShadow, half open, half thin)
+{
+    half back = saturate(dot(-v, SafeNormalize(l + n * 0.3)));
+    half lobe = back * back;
+    lobe = lobe * lobe * 0.8 + lobe * 0.45;
+    half lit = lerp(selfShadow, 1, 0.75 * thin) * open;
+    half3 tint = lerp(1, saturate(albedo * 2.5), 0.5);
+    return lightColor * tint * (lobe * thin * lit);
+}
+
 void FloraMossClip(float4 moss)
 {
+    if (moss.x > 2.5)
+    {
+        FloraLeafClip(moss.x - 3, moss.yzw);
+        return;
+    }
     if (moss.x > 1.5)
         return;
     // W-101 (#80): a fine ragged hem on top of the clumps, so the rim frays into tufts instead of a smooth cut.

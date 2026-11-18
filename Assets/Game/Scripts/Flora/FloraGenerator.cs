@@ -344,6 +344,8 @@ namespace Punchy.Flora
                     case FloraForm.Bridge: Bridge(g); break;
                     case FloraForm.Palisade: Palisade(g); break;
                 }
+                if (lod < 2)
+                    FloraLeafTrial.Apply(species.Form, builder, seed);
                 if (species.Brackets > 0f && g.TrunkPath != null)
                     Brackets(g);
                 if (g.Limbs != null && g.Lod < 2)
