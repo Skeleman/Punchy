@@ -423,7 +423,7 @@ namespace Punchy.Terrain
         // ------------------------------------------------------------------------------------------- pools
 
         /// <summary>A lava pool's glow (rgb linear x intensity; its reach is set by its size).</summary>
-        static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
+        static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.27f * 2.2f, 0.025f * 2.2f, 0f);
 
         /// <summary>
         /// Hands this frame's light requests (lava pools, glowing plants, wall torches, room lights, lit windows here, and

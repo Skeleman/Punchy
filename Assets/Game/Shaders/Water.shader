@@ -455,11 +455,7 @@ Shader "Punchy/Water"
                               LavaNoise(x + float2(0, e)) - LavaNoise(x - float2(0, e))) / (2 * e);
             }
 
-            // Lava (item 37): crust thinner than this glows; thicker is black rock.
-            static const float LavaVein = 0.34;
-            // W-148 row 6: how far a disturbance thins the crust, and how much steeper than the field's slope it reads
-            // (lava's dents are shallow and slow, a few cm: drawn at the water's steepness they barely showed).
-            static const float LavaStir = 0.9;
+            // W-148 row 6: how much steeper than the field's slope lava's dents read (shallow and slow, a few cm).
             static const float LavaHeave = 4;
 
             // How much crust over the melt at p (small: a hot vein; large: dark crust), on a clock that runs slowly.
@@ -486,8 +482,6 @@ Shader "Punchy/Water"
                 return crust;
             }
 
-            float _PunchyLavaLook;
-
             float2 LavaCells(float2 q, float time)
             {
                 float2 cell = floor(q), f = q - cell;
@@ -512,7 +506,7 @@ Shader "Punchy/Water"
                 return lerp(c, half3(4.5, 2.6, 0.9), smoothstep(0.8, 1.0, heat));
             }
 
-            half3 LavaCandidate(int look, float2 home, float t, float tk, float ppm, float edge, float stir, float3 heave, half3 ambient, Light light, half shadow)
+            half3 LavaMelt(float2 home, float t, float tk, float ppm, float edge, float stir, float3 heave, half3 ambient, Light light, half shadow)
             {
                 float shimmer = smoothstep(15, 60, ppm);
                 home += (float2(LavaNoise(home * 2.2 + t * 1.6), LavaNoise(home * 2.2 - t * 1.25 + 5.1)) - 0.5) * 0.07 * shimmer;
@@ -522,43 +516,16 @@ Shader "Punchy/Water"
                 float3 n = normalize(heave + float3(-bump.x, 0, -bump.y));
                 half grit = lerp(1, 0.55 + 0.9 * LavaNoise(home * 5.3), rough);
                 half3 rock = half3(0.03, 0.026, 0.024) * grit * (ambient + light.color * shadow * saturate(dot(n, light.direction)));
-                half heat = 0, rim = 0;
                 float2 warp = (float2(LavaNoise(home * 0.21 + tk * 0.004), LavaNoise(home * 0.21 + 9.3 - tk * 0.003)) - 0.5) * 2.2;
-                if (look == 1)
-                {
-                    float2 c = LavaCells((home + warp) / 1.7, tk * 0.05);
-                    float open = 0.035 + 0.11 * smoothstep(0.35, 0.8, LavaNoise(home * 0.09 + tk * 0.006)) + 0.3 * stir + 0.2 * saturate(-edge);
-                    open *= saturate(1 - edge);
-                    heat = 1 - smoothstep(0, open, c.x);
-                    rim = 1 - smoothstep(open, open + 0.22, c.x);
-                    float2 c2 = LavaCells((home + warp) / 0.5 + 31, tk * 0.08);
-                    heat = max(heat, (1 - smoothstep(0, 0.07, c2.x)) * 0.45 * fine * (1 - smoothstep(0.05, 0.5, c.x)));
-                    heat *= 0.8 + 0.2 * sin(tk * 0.35 + c.y * 6.28 + home.x * 0.4);
-                }
-                else if (look == 2)
-                {
-                    float2 w = home * 0.32 + warp * 0.4;
-                    float r1 = 1 - abs(2 * LavaNoise(w + tk * 0.012) - 1);
-                    float r2 = 1 - abs(2 * LavaNoise(w * 2.3 - tk * 0.02 + 3.7) - 1);
-                    float ridge = max(r1, r2 * lerp(0.9, 0.97, fine));
-                    float zone = smoothstep(0.35, 0.8, LavaNoise(home * 0.05 + tk * 0.004));
-                    float width = (lerp(0.07, 0.22, zone) + 0.25 * stir) * saturate(1 - edge);
-                    heat = smoothstep(1 - width, 1, ridge);
-                    rim = smoothstep(1 - width * 3, 1, ridge);
-                    heat *= 0.75 + 0.25 * sin(tk * 0.5 - LavaNoise(w * 0.7) * 14);
-                }
-                else
-                {
-                    float2 w = home * 0.22 + warp * 0.3 - tk * 0.006;
-                    float raft = LavaNoise(w) * 0.6 + LavaNoise(w * 2.1 + 4.2) * 0.28 + LavaNoise(w * 4.7 + 8.1) * 0.12 * fine;
-                    float cover = 0.33 - 0.25 * stir;
-                    float crust = smoothstep(cover - 0.015, cover + 0.015, raft + edge * 0.5);
-                    float2 c = LavaCells((home + warp) / 0.9 + 11, tk * 0.04);
-                    crust *= lerp(1, smoothstep(0.02, 0.06, c.x), crust * smoothstep(cover + 0.15, cover, raft) * fine);
-                    float skin = LavaNoise(float2(dot(home, float2(0.9, 0.4)), dot(home, float2(-0.4, 0.9)) * 3.5) * 0.6 - tk * 0.03);
-                    heat = (1 - crust) * lerp(0.35, 0.8, skin);
-                    rim = smoothstep(cover + 0.12, cover, raft);
-                }
+                float2 w = home * 0.22 + warp * 0.3 - tk * 0.006;
+                float raft = LavaNoise(w) * 0.6 + LavaNoise(w * 2.1 + 4.2) * 0.28 + LavaNoise(w * 4.7 + 8.1) * 0.12 * fine;
+                float cover = 0.33 - 0.25 * stir;
+                float crust = smoothstep(cover - 0.015, cover + 0.015, raft + edge * 0.5);
+                float2 c = LavaCells((home + warp) / 0.9 + 11, tk * 0.04);
+                crust *= lerp(1, smoothstep(0.02, 0.06, c.x), crust * smoothstep(cover + 0.15, cover, raft) * fine);
+                float skin = LavaNoise(float2(dot(home, float2(0.9, 0.4)), dot(home, float2(-0.4, 0.9)) * 3.5) * 0.6 - tk * 0.03);
+                half heat = (1 - crust) * lerp(0.35, 0.8, skin);
+                half rim = smoothstep(cover + 0.12, cover, raft);
                 float far = smoothstep(2, 7, ppm);
                 heat = lerp(0.12, heat, far);
                 rim = lerp(0.25, rim, far);
@@ -1168,10 +1135,8 @@ Shader "Punchy/Water"
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
-                // Lava: flow noise churning slowly (LavaFlow), a dark crust with hot veins glowing through it. It glows
-                // (past white-point, for any bloom, held to the old melt's brightest so it stays in the lava light's
-                // budget) and nothing on it reflects or ripples. Fewer octaves as it shrinks on screen (the water's quality
-                // policy). The crust closes up where it cools against the rock at the edges.
+                // Lava glows past white-point (for bloom) and nothing on it reflects or ripples; the crust closes up
+                // where it cools against the rock at the edges.
                 if (lava > 0)
                 {
                     // (World position wrapped every km, so the noise stays precise far out. The clock wraps too, every
@@ -1192,30 +1157,12 @@ Shader "Punchy/Water"
                     }
                     else
                     {
-                        // Lava (playtest 11-08 item 37): about 30% of the gold's speed, broader and with one octave less
-                        // fine noise; black crust over most of it (lit faintly, as rock), and only where the crust is
-                        // thinnest a vein heating from deep red through orange, never yellow.
-                        // (W-148 row 6: on lava's own slow clock, tk, so its churn repeats even less.)
+                        // W-154: crust rafts drifting on open melt (Zach's pick, look 3), on lava's own slow clock tk.
                         home -= flowDir * flowAmount * frac(tk / 8192) * 8192 * 0.036;
-                        int octaves = pixelsPerMetre > _PunchyWaterTiers.y ? 4 : 3;
-                        // W-148 row 6: what disturbs it (the wave field, a wader's wake) shows: the crust cracks open
-                        // where the surface heaves, and the heaved rock catches the light by the field's slope alone
-                        // (undisturbed, both are exactly as before).
                         float2 heaved = wakeSlope * LavaHeave;
                         float stir = saturate(length(heaved));
                         float3 heave = normalize(float3(-heaved.x, 1, -heaved.y));
-                        int look = (int)round(_PunchyLavaLook);
-                        [branch] if (look > 0)
-                            lavaColor = LavaCandidate(look, home, t, tk, pixelsPerMetre, edge, stir, heave, ambient, light, shadow);
-                        else
-                        {
-                            float crust = LavaFlow(home * 0.3, frac(tk * 0.03 / 500) * 500, octaves) + edge - LavaStir * stir;
-                            half heat = saturate(1 - crust / LavaVein);
-                            half3 rock = half3(0.025, 0.021, 0.019) * (ambient + light.color * shadow * saturate(dot(heave, light.direction))) + half3(0.006, 0.002, 0.001);
-                            half3 glowing = lerp(half3(0.35, 0.02, 0.0), half3(2.0, 0.42, 0.03), smoothstep(0.15, 0.5, heat));
-                            glowing = lerp(glowing, half3(2.3, 0.7, 0.1), smoothstep(0.85, 1.0, heat));
-                            lavaColor = lerp(rock, glowing, smoothstep(0.0, 0.15, heat));
-                        }
+                        lavaColor = LavaMelt(home, t, tk, pixelsPerMetre, edge, stir, heave, ambient, light, shadow);
                     }
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
