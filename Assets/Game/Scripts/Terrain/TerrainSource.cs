@@ -83,6 +83,7 @@ namespace Punchy.Terrain
         public float2 Flow;
         /// <summary>0..1: how steep the river is here (white water at 1).</summary>
         public float Rapids;
+        public float Mouth, MouthStreak;
         /// <summary>W-134: the water is a cave pool's or stream's (from the float3 SampleGround, under the surface).</summary>
         public bool CaveWater;
 
@@ -745,6 +746,7 @@ namespace Punchy.Terrain
                     g.Height = RiverSampling.Carve(river, RiverSettings, g.Height, xz);
                 carved = g.Height;
                 g.River = RiverSampling.ChannelMask(river);
+                g.Mouth = MouthFan(ref Rivers.Value, xz, river, World.SeaLevel, out g.MouthStreak);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
                 var riverLevel = float.MinValue;
@@ -1325,6 +1327,8 @@ namespace Punchy.Terrain
                 River = ground.River,
                 Rapids = ground.Rapids,
                 Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
+                Mouth = ground.Mouth,
+                MouthStreak = ground.MouthStreak,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1394,6 +1398,8 @@ namespace Punchy.Terrain
                 River = ground.River,
                 Rapids = ground.Rapids,
                 Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
+                Mouth = ground.Mouth,
+                MouthStreak = ground.MouthStreak,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1406,6 +1412,34 @@ namespace Punchy.Terrain
                     result.AddScaled(BiomeSampling.EvaluateBiome(ref set, ground.Biomes.Ids[i], context), w);
             }
             return result.Snow;
+        }
+
+        static float MouthFan(ref RiverMapBlob map, float2 xz, in RiverQuery river, float sea, out float streak)
+        {
+            streak = 0f;
+            if (!river.Found || river.Distance > river.Width * 0.5f + 16f)
+                return 0f;
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            var k = map.Nearest[c.y * map.Resolution + c.x].x;
+            var prev = k;
+            for (var step = 0; step < 4 && k >= 0; step++)
+            {
+                // Only where the river enters a lake: from inside one it is an outlet or flows through it.
+                if ((map.LakeDepth[k] > 0f && map.LakeDepth[prev] <= 0f) || map.WaterLevel[k] <= sea + 0.05f)
+                {
+                    var mouth = map.Point(k);
+                    var flow = math.normalizesafe(mouth - map.Point(prev), river.Flow);
+                    var along = math.distance(xz, mouth);
+                    var reach = 30f + 10f * noise.snoise(mouth * 0.013f);
+                    var half = river.Width * 0.5f + math.lerp(22f, 2f, math.smoothstep(0f, reach, along));
+                    var across = math.dot(xz - mouth, new float2(-flow.y, flow.x)) / (along + 8f);
+                    streak = math.smoothstep(0.15f, 0.55f, noise.snoise(new float2(across * 12f, along * 0.04f)));
+                    return (1f - math.smoothstep(half * 0.55f, half, river.Distance)) * (1f - math.smoothstep(reach * 0.75f, reach, along));
+                }
+                prev = k;
+                k = map.Down[k];
+            }
+            return 0f;
         }
 
         public bool Equals(TerrainSource o) =>
