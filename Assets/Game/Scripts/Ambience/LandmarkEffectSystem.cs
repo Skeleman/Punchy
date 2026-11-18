@@ -697,7 +697,7 @@ namespace Punchy.Ambience
                             });
                         // R-29: steam and smoke go to the effects kit; glowing or coloured plumes stay here.
                         var family = effect.Kind == LandmarkEffectKind.Plume ? Punchy.Rendering.Effects.PlumeSystem.FamilyOf(effect.Color, effect.Glow) : null;
-                        if (family == Punchy.Rendering.Effects.PlumeSystem.Steam && FallType(inst.Type))
+                        if (family == Punchy.Rendering.Effects.PlumeSystem.Steam && FallType(types[inst.Type]))
                             spray.Add(ToKit(emitter)); // a waterfall landmark's pale plume is the spray where it lands
                         else if (family == Punchy.Rendering.Effects.PlumeSystem.Steam)
                             steam.Add(ToKit(emitter));
@@ -728,9 +728,9 @@ namespace Punchy.Ambience
         void Spray(in Emitter e) => spray.Add(ToKit(e));
 
         /// <summary>Whether a landmark type pours a waterfall (its pale plumes are then spray, not steam).</summary>
-        bool FallType(int type)
+        static bool FallType(LandmarkType type)
         {
-            foreach (var effect in types[type].Effects)
+            foreach (var effect in type.Effects)
                 if (effect.Kind == LandmarkEffectKind.Waterfall)
                     return true;
             return false;
