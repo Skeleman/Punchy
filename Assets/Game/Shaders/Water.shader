@@ -153,7 +153,7 @@ Shader "Punchy/Water"
                     clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
                     // (R-21: a river fall's face is drawn by its curtain, LandmarkEffectSystem.cs.)
-                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS, PunchyFallSide(input.positionWS)) ? -1 : 1);
                 }
                 return 0;
             }
@@ -610,7 +610,7 @@ Shader "Punchy/Water"
                     clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
                     // (R-21: a river fall's face, here or on the fine sheet, is drawn by its curtain mesh, FallCurtain.cs.)
-                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS, PunchyFallSide(input.positionWS)) ? -1 : 1);
                 }
                 float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
