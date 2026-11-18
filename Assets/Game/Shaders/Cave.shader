@@ -249,6 +249,7 @@ Shader "Punchy/Cave"
                 half3 country = input.country.rgb;
                 country = lerp(country, dot(country, half3(0.3, 0.5, 0.2)) * half3(1.03, 0.98, 0.92), 0.6);
                 PunchyRockCountry(country, input.country.a * (1 - saturate(max(s3.y, max(s3.z, s3.w)) * 2)), pale, dark);
+                half themed = smoothstep(0.2, 0.5, max(s3.y, max(s3.z, s3.w)));
                 half3 rock = lerp(dark, pale, tone) * input.data.y;
                 rock = PunchyRockShade(rock, 0, 0, bedLedge * bedFace, 0);
                 half3 floorTone = lerp(s6.rgb, s5.rgb, saturate(blotch * 0.7 + detail.b * 0.5));
@@ -371,12 +372,14 @@ Shader "Punchy/Cave"
                     // Not in road tunnels: on bored rock they read as white squiggles (W-138 row 4b).
                     float veinPatch = PunchyValueNoise(p.xz * 0.06 + p.y * 0.08 + 401);
                     float veinLine = PunchyValueNoise(p.xy * 0.7 + p.z * 0.55 + 3) * 0.6 + PunchyValueNoise(p.zy * 1.9 - p.x * 0.4) * 0.4;
-                    float vein = (1 - smoothstep(0.0, 0.03, abs(veinLine - 0.5))) * smoothstep(0.62, 0.72, veinPatch)
+                    // Plain stone gets sparse seams near the rock's own tone; ore, crystal and ice keep the bright netting.
+                    float vein = (1 - smoothstep(0.0, lerp(0.018, 0.03, themed), abs(veinLine - 0.5))) * smoothstep(lerp(0.72, 0.62, themed), lerp(0.8, 0.72, themed), veinPatch)
                                * (1 - floorShare * 0.7) * bare * (tunnel ? 0 : 1);
                     float calcite = step(0.5, PunchyValueNoise(p.xz * 0.015 + 77));
                     half3 mineral = lerp(half3(0.5, 0.25, 0.11), half3(0.88, 0.86, 0.8), calcite);
-                    rock = lerp(rock, mineral * (0.8 + 0.4 * detail.b), vein * 0.85);
-                    gloss = lerp(gloss, 0.55, vein * calcite);
+                    mineral = lerp(lerp(mineral, rock * 1.5, 0.65), mineral, themed);
+                    rock = lerp(rock, mineral * (0.8 + 0.4 * detail.b), vein * lerp(0.4, 0.85, themed));
+                    gloss = lerp(gloss, lerp(0.3, 0.55, themed), vein * calcite);
                 }
                 else if (dressed > 0.5 && dressed < 1.5)
                 {
