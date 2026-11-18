@@ -53,6 +53,9 @@ namespace Punchy.Flora
                 CropKind.Beans => 1.8f,
                 CropKind.Agave => 1.7f,
                 CropKind.Potato => 0.7f,
+                CropKind.Cabbage => 0.8f,
+                CropKind.GlowHerb => 0.75f,
+                CropKind.Kale => 0.7f,
                 _ => 0.6f
             } * (g.Lod == 1 ? 1.8f : 1f);
 
@@ -120,6 +123,7 @@ namespace Punchy.Flora
         static float CropHeight(CropKind crop) => crop switch
         {
             CropKind.Grain => 0.9f,
+            CropKind.Rice => 0.7f,
             CropKind.Beans => 1.9f,
             CropKind.Agave => 0.9f,
             CropKind.Potato => 0.35f,
@@ -132,62 +136,60 @@ namespace Punchy.Flora
         {
             var b = g.B;
             var h = CropHeight(crop) * grow;
-            var detail = g.Lod == 0 ? 1 : 0;
             switch (crop)
             {
                 case CropKind.Grain:
                     var col = Color.Lerp(leaf, ripe, Mathf.Clamp01(grow * 1.2f - 0.3f));
-                    b.Box(at + new Vector3(0f, h * 0.4f, 0f), new Vector3(step * 0.95f, h * 0.8f, 0.42f), Quaternion.Euler(0f, 0f, (j - 0.5f) * 6f), col * 0.85f, FloraPart.Foliage);
-                    b.Box(at + new Vector3(0f, h * 0.88f, 0f), new Vector3(step * 0.9f, h * 0.18f, 0.5f), Quaternion.Euler(0f, 0f, (j - 0.5f) * 8f), Color.Lerp(col, ripe, 0.5f), FloraPart.Foliage);
+                    var lean = new Vector3((j - 0.5f) * 0.1f, h, 0f);
+                    Card(b, at, at + lean, step * 0.8f, step, Vector3.right, col * 0.9f);
+                    Card(b, at, at + lean, 0.3f, 0.5f, Vector3.forward, Color.Lerp(col, ripe, 0.5f));
+                    break;
+                case CropKind.Rice:
+                    var tuft = Color.Lerp(leaf, ripe, Mathf.Clamp01(grow - 0.6f));
+                    Card(b, at, at + new Vector3(0f, h, 0f), 0.08f, 0.55f * grow + 0.1f, Vector3.right, tuft);
+                    Card(b, at, at + new Vector3(0f, h * 0.9f, 0f), 0.08f, 0.5f * grow + 0.1f, Vector3.forward, tuft * 0.85f);
                     break;
                 case CropKind.Cabbage:
                     var r = 0.22f * grow + 0.06f;
-                    b.Blob(at + new Vector3(0f, r * 0.6f, 0f), new Vector3(r, r * 0.8f, r), Quaternion.identity, detail, 0.35f, seed, leaf, FloraPart.Foliage);
+                    b.Blob(at + new Vector3(0f, r * 0.6f, 0f), new Vector3(r, r * 0.8f, r), Quaternion.identity, 0, 0.35f, seed, leaf, FloraPart.Foliage);
                     break;
                 case CropKind.Kale:
                     var k = 0.16f * grow + 0.05f;
-                    b.Blob(at + new Vector3(0f, h * 0.55f, 0f), new Vector3(k, h * 0.55f, k), Quaternion.identity, detail, 0.6f, seed, leaf * 0.8f, FloraPart.Foliage);
+                    b.Blob(at + new Vector3(0f, h * 0.55f, 0f), new Vector3(k, h * 0.55f, k), Quaternion.identity, 0, 0.6f, seed, leaf * 0.8f, FloraPart.Foliage);
                     break;
                 case CropKind.Potato:
-                    b.Family = Punchy.Terrain.MaterialFamily.Plaster;
-                    b.Blob(at + new Vector3(0f, 0.02f, 0f), new Vector3(0.3f, 0.12f, 0.24f), Quaternion.identity, 0, 0.2f, seed, Soil.linear * 0.9f, FloraPart.Bark);
-                    b.Family = b.BaseFamily;
-                    b.Blob(at + new Vector3(0f, h * 0.6f + 0.06f, 0f), new Vector3(0.24f * grow + 0.05f, h * 0.5f, 0.2f * grow + 0.05f), Quaternion.identity, 0, 0.5f, seed + 3f, leaf, FloraPart.Foliage);
+                    b.Blob(at + new Vector3(0f, h * 0.5f + 0.04f, 0f), new Vector3(0.24f * grow + 0.05f, h * 0.5f, 0.2f * grow + 0.05f), Quaternion.identity, 0, 0.5f, seed + 3f, leaf, FloraPart.Foliage);
                     break;
                 case CropKind.Beans:
-                    var top = at + new Vector3(0f, 1.9f, 0f);
                     b.Family = Timber(g);
-                    for (int p = 0; p < 3; p++)
-                    {
-                        var a = (p / 3f + j) * Mathf.PI * 2f;
-                        b.Beam(at + new Vector3(Mathf.Cos(a) * 0.35f, -0.05f, Mathf.Sin(a) * 0.35f), top, 0.035f, 0.035f, straw * 0.7f, FloraPart.Bark);
-                    }
+                    b.Beam(at + new Vector3(0f, -0.05f, 0f), at + new Vector3((j - 0.5f) * 0.2f, 1.9f, 0f), 0.04f, 0.04f, straw * 0.7f, FloraPart.Bark);
                     b.Family = b.BaseFamily;
-                    b.Blob(at + new Vector3(0f, h * 0.45f, 0f), new Vector3(0.32f, h * 0.48f, 0.32f), Quaternion.identity, detail, 0.7f, seed, leaf, FloraPart.Foliage, 1f, 0f, 2f);
+                    b.Blob(at + new Vector3(0f, h * 0.45f, 0f), new Vector3(0.32f, h * 0.48f, 0.32f), Quaternion.identity, 0, 0.7f, seed, leaf, FloraPart.Foliage, 1f, 0f, 2f);
                     break;
                 case CropKind.Agave:
-                    for (int p = 0; p < 6; p++)
+                    for (int p = 0; p < 4; p++)
                     {
-                        var a = (p / 6f + j) * Mathf.PI * 2f;
-                        b.Beam(at, at + new Vector3(Mathf.Cos(a) * 0.55f * grow, h, Mathf.Sin(a) * 0.55f * grow), 0.12f, 0.03f, leaf, FloraPart.Foliage);
+                        var a = (p / 4f + j) * Mathf.PI * 2f;
+                        var out_ = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                        Card(b, at, at + out_ * 0.55f * grow + new Vector3(0f, h, 0f), 0.16f, 0.02f, Vector3.Cross(out_, Vector3.up), leaf * (p % 2 == 0 ? 1f : 0.88f));
                     }
-                    b.Beam(at, at + new Vector3(0f, h * 1.1f, 0f), 0.1f, 0.05f, leaf * 0.9f, FloraPart.Foliage);
                     break;
                 case CropKind.GlowHerb:
                     var herb = 0.2f * grow + 0.06f;
-                    b.Blob(at + new Vector3(0f, herb * 0.7f, 0f), new Vector3(herb, herb * 0.9f, herb), Quaternion.identity, detail, 0.6f, seed, leaf, FloraPart.Foliage);
+                    b.Blob(at + new Vector3(0f, herb * 0.7f, 0f), new Vector3(herb, herb * 0.9f, herb), Quaternion.identity, 0, 0.6f, seed, leaf, FloraPart.Foliage);
                     if (grow < 0.5f)
                         break;
-                    for (int p = 0; p < 3; p++)
+                    for (int p = 0; p < 2; p++)
                     {
-                        var a = (p / 3f + j) * Mathf.PI * 2f;
-                        var tip = at + new Vector3(Mathf.Cos(a) * herb * 0.5f, h, Mathf.Sin(a) * herb * 0.5f);
-                        b.Beam(at + Vector3.up * herb, tip, 0.02f, 0.015f, leaf * 0.8f, FloraPart.Foliage);
-                        b.Blob(tip, Vector3.one * 0.06f, Quaternion.identity, 0, 0.2f, seed + p, ripe, FloraPart.Glow);
+                        var a = (p / 2f + j) * Mathf.PI * 2f;
+                        b.Diamond(at + new Vector3(Mathf.Cos(a) * herb * 0.5f, h, Mathf.Sin(a) * herb * 0.5f), 0.05f, ripe, FloraPart.Glow);
                     }
                     break;
             }
         }
+
+        static void Card(FloraMeshBuilder b, Vector3 from, Vector3 to, float bottom, float top, Vector3 across, Color color) =>
+            b.Strip(new[] { from, to }, new[] { bottom, top }, across, color, FloraPart.Foliage, 1f, Vector3.up);
 
         static void FieldEdge(Grower g, float hx, float hz, float height, System.Random rng)
         {
@@ -225,12 +227,12 @@ namespace Punchy.Flora
                                 b.Box(mid + Vector3.up * height * 0.5f, new Vector3(0.9f, height, len), rot, hedge, FloraPart.Foliage);
                                 break;
                             }
-                            var bushes = Mathf.Max(1, Mathf.RoundToInt(len / (g.Lod == 0 ? 1.4f : 2.8f)));
+                            var bushes = Mathf.Max(1, Mathf.RoundToInt(len / (g.Lod == 0 ? 1.1f : 2.8f)));
                             for (int k = 0; k < bushes; k++)
                             {
                                 var size = U() * 0.25f + 0.85f;
                                 b.Blob(Vector3.Lerp(p, q, (k + 0.5f) / bushes) + Vector3.up * height * 0.5f * size, new Vector3(0.6f, height * 0.55f * size, len / bushes * 0.7f), rot,
-                                       g.Lod == 0 ? 1 : 0, 0.5f, U() * 50f, hedge * size, FloraPart.Foliage, 1f, 0.3f, 2f);
+                                       0, 0.5f, U() * 50f, hedge * size, FloraPart.Foliage, 1f, 0.3f, 2f);
                             }
                             break;
                         case FieldBorder.DryStone:
@@ -240,18 +242,18 @@ namespace Punchy.Flora
                                 b.Box(mid + Vector3.up * height * 0.45f, new Vector3(0.6f, height * 0.9f, len), rot, stone, FloraPart.Bark);
                                 break;
                             }
-                            var blocks = Mathf.Max(1, Mathf.RoundToInt(len / 0.7f));
                             for (int course = 0; course < 2; course++)
+                            {
+                                var blocks = Mathf.Max(1, Mathf.RoundToInt(len / (course == 0 ? 2.8f : 1.1f)));
                                 for (int k = 0; k < blocks; k++)
                                 {
-                                    var t = (k + 0.5f + course * 0.5f) / blocks;
+                                    var t = (k + 0.5f) / blocks;
                                     var shade = U() * 0.3f + 0.8f;
                                     var twist = (U() - 0.5f) * 8f;
-                                    if (t > 1f)
-                                        continue;
                                     b.Box(Vector3.Lerp(p, q, t) + Vector3.up * height * (0.22f + course * 0.45f), new Vector3(0.6f - course * 0.12f, height * 0.44f, len / blocks * 0.96f),
-                                          rot * Quaternion.Euler(0f, twist, 0f), stone * shade, FloraPart.Bark);
+                                          rot * Quaternion.Euler(0f, twist * course, 0f), stone * shade, FloraPart.Bark);
                                 }
+                            }
                             break;
                         case FieldBorder.Adobe:
                             var mud = AdobeMud.linear;
@@ -308,7 +310,7 @@ namespace Punchy.Flora
                             break;
                         default:
                             var wattle = kind == FieldBorder.Wattle;
-                            var posts = Mathf.Max(1, Mathf.RoundToInt(len / (wattle ? 1.2f : 2.4f)));
+                            var posts = Mathf.Max(1, Mathf.RoundToInt(len / (wattle ? 1.5f : 2.4f)));
                             for (int k = 0; k <= posts; k++)
                             {
                                 var shade = U() * 0.25f + 0.85f;
