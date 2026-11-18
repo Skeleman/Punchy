@@ -94,6 +94,7 @@ Shader "Punchy/Water"
             #include "WaterSwell.hlsl"
             #include "WaterField.hlsl"
             #include "WaterFlowLines.hlsl"
+            #include "WaterShore.hlsl"
 
             struct DepthAttributes
             {
@@ -125,12 +126,14 @@ Shader "Punchy/Water"
             #ifdef _WATER_FIELD
                 o.positionWS = PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell);
                 o.positionWS.y += PunchyFlowPatchLift(rest, input.data, input.parent, _FlowSpeed, _PunchyClock);
+                o.positionWS.y += PunchyShorePatchLift(rest, input.data, input.parent, _PunchyClock);
             #else
                 o.positionWS = PunchySwellVertex(rest, input.data.z, _PunchyClock, swell);
                 // R-21 row 4: the water dips above a fall's lip and heaves at its foot (the same move as the main pass's).
                 float fallChurn;
                 float2 fallSlope;
                 o.positionWS.y += PunchyFallWater(rest, _PunchyClock, 0, fallChurn, fallSlope);
+                o.positionWS.y += PunchyShoreLift(rest, input.data, _PunchyClock);
                 // (A fall's curtain mesh stays where it was built.)
                 o.positionWS = input.fall.y > 0.5 ? rest : o.positionWS;
             #endif
@@ -191,6 +194,7 @@ Shader "Punchy/Water"
             #pragma multi_compile_local _ _WATER_FIELD
             #include "WaterField.hlsl"
             #include "WaterFlowLines.hlsl"
+            #include "WaterShore.hlsl"
 
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
@@ -279,6 +283,7 @@ Shader "Punchy/Water"
                 float3 restV = pos.positionWS;
                 pos.positionWS = PunchyWaterPatchVertex(restV, input.data, input.parent, input.parentY, _PunchyClock, o.swell);
                 pos.positionWS.y += PunchyFlowPatchLift(restV, input.data, input.parent, _FlowSpeed, _PunchyClock);
+                pos.positionWS.y += PunchyShorePatchLift(restV, input.data, input.parent, _PunchyClock);
             #else
                 pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
                 // R-21 row 4: the water dips above a fall's lip and heaves at its foot (broad moves only: this mesh
@@ -286,6 +291,7 @@ Shader "Punchy/Water"
                 float fallChurnV;
                 float2 fallSlopeV;
                 pos.positionWS.y += PunchyFallWater(float3(o.restXZ.x, pos.positionWS.y, o.restXZ.y), _PunchyClock, 0, fallChurnV, fallSlopeV);
+                pos.positionWS.y += PunchyShoreLift(TransformObjectToWorld(input.positionOS), input.data, _PunchyClock);
                 // (A fall's curtain mesh stays where it was built, and is never the sea.)
                 pos.positionWS = input.fall.y > 0.5 ? TransformObjectToWorld(input.positionOS) : pos.positionWS;
                 o.sea *= input.fall.y > 0.5 ? 0 : 1;
@@ -1126,6 +1132,8 @@ Shader "Punchy/Water"
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
                 }
+                [branch] if (frontFace && input.fall.y < 0.5)
+                    alpha *= lerp(PunchyShoreEdge(p, thickness, pixelsPerMetre), 1, lava);
 
                 if (_PunchyWaterProbe > 0.5)
                     return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe > 3.5 ? half4(foamParts * 2, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);
