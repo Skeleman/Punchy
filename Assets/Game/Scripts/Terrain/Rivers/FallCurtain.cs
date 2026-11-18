@@ -123,10 +123,11 @@ namespace Punchy.Terrain
                     // inset per row read as a row of regular teeth). The outer column fades out (Fall.y), so the edge
                     // reads soft rather than as hard triangles.
                     if (i == 0)
-                        u += EdgeWander(f, s.Seed) * 0.12f * tauHere;
+                        u += EdgeWander(f, s.Seed) * (0.02f + 0.12f * tauHere);
                     else if (i == columns)
-                        u -= EdgeWander(f, s.Seed + 0.53f) * 0.12f * tauHere;
-                    var edge = i == 0 || i == columns ? 0f : 1f;
+                        u -= EdgeWander(f, s.Seed + 0.53f) * (0.02f + 0.12f * tauHere);
+                    // (Faded over its first row and its last 1.5 m each end: hard edges there read as a flat pane over the river.)
+                    var edge = r == 0 ? 0f : math.saturate(math.min(i, columns - i) / (float)columns * s.Width / 1.5f);
                     var p = Point(s, u, f, out var tau, out var lipIn);
                     vertices.Add(new Vertex
                     {
