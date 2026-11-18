@@ -105,6 +105,8 @@ namespace Punchy.Flora
                 }
                 Streaks(g, c, At(cx, top, 0f), q, len, t * 0.5f, top, wear);
                 Streaks(g, c, At(cx, top, 0f), q, len, -t * 0.5f, top, wear);
+                foreach (var side in new[] { -1f, 1f })
+                    PutlogHoles(c, At(cx, 0f, side * t * 0.5f), side > 0f ? q : q * Quaternion.Euler(0f, 180f, 0f), len, top);
                 k += run;
             }
             if (wear > 0.5f)
@@ -121,6 +123,7 @@ namespace Punchy.Flora
             var flat = Quaternion.identity;
             c.Block(at + new Vector3(0f, 0.5f, 0f), new Vector3(side + 0.5f, 1f, side + 0.5f), flat);
             c.Block(at + new Vector3(0f, standing * 0.5f, 0f), new Vector3(side, standing, side), flat);
+            Quoins(c, at, half, half, standing < h ? standing - 0.3f : h - 0.9f);
             for (int face = 0; face < 4; face++)
             {
                 var yaw = face * 90f;
@@ -165,6 +168,9 @@ namespace Punchy.Flora
                 c.Block(at + new Vector3(side * (r + pier * 0.5f + 0.1f), 0.5f, 0f), new Vector3(pier + 0.2f, 1f, depth + 0.4f), flat);
             }
             c.Block(at + new Vector3(0f, (lintel + h) * 0.5f, 0f), new Vector3(pass, h - lintel, depth), flat);
+            Quoins(c, at, width * 0.5f, depth * 0.5f, h - 0.9f);
+            foreach (var side in new[] { -1f, 1f })
+                PutlogHoles(c, at + new Vector3(side * (r + pier * 0.5f), 0f, depth * 0.5f), flat, pier, h - 0.8f);
             const int stones = 9;
             for (int k = 0; k < stones; k++)
             {
@@ -267,6 +273,36 @@ namespace Punchy.Flora
                 c.Add(KitPiece.Rubble, KitMaterial.Stone, at, new Vector3(size * 1.3f, size * 0.8f, size), q * Quaternion.Euler(g.Range(-15f, 15f), g.Range(0f, 360f), g.Range(-15f, 15f)), true);
             }
             c.Box(centre + Vector3.up * 0.2f, new Vector3(spread * 2f + 0.5f, 0.4f, 1.6f), q);
+        }
+
+        static void Quoins(Castle c, Vector3 at, float hx, float hz, float top)
+        {
+            const float course = 0.7f, proud = 0.04f;
+            var flat = Quaternion.identity;
+            for (int corner = 0; corner < 4; corner++)
+            {
+                float sx = corner % 2 == 0 ? 1f : -1f, sz = corner < 2 ? 1f : -1f;
+                var k = 0;
+                for (var y = 1f; y + course <= top; y += course, k++)
+                {
+                    var longX = (k + corner) % 2 == 0;
+                    float lx = longX ? 0.95f : 0.55f, lz = longX ? 0.55f : 0.95f;
+                    var centre = at + new Vector3(sx * (hx + proud - lx * 0.5f), y + course * 0.5f, sz * (hz + proud - lz * 0.5f));
+                    c.Add(KitPiece.Trim, KitMaterial.Stone, centre, new Vector3(lx, course - 0.04f, lz), flat, true);
+                }
+            }
+        }
+
+        static void PutlogHoles(Castle c, Vector3 foot, Quaternion q, float length, float top)
+        {
+            for (var y = 1.8f; y < top - 0.8f; y += 1.5f)
+                for (var x = -length * 0.5f + 0.9f; x < length * 0.5f - 0.6f; x += 1.8f)
+                {
+                    var spot = foot + q * new Vector3(x, y, 0.01f);
+                    if (Mathf.Repeat(Mathf.Sin(spot.x * 12.9898f + spot.y * 78.233f + spot.z * 37.719f) * 43758.5453f, 1f) < 0.4f)
+                        continue;
+                    c.Add(KitPiece.Window, KitMaterial.Opening, spot, new Vector3(0.2f, 0.2f, 0.06f), q, true);
+                }
         }
 
         static void MossTop(Grower g, Castle c, Vector3 top, Quaternion q, float length, float thick, float wear)
