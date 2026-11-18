@@ -270,3 +270,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #584 W-165 row 3 (#335): rice tufts in still shallow ponds of grassland and temperate land, none in rivers.
 - #585 W-161 (#326, closed): elf towns in stone, with no wood signs, fences, bridges, doors or shingles; flora metal no longer renders white-hot (all metal props).
 - #586 R-26 row 3 (#304): cave wall detail at mouths matches the ground grain in every style; no far-from-origin blur on mouth ground.
+- #587 tooling: ShotTool no longer sticks in Waiting when play stops mid-shot (no leaked runners).
