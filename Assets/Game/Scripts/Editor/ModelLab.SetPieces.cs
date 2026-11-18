@@ -25,7 +25,7 @@ namespace Punchy.EditorTools
         /// <summary>Forms that are built structures (houses, halls, shrines, wells, bridges, ruins, kit buildings).</summary>
         static bool IsStructure(FloraForm f) => f is FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower
             or FloraForm.Pen or FloraForm.Stall or FloraForm.Inn or FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain
-            or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Lodge or FloraForm.Bridge
+            or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Field or FloraForm.Lodge or FloraForm.Bridge
             or FloraForm.Palisade or FloraForm.MineFrame or FloraForm.Ruin or FloraForm.HazardShelter or FloraForm.KitBuilding
             or FloraForm.KitRuin or FloraForm.Stable;
 
