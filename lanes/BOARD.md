@@ -87,6 +87,6 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | M-07 r2b | #260 | world | editor-free done, uncompiled | world/map-edits-bake@2e2f6abb | PaintedEdits bake hook, TerrainSource.Edits, cache format 5. Rule 11 OK 11-16: edits hash in WorldSync.Signature only when edits exist. Now: overlap warnings; editor after W-174 r3 |
 | M-08 | #414 | lab | merged #435 | lab/set-piece-view | rows 1-3 shipped; #414 stays open for M-06 row 5 blueprints |
 | M-06 r3b | #413 | lab | merged #442 (Lab species herds moved to fauna, who own Herds.cs; lab blocked on W-166 / Zach) | lab/new-species 3c1ee5f1 | Homes merge, Lab species index group (after 124 built-ins), Save as new panel, KitParts field; Frostdeer (Tundra) verified solo + host; Fauna_Fingerprint 0206544F; temple Ruin ctor dropped (public static offered) |
-- 11-16 materials: PAUSED after #508 (W-175 r4-6). W-166 rows 1-4 done, no queued row. Tree D:/Unity/Punchy-materials pruned (Library kept); resume on a fresh worktree off origin/main.
+- 11-17 materials: rows 1-2b done (#542 #544 #561 #564 #567) plus mouth floor #566; next: iron KitMaterial (lantern caps, metal fittings off the stone fallback).
 - 11-16 R-35 (#333): Zach keeps the base clouds. Row 3 lands only E (screen-size fade); A-D are dropped unless BENCH shows one is cheaper. render-2 stays paused.
 - 11-16 colossus cloud dim: Zach sees no darkness change between clouds on and off; keep as is, no follow-up.

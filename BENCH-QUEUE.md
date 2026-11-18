@@ -1154,3 +1154,6 @@ Collar faces now mirror their normal into the hole (one dot per triangle). One c
 
 ## Request (2026-11-17, render-2, R-29 row 3 #320, branch render/effects-kit-2 e6df4844): steam and smoke plume families cost
 Landmark steam/smoke plumes and chimney smoke now draw through PlumeSystem (two RenderPrimitives from EffectsDriver, one per family) instead of inside LandmarkEffectSystem's single plume draw. One check vs main 36d817c6: EffectsDriver and LandmarkEffectSystem main-thread ms and whole-frame GPU ms over the village at 2972,-885 (37 smoke plumes) and the geyser at -2427,2450, High, uncapped, 300 frames. Expect no change. Report only.
+
+## Note (2026-11-17, supervisor): re-pin after #567 (W-166 row 2b)
+Scarp gully spacing and chimneys now depend on the biome stone, so ground heights near scarps moved (granite canyon most). Re-pin any terrain-height or scarp baselines before the next comparison. Also merged: #565 (R-29 steam/smoke, its cost request is above) and #566 (cave mouth floor, Cave.shader terrain-share branch adds grain + MicroHeight).
