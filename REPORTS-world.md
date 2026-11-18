@@ -8758,3 +8758,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Branch world/mouth-tint 6972a3b4 (WIP, not verified): the patch vertices now get the chunk's hollow depth (shared BuildChunkMeshJob.HollowDepth) and its W-136 contact shade (PatchShadeJob, redone when GroundContacts.Version changes). The rule 35 trims from #600 are in.
 - Not shot: free RAM stayed at 4-7 GB for 25 min while other editors were open, so I didn't enter play mode.
 - Open suspect: in after2-c3f the broad dark shadow bands also stop at the patch edge, so the patch may not receive shadows (RenderMesh vs Entities). Test: shoot c3f with contact shade alone, then with the directional light's shadows off (pershot2 PRE hook).
+
+## 11-18 mouth-tint (#301 follow-up): DONE, world/mouth-tint@80bc8d3a, ready for PR
+- Fix: the reshade re-set the vertex buffer params, which reset the submesh and blanked the nearby terrain. Now the submesh is set once and a reshade only re-uploads the vertices. Hollow depth, contact shade and the rule 35 trims are in.
+- 20 m shots: no seam at c3 or c6. Shadow test: c3f with the sun's shadows off looks the same as with them on. Clearing the patch shows its footprint, and the tree shadows and wide shadows cross it just as they cross the chunks. The patch does receive shadows, so no fix was needed. The pale halo round the mouth is on the chunk terrain, not on the patch.
+- WorldTests 21/21. Shots: PunchyMilestones/world/mouth-patch/tint-c3f-20m, tint-c6f-20m, tint-c3f-nosunshadow, tint-c3f-patch-footprint (.png).
