@@ -3,24 +3,14 @@ using Unity.Mathematics;
 
 namespace Punchy.Terrain
 {
-    /// <summary>
-    /// W-165: farm fields round a settlement. After the roads and roadside landmarks, each settlement whose layout lists
-    /// Field buildings rings itself with a patchwork of them just past its edge: two rings deep, walked round from an
-    /// angle its own hash picks, each field facing the town (its gate that way) on gentle dry ground clear of streets,
-    /// roads, plots, landmarks and other towns. The crop is picked per field by hash among the Field entries for the
-    /// biome under the town, so nothing laid out before moves.
-    /// </summary>
     public static class FieldBaking
     {
-        /// <summary>Clear ground between a field and the settlement's edge (m).</summary>
         const float Margin = 12f;
-        /// <summary>How far apart neighbouring fields keep, room for a hedgerow or a path (m).</summary>
         const float Apart = 2.5f;
         const float RingStep = 21f;
         const float AngleStep = 9f;
         const float MaxRelief = 3f;
 
-        /// <summary>W-165: how many fields the last Place laid, for the bake log.</summary>
         public static int LastCount;
 
         public static void Place(in TerrainSource source, List<SettlementLayout> layouts, List<int> firstBuilding,
@@ -173,7 +163,6 @@ namespace Punchy.Terrain
             return true;
         }
 
-        /// <summary>Whether two turned rectangles overlap (separating axes).</summary>
         static bool Overlap(in SettlementPlot a, float2 centre, float2 facing, float2 half)
         {
             var d = centre - a.Centre;

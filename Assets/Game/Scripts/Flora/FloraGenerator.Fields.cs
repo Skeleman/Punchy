@@ -2,7 +2,6 @@ using UnityEngine;
 
 namespace Punchy.Flora
 {
-    // FloraGenerator, farm fields (W-165): crop rows on tilled ridges inside a border, a gate at +Z towards the town.
     public static partial class FloraGenerator
     {
         static readonly Color Soil = new Color(0.32f, 0.22f, 0.14f);
@@ -32,7 +31,6 @@ namespace Punchy.Flora
             var inner = 1.2f;
             var rows = Mathf.Max(2, Mathf.FloorToInt((hz - inner) * 2f / spacing) + 1);
 
-            // Growth runs in strips along the rows, sown at different times; a few patches failed outright.
             var strips = 2 + rng.Next(3);
             var growth = new float[strips];
             for (int k = 0; k < strips; k++)
@@ -88,7 +86,6 @@ namespace Punchy.Flora
                     if (g.Lod < 2)
                         Crop(g, s.Crop, new Vector3(x + (j - 0.5f) * 0.12f, 0.12f, z), grow, step, tint, ripe, straw, seed, j);
                 }
-                // Far off a row is a coloured ribbon, strip by strip.
                 if (g.Lod == 2)
                     for (int k = 0; k < strips; k++)
                     {
@@ -100,7 +97,6 @@ namespace Punchy.Flora
                     }
             }
 
-            // Something standing in the field: a scarecrow, a tool rack by the gate, or nothing.
             var prop = g.Variant % 3;
             var spot = new Vector3(Mathf.Lerp(-hx, hx, U()) * 0.5f, 0f, Mathf.Lerp(-hz, hz, U()) * 0.4f);
             var yaw = U() * 360f;

@@ -490,7 +490,7 @@ namespace Punchy.Settings
                 case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.
                 case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f, SharpShadow = float.MaxValue };
-                // W-165: a field's rows are dense; full rows only within about a field's width.
+                // Field rows are dense, so full rows only within about one field width.
                 case FloraClass.Field: return new Rule { Geometry = new Thresholds(1150f, 200f, 0f), Shadow = 14f, SharpShadow = 400f, WideShadow = Huge.WideShadow };
                 // Built things hold their reduced mesh far out: their outline is what shows.
                 default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f, SharpShadow = 400f, WideShadow = Huge.WideShadow };

@@ -72,7 +72,6 @@ namespace Punchy.Terrain
         public int Building;
         public int Settlement;
         public float2 Min, Max;
-        /// <summary>W-165: a field's crop colour (linear), painted into the ground so it reads from afar.</summary>
         public float3 Tone;
     }
 
@@ -394,11 +393,6 @@ namespace Punchy.Terrain
             return covered;
         }
 
-        /// <summary>
-        /// W-165: tilled earth under each field, banded across in its crop's colour, so from a ridge the fields read as
-        /// a patchwork of stripes after their meshes are gone. The bands are metres wide and the edge ragged, so it
-        /// neither shimmers nor ends on a ruler line.
-        /// </summary>
         static void Fields(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
         {
             var cell = Cell(ref set, xz);

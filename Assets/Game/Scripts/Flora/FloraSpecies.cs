@@ -143,10 +143,8 @@ namespace Punchy.Flora
                  "ripe heads) along X on tilled ridges (Bark), Field Size across, inside its Border (Height the border's).")] Field
     }
 
-    /// <summary>W-165: what a field grows.</summary>
     public enum CropKind : byte { Grain, Cabbage, Beans, Agave, Potato, Kale }
 
-    /// <summary>W-165: what rings a field.</summary>
     public enum FieldBorder : byte { Rail, Hedge, Wattle, DryStone }
 
     /// <summary>
