@@ -250,3 +250,7 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
   FloraGenerator.Parts.Castle.cs. Stone goes through DrawBuildParts, so the host's culture sets the look.
 - **Wear:** `UnitPart.Wear` ages any castle part: moss from 0.3, missing merlons, breaches, broken tops and rubble
   toward 1. The 12 `castle *` blueprints are the four units at 0, 0.45 (mossy) and 0.9 (ruined). Lab only so far.
+- **Gate kit:** `castle gate` (arch, two flanking towers, portcullis down) and `castle gate raised` (portcullis up, teeth
+  in the arch crown) are one unit in two static poses; syncing the portcullis would be a network change. A nested unit
+  ages to at least its part's Wear, and `FloraSpecies.NestedJson` lists the units a species' JSON nests so builds have
+  them. `castle ruin gate` (the `CastleGateRuins` landmark) nests the raised gate at Wear 0.8.

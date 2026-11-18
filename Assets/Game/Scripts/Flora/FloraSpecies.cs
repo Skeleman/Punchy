@@ -204,6 +204,10 @@ namespace Punchy.Flora
         {
             JsonUnit = UnitJson != null ? UnitLibrary.FromJson(UnitJson.text) : null;
             UnitLibrary.Register(JsonUnit);
+            if (NestedJson != null)
+                foreach (var nested in NestedJson)
+                    if (nested != null)
+                        UnitLibrary.Register(UnitLibrary.FromJson(nested.text));
         }
 
         [Header("Growth")]
@@ -214,6 +218,8 @@ namespace Punchy.Flora
         public TextAsset UnitJson;
         /// <summary>W-175 row 6: UnitJson read on the main thread (OnEnable), for growers on worker threads; null without one.</summary>
         [System.NonSerialized] public UnitDef JsonUnit;
+        [Tooltip("Blueprints UnitJson nests by id: a build only has the units some species lists.")]
+        public TextAsset[] NestedJson;
         public FloraLayer Layer = FloraLayer.Shrub;
         [Tooltip("Height range of fully grown plants, in metres.")]
         public Vector2 Height = new Vector2(1f, 1.6f);
