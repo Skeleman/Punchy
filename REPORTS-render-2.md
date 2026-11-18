@@ -454,3 +454,9 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - (2) Debug colours (debug-clip.jpg): the dark holes are mostly flat water inside the 31 m footprint (a side shelf past the real sheet) plus steep steps just past it. Clipping only steep water inside the footprint filled them with pale foam panes, which is worse (tried-clip-footprint.jpg), so I reverted it. A real fix means trimming the box to where the sheet actually pours, or calming the foam on that shelf.
 - (3) The thin wedge by the rock is unchanged.
 - Shots: D:/Unity/PunchyMilestones/fall-panes-3/before.jpg, after.jpg. No .cs changed, so no WorldTests.
+
+## R-29 river mist (#320) - render/river-mist 933dde7d
+- Low mist over rivers and lakes on the shared Steam family (LandmarkEffectSystem.RiverMist.cs): 2 hashed soft billboards per channel/lake segment within 220 m, falls skipped, faded by Steam GonePixels via DetailPolicy.ExtraReach.
+- Strength = 0.35 x MistByHour (full near 5-8 h and 18-20 h, zero 11-15 h) x MistByHeat (cool 1, hot 0.2); rebuilt on river cell, reach or quarter-hour change.
+- LandmarkPlume.shader: plumes with Fall.x > 0 fade into the water surface (the depth pass lacks water), so no hard cut line.
+- Shots: D:/Unity/PunchyMilestones/river-mist/dawn-pair.jpg (before | after, cool reach -3553,-147 at 06:30, 42 spots; noon 0). WorldTests 21/21.
