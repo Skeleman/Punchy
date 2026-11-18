@@ -169,6 +169,8 @@ namespace Punchy.Flora
             Punchy.Terrain.MaterialFamily.Brick => 0.115f,
             Punchy.Terrain.MaterialFamily.Ice => 0.13f,
             Punchy.Terrain.MaterialFamily.Stone => 0.142f,
+            // #550: rope and netting (kit Net parts): twisted fibre, never the stone surface.
+            Punchy.Terrain.MaterialFamily.Cloth => 0.05f,
             _ => 0f
         };
 

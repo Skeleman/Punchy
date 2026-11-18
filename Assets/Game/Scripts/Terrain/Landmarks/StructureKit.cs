@@ -44,7 +44,10 @@ namespace Punchy.Terrain
         Dirt,
         /// <summary>W-138: a lantern turned low (a tunnel's wall lantern): glass drawn as a window pane like Lamp, but a
         /// deeper amber, so a small flame reads as flame light rather than a white box in a dark-adapted cave.</summary>
-        Flame
+        Flame,
+        /// <summary>#550: a hung fish (drying racks, stalls): FloraGenerator.HungFish draws a real fish species in the
+        /// part's box, head down; the colour here is only its silver fallback.</summary>
+        Fish
     }
 
     /// <summary>
@@ -364,6 +367,7 @@ namespace Punchy.Terrain
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
             KitMaterial.Lamp => LampLight,
             KitMaterial.Flame => FlameLight,
+            KitMaterial.Fish => new Color(0.66f, 0.7f, 0.72f),
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
             KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),
@@ -1428,21 +1432,8 @@ namespace Punchy.Terrain
                     break;
                 }
                 case CoastDetail.FishRack:
-                {
-                    // A drying rack: an A-frame each end, three rails, fish hung in rows.
-                    var w = 2f + R();
-                    foreach (var side in new[] { -0.5f, 0.5f })
-                        foreach (var lean in new[] { -12f, 12f })
-                            Add(parts, KitPiece.Column, KitMaterial.Wood, at + Turn(yaw, new Vector3(side * w, 0.75f, 0f)), new Vector3(0.1f, 1.6f, 0.1f), yaw, false, lean);
-                    for (int r = 0; r < 2; r++)
-                    {
-                        var h = 0.9f + r * 0.5f;
-                        Add(parts, KitPiece.Beam, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, h, 0f)), new Vector3(w + 0.2f, 0.06f, 0.06f), yaw, false);
-                        for (int f = 0, fish = 4 + rng.Next(4); f < fish; f++)
-                            Add(parts, KitPiece.Trim, KitMaterial.Stone, at + Turn(yaw, new Vector3((f + 0.5f) / fish * w - w * 0.5f, h - 0.22f, 0f)), new Vector3(0.1f, 0.38f, 0.04f), yaw, false, 0f, (R() - 0.5f) * 10f);
-                    }
+                    FishRack(parts, at, yaw, rng);   // StructureKit.Fish.cs
                     break;
-                }
                 case CoastDetail.CrabPots:
                     // A stack of slatted pots, a buoy or two on top.
                     for (int k = 0, pots = 2 + rng.Next(4); k < pots; k++)

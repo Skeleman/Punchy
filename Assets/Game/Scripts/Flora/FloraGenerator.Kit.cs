@@ -337,6 +337,11 @@ namespace Punchy.Flora
                 DrawLadder(g, p, trim, jitter);
                 return true;
             }
+            if (p.Material == Punchy.Terrain.KitMaterial.Fish)
+            {
+                HungFish(g, p, seed ^ (uint)i * 0x27D4EB2Fu);   // #550: a real fish, hung head down by its tail
+                return true;
+            }
             // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
             var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
                        p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
@@ -390,10 +395,14 @@ namespace Punchy.Flora
             var foot = p.Centre - up * (p.Size.y * 0.5f);
             var rail = rope ? 0.035f : 0.06f;
             var half = p.Size.x * 0.5f - 0.03f;
-            b.Wood = true;
+            // #550: rope cords are twisted fibre (Cloth), not wood; wood rails and the rungs keep the grain.
+            b.Wood = !rope;
+            b.Family = rope ? Punchy.Terrain.MaterialFamily.Cloth : b.Family;
             b.Unfounded = p.Afloat;
             foreach (var side in new[] { -1f, 1f })
                 b.Box(p.Centre + r * new Vector3(side * half, 0f, 0f), new Vector3(rail, p.Size.y, rail), r, cord, FloraPart.Bark);
+            b.Family = b.BaseFamily;
+            b.Wood = true;
             var step = g.Lod >= 1 ? 0.6f : 0.3f;
             for (var y = 0.3f; y < p.Size.y - 0.1f; y += step)
                 b.Box(foot + up * y, new Vector3(half * 2f, 0.04f, 0.05f), r, wood, FloraPart.Bark);

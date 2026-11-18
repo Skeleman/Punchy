@@ -50,4 +50,18 @@ half PunchyHide(float3 p, float3 nOS, float footprint)
              + (hides - worn) * PunchyClothFade(0.1, footprint);
 }
 
+/// #550: rope and netting (kit Net parts, Cloth on bark): strands twisted at a slant about 4 cm apart (a thick cord's twist, so it still reads at a few metres) with dark
+/// grooves between them, hairy fibre along each strand and a little tone drift; fading out with the pixels.
+half PunchyRope(float3 p, float3 nOS, float footprint)
+{
+    float3 a = abs(nOS);
+    float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
+    float t = (uv.x + uv.y) / 0.04;
+    half strand = sin(frac(t) * 3.14159);
+    half groove = (strand - 0.6) * 0.8 * PunchyClothFade(0.04, footprint);
+    half fibre = (PunchyValueNoise(float2(t * 3.0, (uv.x - uv.y) * 140)) - 0.5) * 0.22 * PunchyClothFade(0.006, footprint);
+    half drift = (PunchyValueNoise(uv * 2.3 + 17.1) - 0.5) * 0.18 * PunchyClothFade(0.2, footprint);
+    return 1 + groove + fibre + drift;
+}
+
 #endif
