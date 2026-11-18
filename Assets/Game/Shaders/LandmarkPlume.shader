@@ -36,7 +36,7 @@ Shader "Punchy/Landmark Plume"
                 float alpha : TEXCOORD2;
                 float4 screen : TEXCOORD3;
                 nointerpolation uint emitter : TEXCOORD4;
-                nointerpolation float age : TEXCOORD5;   // negative: a bubble, above 1.5: a leaf (see BuildPlume)
+                nointerpolation float age : TEXCOORD5;   // negative: a bubble, above 1.5: a leaf, above 3.5: river churn (see BuildPlume)
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
@@ -79,6 +79,20 @@ Shader "Punchy/Landmark Plume"
                     if (a >= 0.6)
                         bubbleLit = lerp(e.color.rgb * 0.3, bubbleLit * 1.2, crest / max(crest + trough, 1e-3));
                     return half4(PunchyAtmosphere(bubbleLit, input.positionWS), bubbleAlpha);
+                }
+                if (input.age > 3.5)
+                {
+                    float2 q = input.uv;
+                    float cn = PunchyValueNoise(float2(q.x * 1.5, q.y * 5.0) + input.positionWS.xz * 0.7 + input.age * 13.0) * 0.7
+                        + PunchyValueNoise(q * 6.0 + input.positionWS.xz * 2.1) * 0.3;
+                    float erode = 0.2 + 0.55 * cn + 0.25 * frac(input.age);
+                    half churnAlpha = smoothstep(erode, erode + 0.25, 1 - dot(q, q)) * input.alpha;
+                    float2 churnScreen = input.screen.xy / input.screen.w;
+                    churnAlpha *= saturate((LinearEyeDepth(SampleSceneDepth(churnScreen), _ZBufferParams) - input.positionCS.w) / 0.3);
+                    clip(churnAlpha - 0.01);
+                    Light churnSun = GetMainLight();
+                    half3 churnLit = e.color.rgb * PunchyEffectLight(e, input.positionWS, half3(0, 1, 0), churnSun.color * 0.8 * (1 - PunchyCloudShadow(input.positionWS)), SampleSH(half3(0, 1, 0)));
+                    return half4(PunchyAtmosphere(churnLit, input.positionWS), churnAlpha);
                 }
                 if (input.age > 1.5)
                 {

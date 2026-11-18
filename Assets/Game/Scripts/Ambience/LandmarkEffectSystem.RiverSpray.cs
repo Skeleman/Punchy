@@ -76,8 +76,9 @@ namespace Punchy.Ambience
                             Position = new float3(xz.x, ground.WaterSurface - 0.05f, xz.y),
                             Seed = ((h >> 20) & 0xFFF) / 4096f,
                             Color = new float4(0.93f, 0.95f, 0.97f, 0f),
-                            Shape = new float4(0.5f + 0.7f * strength, size * 0.5f, 0.45f + 0.3f * strength, 1.2f + 0.6f * v),
-                            Timing = new float4(0f, 0.25f, 0.3f + 0.25f * strength, 8 + (int)(8f * strength))
+                            Shape = new float4(0.3f + 0.4f * strength, size * 0.3f, 0.35f + 0.25f * strength, 1.6f + 0.8f * v),
+                            Timing = new float4(0f, 0.25f, 0.3f + 0.25f * strength, 24 + (int)(24f * strength)),
+                            Out = (b - a) / length * (1f + 2f * strength)
                         });
                         rapids++;
                     }

@@ -69,7 +69,8 @@ struct PlumeVertex
 };
 
 /// A puff: rises (fast, then slowing) to the emitter's height, spreading out, growing and drifting downwind.
-/// Puffs born outside an eruption stay hidden, so a geyser spouts and then falls quiet. A plume with a drop is a falling
+/// Puffs born outside an eruption stay hidden, so a geyser spouts and then falls quiet. A plume with a flow (outDir) is
+/// river churn: foam streaks flat on the water along the flow, every fourth a small fleck hopping up, age 4+ and 6+. A plume with a drop is a falling
 /// leaf: a flat flake that flutters down from a new spot in the crown each cycle, its age 2 + its hash.
 PlumeVertex BuildPlume(uint vertex, uint instance)
 {
@@ -134,6 +135,38 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         f.age = 2 + r;
         return f;
     }
+    if (any(e.outDir != 0))
+    {
+        float cLife = e.shape.w;
+        float cPhase = _PunchyClock / cLife + r;
+        float cCycle = floor(cPhase);
+        float cAge = frac(cPhase);
+        float c1 = EffectHash(cCycle * 0.618 + r * 13.1), c2 = EffectHash(cCycle * 0.377 + r * 7.9);
+        float2 flow = normalize(e.outDir);
+        float2 across = float2(-flow.y, flow.x);
+        bool fleck = (k & 3u) == 0;
+        float2 spot = (flow * (c1 - 0.5) * 2.0 + across * (c2 - 0.5)) * e.shape.y + flow * length(e.outDir) * cAge * cLife;
+        float3 cAt = e.position + float3(spot.x, fleck ? 0.1 + e.shape.x * 4 * cAge * (1 - cAge) : 0.12, spot.y);
+        float cAlpha = e.timing.z * smoothstep(0, 0.15, cAge) * (1 - smoothstep(0.6, 1, cAge)) * step(k, e.timing.w - 1);
+        float cDist = distance(cAt, GetCameraPositionWS());
+        float cReach = max(e.shape.y, e.shape.z) * _PunchyPlumeReach;
+        cAlpha *= (1 - smoothstep(cReach * 0.8, cReach, cDist)) * smoothstep(3, 10, cDist);
+        float3 cRight = UNITY_MATRIX_V[0].xyz, cUp = UNITY_MATRIX_V[1].xyz;
+        float cSize = e.shape.z * 0.3 * lerp(0.6, 1.2, c1);
+        if (!fleck)
+        {
+            cRight = float3(flow.x, 0, flow.y) * lerp(3.0, 5.5, c2);
+            cUp = float3(across.x, 0, across.y);
+            cSize = e.shape.z * lerp(0.5, 0.9, c1) * (0.6 + 0.6 * cAge);
+        }
+        float2 cCorner = EffectCorner[vertex];
+        PlumeVertex c;
+        c.positionWS = cAt + (cRight * cCorner.x + cUp * cCorner.y) * cSize * step(0.001, cAlpha);
+        c.uv = cCorner;
+        c.alpha = cAlpha;
+        c.age = (fleck ? 6 : 4) + cAge * 0.99;
+        return c;
+    }
     float life = e.shape.w;
     float age = frac(_PunchyClock / life + r);
     float born = _PunchyClock - age * life;
@@ -148,7 +181,8 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
     float alpha = e.timing.z * Eruption(e, born) * smoothstep(0, 0.12, age) * (1 - smoothstep(0.55, 1, age)) * step(k, e.timing.w - 1);
     // Fades out by the plume's own size on screen (rule 20), not at a fixed distance.
     float plumeReach = max(max(e.shape.x, e.shape.y), e.shape.z) * _PunchyPlumeReach;
-    alpha *= 1 - smoothstep(plumeReach * 0.8, plumeReach, distance(centre, GetCameraPositionWS()));
+    float camDist = distance(centre, GetCameraPositionWS());
+    alpha *= (1 - smoothstep(plumeReach * 0.8, plumeReach, camDist)) * smoothstep(size, size * 3, camDist);
 
     float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
     float2 corner = EffectCorner[vertex];
