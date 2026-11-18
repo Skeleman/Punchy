@@ -305,3 +305,5 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Next, on hold: BankRock and RiverRock onto MaterialLibrary.Stone once banks/river-details is on main.
 
 - river-rock-stone (materials/river-rock-stone): BankRock/RiverRock wet tint now x MaterialLibrary.StoneTintAt (biome StoneKind, as scarps); RiverRock joins the wet path. Placement unchanged, WorldTests 21/21. Shots: PunchyMilestones/river-rock-stone/{before,after}, bank-rock-pair.jpg. Cost: one biome lookup per wet rock at placement (BENCH line).
+
+- river-beds (materials/river-beds, #301/W-166): the shared Riverbed biome layer under water becomes biome-stone gravel/cobbles (StoneTint) by Rapids, sand then silt in slow reaches/pools (BiomeData.RiverBed; GroundContext.Rapids). Lakes/sea/dry banks unchanged. WorldTests 21/21. Shots: PunchyMilestones/river-beds/{before,after}, pairs.jpg. Note: the green streaky water hides deep pool beds (Water shader, not this card).

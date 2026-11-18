@@ -1198,3 +1198,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - 11-18 (render-2): render/river-spray@e4996db3 R-29 river spray: extra Spray plumes over rapids and mouths (about 9 near a rapid, 24-48 quads each). Report-only: rapid at -1048,-1521, main vs branch.
 - 11-18 (render-2): render/water-foam@589e9f6d R-15 water foam: river FlowFoam now read in the camera-anchored corner loop (up to 4 reads near grid lines, rapids only). Report-only: water frame cost at rapid -1048,-1521 and lake -1727,-1004, main vs branch.
 - materials/river-rock-stone: flora placement time with StoneTintAt on wet boulders vs main (expect ~0).
+- materials/river-beds: terrain chunk surface sampling cost vs main (one extra function on river-layer points; expect ~0).
