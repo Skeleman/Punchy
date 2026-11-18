@@ -14,3 +14,8 @@
 - Merged origin/main (#605 gatehouse). Fauna_Fingerprint repinned F00119AC; landmarks 5B47CDAE and temple pins unchanged. WorldTests 20/21: Village_CreatureDensity read 54 against a cap of 50, then passed alone. The count varies run to run (30/44/54 seen), so it's a flaky cap, not this change.
 - Grain across the logs: static Log/Driftwood forms had FormFamily None, so they drew through the stone surface (a fan pattern round the log). Now they're MaterialFamily.Wood, so the shared GrainAlong path runs the grain along each tube, root stubs and snag branches included. MaterialLibraryTests 13/13.
 - Shots: after/driftwood-5m-after.png (retaken) and after/driftwood-1m-after.png (new close-up; fine grain fades by 5 m by design).
+
+## #301 row 2 bank overhangs: banks/overhangs@4c9a1510
+- New RiverSpot.Undercut and a BankLip Boulder species, at density 10 in six biomes. Each lip is plaster-earth blocks with a turf (moss) top, a dark underside and hanging roots. The roots use a shared HangingRoot helper that the cave roots now use too (rule 33). Placement: dry outer bends only. The lip moves out to the bank edge and turns to face the water (331/331 face downhill). No river geometry files touched.
+- Shots: river-details/overhangs/overhang-5m.png and overhang-25m.png, at the steepest outer bend (-1266.9,68,641.6). The lips read clearly, but they sit on a gentle sandy bank, not in a real cut bank. A true undercut needs a bank-profile hook from world.
+- Fauna_Fingerprint repinned 696024B5; landmark and temple pins unchanged. WorldTests 21/21 after the repin; MaterialLibraryTests 13/13.

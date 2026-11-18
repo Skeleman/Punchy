@@ -307,3 +307,9 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - river-rock-stone (materials/river-rock-stone): BankRock/RiverRock wet tint now x MaterialLibrary.StoneTintAt (biome StoneKind, as scarps); RiverRock joins the wet path. Placement unchanged, WorldTests 21/21. Shots: PunchyMilestones/river-rock-stone/{before,after}, bank-rock-pair.jpg. Cost: one biome lookup per wet rock at placement (BENCH line).
 
 - river-beds (materials/river-beds, #301/W-166): the shared Riverbed biome layer under water becomes biome-stone gravel/cobbles (StoneTint) by Rapids, sand then silt in slow reaches/pools (BiomeData.RiverBed; GroundContext.Rapids). Lakes/sea/dry banks unchanged. WorldTests 21/21. Shots: PunchyMilestones/river-beds/{before,after}, pairs.jpg. Note: the green streaky water hides deep pool beds (Water shader, not this card).
+
+## Rock moss + wet band (11-18) - materials/rock-moss-wet a11b0138
+- #609 regression confirmed: river and waterline rocks went on the rock tint path, which replaced their moss green. Wet rocks now carry their own mark (alpha 224+) and keep the moss's green out of the tint (mesh and impostor).
+- Wet band: the stone darkens and shines up to water depth + 4 cm splash (+ up to 30 cm on rapids) above the foot, with a ragged top. It uses the same rock tint path and Ground word, with no new system.
+- WorldTests 21/21, fingerprint F00119AC unchanged (colour only).
+- Shot: D:/Unity/PunchyMilestones/rock-moss-wet/rock-moss-wet-pair.jpg (rapid -1048,-1521 at 15 m, main vs branch). The water in the after frame is lighter: the run's exposure, not this change.
