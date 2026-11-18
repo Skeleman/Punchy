@@ -298,3 +298,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #613 W-166 (#336) river rocks keep their moss again (fixes #609 regression) and get a darker wet band at the waterline, taller on rapids.
 - 11-18 #614 #301 row 2 cut banks: earth faces with waterline notch on outer bends, turf lips with hanging roots, fallen chunks; fingerprint 59A4BFD3.
 - 11-18 #615 W-166 damp river banks: darker glossy strip above inland water, mud line at the edge (#336, #301).
+- 11-18 #616 R-15 fewer pale water panes beside river falls (#269, #301).
