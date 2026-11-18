@@ -138,8 +138,16 @@ namespace Punchy.Flora
         [Tooltip("A-117: a stable. A lean-to shed of stalls with hay at the back, a railed paddock in front with its gate " +
                  "gap at +Z, a trough and hay bales (Accent the hay). Height is the back wall; Height times Spread its width.")] Stable,
         [Tooltip("A-117: a hitching rail: two posts and a rail along X (Height the posts', times Spread the rail), a trough " +
-                 "in front and a hay bale (Accent).")] HitchRail
+                 "in front and a hay bale (Accent).")] HitchRail,
+        [Tooltip("W-165: a farm field, its gate at +Z: rows of a crop (Crop; Foliage to Foliage Variation, Accent the " +
+                 "ripe heads) along X on tilled ridges (Bark), Field Size across, inside its Border (Height the border's).")] Field
     }
+
+    /// <summary>W-165: what a field grows.</summary>
+    public enum CropKind : byte { Grain, Cabbage, Beans, Agave, Potato, Kale }
+
+    /// <summary>W-165: what rings a field.</summary>
+    public enum FieldBorder : byte { Rail, Hedge, Wattle, DryStone }
 
     /// <summary>
     /// W-63: where on a river a species grows (river dressing). None = anywhere its other rules allow; the rest only
@@ -349,6 +357,12 @@ namespace Punchy.Flora
         public Punchy.Fauna.CreatureSpecies[] HungFish;
         [Tooltip("W-127, Kit Shape Fixture only: which street light it builds (and so its light's colour and reach).")]
         public Punchy.Terrain.FixtureStyle FixtureStyle;
+        [Tooltip("W-165, Field only: what grows in its rows.")]
+        public CropKind Crop;
+        [Tooltip("W-165, Field only: what rings it.")]
+        public FieldBorder Border;
+        [Tooltip("W-165, Field only: frontage along the rows (x) and depth (y), m at scale 1.")]
+        public Vector2 FieldSize = new Vector2(24f, 16f);
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]
         public Vector2 SizeRange = new Vector2(0.85f, 1.15f);
 

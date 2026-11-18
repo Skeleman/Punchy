@@ -211,6 +211,45 @@ MonoBehaviour:
     OnlyIn: []
     Style: 
     MinPlots: 15
+  - Role: 16
+    Species: {fileID: 11400000, guid: ff3a0ccb4cf44ed5ab4220baf993f185, type: 2}
+    Weight: 1.4
+    Count: 0
+    OnlyIn:
+    - {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
+    - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+    - {fileID: 11400000, guid: f2273bc3afbd8bb4e8b35abb71398bb7, type: 2}
+    Style: 
+    MinPlots: 0
+  - Role: 16
+    Species: {fileID: 11400000, guid: 71dcac1247c642b5ada2bdd8b4e02921, type: 2}
+    Weight: 1
+    Count: 0
+    OnlyIn:
+    - {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
+    - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+    Style: 
+    MinPlots: 0
+  - Role: 16
+    Species: {fileID: 11400000, guid: 6b3d1865808448fea6549d2d4f8142ec, type: 2}
+    Weight: 0.8
+    Count: 0
+    OnlyIn:
+    - {fileID: 11400000, guid: b1b97ac8fbc6672418cc6308ad36b33b, type: 2}
+    - {fileID: 11400000, guid: 277e2018d3d2abb46be2568301b07cab, type: 2}
+    - {fileID: 11400000, guid: 3c3b1f5dd38bdb84f949fc2b75db975a, type: 2}
+    - {fileID: 11400000, guid: f2273bc3afbd8bb4e8b35abb71398bb7, type: 2}
+    Style: 
+    MinPlots: 0
+  - Role: 16
+    Species: {fileID: 11400000, guid: d7f046267ceb4efc833164ff06360349, type: 2}
+    Weight: 1.2
+    Count: 0
+    OnlyIn:
+    - {fileID: 11400000, guid: 3c3b1f5dd38bdb84f949fc2b75db975a, type: 2}
+    - {fileID: 11400000, guid: f2273bc3afbd8bb4e8b35abb71398bb7, type: 2}
+    Style: 
+    MinPlots: 0
   Fixtures:
   - Species: {fileID: 11400000, guid: c5b1fc52dbca7ff499aac0aff7df152b, type: 2}
     Spot: 1

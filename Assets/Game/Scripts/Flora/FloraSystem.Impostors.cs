@@ -179,7 +179,7 @@ namespace Punchy.Flora
         static float ImpostorSway(FloraModel model)
         {
             var form = model.Species.Form;
-            if (model.Static || (FloraGenerator.Founded(form) && form != FloraForm.Garden))
+            if (model.Static || (FloraGenerator.Founded(form) && form is not (FloraForm.Garden or FloraForm.Field)))
                 return 0f;
             return model.Species.Flexibility * math.pow(math.saturate(model.CentreY / math.max(model.Height, 0.01f)), 1.6f);
         }

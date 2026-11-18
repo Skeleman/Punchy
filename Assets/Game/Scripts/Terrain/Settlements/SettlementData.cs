@@ -72,6 +72,8 @@ namespace Punchy.Terrain
         public int Building;
         public int Settlement;
         public float2 Min, Max;
+        /// <summary>W-165: a field's crop colour (linear), painted into the ground so it reads from afar.</summary>
+        public float3 Tone;
     }
 
     /// <summary>
@@ -374,6 +376,7 @@ namespace Punchy.Terrain
         /// <summary>Paints the streets' surface over the ground, with a ragged edge.</summary>
         public static void Ground(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
         {
+            Fields(ref set, xz, edgeNoise, colorNoise, ref props);
             var lane = Paint(ref set, xz, edgeNoise, colorNoise, false, ref props, out _);
             for (int i = 0; i < set.Settlements.Length; i++)
                 if (set.Settlements[i].Square > 0f)
@@ -389,6 +392,37 @@ namespace Punchy.Terrain
         {
             Paint(ref set, xz, edgeNoise, colorNoise, true, ref props, out var covered);
             return covered;
+        }
+
+        /// <summary>
+        /// W-165: tilled earth under each field, banded across in its crop's colour, so from a ridge the fields read as
+        /// a patchwork of stripes after their meshes are gone. The bands are metres wide and the edge ragged, so it
+        /// neither shimmers nor ends on a ruler line.
+        /// </summary>
+        static void Fields(ref SettlementSetBlob set, float2 xz, float edgeNoise, float colorNoise, ref SurfaceProps props)
+        {
+            var cell = Cell(ref set, xz);
+            if (cell < 0)
+                return;
+            var range = set.PlotCells[cell];
+            for (int k = range.x; k < range.x + range.y; k++)
+            {
+                ref var p = ref set.Plots[set.PlotItems[k]];
+                if (p.Role != PlotRole.Field || math.any(xz < p.Min) || math.any(xz > p.Max))
+                    continue;
+                var w = 1f - math.smoothstep(-0.6f, 0.9f, Outside(p, xz) + edgeNoise * 0.8f);
+                if (w <= 0f)
+                    continue;
+                var band = math.smoothstep(-0.4f, 0.4f, math.sin(math.dot(xz - p.Centre, p.Facing) * (math.PI * 2f / 3.6f)) + colorNoise * 0.3f);
+                var soil = new float3(0.15f, 0.095f, 0.055f) * (0.9f + colorNoise * 0.2f);
+                var field = props;
+                field.Albedo = math.lerp(soil, p.Tone, 0.35f + band * 0.4f);
+                field.Grass = 0f;
+                field.Pebbles *= 0.3f;
+                field.Snow *= 0.5f;
+                field.Smoothness = 0.08f;
+                props = SurfaceProps.Lerp(props, field, w);
+            }
         }
 
         /// <summary>One of a town's square draws (0..1): five bits of its hash.</summary>

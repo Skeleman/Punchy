@@ -106,7 +106,7 @@ namespace Punchy.Flora
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
-            form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
+            form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Field or FloraForm.Woodpile
                  or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence or FloraForm.HitchRail;
 
         /// <summary>
@@ -124,6 +124,8 @@ namespace Punchy.Flora
                 case FloraForm.MineFrame: case FloraForm.HazardShelter: case FloraForm.KitBuilding: case FloraForm.KitRuin:
                 case FloraForm.Ruin: case FloraForm.Stable: case FloraForm.HitchRail:
                     return Punchy.Settings.DetailPolicy.FloraClass.Structure;
+                case FloraForm.Field:
+                    return Punchy.Settings.DetailPolicy.FloraClass.Field;
                 case FloraForm.Boulder: case FloraForm.Spire: case FloraForm.Crystal: case FloraForm.Den: case FloraForm.Columns:
                 case FloraForm.IceArch: case FloraForm.Fulgurite: case FloraForm.ArcSpire: case FloraForm.FloatingRock:
                 case FloraForm.Bones:
@@ -340,6 +342,7 @@ namespace Punchy.Flora
                     case FloraForm.Hall: Hall(g); break;
                     case FloraForm.Shrine: Shrine(g); break;
                     case FloraForm.Garden: Garden(g); break;
+                    case FloraForm.Field: Field(g); break;
                     case FloraForm.Lodge: Lodge(g); break;
                     case FloraForm.Signpost: Signpost(g); break;
                     case FloraForm.Bridge: Bridge(g); break;
@@ -395,7 +398,7 @@ namespace Punchy.Flora
                 // plants still move, and cloth has its own motion (Flora.hlsl).
                 if (shapeOnly)
                     break;
-                var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
+                var flexibility = Founded(species.Form) && species.Form is not (FloraForm.Garden or FloraForm.Field) ? 0f : species.Flexibility;
                 builder.Sway(g.Height, flexibility);
                 model.Pending[lod] = builder;
             }
