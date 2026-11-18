@@ -296,3 +296,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #611 R-15 (#269) river foam streak length follows flow speed: long in rapids, short flecks at slow edges.
 - 11-18 #612 W-166 (#336) river beds: biome-stone cobbles in fast reaches, sand then silt in pools; lakes and sea unchanged (#301).
 - 11-18 #613 W-166 (#336) river rocks keep their moss again (fixes #609 regression) and get a darker wet band at the waterline, taller on rapids.
+- 11-18 #614 #301 row 2 cut banks: earth faces with waterline notch on outer bends, turf lips with hanging roots, fallen chunks; fingerprint 59A4BFD3.
