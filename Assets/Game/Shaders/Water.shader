@@ -999,8 +999,10 @@ Shader "Punchy/Water"
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
                 color += input.look.rgb * glow * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
-                half bodyAlpha = 1 - exp(-thickness * _Opacity * (1 + murk * 12));
-                half alpha = saturate(bodyAlpha + fresnel + glint + glitter + lanternGlint);
+                // The first half metre stays clear so the bed shows through (#631).
+                half clearShallow = lerp(0.35, 1, smoothstep(0.1, 0.6, thickness));
+                half bodyAlpha = 1 - exp(-thickness * _Opacity * clearShallow * (1 + murk * 12));
+                half alpha = saturate(bodyAlpha + fresnel * lerp(0.5, 1, clearShallow) + glint + glitter + lanternGlint);
 
                 // Thick water: an oily rainbow film in the reflection, and pale scum drifting in slow rafts.
                 if (viscous > 0)
@@ -1190,6 +1192,10 @@ Shader "Punchy/Water"
                 [branch] if (input.fall.y > 0.5)
                     // (Seen edge-on, the curtain reads as a pale blade with a hard top edge.)
                     alpha *= smoothstep(0, 1, saturate((input.fall.y - 0.55) / 0.45)) * smoothstep(0.05, 0.3, curtainFacing);
+                float bedDepth = thickness * saturate(v.y);
+                float2 bedXZ = input.positionWS.xz - v.xz * thickness;
+                // Steep bed (submerged rock sides) would smear the web into streaks, so it fades there.
+                half bedFlat = 1 - smoothstep(1.0, 2.5, fwidth(bedDepth) / max(length(fwidth(bedXZ)), 1e-4));
                 half refractionTier = saturate((pixelsPerMetre - _PunchyWaterTiers.w) / max(_PunchyWaterTiers.z - _PunchyWaterTiers.w, 1e-3));
                 [branch] if (frontFace && _PunchyRefraction > 0 && alpha < 0.995 && distanceFade * refractionTier > 0)
                 {
@@ -1198,6 +1204,17 @@ Shader "Punchy/Water"
                     float bentEye = LinearEyeDepth(SampleSceneDepth(bentUV), _ZBufferParams);
                     bentUV = bentEye > surfaceEye ? bentUV : screenUV;
                     half3 behind = SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(bentUV), 0).rgb;
+                    half bedLight = (1 - smoothstep(0.15, 1.0, bedDepth)) * bedFlat * shadow * saturate(light.direction.y * 3) * (1 - murk) * (1 - lava) * (1 - steep) * (1 - underRock) * refractionTier;
+                    // Sunlit shallows get a moving caustic web on the bed, fading out by about 1 m deep (#262).
+                    [branch] if (bedLight > 0.01 && _PunchyWaterDetail > 0.5)
+                    {
+                        float2 bedUV = bedXZ * 0.35;
+                        float2 drift = frac(flowDir * flowAmount * t * 0.12);
+                        half c0 = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, bedUV + frac(float2(t * 0.021, t * 0.013)) - drift, 0).b;
+                        half c1 = SAMPLE_TEXTURE2D_LOD(_PunchyCaveDetail, sampler_PunchyCaveDetail, mul(DetailTurn, bedUV * 1.3) + frac(float2(-t * 0.017, t * 0.024)) - drift, 0).b;
+                        half web = 1 - smoothstep(0.0, 0.1, abs(c0 - c1));
+                        behind *= 1 + web * bedLight * min(light.color, 1.5) * 2.2;
+                    }
                     color = lerp(behind, color, alpha);
                     alpha = 1;
                 }
