@@ -98,3 +98,9 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Creature.shader and Colossus.shader are untouched: neither had a PunchyCoat/material call this change needed. Iron is the same as before because its diffuse row stays 0.45.
 - Matched shots (main vs branch): rod diff 16.6 on the rod, 0.6 elsewhere. Bedroll weave stripes become mottled felt (viewed). Goblin 0.08% and colossus at noise level, so unchanged.
 - EditMode tests 47/47. EOL unchanged on all 6 files.
+
+## 11-17 Lamp check + copper trim fallback, b/fix-copper-trim-fallback 791c0fe1
+- Lamps are already clean: LanternHead caps and trays are Trim (Paint), the glass is a Window part, and pier lamp posts are Wood. None of them takes the stone fallback, so no lamp change.
+- The real fallback was Copper Trim (storm-house rod fins, stake wire, ridge strap, gull bills, marsh paint, float weights): it is Metal family with mark 0. It now takes the Paint family (FloraGenerator.Kit.cs, +4/-2).
+- Iron lantern caps would need a new KitMaterial in StructureKit.cs, which is over 2500 lines, so I skipped them.
+- Matched rod shots (main vs branch): diff 0.5, 0.96% of pixels changed. I viewed the crop: only the fins and wire change, from stone mottle to a flat coat. EditMode tests 47/47, CRLF kept.
