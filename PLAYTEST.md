@@ -304,3 +304,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #619 W-166 silt and sand fans where rivers meet the sea or a lake (#336, #301).
 - 11-18 #620 W-174 cave-mouth folds fixed at all mouths; problems 5 -> 1, mouth 21 LOD0 gap left (#365).
 - 11-18 #621 R-39 fall curtain ends, edge-on sheet blade and sheet foot softened; pale water above the lip remains (#269).
+- 11-18 #622 W-166 spray-wet ground, walls and rocks round falls and rapids (#336).

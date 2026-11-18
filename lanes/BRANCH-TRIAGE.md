@@ -8,6 +8,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - world/mouth-tint -> #618
 - world/mouth-all -> #620
 - render/fall-panes-2 -> #621
+- materials/fall-spray -> #622
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
 - banks/overhangs -> #614
