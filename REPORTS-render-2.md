@@ -381,3 +381,10 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - afa02f6c, churn: FlowFoam is read at 1.8x scale (smaller patches). Cover thresholds are raised; a gather term (thin water at banks/rocks from the depth thickness, plus standing-wave crests) brings the cover back and lifts it to full strength. Mid-stream is at 0.35 strength. The standing-wave trails and the rapids churn floor (0.35 -> 0.12) are gone. Crest flecks are broken into dots by noise (they had scratched long white streaks).
 - Shots: PunchyMilestones/W-159/sheet-churn.jpg (fast-20m and rapid-20m, noon, before|after; viewed). Rapids keep white at the rocks and banks; the flow ripples carry the middle.
 - Next: the rectangular edge in fast-20m (row 3).
+
+## W-159 (#322) row 3 rectangular edge (11-18) - diagnosed, not fixed, out of card scope
+- Not the river sheet. Turning off the fine patch sheet and SSR changed nothing, and the thickness probe was clean. Disabling AmbientParticleSystem removed the edges and the hazy bank blobs.
+- Cause: AmbientMist's camera-facing quads are hard-clipped by Water.shader's WaterDepth pass (ZWrite On, Transparent-10), so each clip line follows a screen-aligned quad edge. Mist's soft fade reads the opaque depth texture, which has no water in it, so the fade never sees the surface.
+- Tried ZTest Always on the mist: the mist then covers the whole frame (row3/cmp3.jpg). Reverted, nothing committed.
+- Fix options (AmbientMist.shader, render family / R-29, not W-159's Water.shader scope): (a) fade the mist alpha by distance to the water surface, (b) cull or lift the mist spawn above water, (c) draw the mist before the water depth pass. Waiting on main.
+- Shots: PunchyMilestones/W-159/row3/cmp1.jpg (base vs fine sheet off), noamb-s.jpg (ambient off: edge gone), cmp3.jpg.
