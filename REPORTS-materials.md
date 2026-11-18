@@ -111,3 +111,13 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Current world: 5 scarps (canyon plus 3 notch banks are Granite, cut bank is Basalt). Shape changes, so ground heights near them move: possible hash change, profiler should re-pin.
 - Matched shots (main vs branch): canyon 16.4% of pixels changed (blockier granite face, bolder beds), notch 2.8%, bank 4.2%. Tests 49/49 (2 new).
 - river-profiles touches only RiverData/WorldTests, not scarp or TerrainSource files, so nothing is held back. Deferred: RibSpacing, Roughness, Jaggedness per stone; a per-vertex stone channel (SurfaceProps has no spare slot).
+
+## 11-17 W-166 row 2b: stone sets scarp gully spacing and chimney odds, materials/scarp-stone-2b 39c2f18e
+- ScarpSet gets Gully and Chimneys. ScarpBake.Stone sets Gully from the stone's RibSpacing against Plain's (gully period 22 m times 1 + Gully) and Chimneys from its Jaggedness (the chimney threshold drops by up to 0.25). Plain bakes exactly as before, and the test's zero check covers both new fields.
+- Matched shots (row 2 vs 2b): canyon 70.4% of pixels changed, mean 17.5 (granite gullies respaced, more chimneys); notch 0.09%; bank 1.0%. Shots are in PunchyMilestones/W-166/row2b/before and after.
+- Edit-mode tests 49/49. Scarp shape changes, so heights near scarps move: profiler should re-pin.
+
+## 11-17 Cave mouth floor matches the ground beside it, b/fix-mouth-floor a7c77cde
+- Cause: round a mouth, flat floor drawn by the cave walls' terrain share was plain vertex colour with the bare shape normal. Only steep faces took the shared stone, so the floor turned smooth at the mouth line.
+- Fix, inside Cave.shader's terrain-share branch only: flat ground now takes what TerrainSurface gives the ground next to it. That is the W-112 mouth grain read top-down, the albedo Grain (3 and 7 cm cells) and the fine relief octaves (MicroHeight: 3, 0.7 and 0.21 m) in the normal and the colour. Each fades by on-screen size. 0.8 stands in for the terrain's per-vertex bump weight. No colour seam remained, so the collar dim was left alone.
+- Matched shots at cave 6 (before vs after): 5 m pose 9.0% of pixels changed, 20 m pose 8.1%. The floor now has the same mottling as the ground beside it. Shots are in PunchyMilestones/mouth-floor/before and after. Shader compiles (only an existing warning in PunchyAtmosphere).
