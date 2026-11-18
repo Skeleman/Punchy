@@ -91,3 +91,10 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - It merges cleanly with b/fix-stone-fallback (merge-tree).
 - Phase B needs the OK of the lanes that own Flora.shader, Creature.shader and Colossus.shader. It would pass a kind (copper/bronze/gold, wool/felt), use the Wrap/Sheen/Diffuse columns, and give Copper and Lamp kit parts a Metal mark so they leave the stone fallback.
 - Unity commands still use --project-path D:/Unity/Punchy-materials.
+
+## 11-17 Phase B copper + felt, materials/cloth-metal-b ea14440c
+- Added MetalKind.Copper and ClothKind.Felt rows and shader paths (Metal.hlsl, Cloth.hlsl, Flora.shader). Storm-house Copper Columns (rod, stake) are copper metal now. Bedrolls are felt now.
+- Copper Trim stays paint: it is shared with gull bills, marsh paint and float weights. I skipped wool because no wool part exists yet; felt covers the soft-cloth case.
+- Creature.shader and Colossus.shader are untouched: neither had a PunchyCoat/material call this change needed. Iron is the same as before because its diffuse row stays 0.45.
+- Matched shots (main vs branch): rod diff 16.6 on the rod, 0.6 elsewhere. Bedroll weave stripes become mottled felt (viewed). Goblin 0.08% and colossus at noise level, so unchanged.
+- EditMode tests 47/47. EOL unchanged on all 6 files.
