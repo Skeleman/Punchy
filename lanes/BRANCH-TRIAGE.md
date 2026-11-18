@@ -13,6 +13,8 @@ Land later: player/p46 fb9bc62c (P-46 row 2, temple sockets out of walls + pin) 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |
 |---|---|---|---|
+| render/cloud-e | R-35 r3 E #333 | render-2 | Built 25fbc044; waits on BENCH job 111 and shots. |
+| world/river-profiles | W-153 #301 | world | WIP. |
 | folk/a111-row1-parked | A-111 r1 | folk | Parked; only if A-110 slips. |
 | world/log-bark | W-170 r1 | world | Clean; confirm verified. |
 | world/ambient-details | W-142 | world | Job 69 FAIL at lava cave: fix seeps first. |
