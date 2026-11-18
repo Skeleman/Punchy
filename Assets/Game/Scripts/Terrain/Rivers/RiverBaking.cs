@@ -400,7 +400,8 @@ namespace Punchy.Terrain
                         lowest = math.min(lowest, source.BaseHeight(centre + new float2(co, s) * radius));
                         lowest = math.min(lowest, source.BaseHeight(centre + new float2(co, s) * radius * 0.5f));
                     }
-                    bed[c] = math.min(lowest, elevation[c]);
+                    // The lowest ground can be the floor of the lake it now enters: the river meets that lake's surface, not its floor.
+                    bed[c] = math.max(math.min(lowest, elevation[c]), newFloor[c]);
                 }
             }
             if (any)
