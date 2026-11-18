@@ -28,9 +28,10 @@ namespace Punchy.Flora
                 CropKind.Beans => 1.3f,
                 CropKind.Agave => 1.7f,
                 CropKind.Cabbage or CropKind.Kale => 0.8f,
+                CropKind.Kelp => 1.5f,
                 _ => 0.95f
             };
-            var inner = 1.2f;
+            var inner = Mathf.Min(1.2f, Mathf.Min(hx, hz) * 0.35f);
             var rows = Mathf.Max(2, Mathf.FloorToInt((hz - inner) * 2f / spacing) + 1);
             var hut = g.Variant % 3 == 2 && hx > 5f && hz > 4.5f;
             var hutAt = new Vector3((g.Variant / 3 % 2 == 0 ? -1f : 1f) * (hx - 2.3f), 0f, -hz + 2.1f);
@@ -56,6 +57,7 @@ namespace Punchy.Flora
                 CropKind.Cabbage => 0.8f,
                 CropKind.GlowHerb => 0.75f,
                 CropKind.Kale => 0.7f,
+                CropKind.Kelp => 0.35f,
                 _ => 0.6f
             } * (g.Lod == 1 ? 1.8f : 1f);
 
@@ -64,7 +66,9 @@ namespace Punchy.Flora
                 var z = Mathf.Lerp(-hz + inner, hz - inner, r / (rows - 1f));
                 var x0 = -hx + inner;
                 var x1 = hx - inner;
-                if (g.Lod < 2)
+                if (s.Crop == CropKind.Kelp)
+                    DryingRack(g, x0 - 0.3f, x1 + 0.3f, z);
+                else if (g.Lod < 2)
                 {
                     b.Family = Punchy.Terrain.MaterialFamily.Plaster;   // tilled earth reads as the mud family
                     b.Box(new Vector3(0f, 0.06f, z), new Vector3(x1 - x0, 0.14f, spacing * 0.45f), Quaternion.identity, soil * Mathf.Lerp(0.85f, 1.1f, U()), FloraPart.Bark, 0.8f);
@@ -110,7 +114,7 @@ namespace Punchy.Flora
             var spot = new Vector3(Mathf.Lerp(-hx, hx, U()) * 0.5f, 0f, Mathf.Lerp(-hz, hz, U()) * 0.4f);
             var yaw = U() * 360f;
             FieldEdge(g, hx, hz, border, rng);
-            if (g.Lod == 2)
+            if (g.Lod == 2 || hx < 4f)
                 return;
             if (prop == 0)
                 Scarecrow(g, spot, yaw, straw);
@@ -129,6 +133,7 @@ namespace Punchy.Flora
             CropKind.Potato => 0.35f,
             CropKind.Kale => 0.6f,
             CropKind.GlowHerb => 0.45f,
+            CropKind.Kelp => 1.4f,
             _ => 0.4f
         };
 
@@ -173,6 +178,10 @@ namespace Punchy.Flora
                         var out_ = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
                         Card(b, at, at + out_ * 0.55f * grow + new Vector3(0f, h, 0f), 0.16f, 0.02f, Vector3.Cross(out_, Vector3.up), leaf * (p % 2 == 0 ? 1f : 0.88f));
                     }
+                    break;
+                case CropKind.Kelp:
+                    var hang = 0.45f + 0.5f * grow;
+                    Card(b, at + new Vector3(0f, 1.36f, 0f), at + new Vector3((j - 0.5f) * 0.12f, 1.36f - hang, 0f), 0.16f, 0.09f, Vector3.right, leaf);
                     break;
                 case CropKind.GlowHerb:
                     var herb = 0.2f * grow + 0.06f;
@@ -366,6 +375,16 @@ namespace Punchy.Flora
                 FenceColliders(g, at + new Vector3(-side * w * 0.5f, 0f, -d * 0.5f), at + new Vector3(-side * w * 0.5f, 0f, d * 0.5f), eave);
             }
             g.Perches.Add(at + Vector3.up * (eave + 0.7f));
+        }
+
+        static void DryingRack(Grower g, float x0, float x1, float z)
+        {
+            var b = g.B;
+            b.Family = Timber(g);
+            foreach (var x in new[] { x0, x1 })
+                b.Box(new Vector3(x, 0.75f, z), new Vector3(0.1f, 1.5f, 0.1f), Quaternion.identity, g.Bark, FloraPart.Bark);
+            b.Box(new Vector3((x0 + x1) * 0.5f, 1.48f, z), new Vector3(x1 - x0, 0.06f, 0.06f), Quaternion.identity, g.Bark * 0.9f, FloraPart.Bark);
+            b.Family = b.BaseFamily;
         }
 
         static void ToolRack(Grower g, Vector3 at)
