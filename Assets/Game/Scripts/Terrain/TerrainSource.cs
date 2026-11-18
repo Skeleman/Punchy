@@ -765,10 +765,11 @@ namespace Punchy.Terrain
                 }
 
                 var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface, out var lakeDepth);
-                // Ground lying deeper under the lake's surface than the lake itself is deep isn't lake bed or shore: a
-                // river's gorge has cut through the lake's rim there, and a flat sheet of lake over it would hang in the
-                // air (F-22; a few dozen such points on the island).
-                if (lakeSurface - g.Height > lakeDepth + 2f)
+                // In a river's channel, ground lying deeper under the lake's surface than the lake itself is deep isn't
+                // lake bed or shore: the river's gorge has cut through the lake's rim there, and a flat sheet of lake
+                // over it would hang in the air (F-22). Anywhere else deep ground under a lake is just deep lake bed:
+                // clipping it there left dry holes walled by lake water (W-153 row 4, ~300 points on v3).
+                if (riverClaim > 0f && lakeSurface - g.Height > lakeDepth + 2f)
                     lake = 0f;
                 if (lake > 0f)
                 {
