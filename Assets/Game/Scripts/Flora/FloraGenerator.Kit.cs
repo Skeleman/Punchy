@@ -303,7 +303,7 @@ namespace Punchy.Flora
         {
             var b = g.B;
             b.Surface = (int)Punchy.Terrain.KitSurface.Plain;
-            b.Family = Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, Punchy.Terrain.KitSurface.Plain);
+            b.Family = Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, Punchy.Terrain.KitSurface.Plain, b.TimberFamily);
             b.Rubble = false;
             b.Unfounded = p.Afloat;
             var leaf = b.VertexCount;
@@ -345,7 +345,8 @@ namespace Punchy.Flora
             // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
             var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
                        p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
-            b.Surface = (int)look;
+            // Stone timber (elves) drops the plank/shingle wood mark: their roof courses are slate.
+            b.Surface = b.TimberFamily != Punchy.Terrain.MaterialFamily.Wood && look is Punchy.Terrain.KitSurface.Planks or Punchy.Terrain.KitSurface.Shingles ? 0 : (int)look;
             // W-166: each part states its family; a ruin's bare walls are old stone, not plaster.
             // W-166 row 3: standing stone chimneys are laid in brick (Materials/Brick.hlsl); rune and trim stacks keep their own.
             // A boat's painted strakes are timber under the paint (its hull reads as wood); a buoy's float is painted.
@@ -355,7 +356,7 @@ namespace Punchy.Flora
                      : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
                      // Copper trim (rod fins, straps, marsh paint) is a painted copper coat: Metal has no bark mark and fell back to stone.
                      : p.Material == Punchy.Terrain.KitMaterial.Copper ? Punchy.Terrain.MaterialFamily.Paint
-                     : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
+                     : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look, b.TimberFamily);
             b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
             b.Unfounded = p.Afloat;
             if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)

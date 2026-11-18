@@ -392,6 +392,13 @@ namespace Punchy.Terrain
             _ => MaterialFamily.Plaster   // Opening, Moss, Sand, Ash, Dirt, Flame: coloured plaster for now
         };
 
+        /// <summary>FamilyOf in a folk's timber: elves build in stone where others use wood (W-161).</summary>
+        public static MaterialFamily FamilyOf(KitMaterial material, KitSurface look, MaterialFamily timber)
+        {
+            var family = FamilyOf(material, look);
+            return family == MaterialFamily.Wood ? timber : family;
+        }
+
         /// <summary>The family a creature's gear segment is made of (Fauna.SegmentMaterial): Creature.shader draws each
         /// through that family's include, so gear wood is a town's wood and gear cloth its awnings. Body is None (a
         /// creature's own coat, not a material).</summary>

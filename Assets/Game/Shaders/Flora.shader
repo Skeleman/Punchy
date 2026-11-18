@@ -170,8 +170,8 @@ Shader "Punchy/Flora"
                 bool built = input.ground.a > 0 && !rockTint && !greenTint;
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
-                // Phase B (#336): the metal's kind rides on the part as + kind * 0.1 (FloraMeshBuilder.MetalKind).
-                int metalKind = metal ? (int)round(frac(input.extra.x) * 10) : PUNCHY_METAL_IRON;
+                // Phase B (#336): the metal's kind rides on the part as + kind * 0.1 (FloraMeshBuilder.MetalKind); frac() wrapped an interpolated 3.99999 to kind 10.
+                int metalKind = metal ? clamp((int)round((input.extra.x - part) * 10), 0, 4) : PUNCHY_METAL_IRON;
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
                 half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
@@ -844,7 +844,7 @@ Shader "Punchy/Flora"
                 FloraDither(input.positionCS, input.fade, input.positionWS);
                 FloraMossClip(input.moss);
                 // Leaves are double-sided: the back face's normal points the other way.
-                half3 n = NormalizeNormalPerPixel(input.normalWS);
+                half3 n = SafeNormalize(input.normalWS);
                 outNormalWS = half4(front ? n : -n, 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();
