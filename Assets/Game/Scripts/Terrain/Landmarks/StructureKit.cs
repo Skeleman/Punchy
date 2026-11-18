@@ -629,7 +629,7 @@ namespace Punchy.Terrain
             var porchEnd = depth * 0.5f + 0.8f + 2.2f;
             var walk = StiltWalkMin + (Scramble(seed ^ 0x3A1C5u) & 0xFF) / 255f * StiltWalkSpread;
             Platform(parts, new Vector3(doorX, 0f, porchEnd + walk * 0.5f), 0f, 1.6f, walk, stilts, true);
-            Stair(parts, new Vector3(doorX, 0f, porchEnd + walk + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
+            Stair(parts, new Vector3(doorX, 0f, porchEnd + walk + steps * 0.15f + 0.5f), 180f, stilts, 1.3f, KitMaterial.Wood);
             // W-147: a rope ladder off the deck's seaward (back) edge, down into the water (no draws).
             var backX = doorX + ((Scramble(seed ^ 0x3ADDu) & 0xFF) / 255f - 0.5f) * width * 0.6f;
             var backZ = -(depth + 1.6f) * 0.5f - 0.12f;
@@ -2654,7 +2654,7 @@ namespace Punchy.Terrain
             if (storeys >= 2 && R() < t.StairChance)
             {
                 var steps = Mathf.Max(2, Mathf.CeilToInt(h / 0.28f));
-                Stair(parts, new Vector3(width * 0.5f + 0.55f, 0f, -depth * 0.35f), 0f, h, 1f);
+                Stair(parts, new Vector3(width * 0.5f + 0.55f, 0f, -depth * 0.35f), 0f, h, 1f, t.Quoins ? KitMaterial.Stone : KitMaterial.Wood);   // masonry cultures build stone stairs
                 // The landing's centre (Stair: steps * 0.15 + 0.5 past its middle), as a distance along the +X wall
                 // (yaw 90 turns +X along a wall to -Z).
                 UpperDoor(parts, depth * 0.35f - steps * 0.15f - 0.5f, width * 0.5f, 90f, h, ruined);
@@ -2711,19 +2711,6 @@ namespace Punchy.Terrain
             if (rails)
                 foreach (var side in new[] { -1f, 1f })
                     Add(parts, KitPiece.Rail, KitMaterial.Wood, at + Turn(yaw, new Vector3(side * width * 0.45f, deckHeight + 0.95f, 0f)), new Vector3(0.1f, 0.1f, length), yaw, false);
-        }
-
-        /// <summary>A straight outside stair along +Z rising <paramref name="rise"/>, its treads solid blocks to the ground.</summary>
-        public static void Stair(List<KitPart> parts, Vector3 at, float yaw, float rise, float width)
-        {
-            var steps = Mathf.Max(2, Mathf.CeilToInt(rise / 0.28f));
-            var run = 0.3f;
-            for (int k = 0; k < steps; k++)
-            {
-                var y = (k + 1) * rise / steps;
-                Add(parts, KitPiece.Stair, KitMaterial.Stone, at + Turn(yaw, new Vector3(0f, y * 0.5f, (k - steps * 0.5f) * run)), new Vector3(width, y, run), yaw, false);
-            }
-            Add(parts, KitPiece.Platform, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, rise - 0.08f, steps * 0.5f * run + 0.5f)), new Vector3(width, 0.16f, 1f), yaw, false);
         }
 
         /// <summary>A balcony: a slab on brackets in front of a wall, posts and a top rail.</summary>
@@ -3134,7 +3121,7 @@ namespace Punchy.Terrain
             {
                 MarshPlanks(parts, seed, t, new Vector3(0f, 0f, 2.8f), 180f, length, 0.82f);
                 var end = 2.8f - length - 0.65f - Mathf.CeilToInt(0.82f / 0.28f) * 0.15f;
-                Stair(parts, new Vector3(0f, 0f, end), 0f, 0.82f, 1.4f);
+                Stair(parts, new Vector3(0f, 0f, end), 0f, 0.82f, 1.4f, KitMaterial.Wood);
                 Totem(parts, rng, new Vector3(1.25f, 0f, 2.8f - length + 0.4f), 180f, 3.2f + R() * 0.4f, paint);
                 if (theme == 2)
                     Totem(parts, rng, new Vector3(-1.25f, 0f, 2.8f - length + 0.4f), 180f, 3f + R() * 0.4f, paint);
