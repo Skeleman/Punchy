@@ -287,3 +287,11 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 ## 11-18 W-166 stone courses (materials/stone-courses@3a01acae)
 - Cause: built-stone courses faded at 3-8 px per 0.34 m course on length(fwidth) footprints, so oblique or 30 m+ faces went flat, and 12 mm joints went sub-pixel. Fix in Materials/Stone.hlsl only: courses and tint fade at 1.5-4 px per course, sub-pixel joints draw a pixel wide at coverage darkness, joint lean keeps the old fade. Reaches Flora built stone, Colossus, Temple and Cave stone (include only, no cave file touched).
 - Shots (in-game ruin tower, T-1 -camlook): PunchyMilestones/stone-courses/tower-{10m,30m}-{before,after}.png. 10 m about the same, joints a touch firmer; 30 m head joints and courses now read on the shaded face. Shader-only, no tests touch it.
+
+## 11-18 W-182 row 3 (#254) castle placement - DONE, materials/castle-place aeaeeafd
+- CastleRuins landmark (Temperate, Grassland, Tundra; Density 1.6, MaxRelief 22, radius 34) on its own spots: 4 castles at (-2048,2349), (-2379,2616), (320,2992), (826,3320). WorldProbe-style diff: 114 DE33C724 -> 118 5A21F052, only the 4 lines added, the other 114 unmoved.
+- CastleRuin species (KitRuin form: box collision, Structure screen-size LOD) builds from the castle kit parts listed directly in castle ruin.json (builds only load unit JSONs a species references). 4 corner towers, 5 curtain walls, gatehouse + portcullis, a keep tower; ghosts as residents.
+- Re-pins: fauna fingerprint 525F72BB -> E7261508 (new species), temple sockets C41A5BA2 -> B2ABB7FF (same 73 sockets, type list grew).
+- Fix: Village_CreatureDensity sent the player to stale v1 spots (DebugControls keyed its spot list on count + first landmark, which v1 and v3 now shared). The key now sums all landmark positions. WorldTests 20/20.
+- Shots: PunchyMilestones/castle-place/castle-{15m,60m}.png.
+- 11-18 W-166 row 2 scarp-stone: main (incl. #600 mouth patch, #601) merged into materials/w166-scarp-stone 341d0807, clean, no conflicts. WorldTests 20/21 then Setup_SpawnRainAndShot alone 1/1 (180 s timeout under load; its shot was taken). Pins hold: landmarks 114 DE33C724, temple C41A5BA2.
