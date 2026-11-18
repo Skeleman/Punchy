@@ -1227,7 +1227,7 @@ namespace Punchy.Flora
                 return band < 0.12f ? 1f : 0f;
             }
             if (kind == (int)RiverSpot.LogNarrows)
-                return q.Width <= 10f && q.Distance < 2f ? 1f : 0f;
+                return LogFit(ref map, q, xz, kind);
             if (kind == (int)RiverSpot.Undercut)
                 return Dry(ground) && edge > -2f && edge < 4f && q.Cut > 0.45f
                     ? math.lerp(0.4f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind)) : 0f;
@@ -1247,6 +1247,9 @@ namespace Punchy.Flora
             var bar = RiverSampling.BarMask(q);
             var barHead = bar > 0.25f && RiverSampling.BarMask(up) < 0.1f;
             var barTail = bar > 0.25f && RiverSampling.BarMask(down) < 0.1f;
+            var isle = IsleFit(q, up, down, xz, kind);
+            if (isle > 0f)
+                return isle;
             if (kind == (int)RiverSpot.InnerBend)
             {
                 var fit = inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
@@ -2912,26 +2915,7 @@ namespace Punchy.Flora
                 return none;
             var fromProp = picked != candidates[pick];   // a landmark prop's density ring (its runed stones share a pattern)
             if (rule.RiverSpot == (int)RiverSpot.LogNarrows)
-            {
-                // W-63: a fallen log lies across the river (its X across the flow), both ends on dry bank no more than
-                // 1.2 m apart in height; it rests just under the lower bank's top.
-                var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
-                yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.2f, 0.2f);
-                var reach = new float2(math.cos(yaw), math.sin(yaw)) * rule.Span * scale;
-                var endA = source.SampleGround(xz + reach);
-                var endB = source.SampleGround(xz - reach);
-                if (!Dry(endA) || !Dry(endB) || math.abs(endA.Height - endB.Height) > 1.2f)
-                    return none;
-                return new FloraSystem.FloraInstance
-                {
-                    Position = new float3(xz.x, math.min(endA.Height, endB.Height) - 0.12f, xz.y),
-                    Yaw = yaw,
-                    Scale = scale,
-                    Model = rule.FirstModel + rng.NextInt(rule.Variants),
-                    Random = rng.NextFloat(),
-                    Ground = GroundFor(source, rule, xz, 1f, 0.25f)
-                };
-            }
+                return LogAcross(source, rule, xz, ground, scale, ref rng);
             if (rule.RiverSpot == (int)RiverSpot.Narrows && rule.Span > 0f)
             {
                 // W-65b: a stepping-stone row crosses the river (its X across the flow), both end stones on or just off

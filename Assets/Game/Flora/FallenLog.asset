@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Flora.FloraSpecies
   Form: 58
   Layer: 2
-  Height: {x: 11, y: 13}
+  Height: {x: 13, y: 15}
   Spread: 0.9
   TrunkFraction: 0.35
   Thickness: 0.24
@@ -46,5 +46,5 @@ MonoBehaviour:
   Solid: 1
   SizeRange: {x: 1, y: 1}
   RiverSpot: 4
- 3
+  Variants: 3
   Seed: 634

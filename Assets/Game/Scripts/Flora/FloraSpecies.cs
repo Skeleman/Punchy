@@ -244,6 +244,8 @@ namespace Punchy.Flora
 
         [Header("Colours")]
         public Color Bark = new Color(0.36f, 0.27f, 0.2f);
+        [Tooltip("Logs only: take the bark colour, bark kind and wood from this tree, so a fallen trunk matches the biome's own trees.")]
+        public FloraSpecies TrunkOf;
         public Color Foliage = new Color(0.22f, 0.4f, 0.14f);
         [Tooltip("Second foliage colour; each clump picks somewhere between the two.")]
         public Color FoliageVariation = new Color(0.3f, 0.45f, 0.16f);

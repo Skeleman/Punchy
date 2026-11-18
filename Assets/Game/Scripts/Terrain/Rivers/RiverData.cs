@@ -177,6 +177,7 @@ namespace Punchy.Terrain
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
         public float Cut;        // #301 row 2: height of the cut bank face here (outer side of a bend, else 0)
         public float Bar;
+        public float Isle;       // #301: mid-channel gravel island here, 0..1 (its dome blended into Carve)
     }
 
     public static class RiverSampling
@@ -288,6 +289,16 @@ namespace Punchy.Terrain
                         math.max(Lake(ref map, xz + new float2(0f, c), out _, out _), Lake(ref map, xz - new float2(0f, c), out _, out _))));
                     q.Bar *= 1f - math.smoothstep(0f, 0.1f, lake);
                 }
+                q.Isle = blend.Isle / blend.BarWeight * barScale;
+                if (q.Isle > 0f)
+                {
+                    var c = map.CellSize;
+                    var lake = math.max(Lake(ref map, xz, out _, out _), math.max(
+                        math.max(Lake(ref map, xz + new float2(c, 0f), out _, out _), Lake(ref map, xz - new float2(c, 0f), out _, out _)),
+                        math.max(Lake(ref map, xz + new float2(0f, c), out _, out _), Lake(ref map, xz - new float2(0f, c), out _, out _))));
+                    q.Isle *= 1f - math.smoothstep(0f, 0.1f, lake);
+                    q.Carve = math.lerp(q.Carve, math.max(q.Carve, blend.IsleTop / math.max(blend.Isle, 1e-6f)), q.Isle);
+                }
                 if (q.Bar * bank.Cut > 0f)
                     q.Carve = PointBar(q.Carve, q.Distance - q.Width * 0.5f, q.Water, q.Bar * bank.Cut);
             }
@@ -343,9 +354,9 @@ namespace Punchy.Terrain
         /// </summary>
         struct Join
         {
-            public float Nearest, Weight, Carve, Water, BarWeight, Bar;
+            public float Nearest, Weight, Carve, Water, BarWeight, Bar, Isle, IsleTop;
 
-            public void Add(float edge, float carve, float water, float bar = 0f)
+            public void Add(float edge, float carve, float water, float bar = 0f, float isle = 0f, float isleTop = 0f)
             {
                 if (edge < Nearest)
                 {
@@ -353,13 +364,14 @@ namespace Punchy.Terrain
                     var scale = Weight > 0f ? math.exp((edge - Nearest) / JoinBlend) : 0f;
                     Weight *= scale; Carve *= scale; Water *= scale;
                     var barScale = BarWeight > 0f ? math.exp((edge - Nearest) / BarBlend) : 0f;
-                    BarWeight *= barScale; Bar *= barScale;
+                    BarWeight *= barScale; Bar *= barScale; Isle *= barScale; IsleTop *= barScale;
                     Nearest = edge;
                 }
                 var w = math.exp((Nearest - edge) / JoinBlend);
                 Weight += w; Carve += w * carve; Water += w * water;
                 var wb = math.exp((Nearest - edge) / BarBlend);
                 BarWeight += wb; Bar += wb * bar;
+                Isle += wb * isle; IsleTop += wb * isle * isleTop;
             }
         }
 
@@ -465,7 +477,11 @@ namespace Punchy.Terrain
                     carve = Profile(distance, level, width, Depth(baseWidth, s) + math.min(drop * FootPoolDepth, 2.5f) * sink, bank);
                 }
             }
-            blend.Add(distance - width * 0.5f, carve, water, bar);
+            var isle = 0f;
+            var isleTop = 0f;
+            if (!fall && s.Smooth && down >= 0 && baseWidth >= IsleWidth && map.Up[start] >= 0 && outer < 0.3f && inner < 0.3f)
+                isle = Isle(ref map, start, xz, t, distance, baseWidth, water, out isleTop);
+            blend.Add(distance - width * 0.5f, carve, water, bar, isle, isleTop);
             if (distance - width * 0.5f < q.Distance - q.Width * 0.5f)
             {
                 q.Found = true;
@@ -546,6 +562,33 @@ namespace Punchy.Terrain
             }
             return h;
         }
+
+        const float IsleWidth = 9f;
+
+        /// <summary>
+        /// #301: a rare gravel island in the middle of a wide, slow, straight segment: a teardrop dome (blunt upstream)
+        /// about a fifth of the channel wide, its crown 0.4 m above the water, wholly inside the segment so it never
+        /// meets a neighbouring segment's carve.
+        /// </summary>
+        static float Isle(ref RiverMapBlob map, int start, float2 xz, float t, float distance, float width, float water, out float top)
+        {
+            top = 0f;
+            var down = map.Down[start];
+            if (map.LakeDepth[start] > 0f || map.LakeDepth[down] > 0f || SegmentGradient(ref map, start) > 0.012f)
+                return 0f;
+            if ((BiomeSampling.Scramble(math.hash(new uint2((uint)start, map.Seed ^ 0x15E1u))) & 1023u) > 70u)
+                return 0f;
+            var length = math.distance(map.Point(start), map.Point(down));
+            var along = (t - 0.5f) * length;
+            var half = math.min(length * 0.3f, width * 1.6f) * (along < 0f ? 0.7f : 1.3f);
+            if (half < 4f)
+                return 0f;
+            var r = math.length(new float2(along / half, distance / (width * 0.2f))) * (1f + 0.12f * noise.snoise(xz / 4f + 3.7f));
+            top = water + 0.4f - 0.9f * r * r;
+            return 1f - math.smoothstep(0.75f, 1f, r);
+        }
+
+        public static float IsleMask(in RiverQuery q) => q.Found ? math.smoothstep(0.2f, 0.6f, q.Isle) : 0f;
 
         public static float BarWidth(float bar) => math.lerp(4f, 10f, bar);
 

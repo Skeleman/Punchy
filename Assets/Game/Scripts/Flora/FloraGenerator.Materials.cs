@@ -28,7 +28,9 @@ namespace Punchy.Flora
         static MaterialFamily Timber(Grower g) => g.B.TimberFamily;
 
         /// <summary>The wood a species' timber is (MaterialLibrary.Wood): set by the form where it says, else its folk.</summary>
-        public static WoodKind WoodKindFor(FloraSpecies species) => species.Form switch
+        public static WoodKind WoodKindFor(FloraSpecies species) => species.TrunkOf != null
+            ? species.TrunkOf.Form == FloraForm.Conifer ? WoodKind.Pine : WoodKind.Oak
+            : species.Form switch
         {
             FloraForm.Driftwood => WoodKind.Driftwood,
             FloraForm.MineFrame or FloraForm.Torch => WoodKind.Pine,
