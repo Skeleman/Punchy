@@ -8753,3 +8753,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - The pale blocks were cave skin in patch cells that lay on the ground but was never snapped. Those faces now draw with the terrain material and inputs. Only faces turned into the passage keep the cave look. No blend and no rim fade were needed.
 - Gate: 0/0/0 (gaps/flips/facing down) at LOD0 and LOD1. WorldTests 21/21.
 - Shots: PunchyMilestones/world/mouth-patch/after2-c{0,3,6,8}{,f}.png (5 m and 20 m). No outline at any mouth.
+
+## 11-18 mouth-tint (#301 follow-up), WIP, handed back
+- Branch world/mouth-tint 6972a3b4 (WIP, not verified): the patch vertices now get the chunk's hollow depth (shared BuildChunkMeshJob.HollowDepth) and its W-136 contact shade (PatchShadeJob, redone when GroundContacts.Version changes). The rule 35 trims from #600 are in.
+- Not shot: free RAM stayed at 4-7 GB for 25 min while other editors were open, so I didn't enter play mode.
+- Open suspect: in after2-c3f the broad dark shadow bands also stop at the patch edge, so the patch may not receive shadows (RenderMesh vs Entities). Test: shoot c3f with contact shade alone, then with the directional light's shadows off (pershot2 PRE hook).
