@@ -501,7 +501,7 @@ namespace Punchy.Terrain
             Emission = new half4(math.lerp((float4)a.Emission, (float4)b.Emission, t)),
             Morph = math.lerp(a.Morph, b.Morph, t),
             Strata = new half4(math.lerp((float4)a.Strata, (float4)b.Strata, t)),
-            Soak = new half2(math.lerp((float2)a.Soak, (float2)b.Soak, t))
+            Soak = new half4(math.lerp((float4)a.Soak, (float4)b.Soak, t))
         };
     }
 }
