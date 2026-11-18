@@ -438,3 +438,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 ## R-15 water foam 2 (11-18) - render/water-foam-2 0dc7b050
 - FlowFoam streak length and coverage follow flow speed: slow edges get few short flecks, rapids long streaks. Same reads as before, so no new bench line.
 - Shot: D:/Unity/PunchyMilestones/water-foam/water-foam-2-pair.jpg (rapid -1048,-1521 at 15 m, main vs branch).
+
+## River clarity (11-18) - render/river-clarity e9ecdcf7
+- White/pale panes near rocks: steep water-mesh triangles just past a fall's curtain box (side ends) step between levels and draw as flat sky/foam panes. The curtain clip now widens up to 8 m all round on steep water only (PunchyFallSide, RiverCurtains.hlsl). Most panes gone; a thin sliver and the pool's right-edge panes remain.
+- Green streaks: the pool -38,296 is PoisonSwamp water, tinted on purpose; left alone. Rapid and other rivers are not murky, so no clarity change.
+- Shots: D:/Unity/PunchyMilestones/river-clarity/pairs.jpg (rows: fast pose by the fall, pool top-down, 15 m rapid; main left, branch right).
