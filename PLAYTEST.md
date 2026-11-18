@@ -282,3 +282,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #596 W-166 (#254): castle towers and gatehouses get corner quoins, walls get putlog holes (Lab only).
 - 11-18 #597 W-160 row 1 (#324): waterline lifts and laps slightly on shallow banks with a ragged fade; subtle so far.
 - 11-18 #598 W-160 row 2 (#324): lake and river edges wander and the white foam rim breaks into pieces. #324 closed.
+- 11-18 #599 W-166: stone courses and joints stay visible at 30 m (shared Stone.hlsl: castle, Colossus, Temple, cave stone).
