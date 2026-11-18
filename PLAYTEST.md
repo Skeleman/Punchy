@@ -285,3 +285,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #599 W-166: stone courses and joints stay visible at 30 m (shared Stone.hlsl: castle, Colossus, Temple, cave stone).
 - 11-18 #600 W-174 (#365): cave-mouth patch shares the terrain rim vertices exactly, no gaps or pale cells; tint follow-up next.
 - 11-18 #601 W-154 row 2 (#303): lava is look 3 only, crust rafts on open melt; lava lights redder (R-25).
+- 11-18 #602 W-182 row 3 (#254): four castle ruins in Temperate, Grassland and Tundra; landmarks 114 -> 118, others unmoved.
+- 11-18 #603 W-166 row 2 (#336): cave walls cut in the scarps' country rock unless themed (ice, crystal, ore).
