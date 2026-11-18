@@ -128,3 +128,15 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - The smithy's anvil was already drawn as metal (FloraGenerator.Parts Anvil), and the smithy has no kit trim, so it is unchanged: 0.00% of pixels changed. Street lamp: 0.97% changed, the caps now dark iron. Brazier: 3.4% changed.
 - Model Lab matched shots (FixtureLantern, Smithy, FixtureBrazier) are in PunchyMilestones/iron-kit/before and after. Edit-mode tests 49/49.
 - Profiler: the kit fingerprint hash mixes in each part's material, so fixture and house hashes change. Re-pin.
+
+## W-163 row 1 (#330) - shared wood grain (2026-11-17)
+
+Branch materials/wood-grain, commit fd145111.
+- #544/W-166 already had rings, pores, knots, the 3-tone ramp and fades by on-screen size in Wood.hlsl. This row filled only the gap, in the same file through MaterialLibrary (rule 33, no second wood system):
+  - a true domain warp of the grain coordinates;
+  - dirt as soft darker bands that average out over a piece (the old term was symmetric +/-);
+  - a per-piece seed for along-axis timber, which always used seed 0 before (shingle courses reuse it).
+- Our own code from the techniques; nothing copied. Far tone unchanged (rule 25). Elf pieces untouched.
+- Matched shots in D:/Unity/PunchyMilestones/W-163/before and /after (one session, clear noon). Mean luminance before -> after: pier close 125.7->124.9, house close 139.1->144.7, crate close 133.2->134.6, pier 20 m 160.7->159.3, house 20 m 157.0->154.1, crate 20 m 113.2->112.4. NaN 0. Viewed the close pair: the pier ramp shows lengthwise grime and grain; crate faces change little.
+- Tests: 2 new edit-mode tests (layers pinned; Flora/Cave/Creature compile with no errors). MaterialLibraryTests 9/9, full EditMode 49/49.
+- Cost: about 2 extra value-noise calls per wood pixel. Suggest a BENCH-QUEUE check; I did no timing.
