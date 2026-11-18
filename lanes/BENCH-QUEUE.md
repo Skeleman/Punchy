@@ -1,0 +1,1 @@
+- #582 W-165 row 2 crops: draw calls + flora verts at human village, Sonoran village, dwarf hold, uncapped, vs main 80d02c94 (expect flora verts down ~70% near fields).

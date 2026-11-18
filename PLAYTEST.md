@@ -265,3 +265,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #579 R-33 (#331, closed): cracked salt crust on salt flats, plates and raised crack edges up close.
 - #580 W-165 row 1 (#335): farm fields round human villages and dwarf holds, crops per biome.
 - #581 W-153 row 6 (#301): river water sheets stop at the bank, no hanging edges over dry ground.
+- #582 W-165 row 2 (#335): simpler crop shapes (fields ~4-5k verts), desert beans in Sonoran/Mesa villages, adobe wall round agave, elf glow-herb beds.
