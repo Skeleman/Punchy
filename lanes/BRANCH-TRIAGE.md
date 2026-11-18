@@ -12,6 +12,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - b/fix-uphill-graph -> #623
 - materials/boulder-waterline -> #624
 - render/fall-panes-3 -> #625
+- banks/point-bars -> #626
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
 - banks/overhangs -> #614

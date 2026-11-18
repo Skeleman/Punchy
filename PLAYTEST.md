@@ -308,3 +308,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #623 #617 follow-up: lake exits and old lake beds follow the lowered lake; no uphill water (#301).
 - #624 W-166 (#336): mid-river rocks splash higher on the upstream face, thin algae line at the waterline.
 - #625 R-15 (#269): the river curtain at falls fades when seen edge-on (no pale blade).
+- #626 river details (#301): inner bends get a sloping gravel point bar.
