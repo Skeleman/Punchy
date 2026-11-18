@@ -229,3 +229,9 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
 - Elf copies of Signpost, Bridge, Garden, HitchRail and Stable (pale stone, KitCulture Elf) are swapped into ElfGroveLayout. ElfRamada, ElfShrine, ElfSpire and ElfTower are marked Elf. Bark wood count is 0 on all of them (ElfBench too).
 - Still wood: KitHouse roof shingles (StructureKit.Surfaces gives elves Shingles, and MaterialLibrary maps that to Wood) and the shared hazard shelter houses. Making these stone needs a world-lane Surfaces change or a stone-shingle look.
 - Shots: PunchyMilestones/W-161 elf-street/mid/far (lum 141/124/105). EditMode 53/53, WorldTests 20/20. Fauna fingerprint 4EE0D127 -> 9430B213, which conflicts with rice-tuft's 8E24FECC: re-pin after the second merge.
+
+## W-161 elf-no-wood fixes (2026-11-18) - materials/elf-no-wood ec3d9144, pushed
+- Speckle: the cause was the Flora.shader metal-kind decode. frac() on an interpolated 3.99999 gave kind 10 (out of range), so every flora metal (elf canopies, tower roof, porch roof, signpost fittings) went hot. The kind is now read off the part and clamped to 0-4. DepthNormals now uses SafeNormalize (it was producing NaN). Sparkle probe on the street: other bad 0, hot 365k -> 5.4k over 20 frames.
+- Door and shingles: added MaterialLibrary.FamilyOf(material, look, timber). Kit doors and wall/roof families now use b.TimberFamily, so elf doors are stone. Stone timber also drops the plank/shingle wood mark, so elf roofs are stone with slate courses (RoofCourses). StructureKit.Surfaces is unchanged.
+- Merged origin/main and re-pinned the fauna fingerprint once, to 9EA6387D. WorldTests 20/20. Shot: PunchyMilestones/W-161/elf-street.png (viewed: clean).
+- Tails: hazard shelters stay wood. The elf door keeps its tan trim colour (stone family, no grain). The metal decode and NaN fixes change all flora metal, not just elves.
