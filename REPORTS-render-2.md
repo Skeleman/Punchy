@@ -448,3 +448,9 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Triangles: the curtain's first row and hard end columns, the open sheet seen edge-on (bright blade), and sheet foot quads cut where ground rises above the pool. Fixed with soft curtain ends (FallCurtain.cs), plus an edge-on facing fade and a scene-depth soft foot (LandmarkWaterfall.shader).
 - Left: the pale-green water above the lip with the sheet-top edge, the hole the curtain clip cuts in the flat side water (narrowing the clip brought back a pale pane, so it is reverted), and a thin wedge by the rock.
 - Shots: D:/Unity/PunchyMilestones/fall-panes-2/before.jpg, after.jpg (by-the-fall pose).
+
+## Fall panes 3 (11-18) - render/fall-panes-3 3e618ed4
+- (1) The pale-green blade with a hard top edge was the river's own curtain mesh (FallCurtain, Water.shader) seen edge-on; it now fades by facing like the sheet. The grey left at the top is the sheet itself, seen face-on.
+- (2) Debug colours (debug-clip.jpg): the dark holes are mostly flat water inside the 31 m footprint (a side shelf past the real sheet) plus steep steps just past it. Clipping only steep water inside the footprint filled them with pale foam panes, which is worse (tried-clip-footprint.jpg), so I reverted it. A real fix means trimming the box to where the sheet actually pours, or calming the foam on that shelf.
+- (3) The thin wedge by the rock is unchanged.
+- Shots: D:/Unity/PunchyMilestones/fall-panes-3/before.jpg, after.jpg. No .cs changed, so no WorldTests.
