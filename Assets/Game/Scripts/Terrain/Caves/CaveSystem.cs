@@ -1959,6 +1959,7 @@ namespace Punchy.Terrain
             {
                 Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
+                Surface = b.Surface, SurfaceScale = b.SurfaceScale, GridStep = gridStep,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Rock = b.Rock, Indices = b.Indices,
                 Opening = b.Opening, Gap = b.Gap, Contacts = b.Contacts,
                 ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
@@ -2061,6 +2062,10 @@ namespace Punchy.Terrain
             public int3 Cells;
             public float Voxel;
             [ReadOnly] public NativeArray<float> Field, CaveField;
+            /// <summary>W-174 row 3: the columns' drawn surface and slope (ColumnJob), and the near grid's step (0: no
+            /// clip to the mouth ring).</summary>
+            [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
+            public float GridStep;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
             public NativeList<float4> Data, Rock;
@@ -2098,6 +2103,39 @@ namespace Punchy.Terrain
                     shade = math.min(shade, c.ShadeAt(p, minReach, pad, ContactStrength, ContactReach));
                 }
                 return shade;
+            }
+
+            /// <summary>How far (m of the terrain's mouth cut) outside a mouth's rim the walls are still clipped to its ring.</summary>
+            const float RingReach = 0.5f;
+            /// <summary>Walls facing up more than this (the floor running out of a mouth) are never clipped: the floor
+            /// covers the collar's foot there, and dropping it uncovered slivers of buried ground.</summary>
+            const float RingFloorUp = 0.6f;
+
+            /// <summary>
+            /// W-174 row 3: a wall vertex inside a mouth's cut (or within RingReach of its rim) and above the mouth ring
+            /// (CaveSampling.MouthRing, the sheet the terrain collars' feet stand on) is dropped onto the ring, so the walls
+            /// end where the collars end instead of doubling them up to the ground. Under kept ground the skin is left
+            /// alone, and so is the floor (RingFloorUp). The cell's corner columns rule out most vertices before the drawn
+            /// height is read.
+            /// </summary>
+            float3 OntoRing(float3 p, float3 normal, int x, int z)
+            {
+                if (GridStep <= 0f || normal.y > RingFloorUp || !CaveSampling.NearColumn(ref Source.Caves.Value, p.xz))
+                    return p;
+                var columns = Cells.x + 1;
+                var low = float.MaxValue;
+                for (int c = 0; c < 4; c++)
+                {
+                    var i = (z + (c >> 1)) * columns + x + (c & 1);
+                    low = math.min(low, CaveSampling.MouthRing(Surface[i], SurfaceScale[i]));
+                }
+                if (p.y < low - Voxel)
+                    return p;
+                var ring = CaveSampling.MouthRing(Source.MeshHeight(p.xz, GridStep), Source.AcrossSlope(p.xz));
+                if (p.y <= ring || BuildChunkMeshJob.MouthCutAt(Source, p.xz, GridStep) > RingReach)
+                    return p;
+                p.y = ring;
+                return p;
             }
 
             int Point(int x, int y, int z) => (z * (Cells.y + 1) + y) * (Cells.x + 1) + x;
@@ -2154,10 +2192,12 @@ namespace Punchy.Terrain
                     var p = ((float3)(Origin + new int3(x, y, z)) + sum / crossings) * Voxel;
                     // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
                     p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
+                    var normal = Gradient(p);
+                    p = OntoRing(p, normal, x, z);
                     cellVertex[Cell(x, y, z)] = Positions.Length;
                     edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
-                    Normals.Add(Gradient(p));
+                    Normals.Add(normal);
                     var color = Look(p, out var data, out var open, out var country);
                     // W-135 row 4: darkened round the things standing here (through the rib shade; openness left alone).
                     if (Contacts.Length > 0 && !ShardProbe)
