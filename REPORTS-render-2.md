@@ -403,3 +403,9 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - The shore foam rim width varies 0.35-1.5x by noise, and it fades in and out along the line with gaps. The fine noise fades in by screen size, and the sea surf is unchanged. Lift is now up to +/-0.25 m (lap 0.03), and the edge fade reaches 0.6 m. WaterShore.hlsl comments are trimmed to reason lines.
 - Shots: PunchyMilestones/W-160/row2/sheet.jpg (before = row 1 as merged, after; 4 spots, noon; 5 m pair viewed). The lake line is now soft and wavy with no white stroke. The river rim is broken into short pieces with gaps.
 - BENCH: 3 extra noise taps per water pixel on top of the row 1 entry. Report-only: the same views.
+
+## W-154 (#303) row 1 lava pick sheet (11-18) - render/lava fc23c9a8
+- There are three candidate looks behind the global `_PunchyLavaLook` (0 = today, 1-3 = candidates), built in the Water.shader lava path. A has dark crust plates with glowing cracks that pulse. B is a ridged vein network with wider rivers. C is crust rafts on open melt. Every candidate has an HDR heat ramp, a heat shimmer UV wobble, and grit/bump that fades out by screen size (rule 20).
+- Sheet: PunchyMilestones/W-154/sheet.jpg, with rows today/A/B/C and columns 5 m noon, 25 m noon and 25 m night. Zach picks; pools, flows and seeps come after the pick, and the unpicked looks get removed then.
+- This world has no cave lava pools, so the VolcanoCone crater (-891, -2021) is both "volcano" and "pool". The magma serpent and the moving rocks can block 25 m views, so those shots were retaken.
+- BENCH: report-only, listed after the pick.
