@@ -313,3 +313,10 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Wet band: the stone darkens and shines up to water depth + 4 cm splash (+ up to 30 cm on rapids) above the foot, with a ragged top. It uses the same rock tint path and Ground word, with no new system.
 - WorldTests 21/21, fingerprint F00119AC unchanged (colour only).
 - Shot: D:/Unity/PunchyMilestones/rock-moss-wet/rock-moss-wet-pair.jpg (rapid -1048,-1521 at 15 m, main vs branch). The water in the after frame is lighter: the run's exposure, not this change.
+
+
+## damp-banks (#301, #336) - materials/damp-banks 7f4f12f4, rebased on main 81fce388
+- Inland banks (rivers, lakes, pools; not the sea) go darker and glossier for 0.5 m above the waterline, up to about 1.6 m on rapids and steep (outer-bend) banks. A thin mud line sits at the water's edge, and wet grass is a little darker. This is all in EvaluateBiome (DampBank) plus a new GroundContext.Inland flag; the carve is untouched.
+- Point-bar hook: DampBank is where a future inner-bend bar flag could tint sand/gravel.
+- WorldTests 21/21, fingerprint 59A4BFD3 unchanged (colour/smoothness only).
+- Shots: D:/Unity/PunchyMilestones/damp-banks/damp-banks-pairs.jpg (rapid -1048,-1521; pool -40,300; slow bank -38,296; before|after). The exposure differs between runs.
