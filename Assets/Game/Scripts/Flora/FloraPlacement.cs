@@ -539,7 +539,7 @@ namespace Punchy.Flora
         /// <summary>
         /// A rock's colour where it lies (G-36): on dry ground, the biome's own rock (the surface its cliffs take, so a rock
         /// in the desert is sandstone, not grey and mossy), packed as DirtColor is with the alpha at its top value (the
-        /// shader's sign for a rock tint); on grassy, wet ground 0, so the rock keeps its own grey and moss. River rocks: WetRockMark plus their wet band's top above the foot in 4 cm steps.
+        /// shader's sign for a rock tint); on grassy, wet ground 0, so the rock keeps its own grey and moss.
         /// </summary>
         public const uint RockTintMark = 255u, WetRockMark = 224u;
         static uint RockTint(in TerrainSource source, float2 at, bool wet = false)
