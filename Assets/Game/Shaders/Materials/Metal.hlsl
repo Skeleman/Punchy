@@ -13,6 +13,7 @@ float4 _PunchyMetalLightKinds[8];
 float4 _PunchyMetalGlintKinds[8];
 
 #define PUNCHY_METAL_IRON 0
+#define PUNCHY_METAL_COPPER 1
 
 /// How much of a plain surface's diffuse a metal of this kind keeps (callers dim their diffuse by it).
 half PunchyMetalDiffuse(int kind)

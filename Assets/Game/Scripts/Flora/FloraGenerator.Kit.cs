@@ -353,6 +353,8 @@ namespace Punchy.Flora
                      : p.Afloat && p.Material == Punchy.Terrain.KitMaterial.Trim ? Punchy.Terrain.MaterialFamily.Wood
                      : p.Piece == Punchy.Terrain.KitPiece.Trim && p.Material == Punchy.Terrain.KitMaterial.Roof && Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look) == Punchy.Terrain.MaterialFamily.Plaster ? Punchy.Terrain.MaterialFamily.Paint
                      : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
+                     // Copper trim (rod fins, straps, marsh paint) is a painted copper coat: Metal has no bark mark and fell back to stone.
+                     : p.Material == Punchy.Terrain.KitMaterial.Copper ? Punchy.Terrain.MaterialFamily.Paint
                      : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
             b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
             b.Unfounded = p.Afloat;
@@ -369,6 +371,14 @@ namespace Punchy.Flora
                 if (outward.x * p.Centre.x + outward.z * p.Centre.z < 0f)
                     outward = -outward;
                 g.Windows.Add(new Vector4(p.Centre.x, p.Centre.y, p.Centre.z, Mathf.Atan2(outward.z, outward.x)));
+            }
+            else if (p.Material == Punchy.Terrain.KitMaterial.Copper && p.Piece == Punchy.Terrain.KitPiece.Column)
+            {
+                // Phase B (#336): a copper rod or stake (storm houses) is drawn as copper metal. Small copper trim is
+                // painted (Paint family above): the same material colours gull bills and marsh totems.
+                b.MetalKind = Punchy.Terrain.MetalKind.Copper;
+                b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Metal);
+                b.MetalKind = Punchy.Terrain.MetalKind.Iron;
             }
             else if (g.Lod < 2 && Contacts(parts, i, contacts))
                 b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
@@ -677,7 +687,7 @@ namespace Punchy.Flora
             b.Blob(new Vector3(0f, 0.08f, -length * 0.4f), new Vector3(width * 0.42f, 0.08f, 0.11f), Quaternion.identity, detail, 0.15f,
                    g.R() * 50f, g.Bark, FloraPart.Bark, 1f, 0.3f, 0.6f);
             b.Occlude(first, (p, n) => GroundOcclusion(p, 0.15f));
-            b.Cloth(first, p => 0f);
+            b.Felt(first);
         }
 
         /// <summary>

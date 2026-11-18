@@ -52,18 +52,22 @@ namespace Punchy.Terrain
     }
 
     /// <summary>The kinds of cloth (W-166 #336): rows of MaterialLibrary.Cloth, read by Shaders/Materials/Cloth.hlsl.
-    /// Linen is MaterialFamily.Cloth (tents, awnings, banners, nets, gear cloth), Hide is MaterialFamily.Leather.</summary>
+    /// Linen is MaterialFamily.Cloth (tents, awnings, banners, nets, gear cloth), Hide is MaterialFamily.Leather, Felt is
+    /// camp bedrolls (FloraMeshBuilder.Felt).</summary>
     public enum ClothKind
     {
         Linen = 0,
-        Hide = 1
+        Hide = 1,
+        Felt = 2
     }
 
     /// <summary>The kinds of metal (W-166 #336): rows of MaterialLibrary.Metal, read by Shaders/Materials/Metal.hlsl.
-    /// Iron is every metal drawn so far (kit copper and lamps, tools and gear, colossus metal).</summary>
+    /// Iron is tools, gear, colossus metal and metallic plants; Copper is kit copper rods and stakes (storm houses), drawn
+    /// through FloraMeshBuilder.MetalKind.</summary>
     public enum MetalKind
     {
-        Iron = 0
+        Iron = 0,
+        Copper = 1
     }
 
     /// <summary>
@@ -214,6 +218,7 @@ namespace Punchy.Terrain
         {
             new ClothRow(1f, 1f, 0.25f, 0f),     // linen: matte weave, sewn panels
             new ClothRow(1f, 1f, 0.2f, 0.22f),   // hide: blotchy tanning, creases, a soft sheen
+            new ClothRow(1f, 1f, 0.3f, 0f),      // felt: matted wool, no weave, soft lumps and fuzz
         };
 
         /// <summary>One kind of metal (W-166 #336), read by Shaders/Materials/Metal.hlsl. Diffuse: how much of a
@@ -243,6 +248,7 @@ namespace Punchy.Terrain
         public static readonly MetalRow[] Metal =
         {
             new MetalRow(0.45f, 0.35f, 3f, 90f, 7f, 14f, 0.55f, 400f),   // iron: sky-tinted, sharp sun, twinkling glints
+            new MetalRow(0.55f, 0.3f, 2f, 40f, 5f, 5f, 0.75f, 250f),     // copper: warmer diffuse, broad soft sheen, few glints
         };
 
         /// <summary>The cloth row for a family: Leather is hide, anything else linen.</summary>

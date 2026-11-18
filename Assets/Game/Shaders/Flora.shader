@@ -167,6 +167,8 @@ Shader "Punchy/Flora"
                 bool built = input.ground.a > 0 && !rockTint && !greenTint;
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
+                // Phase B (#336): the metal's kind rides on the part as + kind * 0.1 (FloraMeshBuilder.MetalKind).
+                int metalKind = metal ? (int)round(frac(input.extra.x) * 10) : PUNCHY_METAL_IRON;
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
                 half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
@@ -232,9 +234,10 @@ Shader "Punchy/Flora"
                     albedo = look == 3 ? albedo * PunchyThatch(input.grainPos, facetOS, footprint)
                                        : PunchyWoodSurface(albedo, look, input.grainPos, input.grainAxis, facetOS, footprint, input.color.rgb, woodKind);
                 // Cloth: a linen weave (W-99).
-                // Hide (Cloth + 0.45, W-113): leather instead.
+                // Hide (Cloth + 0.45, W-113): leather instead. Felt (Cloth + 0.48, a bedroll): matted wool.
                 if (detail && part == 10)
-                    albedo *= input.extra.x > 10.42 ? PunchyHide(input.grainPos, facetOS, footprint)
+                    albedo *= input.extra.x > 10.465 ? PunchyFelt(input.grainPos, facetOS, footprint)
+                            : input.extra.x > 10.42 ? PunchyHide(input.grainPos, facetOS, footprint)
                                                     : PunchyLinen(input.grainPos, facetOS, footprint);
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
@@ -407,11 +410,11 @@ Shader "Punchy/Flora"
                 half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
-                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
+                half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? PunchyMetalDiffuse(metalKind) : 1);
                 // Tinted reflections of the sky, a sharp sun highlight, and glints that twinkle as the leaves move and
                 // the view changes (shared with creature gear: Metal.hlsl).
                 if (metal)
-                    color += PunchyMetalShade(albedo, n, v, input.positionWS, light.color, light.direction, shadow, ao, _PunchyUnderground);
+                    color += PunchyMetalShade(albedo, n, v, input.positionWS, light.color, light.direction, shadow, ao, _PunchyUnderground, metalKind);
                 // Bark and rock take a faint reflection of the sky at grazing angles, as the terrain does (its
                 // surfaces have a little smoothness), so rocks fade into the same sky-tinted haze as the land. Metal
                 // and crystal too: dark ones (obsidian) otherwise stay black specks on a distant hazy slope. Up close
