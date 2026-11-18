@@ -295,3 +295,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #610 R-15 (#269) river foam in the water shader as flow-aligned torn streaks, no near-camera blobs; lakes and sea unchanged.
 - 11-18 #611 R-15 (#269) river foam streak length follows flow speed: long in rapids, short flecks at slow edges.
 - 11-18 #612 W-166 (#336) river beds: biome-stone cobbles in fast reaches, sand then silt in pools; lakes and sea unchanged (#301).
+- 11-18 #613 W-166 (#336) river rocks keep their moss again (fixes #609 regression) and get a darker wet band at the waterline, taller on rapids.
