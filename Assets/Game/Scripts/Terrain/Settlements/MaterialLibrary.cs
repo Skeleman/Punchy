@@ -189,14 +189,14 @@ namespace Punchy.Terrain
         };
 
         /// <summary>
-        /// The wet line up a trunk or log standing in the bank's wet band (BiomeData.WaterlineWet), in 0.04 m steps for
+        /// The wet line up a trunk or log standing in the bank's wet band (BiomeSampling.WaterlineWet), in 0.04 m steps for
         /// FloraPlacement's wet ground mark; 0 outside the band.
         /// </summary>
         public static uint WetLineSteps(in GroundSample ground, float seaLevel)
         {
-            if (!ground.HasWater || ground.WaterSurface <= seaLevel + 0.01f || ground.WaterDepth < -BiomeData.WaterlineWetAbove || ground.WaterDepth > 0.05f)
+            if (!ground.HasWater || ground.WaterSurface <= seaLevel + 0.01f || ground.WaterDepth < -BiomeSampling.WaterlineWetAbove || ground.WaterDepth > 0.05f)
                 return 0u;
-            var close = 1f - math.smoothstep(0.05f, BiomeData.WaterlineWetAbove, -ground.WaterDepth);
+            var close = 1f - math.smoothstep(0.05f, BiomeSampling.WaterlineWetAbove, -ground.WaterDepth);
             return (uint)math.clamp(math.round((0.08f + 0.3f * close + 0.3f * math.max(ground.Rapids, ground.Spray)) / 0.04f), 1f, 29f);
         }
 
