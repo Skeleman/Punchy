@@ -1209,5 +1209,5 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - materials/river-mouths a9129e66: MouthFan walks up to 4 river cells per terrain sample within 16 m of a river bank (TerrainSource ground sampling); report-only terrain chunk build time at -3440,-1800, main vs branch.
 - render/fall-panes-2 1eb389e7: LandmarkWaterfall.shader now samples scene depth per fragment; check the waterfall's GPU cost by the fall (4,254), main vs branch.
 - materials/fall-spray (baa5df12): FallSpray adds a 3x3-cell fall-segment scan per ground sample near rivers (within width/2+40 m); check chunk build time vs main.
-- 11-18 banks: banks/point-bars@6266ff45: point-bar math in RiverSampling.Query (bar blend, 5 Lake lookups) and TerrainSource.RiverAt (cave bounding-box loop, second Query near caves); report-only terrain chunk build time at -1268,637, main vs branch.
+- 11-18 banks: banks/point-bars@8359db2c: point-bar math in RiverSampling.Query (bar blend, 5 Lake lookups) and TerrainSource.RiverAt (cave bounding-box loop, second Query near caves); report-only terrain chunk build time at -1268,637, main vs branch.
 - materials 11-18 boulder-waterline (54aa8e95): Flora.shader wet-rock block gains a per-pixel facing dot + algae band and one nointerpolation TEXCOORD11; check flora pass cost at a rapids view (-2712,617) vs main.
