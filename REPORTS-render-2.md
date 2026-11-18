@@ -424,7 +424,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Vent wisps: steam round geothermal landmarks (fumarole field), sparse pale smoke in vents-tagged biomes (Ashlands, Volcano); a quarter are intermittent. Hash per 12 m cell, no landmark or fingerprint change.
 - Shots: D:/Unity/PunchyMilestones/262/sheet.jpg (forest, steam, smoke; 5 m and 25 m; before/after). Merges origin/main (de1a60f8). BENCH line updated.
 
-## R-29 river spray row 1 (11-18) - render/river-spray c6ecd23e
+## R-29 river spray row 1 (11-18) - render/river-spray e4996db3
 - Rapids: river segments whose water drops 3 cm/m or more (about 330 segments) get up to 3 white churn spots each, stronger on steeper water; falls and lake segments are skipped (falls keep their own spray). River mouths (6 that end in open water) get a low soft mist.
 - On the Spray family under its own owner, read-only on river data, rebuilt per river cell, faded by screen size. No river files touched.
+- Review fix e4996db3: rapids no longer draw round puffs. They draw flat noise-eroded foam streaks on the water along the flow, every fourth a small hopping fleck, faded within 3-10 m of the camera (also on all puffs, by size).
 - Shots: D:/Unity/PunchyMilestones/river-spray/sheet.jpg (rapid at -1048,-1521, 15 m and 60 m).
