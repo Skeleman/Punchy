@@ -18,7 +18,9 @@ namespace Punchy.Terrain
         Ice = 9,
         Bone = 10,
         /// <summary>Standing water in a built piece (troughs, basins): flat by design, not a family's include.</summary>
-        Water = 11
+        Water = 11,
+        /// <summary>Painted trim and accents (buoy floats, trim boards): a smooth coat, a little chipped (Materials/Paint.hlsl).</summary>
+        Paint = 12
     }
 
     /// <summary>The kinds of wood (W-166): rows of MaterialLibrary.Wood, read by Shaders/Materials/Wood.hlsl.
@@ -255,8 +257,9 @@ namespace Punchy.Terrain
             KitMaterial.Ice => MaterialFamily.Ice,
             KitMaterial.Copper or KitMaterial.Lamp => MaterialFamily.Metal,
             KitMaterial.Net => MaterialFamily.Cloth,
+            KitMaterial.Trim => MaterialFamily.Paint,   // painted boards and accents, not plaster
             KitMaterial.Fish => MaterialFamily.None,   // #550: a fish's own body (FloraGenerator.HungFish), not a built family
-            _ => MaterialFamily.Plaster   // Trim, Opening, Moss, Sand, Ash, Dirt, Flame: coloured plaster for now
+            _ => MaterialFamily.Plaster   // Opening, Moss, Sand, Ash, Dirt, Flame: coloured plaster for now
         };
 
         /// <summary>The family a creature's gear segment is made of (Fauna.SegmentMaterial): Creature.shader draws each

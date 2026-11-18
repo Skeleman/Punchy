@@ -170,7 +170,9 @@ namespace Punchy.Flora
             Punchy.Terrain.MaterialFamily.Ice => 0.13f,
             Punchy.Terrain.MaterialFamily.Stone => 0.142f,
             // #550: rope and netting (kit Net parts): twisted fibre, never the stone surface.
-            Punchy.Terrain.MaterialFamily.Cloth => 0.05f,
+            Punchy.Terrain.MaterialFamily.Cloth => 0.053f,
+            // Painted trim and accents (buoy floats): a smooth chipped coat, never the stone surface.
+            Punchy.Terrain.MaterialFamily.Paint => 0.041f,
             _ => 0f
         };
 

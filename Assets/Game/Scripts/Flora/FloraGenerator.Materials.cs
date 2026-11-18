@@ -48,7 +48,7 @@ namespace Punchy.Flora
             var counts = new int[16];
             var builder = model.Pending != null && model.Pending.Length > 0 ? model.Pending[0] : null;
             if (builder != null)
-                for (int f = 0; f < counts.Length && f <= (int)MaterialFamily.Water; f++)
+                for (int f = 0; f < counts.Length && f <= (int)MaterialFamily.Paint; f++)
                     counts[f] = builder.BarkVerticesOf((MaterialFamily)f);
             return counts;
         }
