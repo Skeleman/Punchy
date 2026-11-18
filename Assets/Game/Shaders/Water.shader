@@ -486,6 +486,88 @@ Shader "Punchy/Water"
                 return crust;
             }
 
+            float _PunchyLavaLook;
+
+            // W-154 pick sheet: x = distance to the nearest cell border (cell units), y = the cell's hash.
+            float2 LavaCells(float2 q, float time)
+            {
+                float2 cell = floor(q), f = q - cell;
+                float d1 = 8, d2 = 8, id = 0;
+                [unroll] for (int y = -1; y <= 1; y++)
+                [unroll] for (int x = -1; x <= 1; x++)
+                {
+                    int2 c = int2(cell) + int2(x, y);
+                    float h = PunchyCellHash(c), h2 = PunchyCellHash(c + int2(71, 13));
+                    float2 o = float2(x, y) + 0.5 + 0.36 * float2(sin(time * (0.5 + h) + h * 6.28), cos(time * (0.4 + h2) + h2 * 6.28)) - f;
+                    float d = dot(o, o);
+                    if (d < d1) { d2 = d1; d1 = d; id = h; }
+                    else d2 = min(d2, d);
+                }
+                return float2(sqrt(d2) - sqrt(d1), id);
+            }
+
+            half3 LavaHeat(half heat)
+            {
+                half3 c = lerp(half3(0.25, 0.012, 0.0), half3(1.1, 0.12, 0.005), smoothstep(0.0, 0.35, heat));
+                c = lerp(c, half3(3.2, 0.95, 0.08), smoothstep(0.3, 0.75, heat));
+                return lerp(c, half3(4.5, 2.6, 0.9), smoothstep(0.8, 1.0, heat));
+            }
+
+            // Candidate looks 1-3 for the pick sheet; crust is lit as rock, heat glows past white-point for bloom.
+            half3 LavaCandidate(int look, float2 home, float t, float tk, float ppm, float edge, float stir, float3 heave, half3 ambient, Light light, half shadow)
+            {
+                float shimmer = smoothstep(15, 60, ppm);
+                home += (float2(LavaNoise(home * 2.2 + t * 1.6), LavaNoise(home * 2.2 - t * 1.25 + 5.1)) - 0.5) * 0.07 * shimmer;
+                float rough = smoothstep(25, 90, ppm);
+                float fine = smoothstep(30, 80, ppm);
+                float2 bump = LavaGradient(home * 2.4) * 0.35 * rough;
+                float3 n = normalize(heave + float3(-bump.x, 0, -bump.y));
+                half grit = lerp(1, 0.55 + 0.9 * LavaNoise(home * 5.3), rough);
+                half3 rock = half3(0.03, 0.026, 0.024) * grit * (ambient + light.color * shadow * saturate(dot(n, light.direction)));
+                half heat = 0, rim = 0;
+                float2 warp = (float2(LavaNoise(home * 0.21 + tk * 0.004), LavaNoise(home * 0.21 + 9.3 - tk * 0.003)) - 0.5) * 2.2;
+                if (look == 1)
+                {
+                    float2 c = LavaCells((home + warp) / 1.7, tk * 0.05);
+                    float open = 0.035 + 0.11 * smoothstep(0.35, 0.8, LavaNoise(home * 0.09 + tk * 0.006)) + 0.3 * stir + 0.2 * saturate(-edge);
+                    open *= saturate(1 - edge);
+                    heat = 1 - smoothstep(0, open, c.x);
+                    rim = 1 - smoothstep(open, open + 0.22, c.x);
+                    float2 c2 = LavaCells((home + warp) / 0.5 + 31, tk * 0.08);
+                    heat = max(heat, (1 - smoothstep(0, 0.07, c2.x)) * 0.45 * fine * (1 - smoothstep(0.05, 0.5, c.x)));
+                    heat *= 0.8 + 0.2 * sin(tk * 0.35 + c.y * 6.28 + home.x * 0.4);
+                }
+                else if (look == 2)
+                {
+                    float2 w = home * 0.32 + warp * 0.4;
+                    float r1 = 1 - abs(2 * LavaNoise(w + tk * 0.012) - 1);
+                    float r2 = 1 - abs(2 * LavaNoise(w * 2.3 - tk * 0.02 + 3.7) - 1);
+                    float ridge = max(r1, r2 * lerp(0.9, 0.97, fine));
+                    float zone = smoothstep(0.35, 0.8, LavaNoise(home * 0.05 + tk * 0.004));
+                    float width = (lerp(0.07, 0.22, zone) + 0.25 * stir) * saturate(1 - edge);
+                    heat = smoothstep(1 - width, 1, ridge);
+                    rim = smoothstep(1 - width * 3, 1, ridge);
+                    heat *= 0.75 + 0.25 * sin(tk * 0.5 - LavaNoise(w * 0.7) * 14);
+                }
+                else
+                {
+                    float2 w = home * 0.22 + warp * 0.3 - tk * 0.006;
+                    float raft = LavaNoise(w) * 0.6 + LavaNoise(w * 2.1 + 4.2) * 0.28 + LavaNoise(w * 4.7 + 8.1) * 0.12 * fine;
+                    float cover = 0.33 - 0.25 * stir;
+                    float crust = smoothstep(cover - 0.015, cover + 0.015, raft + edge * 0.5);
+                    float2 c = LavaCells((home + warp) / 0.9 + 11, tk * 0.04);
+                    crust *= lerp(1, smoothstep(0.02, 0.06, c.x), crust * smoothstep(cover + 0.15, cover, raft) * fine);
+                    float skin = LavaNoise(float2(dot(home, float2(0.9, 0.4)), dot(home, float2(-0.4, 0.9)) * 3.5) * 0.6 - tk * 0.03);
+                    heat = (1 - crust) * lerp(0.35, 0.8, skin);
+                    rim = smoothstep(cover + 0.12, cover, raft);
+                }
+                float far = smoothstep(2, 7, ppm);
+                heat = lerp(0.12, heat, far);
+                rim = lerp(0.25, rim, far);
+                half3 lit = lerp(rock, rock + LavaHeat(0.2) * 0.25, rim);
+                return lerp(lit, LavaHeat(heat), smoothstep(0.0, 0.2, heat));
+            }
+
             // Slow bubbles in thick water: here and there a dome swells up, then pops (xy slope, z = bubble mask).
             float3 Bubbles(float2 p, float t)
             {
@@ -1123,13 +1205,19 @@ Shader "Punchy/Water"
                         // (undisturbed, both are exactly as before).
                         float2 heaved = wakeSlope * LavaHeave;
                         float stir = saturate(length(heaved));
-                        float crust = LavaFlow(home * 0.3, frac(tk * 0.03 / 500) * 500, octaves) + edge - LavaStir * stir;
-                        half heat = saturate(1 - crust / LavaVein);
                         float3 heave = normalize(float3(-heaved.x, 1, -heaved.y));
-                        half3 rock = half3(0.025, 0.021, 0.019) * (ambient + light.color * shadow * saturate(dot(heave, light.direction))) + half3(0.006, 0.002, 0.001);
-                        half3 glowing = lerp(half3(0.35, 0.02, 0.0), half3(2.0, 0.42, 0.03), smoothstep(0.15, 0.5, heat));
-                        glowing = lerp(glowing, half3(2.3, 0.7, 0.1), smoothstep(0.85, 1.0, heat));
-                        lavaColor = lerp(rock, glowing, smoothstep(0.0, 0.15, heat));
+                        int look = (int)round(_PunchyLavaLook);
+                        [branch] if (look > 0)
+                            lavaColor = LavaCandidate(look, home, t, tk, pixelsPerMetre, edge, stir, heave, ambient, light, shadow);
+                        else
+                        {
+                            float crust = LavaFlow(home * 0.3, frac(tk * 0.03 / 500) * 500, octaves) + edge - LavaStir * stir;
+                            half heat = saturate(1 - crust / LavaVein);
+                            half3 rock = half3(0.025, 0.021, 0.019) * (ambient + light.color * shadow * saturate(dot(heave, light.direction))) + half3(0.006, 0.002, 0.001);
+                            half3 glowing = lerp(half3(0.35, 0.02, 0.0), half3(2.0, 0.42, 0.03), smoothstep(0.15, 0.5, heat));
+                            glowing = lerp(glowing, half3(2.3, 0.7, 0.1), smoothstep(0.85, 1.0, heat));
+                            lavaColor = lerp(rock, glowing, smoothstep(0.0, 0.15, heat));
+                        }
                     }
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
