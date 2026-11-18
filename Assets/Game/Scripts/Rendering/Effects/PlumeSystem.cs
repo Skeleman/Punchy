@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 namespace Punchy.Rendering.Effects
 {
     /// <summary>
-    /// R-29 rows 3-4 (#320, rule 30): steam, smoke, spray and sparks, four families of puffs on the effects kit. Each family
+    /// R-29 rows 3-4 (#320, rule 30): steam, smoke, spray, sparks and leaves, five families of puffs on the effects kit. Each family
     /// is one asset (PlumeEffect: Resources/StandardSteam, StandardSmoke, StandardSpray, StandardSparks) and one draw path: callers hand it their
     /// plumes whenever their own set changes (Set, keyed by the caller) and EffectsDriver draws every family once a
     /// frame in one procedural draw with the Landmark Plume shader, which animates every puff from the shared clock
@@ -15,7 +15,8 @@ namespace Punchy.Rendering.Effects
     /// below its family's GonePixels (LandmarkEffects.hlsl, _PunchyPlumeReach).
     /// Callers: LandmarkEffectSystem (steam: geysers, hot springs, mud pits; smoke: chimneys, fumaroles and other dark
     /// landmark plumes; spray: every waterfall's lip white water, landing churn, foam and mist, river, cave, grand and
-    /// landmark falls; sparks: warm glowing embers over camp and village fires, forges, fumaroles and volcano vents).
+    /// landmark falls; sparks: warm glowing embers over camp and village fires, forges, fumaroles and volcano vents;
+    /// leaves: falling from tall broadleaf crowns, #262, a plume with a Drop; vent wisps also join steam and smoke).
     /// Still on their own path: FireSystem's smoke and embers (the fire quad shader), cold sparkles, toxic gas.
     /// </summary>
     public static class PlumeSystem
@@ -39,6 +40,7 @@ namespace Punchy.Rendering.Effects
         public static readonly PlumeFamily Smoke = new PlumeFamily("StandardSmoke");
         public static readonly PlumeFamily Spray = new PlumeFamily("StandardSpray");
         public static readonly PlumeFamily Sparks = new PlumeFamily("StandardSparks");
+        public static readonly PlumeFamily Leaves = new PlumeFamily("StandardLeaves");
 
         /// <summary>
         /// Which family a landmark-style plume of this authored (sRGB) colour and glow belongs to: pale grey-white is
@@ -63,6 +65,7 @@ namespace Punchy.Rendering.Effects
             Smoke.Draw(material);
             Spray.Draw(material);
             Sparks.Draw(material);
+            Leaves.Draw(material);
         }
     }
 
@@ -137,7 +140,7 @@ namespace Punchy.Rendering.Effects
                     // Room for the puffs to spread and drift downwind as they rise.
                     var pad = p.Shape.y + p.Shape.z + 6f;
                     var drift = p.Shape.x + pad;
-                    min = math.min(min, p.Position - new float3(drift, pad, drift));
+                    min = math.min(min, p.Position - new float3(drift, pad + p.Drop, drift));
                     max = math.max(max, p.Position + new float3(drift, p.Shape.x + pad, drift));
                 }
             if (all.Count == 0)

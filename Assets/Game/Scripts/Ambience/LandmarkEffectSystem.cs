@@ -153,6 +153,7 @@ namespace Punchy.Ambience
             Punchy.Rendering.Effects.PlumeSystem.Smoke.Set(this, null);
             Punchy.Rendering.Effects.PlumeSystem.Spray.Set(this, null);
             Punchy.Rendering.Effects.PlumeSystem.Sparks.Set(this, null);
+            ClearAmbientBits();
             lastNearby.Clear();
             fineFalls.Clear();
             // (No curtains drawn: the water draws its falls' faces again.)
@@ -228,6 +229,7 @@ namespace Punchy.Ambience
                 Punchy.Settings.LightBudget.AddPooled(Punchy.Settings.LightKind.Fire, f.at, light);
             }
             ForestFires(source, palette, eye, lit);
+            AmbientBits(source, palette, eye);
             Beacons(source, eye, lit, flameRange);
             Draw();
         }

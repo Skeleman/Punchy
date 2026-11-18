@@ -19,6 +19,8 @@ Shader "Punchy/Landmark Plume"
             #pragma target 4.5
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
@@ -34,7 +36,7 @@ Shader "Punchy/Landmark Plume"
                 float alpha : TEXCOORD2;
                 float4 screen : TEXCOORD3;
                 nointerpolation uint emitter : TEXCOORD4;
-                nointerpolation float age : TEXCOORD5;   // negative: a bubble (see BuildPlume)
+                nointerpolation float age : TEXCOORD5;   // negative: a bubble, above 1.5: a leaf (see BuildPlume)
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
@@ -77,6 +79,22 @@ Shader "Punchy/Landmark Plume"
                     if (a >= 0.6)
                         bubbleLit = lerp(e.color.rgb * 0.3, bubbleLit * 1.2, crest / max(crest + trough, 1e-3));
                     return half4(PunchyAtmosphere(bubbleLit, input.positionWS), bubbleAlpha);
+                }
+                if (input.age > 1.5)
+                {
+                    float lr = input.age - 2;
+                    float2 q = input.uv;
+                    half leafAlpha = smoothstep(0, 0.08, 0.95 * (1 - q.y * q.y) - abs(q.x)) * input.alpha;
+                    float2 leafScreen = input.screen.xy / input.screen.w;
+                    leafAlpha *= saturate((LinearEyeDepth(SampleSceneDepth(leafScreen), _ZBufferParams) - input.positionCS.w) / 0.1);
+                    clip(leafAlpha - 0.02);
+                    half3 n = normalize(cross(ddx(input.positionWS), ddy(input.positionWS)));
+                    Light leafSun = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
+                    half sunLit = leafSun.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS)) * (abs(dot(n, leafSun.direction)) * 0.75 + 0.25);
+                    half3 tone = lerp(e.color.rgb, half3(0.42, 0.24, 0.04), step(0.72, EffectHash(lr * 7.7)) * lerp(0.5, 0.9, EffectHash(lr * 3.1)));
+                    tone *= (0.8 + 0.4 * EffectHash(lr * 5.3)) * (1 - 0.3 * (1 - smoothstep(0.02, 0.07, abs(q.x))));
+                    half3 leafLit = tone * PunchyEffectLight(e, input.positionWS, n, leafSun.color * sunLit, SampleSH(half3(0, 1, 0)));
+                    return half4(PunchyAtmosphere(leafLit, input.positionWS), leafAlpha);
                 }
                 float soft = saturate(1 - dot(input.uv, input.uv));
                 float wisp = PunchyValueNoise(input.uv * 2.0 + input.positionWS.xz * 0.15 + input.positionWS.y * 0.1) * 0.6 + 0.4;
