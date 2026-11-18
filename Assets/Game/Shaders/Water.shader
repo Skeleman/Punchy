@@ -488,7 +488,6 @@ Shader "Punchy/Water"
 
             float _PunchyLavaLook;
 
-            // W-154 pick sheet: x = distance to the nearest cell border (cell units), y = the cell's hash.
             float2 LavaCells(float2 q, float time)
             {
                 float2 cell = floor(q), f = q - cell;
@@ -513,7 +512,6 @@ Shader "Punchy/Water"
                 return lerp(c, half3(4.5, 2.6, 0.9), smoothstep(0.8, 1.0, heat));
             }
 
-            // Candidate looks 1-3 for the pick sheet; crust is lit as rock, heat glows past white-point for bloom.
             half3 LavaCandidate(int look, float2 home, float t, float tk, float ppm, float edge, float stir, float3 heave, half3 ambient, Light light, half shadow)
             {
                 float shimmer = smoothstep(15, 60, ppm);
