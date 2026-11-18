@@ -443,3 +443,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - White/pale panes near rocks: steep water-mesh triangles just past a fall's curtain box (side ends) step between levels and draw as flat sky/foam panes. The curtain clip now widens up to 8 m all round on steep water only (PunchyFallSide, RiverCurtains.hlsl). Most panes gone; a thin sliver and the pool's right-edge panes remain.
 - Green streaks: the pool -38,296 is PoisonSwamp water, tinted on purpose; left alone. Rapid and other rivers are not murky, so no clarity change.
 - Shots: D:/Unity/PunchyMilestones/river-clarity/pairs.jpg (rows: fast pose by the fall, pool top-down, 15 m rapid; main left, branch right).
+
+## Fall panes 2 (11-18) - render/fall-panes-2 1eb389e7
+- Triangles: the curtain's first row and hard end columns, the open sheet seen edge-on (bright blade), and sheet foot quads cut where ground rises above the pool. Fixed with soft curtain ends (FallCurtain.cs), plus an edge-on facing fade and a scene-depth soft foot (LandmarkWaterfall.shader).
+- Left: the pale-green water above the lip with the sheet-top edge, the hole the curtain clip cuts in the flat side water (narrowing the clip brought back a pale pane, so it is reverted), and a thin wedge by the rock.
+- Shots: D:/Unity/PunchyMilestones/fall-panes-2/before.jpg, after.jpg (by-the-fall pose).

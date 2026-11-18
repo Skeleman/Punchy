@@ -1207,3 +1207,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 
 - 11-18 world: world/mouth-all@2d28e76d. Check the cave chunk MeshJob cost at mouths vs main 132fba38, because MouthPatch Collapse search now reaches 2 voxels (was 1).
 - materials/river-mouths a9129e66: MouthFan walks up to 4 river cells per terrain sample within 16 m of a river bank (TerrainSource ground sampling); report-only terrain chunk build time at -3440,-1800, main vs branch.
+- render/fall-panes-2 1eb389e7: LandmarkWaterfall.shader now samples scene depth per fragment; check the waterfall's GPU cost by the fall (4,254), main vs branch.
