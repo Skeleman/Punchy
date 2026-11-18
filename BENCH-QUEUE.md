@@ -1169,3 +1169,6 @@ Waterfall spray (river, cave, grand and landmark falls: lip white water, foot ch
 
 ## Request (2026-11-17, render-2, R-29 row 4 #320, branch render/effects-kit-4 cd82ecf3): sparks plume family cost
 Hot orange glow plumes (village/hold/camp fire sparks, fumarole vents, volcano crater) now draw through PlumeSystem.Sparks (one more RenderPrimitives from EffectsDriver) instead of LandmarkEffectSystem's plume draw. One check vs main 93d2c4a1: EffectsDriver and LandmarkEffectSystem main-thread ms and whole-frame GPU ms at HumanVillage 2972,-885 and VolcanoCone -891,-2021, High, uncapped, 300 frames. Expect no change. Report only.
+
+## Request (2026-11-17, world, W-174 r3 #365 mouth rim, branch world/cave-chip a7b5c0cb): cave wall build cost
+CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wall vertex it drops onto a mouth ring (only vertices inside a mouth cut). One check vs main c675a638: CaveSystem chunk build job ms (worker) at cave c6 -2686,1229 walking in, High, uncapped. Expect a small rise on mouth chunks only. Report only.

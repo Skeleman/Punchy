@@ -8717,3 +8717,10 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Cause: beside the sheet, the upper water ran on past where the bed falls (thin floating slab); the curtain's edge columns were cut in square teeth. RiverData ends upper water where the bed starts to fall; FallCurtain edges get a noise inset with a soft alpha fade (Water.shader), no gap teeth.
 - WaterTruth 82,0,0,0,0,10,0,36,10,17,170,0,0 unchanged (wall set identical); lip grid col 7 dry/wet 13/29 -> 13/5. Pins unchanged, no landmark moved. WorldTests 20/20.
 - Shots: PunchyMilestones/world/W-153r3c-fallsliver/before + after (fall-121, fall-121-edge) viewed: slab gone, edges soft and uneven. BENCH line added.
+
+
+## W-174 r3 mouth rim (#365), 11-17, world/cave-chip@a7b5c0cb (from main c675a638), ready for PR
+- Cause: OntoRing dropped ring-clipped wall vertices straight down, off the collar foot line, with a mismatched normal. Fix (cave side only, CaveSystem.cs): they now land on MouthFoot (move capped at half a voxel; 0.5 m folded a triangle) and take the foot's normal.
+- Collar foot to drawn wall, before -> after: c6 gap max 0.227 -> 0.168 m, p50 0.030 -> 0.019, angle p50 18.7 -> 10.6 deg; c3 gap max 0.257 -> 0.257, p50 0.031 -> 0.025, angle p95 41.6 -> 31.2; c0 unchanged (0.224 max, p50 ~0.05).
+- The c6 left sky chip is gone (matched lit 5 m shots c6 + c0, no new holes). The remaining max gaps sit at feet that are off the walls' field themselves (c0 worst foot field 0.18): a collar-side follow-up in BuildChunkMeshJob, not done here.
+- WorldTests 20/20, pins unchanged (no landmark moves). Shots: PunchyMilestones/world/W-365-mouthrim/{before,after}/{c6,c0}.png. BENCH line added.
