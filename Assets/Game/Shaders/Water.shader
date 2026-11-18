@@ -3,7 +3,7 @@ Shader "Punchy/Water"
     // Sea, lake and river surfaces. Colour comes from how much water the view ray passes through (read from the
     // camera depth texture): clear and tinted in the shallows, dark further down. Reflections rise at grazing angles
     // (Fresnel): the scene itself where a short screen-space march finds it (banks, trees), the live sky elsewhere.
-    // The sun glints, ripples are sums of directional waves, rivers carry their ripples and streaks downstream
+    // The sun glints, ripples are sums of directional waves, rivers carry their ripples and flow lines downstream
     // (faster in the deep middle), and foam lines the shore and the rapids.
     // Two other liquids share the sheet: very murky water (swamps) turns thick and oily, slowly heaving and bubbling,
     // with drifting scum; lava (the lava amount in the vertex) is a black crust churning slowly in flow-noise swirls, orange
@@ -93,6 +93,7 @@ Shader "Punchy/Water"
             #include "SharedClock.hlsl"
             #include "WaterSwell.hlsl"
             #include "WaterField.hlsl"
+            #include "WaterFlowLines.hlsl"
 
             struct DepthAttributes
             {
@@ -123,6 +124,7 @@ Shader "Punchy/Water"
                 o.restXZ = rest.xz;
             #ifdef _WATER_FIELD
                 o.positionWS = PunchyWaterPatchVertex(rest, input.data, input.parent, input.parentY, _PunchyClock, swell);
+                o.positionWS.y += PunchyFlowPatchLift(rest, input.data, input.parent, _FlowSpeed, _PunchyClock);
             #else
                 o.positionWS = PunchySwellVertex(rest, input.data.z, _PunchyClock, swell);
                 // R-21 row 4: the water dips above a fall's lip and heaves at its foot (the same move as the main pass's).
@@ -188,13 +190,14 @@ Shader "Punchy/Water"
             // R-9: on for the fine sheet near the player (WaterPatchSystem.cs, WaterField.hlsl).
             #pragma multi_compile_local _ _WATER_FIELD
             #include "WaterField.hlsl"
+            #include "WaterFlowLines.hlsl"
 
             // Weather global (WeatherSystem): 0..1 wind strength at the camera.
             half _PunchyWind;
 
             // 0 above ground, 1 with the camera deep in a cave (CaveSystem).
             float _PunchyUnderground;
-            // Test only (DebugControls "-waterprobe n"): 1 shows the foam, 2 the water's thickness over the bed, 3 the alpha, 4 the foam's parts (shore, churn, streaks).
+            // Test only (DebugControls "-waterprobe n"): 1 shows the foam, 2 the water's thickness over the bed, 3 the alpha, 4 the foam's parts (shore, churn, flecks).
             float _PunchyWaterProbe;
             // Ripples swimmers have left in the water near the camera (CreatureWakeSystem): x, age (0..1 over its life),
             // z, how strongly it was stirred (0 an empty slot).
@@ -273,7 +276,9 @@ Shader "Punchy/Water"
                 o.restXZ = pos.positionWS.xz;
                 // The sea rises and falls in swells (-noswells for the flat sea); the same move as the depth pass's.
             #ifdef _WATER_FIELD
-                pos.positionWS = PunchyWaterPatchVertex(pos.positionWS, input.data, input.parent, input.parentY, _PunchyClock, o.swell);
+                float3 restV = pos.positionWS;
+                pos.positionWS = PunchyWaterPatchVertex(restV, input.data, input.parent, input.parentY, _PunchyClock, o.swell);
+                pos.positionWS.y += PunchyFlowPatchLift(restV, input.data, input.parent, _FlowSpeed, _PunchyClock);
             #else
                 pos.positionWS = PunchySwellVertex(pos.positionWS, input.data.z, _PunchyClock, o.swell);
                 // R-21 row 4: the water dips above a fall's lip and heaves at its foot (broad moves only: this mesh
@@ -427,28 +432,6 @@ Shader "Punchy/Water"
                 return slope;
             }
 
-            // Drifting streaks of surface texture along a river: noise stretched along the flow and carried downstream,
-            // cross-faded between two copies like the flowing ripples.
-            float StreakNoise(float2 q, float2 dir)
-            {
-                float2 across = float2(-dir.y, dir.x);
-                float2 uv = float2(dot(q, dir) * 0.3, dot(q, across) * 1.8);
-                return PunchyValueNoise(uv) * 0.65 + PunchyValueNoise(uv * 2.3 + 3.7) * 0.35;
-            }
-
-            float FlowStreaks(float2 p, float2 dir, float speed, float t)
-            {
-                const float cycle = 4.0;
-                float jitter = PunchyValueNoise(p * 0.03 + 3.1) * 2;
-                float phase0 = frac(t / cycle + jitter);
-                float phase1 = frac(t / cycle + jitter + 0.5);
-                float w0 = 1 - abs(1 - 2 * phase0);
-                float2 offset = dir * speed * cycle;
-                float s = StreakNoise(p - offset * phase0, dir) * w0 + StreakNoise(p - offset * phase1 + 5.1, dir) * (1 - w0);
-                // Cross-fading flattens the contrast mid-way; stretch it back out.
-                return saturate((s - 0.5) * (1.6 + 0.8 * (1 - abs(2 * w0 - 1))) + 0.5);
-            }
-
             // Lava (playtest 11-08 item 21; the technique is inspired by nimitz's "Noise animation - Lava", shadertoy
             // lslXRS, written here from its description): flow noise. Each octave reads the noise's gradient, turns it
             // round over time (rotating gradients) and pushes the domain along it, so the next octave is carried by the
@@ -599,7 +582,7 @@ Shader "Punchy/Water"
                 float pixelsPerMetre = PunchyWaterPixelsPerMetre(distance(input.positionWS, GetCameraPositionWS()));
                 float distanceFade = saturate(1 - _PunchyWaterDetailAt.y / pixelsPerMetre);
                 // W-111: how steep the mesh face is (a waterfall's drop), from the mesh, not the ripples. Everything laid
-                // out on the flat (xz) water (streaks, carried foam, flecks, fine detail, caustics, glitter, the sky
+                // out on the flat (xz) water (flow lines, carried foam, flecks, fine detail, caustics, glitter, the sky
                 // mirror) smears or runs upward on a near-vertical face and made falls glow, so it fades out there and
                 // only the falling sheets below are left. The wide ramp keeps neighbouring triangles (each flat) from
                 // showing a hard step in shade where they tilt past the threshold.
@@ -624,7 +607,7 @@ Shader "Punchy/Water"
                 // weight is zero, so the picture is unchanged: flow on still water, rain in dry weather, thick-water swells
                 // and murky rings on clear water, the toxic swirl on plain water.)
                 float2 flowingSlope = 0;
-                float streaks = 0.5;
+                float4 flowLines = 0;
                 [branch] if (flowAmount > 0 || rapids > 0)
                 {
                     // R-9 row 6: both patterns are turned to the flow, so reading them at the world position put the
@@ -640,7 +623,6 @@ Shader "Punchy/Water"
                     float2 cellB = floor(eye / AnchorGrid + 0.5) * AnchorGrid - AnchorGrid * 0.5;
                     float2 inA = eye - cellA;
                     float2 weightA = smoothstep(3, 10, min(inA, AnchorGrid - inA));
-                    streaks = 0;
                     [unroll] for (int corner = 0; corner < 4; corner++)
                     {
                         bool bx = (corner & 1) != 0;
@@ -650,7 +632,7 @@ Shader "Punchy/Water"
                         {
                             float2 q = p - float2(bx ? cellB.x : cellA.x, bz ? cellB.y : cellA.y);
                             flowingSlope += FlowingSlope(q, flowDir, riverSpeed, t) * w;
-                            streaks += FlowStreaks(q, flowDir, riverSpeed, t) * w;
+                            flowLines += PunchyFlowLines(q, flowDir, riverSpeed, t) * w;
                         }
                     }
                     // (Stronger as the river quickens, so the current shows in the surface itself.)
@@ -720,6 +702,10 @@ Shader "Punchy/Water"
                     wakeSlope += fallWaterSlope;
                     wakeFoam = max(wakeFoam, (half)(fallWaterChurn * 0.7));
                 }
+                // W-159 (Zach 11-14): the flow shows in the surface, not as white stripes; kept to where a line spans a few pixels.
+                float lineFade = flowAmount * smoothstep(2.5, 7, pixelsPerMetre * PunchyFlowLineSpacing)
+                    * (1 - steep) * (1 - 0.75 * murk) * (1 - viscous) * (1 - lava);
+                wakeSlope += flowLines.xy * lineFade;
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = 0;
@@ -733,8 +719,6 @@ Shader "Punchy/Water"
                 }
                 slope += lerp(murkRings, swells, viscous);
                 float strength = _WaveStrength * (0.5 + _PunchyWind) * (0.25 + 0.75 * distanceFade);
-                // Streaks along a river are bands of rougher and smoother water.
-                strength *= lerp(1, 0.55 + 0.9 * streaks, flowAmount);
                 // Fine ripples: two reads of the shared detail texture drifting different ways (and downstream on a
                 // river), stronger in wind and white water, fading with distance; on the shading normal only, so
                 // reflections stay crisp. Their sparkle channels line up here and there for glitter in the sun.
@@ -894,8 +878,6 @@ Shader "Punchy/Water"
                 half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
                 half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
                 half3 waterColor = lerp(deepColor, shallowColor, exp(-thickness * _Absorption * (1 + murk * 8)));
-                // River streaks: lighter and darker bands drifting downstream.
-                waterColor *= lerp(1, 0.88 + 0.24 * streaks, flowAmount * (1 - murk) * (1 - steep));
                 half3 body = waterColor * (ambient + light.color * saturate(dot(n, light.direction)) * shadow * 0.6);
                 // The player's lantern (it's lit underground): it lights the water's body and foam, with a highlight, so
                 // cave pools and streams read as water rather than holes.
@@ -1045,7 +1027,7 @@ Shader "Punchy/Water"
                 foam *= 1 - steep;
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, broken into
                 // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
-                // mesh's corners and drew zigzags), and flecks ride the streaks downstream on any river.
+                // mesh's corners and drew zigzags), and flecks ride the flow lines' crests on fast water.
                 half churn = smoothstep(0.35, 0.75, length(flowingSlope));
                 // W-98: the foam rides the current (FlowFoam) instead of sitting still under it, and covers more of the
                 // water the faster it runs: a few drifting patches as the river quickens, most of the surface in a rapid.
@@ -1063,7 +1045,7 @@ Shader "Punchy/Water"
                     whiteWater = max(whiteWater, standWhite * (1 - caveRun) * distanceFade);
                 }
                 half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.35), 0.85) * (1 - steep),
-                                        flowAmount * smoothstep(0.9 - 0.06 * rapids, 0.98, streaks) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
+                                        flowAmount * smoothstep(0.55, 0.9, flowLines.w) * smoothstep(0.25, 0.6, rapids) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
                                         // (Fewer in white water, where they scratched thin lines over the carried foam.)
                                         * (1 - 0.75 * smoothstep(0.3, 0.8, rapids))
                                         // Not on running cave water: there the flecks came out as thin lines across the
