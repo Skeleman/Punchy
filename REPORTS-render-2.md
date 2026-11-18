@@ -460,3 +460,9 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Strength = 0.35 x MistByHour (full near 5-8 h and 18-20 h, zero 11-15 h) x MistByHeat (cool 1, hot 0.2); rebuilt on river cell, reach or quarter-hour change.
 - LandmarkPlume.shader: plumes with Fall.x > 0 fade into the water surface (the depth pass lacks water), so no hard cut line.
 - Shots: D:/Unity/PunchyMilestones/river-mist/dawn-pair.jpg (before | after, cool reach -3553,-147 at 06:30, 42 spots; noon 0). WorldTests 21/21.
+
+## W-142 river leaves (#262) - render/river-leaves c5cd86c2
+- Leaves and petals afloat on Forest-tag and Wet-family rivers, on the shared Leaves family (LandmarkEffectSystem.RiverLeaves.cs). 55% of segments get 1-3 leaves riding a to b at the streak speed and direction. Slow bends sharper than 24 deg get an eddy pool of 3-5 leaves at the inner bank. About 30% of leaves spin. Falls and lakes are skipped.
+- Riverside trees (40% of those within crown+2 m of a channel) drop 2 leaves at a time to the water. All faded by Leaves GonePixels via ExtraReach (cap 120 m). Rebuilt on river-cell change or every 5 s.
+- LandmarkEffects.hlsl: a negative drop marks a floating leaf (drift or eddy ring, yaw spin, bob).
+- Shots: D:/Unity/PunchyMilestones/river-leaves/eddy-pair.jpg (before | after, SparklingForest reach -2390,-842 at 10:00; 8 float, 6 eddy, 3 tree plumes). WorldTests 21/21.
