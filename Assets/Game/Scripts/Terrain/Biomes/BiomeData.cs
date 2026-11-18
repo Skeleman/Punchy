@@ -1135,10 +1135,21 @@ namespace Punchy.Terrain
 
         public static void FallSpray(ref SurfaceProps s, in GroundContext g)
         {
+            WaterlineWet(ref s, g);
             if (g.Spray <= 0f || g.WaterDepth > 0.3f) return;
             var wet = g.Spray * (1f - math.saturate(s.Snow)) * (1f - 0.4f * math.saturate(s.Grass));
             s.Albedo *= math.lerp(1f, 0.5f, wet);
             s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, 0.72f), wet);
+        }
+
+        // After the rock pass, so rock and scree banks keep the wet line DampBank's soil tint loses under V3Ground.
+        static void WaterlineWet(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Inland <= 0f || g.WaterDepth < -0.45f || g.WaterDepth > 0.05f) return;
+            var reach = 0.2f + 0.2f * math.saturate(0.5f + 0.5f * g.EdgeNoise) + 0.15f * math.smoothstep(0.08f, 0.35f, g.Rapids);
+            var wet = (1f - math.smoothstep(0.05f, reach, -g.WaterDepth)) * (1f - math.saturate(s.Snow)) * g.Inland;
+            s.Albedo *= math.lerp(1f, math.lerp(0.78f, 0.62f, math.saturate(s.Porosity)), wet);
+            s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, 0.6f), wet);
         }
 
         static void DampBank(ref SurfaceProps s, in GroundContext g)
