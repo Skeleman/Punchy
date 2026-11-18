@@ -29,6 +29,8 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float Strata;
         [Tooltip("Paved stone: a cobble pattern (stones with mortar gaps) drawn up close by the terrain shader. 0 = none.")]
         [Range(0f, 1f)] public float Paving;
+        [Tooltip("Caked, cracked dry ground: mud-and-salt plates with dark cracks and curled edges (salt flats). 0 = none.")]
+        [Range(0f, 1f)] public float Cracks;
         [Tooltip("Depth of deformable snow here (read by the snow-trail system).")]
         [Range(0f, 1f)] public float SnowDepth;
 

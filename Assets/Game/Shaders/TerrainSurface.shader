@@ -188,6 +188,7 @@ Shader "Punchy/Terrain Surface"
                 half   strata     : TEXCOORD8;
                 half2  paving     : TEXCOORD9;   // paving amount, flagstones (W-108)
                 half2  hollow     : TEXCOORD10;  // hollow depth (m), porosity (item 22)
+                half   cracks     : TEXCOORD11;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -300,6 +301,55 @@ Shader "Punchy/Terrain Surface"
                 return float4(shade, mortar, slope);
             }
 
+            float CrackCells(float2 p, float lattice, out float2 dir, out uint id)
+            {
+                float2 q = p / lattice;
+                float2 cell = floor(q);
+                float2 f = q - cell;
+                float d1 = 1e9, d2 = 1e9;
+                float2 o1 = 0, o2 = 1;
+                id = 0;
+                [unroll] for (int y = -1; y <= 1; y++)
+                [unroll] for (int x = -1; x <= 1; x++)
+                {
+                    uint h = CobbleHash((int2)cell + int2(x, y) + int2(517, 211));
+                    float2 o = float2(x, y) + 0.1 + float2(h & 1023u, (h >> 10) & 1023u) / 1023.0 * 0.8 - f;
+                    float d = dot(o, o);
+                    if (d < d1) { d2 = d1; o2 = o1; d1 = d; o1 = o; id = h; }
+                    else if (d < d2) { d2 = d; o2 = o; }
+                }
+                dir = normalize(o2 - o1 + 1e-5);
+                return dot(0.5 * (o1 + o2), dir) * lattice;
+            }
+
+            // R-33 (#331): cracks narrower than a pixel (mpp) fade in cover rather than shimmer.
+            float2 CrackPlates(float2 p, float mpp, half fadeBig, half fadeSmall, out half crack, out half rim, out half tone)
+            {
+                float2 pw = p + (float2(PunchyValueNoise(p * 1.7), PunchyValueNoise(p * 1.7 + 5.3)) - 0.5) * 0.16
+                              + (float2(PunchyValueNoise(p * 6.3 + 2.1), PunchyValueNoise(p * 6.3 + 8.8)) - 0.5) * 0.04;
+                float2 dir; uint id;
+                float e = CrackCells(pw, 0.9, dir, id);
+                float w = 0.012 + PunchyValueNoise(p * 2.9 + 4.4) * 0.022;
+                crack = saturate((w - e) / mpp + 0.5) * min(1, 2 * w / mpp) * fadeBig;
+                float curl = exp(-max(e - w, 0) / 0.09);
+                float lift = 0.012 + ((id >> 20) & 255u) / 255.0 * 0.01;
+                float2 slope = dir * (lift / 0.09) * curl * (e > w) * fadeBig;
+                rim = curl * (e > w) * fadeBig;
+                tone = ((id >> 12) & 255u) / 255.0;
+                [branch] if (fadeSmall > 0.001 && ((id >> 4) & 15u) < 8u)
+                {
+                    float2 dir2; uint id2;
+                    float e2 = CrackCells(pw, 0.32, dir2, id2);
+                    float w2 = 0.004 + PunchyValueNoise(p * 7.7) * 0.006;
+                    crack = max(crack, saturate((w2 - e2) / mpp + 0.5) * min(1, 2 * w2 / mpp) * fadeSmall * 0.75);
+                    float curl2 = exp(-max(e2 - w2, 0) / 0.05) * (e2 > w2) * (e > w) * fadeSmall;
+                    slope += dir2 * (0.005 / 0.05) * curl2;
+                    rim = max(rim, curl2 * 0.6);
+                    tone = lerp(tone, ((id2 >> 12) & 255u) / 255.0, 0.4);
+                }
+                return slope;
+            }
+
             // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
             half Grain(float2 p)
             {
@@ -353,7 +403,8 @@ Shader "Punchy/Terrain Surface"
                 o.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 o.bump = input.morph.z;
                 o.cave = input.morph.w;
-                o.strata = input.strata.x;
+                o.strata = max(input.strata.x, 0);
+                o.cracks = max(-input.strata.x, 0);
                 o.paving = input.strata.yw;
                 o.hollow = half2(TerrainHollow(input), input.soak.x);
                 return o;
@@ -452,6 +503,18 @@ Shader "Punchy/Terrain Surface"
                     cbDome = lerp(cbDome, sqrt(cbDome), slab);   // broad flat tops, only their edges darken
                     normalWS = normalize(normalWS - half3(cb.z, 0, cb.w) * cobbleFade * (1 - puddle * 0.7) * (1 - 0.6 * wear));
                 }
+                half crackLine = 0, crackRim = 0, crackTone = 0, crackOn = 0;
+                {
+                    float ppmC = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
+                    float pixelsC = ppmC / max(distance, 0.01);
+                    crackOn = input.cracks * (input.extra.w <= 0.01) * (1 - rockFace) * (1 - puddle);
+                    half fadeBig = saturate((0.9 * pixelsC - 4) / 4);
+                    [branch] if (crackOn > 0.01 && fadeBig > 0.001)
+                    {
+                        float2 crackSlope = CrackPlates(p, 1 / pixelsC, fadeBig, saturate((0.32 * pixelsC - 4) / 4), crackLine, crackRim, crackTone);
+                        normalWS = normalize(normalWS - half3(crackSlope.x, 0, crackSlope.y) * crackOn);
+                    }
+                }
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
                 half rockShade = 1;
@@ -545,6 +608,13 @@ Shader "Punchy/Terrain Surface"
                     gap = lerp(gap, albedo * half3(0.62, 0.52, 0.4), wear);   // packed dust tamped into the joints
                     albedo = lerp(albedo, lerp(stone, gap, cb.y), cobbleFade);
                 }
+                [branch] if (crackOn * (crackLine + crackRim + 0.01) > 0.01)
+                {
+                    half mud = saturate(crackTone * 0.6 + (PunchyValueNoise(p * 0.045 + 6.2) - 0.35) * 0.9);
+                    half3 plate = lerp(albedo, albedo * half3(0.84, 0.77, 0.68), mud * 0.7) * (1 + crackRim * 0.07);
+                    plate = lerp(plate, half3(0.26, 0.21, 0.17), crackLine);
+                    albedo = lerp(albedo, plate, crackOn);
+                }
                 // Rock strata (mesa cliffs, canyon walls): bands of darker red and paler cream rock by height, a thick
                 // set and a thin one, wandering a little along the cliff. Broad enough to read from far off.
                 [branch] if (input.strata > 0.01)
@@ -614,7 +684,8 @@ Shader "Punchy/Terrain Surface"
                 }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
-                surface.smoothness = lerp(lerp(input.surface.a, max(input.surface.a, 0.45), sheen), 0.92, puddle);
+                half dryGloss = input.surface.a * (1 - crackOn * max(crackLine, 0.35 * crackTone));
+                surface.smoothness = lerp(lerp(dryGloss, max(dryGloss, 0.45), sheen), 0.92, puddle);
                 // (Wet stone brings its own shine below, in place of rain's sheen.)
                 surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle));
                 surface.metallic = input.extra.x;

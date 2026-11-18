@@ -19,7 +19,7 @@ namespace Punchy.Terrain
         public half4 Extra;     // metallic, grass density, snow depth, skirt drop (0 on the surface)
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
         public float4 Morph;    // geomorph start / complete distance from the focus; z surface bumpiness; w distance to cave air
-        public half4 Strata;    // rock strata amount, cobble paving amount, hollow depth (m, for puddles), flagstones (W-108)
+        public half4 Strata;    // x rock strata (> 0) or cracks (< 0), cobble paving amount, hollow depth (m, for puddles), flagstones (W-108)
         public half2 Soak;      // porosity (how much rain soaks in, item 22), the next-coarser LOD's hollow depth (W-169)
 
         public static readonly VertexAttributeDescriptor[] Layout =
@@ -39,7 +39,8 @@ namespace Punchy.Terrain
             Surface = new half4(new float4(s.Albedo, s.Smoothness));
             Extra = new half4(new float4(s.Metallic, s.Grass, s.Snow, 0f));
             Emission = new half4(new float4(s.Emission, 0f));
-            Strata = new half4(new float4(s.Strata, s.Paving, 0f, s.Slabs));
+            // Signed: no channel was free, and strata (mesa cliffs) never share ground with cracks (salt flats).
+            Strata = new half4(new float4(s.Strata - s.Cracks, s.Paving, 0f, s.Slabs));
             Soak = new half2(new float2(s.Porosity, 0f));
         }
     }
