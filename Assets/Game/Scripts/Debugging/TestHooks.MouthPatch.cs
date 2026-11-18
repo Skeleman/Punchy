@@ -116,7 +116,8 @@ namespace Punchy.Debugging
                 var n = math.cross(b - a, c - a);
                 if (math.lengthsq(n) == 0f)
                     continue;
-                if (n.y <= 0f)
+                // A vertical sliver between rim corners on one grid line has no top to show.
+                if (n.y < 0f)
                     flips++;
                 patchCount++;
                 for (int e = 0; e < 3; e++)
@@ -222,6 +223,7 @@ namespace Punchy.Debugging
             build.WaterRanges = waterRanges;
 
             int rims = 0, offHeight = 0, morphing = 0, split = 0, gaps = 0, flips = 0;
+            var firstGap = "";
             var segments = new List<(float3, float3)>();
             // Burst, as streaming builds it: the cave's rim is Burst too, and the two must agree bit for bit.
             Unity.Jobs.IJobParallelForExtensions.Run(build, count);
@@ -245,8 +247,8 @@ namespace Punchy.Debugging
                     {
                         if (!ys.Contains(w.y)) split++;
                     }
-                    else if (core(w.xz) && !OnAny(w, rockRim))
-                        gaps++;
+                    else if (core(w.xz) && !OnAny(w, rockRim) && gaps++ == 0)
+                        firstGap = $" (first at {w.x:F2},{w.y:F2},{w.z:F2}, terrain)";
                 }
                 var sign = 0f;
                 for (int t = 0; t + 2 < tris.Length; t += 3)
@@ -276,11 +278,11 @@ namespace Punchy.Debugging
                 }
             }
             foreach (var p in boundary)
-                if (!OnAny(p, segments))
-                    gaps++;
+                if (!OnAny(p, segments) && gaps++ == 0)
+                    firstGap = $" (first at {p.x:F2},{p.y:F2},{p.z:F2}, patch)";
             notes.Add($"LOD{lod} {rims} rim verts, {segments.Count} rim edges");
             if (offHeight > 0 || morphing > 0 || split > 0 || gaps > 0 || flips > 0)
-                problems.Add($"{where} LOD{lod}: {offHeight} rim verts off the rim height, {morphing} morphing, {split} split from the cave's, {gaps} gaps, {flips} flipped");
+                problems.Add($"{where} LOD{lod}: {offHeight} rim verts off the rim height, {morphing} morphing, {split} split from the cave's, {gaps} gaps{firstGap}, {flips} flipped");
 
             data.Dispose();
             requests.Dispose();

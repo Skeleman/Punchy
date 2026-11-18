@@ -283,7 +283,8 @@ namespace Punchy.Terrain
                     var inside = InPatch((Positions[a].xz + Positions[b].xz + Positions[c].xz) / 3f);
                     if ((sa || sb || sc) && !inside)
                         continue;
-                    if (Flipped(t, raw) || FacesDown(t, raw))
+                    var down = FacesDown(t, raw);
+                    if (Flipped(t, raw))
                         PatchFlips[0]++;
                     if (!(sa && sb && sc) && !(inside && Ground(a, b, c)))
                     {
@@ -292,10 +293,10 @@ namespace Punchy.Terrain
                         Indices[kept++] = c;
                         continue;
                     }
-                    // The terrain material culls the other side from the cave's.
+                    // The terrain material culls the other side from the cave's. A fold of fixed rim corners still lies on the ground, so it is wound up.
                     PatchIndices.Add(PatchVertex(map, a));
-                    PatchIndices.Add(PatchVertex(map, c));
-                    PatchIndices.Add(PatchVertex(map, b));
+                    PatchIndices.Add(PatchVertex(map, down ? b : c));
+                    PatchIndices.Add(PatchVertex(map, down ? c : b));
                 }
                 Indices.ResizeUninitialized(kept);
                 map.Dispose();
@@ -339,7 +340,8 @@ namespace Punchy.Terrain
             bool Collapse(int t, NativeHashMap<int, float3> raw, NativeList<bool> edge)
             {
                 int from = -1, to = -1;
-                var best = Voxel;
+                // One voxel left folds at steep mouths (1601, 1049), where the free corner sits up to two voxels off.
+                var best = 2f * Voxel;
                 for (int i = 0; i < 3; i++)
                 for (int j = 0; j < 3; j++)
                 {
