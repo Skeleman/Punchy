@@ -7,17 +7,16 @@ using Kit = Punchy.Rendering.Effects.PlumeSystem;
 namespace Punchy.Ambience
 {
     /// <summary>
-    /// #262 row 1: small ambient details on the effects kit (R-29). Leaves drift down from the crowns of tall broadleaf
-    /// trees (the kit's leaves family), and thin wisps rise from rock vents across the vent-tagged biomes (smoke) and
-    /// round the ground of geothermal landmarks (steam). Every pick is a hash of a tree or a world cell, so the same
-    /// spots show on every visit; nothing is placed in the world (no landmark or fingerprint change).
+    /// Leaves fall from tall broadleaf crowns and wisps rise from vents. Every pick hashes a tree or a world cell, so the
+    /// same spots show on every visit without placing anything in the world.
     /// </summary>
     public partial class LandmarkEffectSystem
     {
         const float TallTree = 12f;
-        const float LeafTreeShare = 0.4f;
-        const int LeafParticles = 7;
-        const float LeafSize = 0.075f;
+        const float LeafTreeShare = 0.55f;
+        const int LeafParticles = 18;
+        const float LeafSize = 0.13f;
+        static readonly Color[] Autumn = { new Color(0.86f, 0.66f, 0.18f), new Color(0.8f, 0.42f, 0.12f), new Color(0.62f, 0.7f, 0.2f) };
         const float VentCell = 12f;
         const float VentShare = 0.07f;
         const float GeoVentShare = 0.35f;
@@ -120,15 +119,17 @@ namespace Punchy.Ambience
                     var r = Scramble(h);
                     var crown = math.max(t.crown * 0.8f, 1.5f);
                     var below = t.height * 0.35f;
-                    var col = Color.Lerp(fa, fb, (r & 0xFF) / 255f).linear;
+                    var green = Color.Lerp(fa, fb, (r & 0xFF) / 255f);
+                    // Leaves in the canopy's own green vanish against it, so each tree sheds a warmer tint.
+                    var col = Color.Lerp(green, Autumn[(h >> 22) % (uint)Autumn.Length], 0.45f + 0.4f * ((r >> 20) & 0xF) / 15f).linear;
                     count++;
                     leaves.Add(new Kit.Plume
                     {
                         Position = t.top - new float3(0f, below, 0f),
                         Seed = ((r >> 8) & 0xFFFF) / 65536f,
                         Color = new float4(col.r, col.g, col.b, 0f),
-                        Shape = new float4(below * 0.6f, crown, LeafSize * (0.85f + 0.3f * ((r >> 24) & 0xF) / 15f), 10f + 6f * ((r >> 28) & 0xF) / 15f),
-                        Timing = new float4(0f, 0f, 0.95f, LeafParticles - (int)((h >> 16) % 3u)),
+                        Shape = new float4(below * 0.6f, crown, LeafSize * (0.85f + 0.3f * ((r >> 24) & 0xF) / 15f), 8f + 4f * ((r >> 28) & 0xF) / 15f),
+                        Timing = new float4(0f, 0f, 0.95f, LeafParticles - (int)((h >> 16) % 6u)),
                         Drop = t.height - below + 0.3f
                     });
                 }
@@ -177,7 +178,7 @@ namespace Punchy.Ambience
                     Position = new float3(xz.x, ground.Height - 0.1f, xz.y),
                     Seed = ((s >> 18) & 0x3FFF) / 16384f,
                     Shape = new float4(VentRise * (0.6f + 0.8f * a), 0.25f + 0.35f * b, 0.45f + 0.4f * a, 4f + 3f * b),
-                    Timing = new float4(intermittent ? 9f + 8f * b : 0f, 0.45f, geo ? 0.4f : 0.3f, 7 + (int)((s >> 24) % 4u))
+                    Timing = new float4(intermittent ? 9f + 8f * b : 0f, 0.45f, geo ? 0.4f : 0.45f, 7 + (int)((s >> 24) % 4u))
                 };
                 if (geo)
                 {
@@ -186,7 +187,7 @@ namespace Punchy.Ambience
                 }
                 else
                 {
-                    var grey = 0.34f + 0.12f * b;
+                    var grey = 0.5f + 0.14f * b;
                     plume.Color = new float4(grey, grey * 0.97f, grey * 0.93f, 0f);
                     ventSmoke.Add(plume);
                 }

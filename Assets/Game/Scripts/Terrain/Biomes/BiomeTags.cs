@@ -21,7 +21,7 @@ namespace Punchy.Terrain
         public const string RidgeMountain = "ridge-mountain";
         /// <summary>The coast the archipelago is raised off.</summary>
         public const string ArchipelagoCoast = "archipelago-coast";
-        /// <summary>#262: biomes whose rock breathes thin smoke wisps from vents.</summary>
+        /// <summary>Biomes whose rock breathes thin smoke wisps from vents.</summary>
         public const string Vents = "vents";
         /// <summary>Wooded biomes.</summary>
         public const string Forest = "forest";

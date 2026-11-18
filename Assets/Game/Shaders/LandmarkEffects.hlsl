@@ -70,7 +70,7 @@ struct PlumeVertex
 
 /// A puff: rises (fast, then slowing) to the emitter's height, spreading out, growing and drifting downwind.
 /// Puffs born outside an eruption stay hidden, so a geyser spouts and then falls quiet. A plume with a drop is a falling
-/// leaf (#262): a flat flake that flutters down from a new spot in the crown each cycle, its age 2 + its hash.
+/// leaf: a flat flake that flutters down from a new spot in the crown each cycle, its age 2 + its hash.
 PlumeVertex BuildPlume(uint vertex, uint instance)
 {
     uint index = instance / _MaxParticles;
