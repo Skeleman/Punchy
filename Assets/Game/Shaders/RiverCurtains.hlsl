@@ -59,8 +59,9 @@ float PunchyFallLipShift(float4 foot, float acrossSigned, float halfWidth)
     return foot.x * side * 0.5 - foot.y * side * side;
 }
 
-// Whether a point of the water is on a river fall's face, below its lip and above its pool, inside the fall's box.
-bool PunchyWaterUnderCurtain(float3 p)
+// Whether a point of the water is on a river fall's face, below its lip and above its pool, inside the fall's box
+// (widened all round by side metres: steep water past a fall's ends steps between its levels in flat pale panes).
+bool PunchyWaterUnderCurtain(float3 p, float side)
 {
     if (_PunchyRiverCurtainCount < 0.5 || any(p.xz < _PunchyRiverCurtainRect.xy) || any(p.xz > _PunchyRiverCurtainRect.zw))
         return false;
@@ -77,10 +78,17 @@ bool PunchyWaterUnderCurtain(float3 p)
         float across = dot(d, float2(b.y, -b.x));
         float along = dot(d, b.xy) - PunchyFallLipShift(c, across, a.w - 1);
         // (Well under the lip's level: the water above the lip dips by up to a quarter of a metre, PunchyFallWater.)
-        if (along > -c.z && along < b.z && abs(across) < a.w && p.y < a.y - 0.45 && p.y > b.w + 0.15)
+        if (along > -c.z - side && along < b.z + side && abs(across) < a.w + side && p.y < a.y - 0.45 && p.y > b.w + 0.15)
             return true;
     }
     return false;
+}
+
+// Up to 8 m where the water's face is steep (fragment stages only).
+float PunchyFallSide(float3 positionWS)
+{
+    float3 face = normalize(cross(ddy(positionWS), ddx(positionWS)));
+    return 8 * smoothstep(0.85, 0.35, abs(face.y));
 }
 
 // R-21 row 4: how the water moves round the falls. Above a lip it speeds up: the surface dips towards the edge and
