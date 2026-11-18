@@ -69,7 +69,8 @@ struct PlumeVertex
 };
 
 /// A puff: rises (fast, then slowing) to the emitter's height, spreading out, growing and drifting downwind.
-/// Puffs born outside an eruption stay hidden, so a geyser spouts and then falls quiet.
+/// Puffs born outside an eruption stay hidden, so a geyser spouts and then falls quiet. A plume with a drop is a falling
+/// leaf: a flat flake that flutters down from a new spot in the crown each cycle, its age 2 + its hash.
 PlumeVertex BuildPlume(uint vertex, uint instance)
 {
     uint index = instance / _MaxParticles;
@@ -103,6 +104,35 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         b.alpha = bubbleAlpha;
         b.age = -max(bubbleAge, 0.001);
         return b;
+    }
+    if (e.drop > 0)
+    {
+        float leafLife = e.shape.w;
+        float leafPhase = _PunchyClock / leafLife + r;
+        float leafCycle = floor(leafPhase);
+        float leafAge = frac(leafPhase);
+        float l1 = EffectHash(leafCycle * 0.618 + r * 13.1), l2 = EffectHash(leafCycle * 0.377 + r * 7.9), l3 = EffectHash(leafCycle * 0.211 + r * 3.7);
+        float2 leafSpot = float2(cos(l1 * 6.2832), sin(l1 * 6.2832)) * e.shape.y * sqrt(l2);
+        float t = leafAge * leafLife;
+        float sway = sin(t * (1.6 + l3) + r * 6.2832);
+        float2 swayDir = float2(cos(l2 * 6.2832 + 1.3), sin(l2 * 6.2832 + 1.3));
+        float2 leafDrift = _PunchyWindDirection * (0.2 + _PunchyWind) * t * 0.35 + swayDir * sway * 0.45;
+        float start = e.shape.x * l3;
+        float3 leafAt = e.position + float3(leafSpot.x + leafDrift.x, start - (start + e.drop) * leafAge + abs(sway) * 0.12, leafSpot.y + leafDrift.y);
+        float spin = t * (2.0 + 3.0 * l1) + r * 6.2832;
+        float tilt = sin(t * (2.3 + l2) + r * 4.0) * 1.2;
+        float3 leafN = float3(sin(tilt) * cos(spin), cos(tilt), sin(tilt) * sin(spin));
+        float3 leafRight = normalize(cross(leafN, abs(leafN.y) < 0.95 ? float3(0, 1, 0) : float3(cos(spin), 0, sin(spin))));
+        float3 leafUp = cross(leafRight, leafN);
+        float leafAlpha = e.timing.z * smoothstep(0, 0.06, leafAge) * (1 - smoothstep(0.9, 1, leafAge)) * step(k, e.timing.w - 1);
+        leafAlpha *= 1 - smoothstep(0.8, 1, distance(leafAt, GetCameraPositionWS()) / max(e.shape.z * _PunchyPlumeReach, 1e-3));
+        float2 leafCorner = EffectCorner[vertex];
+        PlumeVertex f;
+        f.positionWS = leafAt + (leafRight * leafCorner.x * 0.6 + leafUp * leafCorner.y) * e.shape.z * lerp(0.8, 1.25, l3) * step(0.001, leafAlpha);
+        f.uv = leafCorner;
+        f.alpha = leafAlpha;
+        f.age = 2 + r;
+        return f;
     }
     float life = e.shape.w;
     float age = frac(_PunchyClock / life + r);

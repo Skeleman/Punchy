@@ -19,6 +19,7 @@ MonoBehaviour:
   Tags:
   - ridge-volcano
   - ribcage
+  - vents
   Altitude: {x: 0, y: 1}
   Temperature: {x: 0, y: 1}
   Humidity: {x: 0, y: 1}

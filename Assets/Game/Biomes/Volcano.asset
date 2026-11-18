@@ -16,7 +16,8 @@ MonoBehaviour:
   Frequency: 1
   Family: 0
   FamilyOrder: 0
-  Tags: []
+  Tags:
+  - vents
   Altitude: {x: 0, y: 1}
   Temperature: {x: 0, y: 1}
   Humidity: {x: 0, y: 1}
