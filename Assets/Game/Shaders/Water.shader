@@ -1032,18 +1032,17 @@ Shader "Punchy/Water"
                 half whiteWater = 0;
                 [branch] if (rapids > 0.02 && flowAmount > 0.02)
                 {
-                    half carried = FlowFoam(p, flowDir * flowAmount, riverSpeed, t);
-                    half cover = smoothstep(0.7 - 0.26 * rapids, 0.88 - 0.16 * rapids, carried);
+                    half carried = FlowFoam(p * 1.8, flowDir * flowAmount * 1.8, riverSpeed, t);
+                    half gather = saturate(max(1 - smoothstep(0.1, 0.7, thickness), standCrest * 1.5));
+                    half cover = smoothstep(0.84 - 0.24 * gather * rapids, 0.95 - 0.15 * gather * rapids, carried);
                     // (From 0.1: cave brooks carry a floor of 0.12 down the middle and should stay clear there.)
-                    whiteWater = cover * smoothstep(0.1, 0.6, rapids) * (0.55 + 0.45 * churn) * distanceFade;
-                    // Row 6: the standing waves break white along their crests, torn up by the carried foam, with
-                    // ragged trails of it between them.
-                    half standWhite = standCrest * smoothstep(0.3, 0.75, carried) +
-                        rapidsAmount * smoothstep(0.62, 0.85, carried) * (1 - standCrest) * 0.3;
+                    whiteWater = cover * smoothstep(0.1, 0.6, rapids) * (0.55 + 0.45 * churn) * lerp(0.35, 1, gather) * distanceFade;
+                    // Row 6: the standing waves break white along their crests, torn up by the carried foam.
+                    half standWhite = standCrest * smoothstep(0.45, 0.8, carried);
                     whiteWater = max(whiteWater, standWhite * (1 - caveRun) * distanceFade);
                 }
-                half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.35), 0.85) * (1 - steep),
-                                        flowAmount * smoothstep(0.55, 0.9, flowLines.w) * smoothstep(0.25, 0.6, rapids) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
+                half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.12), 0.85) * (1 - steep),
+                                        flowAmount * smoothstep(0.55, 0.9, flowLines.w) * smoothstep(0.6, 0.8, PunchyValueNoise(p * 3.3)) * smoothstep(0.25, 0.6, rapids) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
                                         // (Fewer in white water, where they scratched thin lines over the carried foam.)
                                         * (1 - 0.75 * smoothstep(0.3, 0.8, rapids))
                                         // Not on running cave water: there the flecks came out as thin lines across the
