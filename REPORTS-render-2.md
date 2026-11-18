@@ -329,3 +329,18 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Shots: PunchyMilestones/R-33/salt-{near,mid}-{before,after}.png (viewed: plates clear near and mid) and desert-* (ground unchanged, diff 0.5-0.8).
 - WorldTests 20/20 (Seams_NoOpenRims failed once from my stray CLI call logging an error, rerun passed). No new tests. BENCH line added.
 - PunchyBarkCells (#578) not used: it wraps x for trunks and returns only F2-F1, with no perpendicular distance or edge direction for the rim slope. Stale: TerrainSurface.hlsl TEXCOORD3 x header comment (render's file) should say strata>0 / cracks<0.
+
+## R-26 (#304) row 1 cause sheet (11-17) - no code; shots PunchyMilestones/R-26/ (sheet-*.jpg, per-shot png)
+Verdict: bark still reads cartoon after #578; cave cracks read drawn; every mouth has a hard detail and hue seam.
+- Bark (oak, pine plated; birch checked): crazy paving. Voronoi plates outlined by uniform dark lines (constant `width`), flat albedo inside (tone +-11%), normal only from ddx/ddy of h at depth*0.03 (none visible), no roughness change, cells round, not stretched along the trunk. Birch reads as a cobble wall. Beech is smooth, flat grey (no lines, no tone). Spruce bark is hidden by its skirts. At 10 m the pine still shows the cell net. Flora relief fades at a fixed 18-45 m (rule 20).
+- Cave cracks (Crystal, Ice, Mine, Fungal; no LavaTube found): CellEdge F2-F1 lines at a constant ~1-3 cm world width, drawn only as colour (`color *= 1-crack*s4.w*0.85; += glow`): no normal, occlusion or roughness, no screen-size fade or AA (they go sub-pixel and alias), CrackBreakup 0 on most styles so lines run continuous. Crystal shows pale glowing squiggles, Mine and Fungal show scratch-glyph nets.
+- Mouths (Rock, Sandstone, Granite): warm biome vertex colour meets the cool StoneRow grey-blue at a hard line, and the wall detail is finer than the ground beside it. Sandstone ground has large dark repeating spots (row 4 item). The mouth grain (TerrainSurface.shader:526) and the steep grain (:521) fade at fixed 30-60 m and 40-90 m (rule 20).
+Texel table (detail texture 256 px/tile; noise cycles = 6-48 per tile):
+| surface | albedo source | normal detail | texels/m | cycles/m |
+|---|---|---|---|---|
+| terrain, open | vertex colour 1 m (0.5 c/m) + grain cells 15/37 per m | MicroHeight 0.33/1.4/4.8 c/m | none | 0.3-37 |
+| terrain, <8 m from mouth | + detail at 0.7 weight, albedo +-0.21 | detail scale 0.6-1 | 154-256 | 3.6-48 |
+| cave, terrain share (floor/lip) | detail p.xz scale 1 | 0.56*level | 256 | 6-48 |
+| cave walls | StoneRow colour + detail | s7.y 0.9-2.2 (coarse 0.23x), stone octaves 115/435/1408 tpm | 230-563 | 5-106 |
+Wall vs ground at the seam: plain 1.2-2x, granite 2.2-3.7x (row 3 target: within 2x).
+Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10x today), crevice occlusion with rough crack and smoother plates, vertical stretch (lenticel bands on birch), +-25% plate tone with lichen/moss on the shaded side, DetailPolicy fade. Cracks: become height (bevel normal from the CellEdge gradient, occlusion, roughness up), width varies with noise, fade below ~1 px by screen size, default breakup ~0.5, glow seeps from the crack floor rather than a hard line. Mouth: walls lerp s7.y toward the ground's mouth scale over openness, biome colour carried a few metres in over openness, both fixed fades go to DetailPolicy. All in Bark.hlsl / Flora.shader / Cave.shader / TerrainSurface.shader; no geometry.
