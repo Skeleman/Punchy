@@ -255,8 +255,7 @@ namespace Punchy.Tests
         public void WoodGrainKeepsItsLayers()
         {
             var text = File.ReadAllText(Path.Combine(Application.dataPath, "Game", "Shaders", "Materials", "Wood.hlsl"));
-            var grain = Regex.Match(text, @"half3 PunchyWoodGrain\(.*?
-}", RegexOptions.Singleline).Value;
+            var grain = Regex.Match(text, @"half3 PunchyWoodGrain\(.*?\n}", RegexOptions.Singleline).Value;
             Assert.IsNotEmpty(grain, "PunchyWoodGrain is missing");
             StringAssert.Contains("q += shift", grain, "the ring noise should be read through a warped coordinate");
             StringAssert.Contains("smoothstep(0.5, 0.9, dirt)", grain, "dirt should come in darker bands");
@@ -278,8 +277,7 @@ namespace Punchy.Tests
                     if (m.severity == UnityEditor.Rendering.ShaderCompilerMessageSeverity.Error)
                         problems.Add($"{name}: {m.message} ({m.file}:{m.line})");
             }
-            Assert.IsEmpty(problems, string.Join("
-", problems));
+            Assert.IsEmpty(problems, string.Join("\n", problems));
         }
 
         static readonly Regex IncludeLine = new(@"^\s*#include(_with_pragmas)?\s+""([^""]+)""", RegexOptions.Multiline);
