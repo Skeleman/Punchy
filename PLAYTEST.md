@@ -258,3 +258,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #572 W-174 r3 (#365): cave mouth rim welds to the terrain collar; c6 sky chip gone, seam softer. Collar-side fix next.
 - 11-17 #573 W-163 row 1 (#330): planks, crates and timber show warped grain, grime bands and per-piece variation.
 - 11-17 #574 (#330): EditMode tests compile again after #573 (no game change).
+- 11-17 #575 W-153 (#301): waterfall curtains no longer show thin dark vertical lines (fall-121).
