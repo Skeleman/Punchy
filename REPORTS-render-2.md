@@ -287,3 +287,9 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Fix: FloraPlacement.GlowLight (+13 lines) gives those walkways the PierLamp street-light entry, so they light only after dark through the pooled street-light path (night check: 15 pooled near lights at time 22). Night look: dimmer, less orange than before. No shader change, so no BENCH line; fewer glow slots by day.
 - Shots, noon, Clear, same pose, sun frozen: PunchyMilestones/beach-glare/g0-base (before, lower-frame mean 180/157/129, yellow wash) vs g2-base (after, 156/144/135, pale sand, deck shadows show). I viewed the pair.
 - Left alone: some white haze at the lower left is Water.shader's shore swash/foam (off limits). Camera-only lighting, so it works the same solo, host or client.
+
+## R-42 Shore foam thin band (11-17) - render/shore-foam 95153679
+- Cause: in Water.shader the sea surge started at 1.5x _FoamDistance, its trail decayed over 0.12 + 0.25x FD, and the wash was 0.15. On gentle beaches the view-ray thickness stays small for metres, so this spread a white wash over the clear shallows, the pale "sand" at the lower left in g2.
+- Fix: surge starts at 0.4x FD (ends at 0.03x), trail 0.03 + 0.06x FD, wash 0.1. Constants only, so instruction count is unchanged. Measured foam vs thickness after: about 0.27 at the front, under 0.01 by 0.4.
+- Pair at the g2 pose and noon: PunchyMilestones/shore-foam/pair.png (before = g2-base on main, after = g5-base). The after sky came out overcast even with -weather Clear, so brightness differs; the foam shape is the point. An in-session shader swap gave stale frames, so the two shots come from separate play sessions.
+- BENCH line added (water GPU at Medium, budget +0.1 ms).
