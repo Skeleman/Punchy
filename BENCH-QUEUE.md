@@ -1213,3 +1213,5 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - materials 11-18 boulder-waterline (54aa8e95): Flora.shader wet-rock block gains a per-pixel facing dot + algae band and one nointerpolation TEXCOORD11; check flora pass cost at a rapids view (-2712,617) vs main.
 - render-2 11-18 river-mist (933dde7d): up to ~48 extra Steam plumes x 8 particles near rivers at dawn/dusk, list rebuilt per quarter hour or river-cell change; check effects pass + frame cost at -3612,13,-190 hour 6.5 vs main.
 - render-2 11-18 river-leaves (c5cd86c2): about 20-40 extra Leaves plumes (1-5 particles) near wooded rivers; list rebuilt every 5 s or on river-cell change, with one FloraSystem.TreesNear call per riverside species. Check frame cost + rebuild spikes at -2390,-842 vs main.
+
+- materials/river-bed (materials): RiverBed adds 3 noise.snoise per underwater river-bed sample on the per-vertex terrain path; check chunk build time against main.

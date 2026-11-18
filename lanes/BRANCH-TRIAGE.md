@@ -16,6 +16,8 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - render/river-mist -> #627
 - materials/wet-banks -> #628
 - materials/pointbar-tint -> #629
+- render/river-leaves -> #630
+- materials/river-bed -> #631
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
 - banks/overhangs -> #614
