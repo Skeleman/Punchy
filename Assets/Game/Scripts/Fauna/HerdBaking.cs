@@ -90,6 +90,59 @@ namespace Punchy.Fauna
             return b.BodyLength * scale * (b.Size.x + b.Size.y) * 0.5f;
         }
 
+        /// <summary>One fauna entry herds come from, named (Biome, Slot) as <see cref="HerdRecord"/> names it.</summary>
+        public struct Source
+        {
+            public int Biome, Slot;
+            public CreatureSpecies Species;
+            /// <summary>Animals per hectare.</summary>
+            public float Density;
+            /// <summary>A Model Lab species' Home (#412), not one of the biome's own entries.</summary>
+            public bool FromHome;
+        }
+
+        /// <summary>
+        /// Every herding fauna entry (<see cref="Herds"/>, density above 0): each biome's own entries, then the Model Lab
+        /// species' Homes (#412-414) in <see cref="LabSpeciesList"/> order, numbered on after the biome's own entries (the
+        /// slots FaunaDirector.MergeHomes gives them). The bake and FaunaDirector's herd kinds both read this, so a Lab
+        /// species joins the herds the way a built-in does (one population, A-110). The Homes are read from the species,
+        /// not from what MergeHomes has added, so the bake is the same whether or not the fauna build has run yet: the
+        /// herds bake with the island on every machine, and the world signature already names the Lab species (#442).
+        /// </summary>
+        public static List<Source> Sources(IReadOnlyList<BiomeDefinition> biomes)
+        {
+            var list = new List<Source>();
+            for (int b = 0; b < biomes.Count && b < 256; b++)
+            {
+                var biome = biomes[b];
+                if (biome == null || biome.Fauna == null)
+                    continue;
+                // (MergeHomes appends after the biome's own entries, so those keep their list index as their slot.)
+                int own = 0;
+                for (; own < biome.Fauna.Count && !(biome.Fauna[own] != null && biome.Fauna[own].FromHomes); own++)
+                {
+                    var f = biome.Fauna[own];
+                    if (own < 255 && f != null && f.Species != null && f.Density > 0f && Herds(f.Species))
+                        list.Add(new Source { Biome = b, Slot = own, Species = f.Species, Density = f.Density });
+                }
+                var next = own;
+                foreach (var s in LabSpeciesList.All())
+                {
+                    if (s == null || s.Homes == null)
+                        continue;
+                    foreach (var home in s.Homes)
+                    {
+                        if (home == null || home.Biome != biome.name)
+                            continue;
+                        if (next < 255 && home.Density > 0f && Herds(s))
+                            list.Add(new Source { Biome = b, Slot = next, Species = s, Density = home.Density, FromHome = true });
+                        next++;
+                    }
+                }
+            }
+            return list;
+        }
+
         /// <summary>What the bake needs of one herding fauna entry, read on the main thread.</summary>
         struct Slot
         {
@@ -106,38 +159,33 @@ namespace Punchy.Fauna
             public float2[] Spots;
         }
 
-        public static BlobAssetReference<HerdSetBlob> Build(in TerrainSource source, List<BiomeDefinition> biomes, Allocator allocator)
+        public static BlobAssetReference<HerdSetBlob> Build(in TerrainSource source, IReadOnlyList<BiomeDefinition> biomes, Allocator allocator)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             // Each biome's herding entries (main thread: the species are assets).
             var perBiome = new Slot[biomes.Count][];
             var candidateHectares = Cell * Cell / 10000f / Candidates;
-            int herdingSlots = 0;
-            for (int i = 0; i < biomes.Count; i++)
+            var sources = Sources(biomes);
+            var lists = new List<Slot>[biomes.Count];
+            var names = new Dictionary<int, string>();
+            foreach (var f in sources)
             {
-                var list = new List<Slot>();
-                var fauna = biomes[i] != null ? biomes[i].Fauna : null;
-                if (fauna != null)
-                    for (int s = 0; s < fauna.Count && s < 255; s++)
-                    {
-                        var f = fauna[s];
-                        if (f == null || f.Species == null || f.FromHomes || f.Density <= 0f || !Herds(f.Species))
-                            continue;
-                        var body = f.Species.Body;
-                        var group = new int2(math.max(1, body.GroupSize.x), math.max(math.max(1, body.GroupSize.x), body.GroupSize.y));
-                        group = math.min(group, MaxCount);
-                        list.Add(new Slot
-                        {
-                            Biome = (byte)i, Slot_ = (byte)s,
-                            GroupsPerCandidate = f.Density * candidateHectares / ((group.x + group.y) * 0.5f),
-                            Group = group,
-                            NearWater = body.NearWater,
-                            Spread = FarSize(f.Species)
-                        });
-                    }
-                perBiome[i] = list.ToArray();
-                herdingSlots += list.Count;
+                var body = f.Species.Body;
+                var group = new int2(math.max(1, body.GroupSize.x), math.max(math.max(1, body.GroupSize.x), body.GroupSize.y));
+                group = math.min(group, MaxCount);
+                (lists[f.Biome] ??= new List<Slot>()).Add(new Slot
+                {
+                    Biome = (byte)f.Biome, Slot_ = (byte)f.Slot,
+                    GroupsPerCandidate = f.Density * candidateHectares / ((group.x + group.y) * 0.5f),
+                    Group = group,
+                    NearWater = body.NearWater,
+                    Spread = FarSize(f.Species)
+                });
+                names[f.Biome * 256 + f.Slot] = f.Species.name;
             }
+            for (int i = 0; i < biomes.Count; i++)
+                perBiome[i] = lists[i] != null ? lists[i].ToArray() : System.Array.Empty<Slot>();
+            int herdingSlots = sources.Count;
 
             var half = source.World.WorldSize * 0.55f;
             var cells = (int)math.ceil(half * 2f / Cell);
@@ -207,14 +255,16 @@ namespace Punchy.Fauna
                 animals += r.Count;
             var top = new List<KeyValuePair<int, int>>(bySpecies);
             top.Sort((x, y) => y.Value != x.Value ? y.Value.CompareTo(x.Value) : x.Key.CompareTo(y.Key));
-            var names = new System.Text.StringBuilder();
+            var most = new System.Text.StringBuilder();
             for (int i = 0; i < top.Count && i < 6; i++)
-            {
-                var f = biomes[top[i].Key / 256].Fauna[top[i].Key % 256];
-                names.Append(i == 0 ? "" : ", ").Append(f.Species.name).Append(' ').Append(top[i].Value);
-            }
+                most.Append(i == 0 ? "" : ", ").Append(names[top[i].Key]).Append(' ').Append(top[i].Value);
+            var lab = new System.Text.StringBuilder();
+            foreach (var f in sources)
+                if (f.FromHome)
+                    lab.Append(lab.Length == 0 ? "; Lab: " : ", ").Append(f.Species.name).Append(' ')
+                       .Append(bySpecies.TryGetValue(f.Biome * 256 + f.Slot, out var c) ? c : 0);
             LastLog = $"[herds] {records.Count} herds, {animals} animals, {spots.Count} spots from {herdingSlots} herding fauna entries " +
-                      $"({cells}x{cells} cells, {watch.ElapsedMilliseconds} ms); most: {names}";
+                      $"({cells}x{cells} cells, {watch.ElapsedMilliseconds} ms); most: {most}{lab}";
             return blob;
         }
 

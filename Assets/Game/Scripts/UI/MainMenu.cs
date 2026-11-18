@@ -7,10 +7,11 @@ using UnityEngine.InputSystem;
 namespace Punchy.UI
 {
     /// <summary>
-    /// The main menu (UI-1). Esc, or Start on a controller, opens and closes it. It has a tab for each player-facing
-    /// panel (Multiplayer from NetMenu, Graphics from GraphicsSettings; each adds its own with AddTab) and Exit game at the
-    /// foot. Controller or keyboard: the d-pad or left stick moves (MenuNav), A / Cross chooses, B / Circle backs out
-    /// (cancels the exit question, otherwise closes), LB / RB (Q / E on the keyboard) switches tab. A text field chosen
+    /// The main menu (UI-1). Esc, or Start on a controller, opens and closes it. It holds the out-of-world things
+    /// (P-39, #397): a tab for each (Character, Multiplayer from NetMenu, Graphics from GraphicsSettings...; each adds its
+    /// own with AddTab) and Exit game at the foot. In-world things (items, quests, status) are Select's FieldMenu, which
+    /// shares its MenuTabs. Controller or keyboard: the d-pad or the arrows move (MenuNav), A / Cross chooses, B / Circle
+    /// backs out (cancels the exit question, otherwise closes), LB / RB (Q / E on the keyboard) switches tab. A text field chosen
     /// on the controller opens the TextWheel to type in it. The mouse clicks
     /// everything as before. While it's open, Overlay.AnyOpen holds the camera, frees the cursor and stops the player's
     /// actions (their action map is off).
@@ -21,37 +22,24 @@ namespace Punchy.UI
         /// <summary>The menu is showing.</summary>
         public static bool Open { get; private set; }
 
-        struct Tab
-        {
-            public string Title;
-            public int Order;
-            public Action<MenuNav> Draw;
-        }
-
-        static readonly List<Tab> tabs = new List<Tab>();
+        /// <summary>The tabs; the one showing is kept by title, so it stays put when tabs come and go (NetMenu's, across a join).</summary>
+        static readonly MenuTabs tabs = new MenuTabs();
         static MainMenu instance;
-        /// <summary>The tab showing, by title, so it stays put when tabs come and go (NetMenu's, across a join).</summary>
-        static string currentTitle;
 
         readonly MenuNav nav = new MenuNav();
         readonly TextWheel wheel = new TextWheel();
         bool confirmQuit;
         int openedFrame = -1;
         InputAction cancel;
-        GUIStyle box, heading, tabOn, tabOff, footer, exit;
+        GUIStyle box, heading, footer, exit;
 
         /// <summary>
         /// Adds a tab, or replaces the one with that title (NetMenu adds its own again after a join reloads the scene).
         /// Tabs show in Order.
         /// </summary>
-        public static void AddTab(string title, int order, Action<MenuNav> draw)
-        {
-            RemoveTab(title);
-            tabs.Add(new Tab { Title = title, Order = order, Draw = draw });
-            tabs.Sort((a, b) => a.Order.CompareTo(b.Order));
-        }
+        public static void AddTab(string title, int order, Action<MenuNav> draw) => tabs.Add(title, order, draw);
 
-        public static void RemoveTab(string title) => tabs.RemoveAll(t => t.Title == title);
+        public static void RemoveTab(string title) => tabs.Remove(title);
 
         /// <summary>Opens the menu (on the titled tab, when given) or closes it: shot lists' "-menu Title" lines.</summary>
         public static void Show(string title, bool open)
@@ -59,7 +47,7 @@ namespace Punchy.UI
             if (instance == null)
                 return;
             if (title != null)
-                currentTitle = title;
+                tabs.CurrentTitle = title;
             instance.SetOpen(open);
         }
 
@@ -67,7 +55,7 @@ namespace Punchy.UI
         static void Init()
         {
             Open = false;
-            currentTitle = null;
+            tabs.CurrentTitle = null;
             if (instance != null)
                 return;
             var go = new GameObject("MainMenu");
@@ -76,7 +64,15 @@ namespace Punchy.UI
             instance = go.AddComponent<MainMenu>();
         }
 
-        void Awake() => MenuNav.TextEntry = wheel.Begin;
+        void Awake()
+        {
+            MenuNav.TextEntry = wheel.Begin;
+            tabs.Changed = () =>
+            {
+                confirmQuit = false;
+                nav.Reset();
+            };
+        }
 
         void OnDestroy()
         {
@@ -94,7 +90,7 @@ namespace Punchy.UI
             if (at >= 0)
             {
                 if (at + 1 < args.Length && !args[at + 1].StartsWith("-"))
-                    currentTitle = args[at + 1];
+                    tabs.CurrentTitle = args[at + 1];
                 SetOpen(true);
             }
         }
@@ -177,27 +173,8 @@ namespace Punchy.UI
                 }
             }
             // Tabs: the shoulder buttons, or Q / E (not while typing in a field).
-            var typing = GUIUtility.keyboardControl != 0;
-            if (pad != null && pad.leftShoulder.wasPressedThisFrame || !typing && keyboard != null && keyboard.qKey.wasPressedThisFrame)
-                SwitchTab(-1);
-            if (pad != null && pad.rightShoulder.wasPressedThisFrame || !typing && keyboard != null && keyboard.eKey.wasPressedThisFrame)
-                SwitchTab(1);
+            tabs.ReadInput();
             nav.ReadInput();
-        }
-
-        int Current()
-        {
-            var i = tabs.FindIndex(t => t.Title == currentTitle);
-            return i >= 0 ? i : 0;
-        }
-
-        void SwitchTab(int by)
-        {
-            if (tabs.Count == 0)
-                return;
-            currentTitle = tabs[((Current() + by) % tabs.Count + tabs.Count) % tabs.Count].Title;
-            confirmQuit = false;
-            nav.Reset();
         }
 
         void DrawGui()
@@ -206,8 +183,6 @@ namespace Punchy.UI
                 return;
             box ??= new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, padding = new RectOffset(12, 12, 10, 10) };
             heading ??= new GUIStyle(GUI.skin.label) { richText = true, fontSize = 15 };
-            tabOn ??= new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
-            tabOff ??= new GUIStyle(GUI.skin.button);
             footer ??= new GUIStyle(GUI.skin.label) { richText = true, fontSize = 12 };
             exit ??= new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold, fontSize = 14 };
 
@@ -219,25 +194,9 @@ namespace Punchy.UI
             GUILayout.BeginArea(new Rect(Mathf.Round((Screen.width - width) * 0.5f), 50f, width, height), box);
 
             // The tab strip (clicked with the mouse, or switched with the shoulder buttons / Q E: not focus stops).
-            var current = Current();
-            GUILayout.BeginHorizontal();
-            Prompts.Layout(TabKey(-1), footer, GUILayout.ExpandWidth(false));
-            for (int i = 0; i < tabs.Count; i++)
-                if (GUILayout.Button(tabs[i].Title, i == current ? tabOn : tabOff) && i != current)
-                {
-                    currentTitle = tabs[i].Title;
-                    confirmQuit = false;
-                    nav.Reset();
-                }
-            Prompts.Layout(TabKey(1), footer, GUILayout.ExpandWidth(false));
-            GUILayout.EndHorizontal();
+            tabs.DrawStrip();
             GUILayout.Space(8);
-
-            if (tabs.Count > 0)
-            {
-                currentTitle = tabs[current].Title;
-                tabs[current].Draw(nav);
-            }
+            tabs.DrawCurrent(nav);
 
             GUILayout.FlexibleSpace();
             // Exit game, on every tab: full width, bold and red so it's easy to find. It asks first; Cancel comes
@@ -272,9 +231,6 @@ namespace Punchy.UI
             nav.End();
             wheel.Draw(new Vector2(Mathf.Round(Screen.width * 0.5f), 50f + height * 0.5f));
         }
-
-        static string TabKey(int side) => InputGlyphs.Token(InputGlyphs.Gamepad ? side < 0 ? "<Gamepad>/leftShoulder" : "<Gamepad>/rightShoulder"
-                                                                                 : side < 0 ? "<Keyboard>/q" : "<Keyboard>/e");
 
         static string FooterPrompt() => InputGlyphs.Gamepad
             ? $"{InputGlyphs.Token("<Gamepad>/buttonSouth")} choose    {InputGlyphs.Token("<Gamepad>/buttonEast")} back    {InputGlyphs.Token("<Gamepad>/start")} close"

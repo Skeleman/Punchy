@@ -12,20 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
   m_Name: Mine
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Stone: 8
   Biomes:
   - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
   - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
   - {fileID: 11400000, guid: 3c3b1f5dd38bdb84f949fc2b75db975a, type: 2}
   Width: 0.85
   Height: 1.15
-  Roughness: 0.6
-  Grain: 1
-  Jaggedness: 0.35
-  Blockiness: 0.2
-  Ribs: 0
-  RibSpacing: 1.6
-  Angularity: 0
-  FacetSize: 2.5
   Straightness: 0.85
   Frame: {fileID: 11400000, guid: 16183855535b3ff439302e4442acec7c, type: 2}
   FrameSpacing: 4
@@ -35,6 +28,7 @@ MonoBehaviour:
   Shrine: {fileID: 11400000, guid: 71d1f02f3ce27f84b85a1556a6c4cca5, type: 2}
   TunnelLamp: {fileID: 11400000, guid: 1689993ab0824123ac23ecc192f804a8, type: 2}
   Ladder: {fileID: 11400000, guid: eb01cf271a5c4884889bc859c64eeea9, type: 2}
+  Bench: {fileID: 11400000, guid: e4d4c4689e1f8e943aae290fcd828078, type: 2}
   FloorFlatness: 1
   FloorSteps: 0.1
   Burrows: 0
@@ -70,8 +64,6 @@ MonoBehaviour:
   FloorDark: {r: 0.22, g: 0.18, b: 0.14, a: 1}
   FloorGrit: 0.5
   FloorGloss: 0.1
-  Detail: 0.3
-  DetailScale: 1.2
   Sheen: 0
   GlowColor: {r: 1, g: 0.72, b: 0.22, a: 1}
   Glow: 0.28

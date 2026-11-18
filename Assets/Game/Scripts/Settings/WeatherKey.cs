@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 namespace Punchy.Settings
 {
     /// <summary>
-    /// The weather shortcut (P-20, item 29): K on the keyboard or RT on a pad puts the next weather type (WeatherSystem's
+    /// The weather shortcut (P-20, item 29): K on the keyboard (keyboard only since Zach 11-12: a pad's RT is the right hand's attack) puts the next weather type (WeatherSystem's
     /// presets in order, then back to clear) over the player, through WeatherSystem.ForceAt, the same forcing the ] debug
     /// key and the "-weather" test flag use. Listed in the Keys tab. Local only: on a joined client the host's weather
     /// comes back with the next sync (WeatherSystem.Remote), so it's a solo and host shortcut.
@@ -17,7 +17,7 @@ namespace Punchy.Settings
     /// </summary>
     public class WeatherKey : MonoBehaviour
     {
-        public const string KeyboardName = "K", PadName = "RT", PadPath = "<Gamepad>/rightTrigger";
+        public const string KeyboardName = "K";
         int next = 1;
         float every, pressAt, shotAt;
         string shotDir, shotName;
@@ -44,14 +44,13 @@ namespace Punchy.Settings
         void Update()
         {
             var keyboard = Keyboard.current;
-            var pad = Gamepad.current;
             var pressed = !Punchy.UI.Overlay.AnyOpen && GUIUtility.keyboardControl == 0 &&
-                          (keyboard != null && keyboard.kKey.wasPressedThisFrame || pad != null && pad.rightTrigger.wasPressedThisFrame);
+                          (keyboard != null && keyboard.kKey.wasPressedThisFrame);
             var test = every > 0f && Time.realtimeSinceStartup >= pressAt;
             if (test)
                 pressAt = Time.realtimeSinceStartup + every;
             if (pressed || test)
-                Cycle(test ? "-weathercycle" : keyboard != null && keyboard.kKey.wasPressedThisFrame ? KeyboardName : PadName);
+                Cycle(test ? "-weathercycle" : KeyboardName);
             if (Time.realtimeSinceStartup >= shotAt)
             {
                 shotAt = float.MaxValue;

@@ -190,8 +190,24 @@ namespace Punchy.Flora
     [CreateAssetMenu(menuName = "Punchy/Flora Species", fileName = "Flora")]
     public class FloraSpecies : ScriptableObject
     {
+        // W-175 row 6: read the blueprint JSON where TextAsset.text is allowed (the main thread), and list it for nesting.
+        void OnEnable() => LoadUnitJson();
+        void OnValidate() => LoadUnitJson();
+
+        void LoadUnitJson()
+        {
+            JsonUnit = UnitJson != null ? UnitLibrary.FromJson(UnitJson.text) : null;
+            UnitLibrary.Register(JsonUnit);
+        }
+
         [Header("Growth")]
         public FloraForm Form = FloraForm.Shrub;
+        [Tooltip("M-06 r5: a blueprint (W-175 unit) drawn in place of the form's builder. Empty = the form's own builder.")]
+        public UnitDef Unit;
+        [Tooltip("W-175 row 6: a saved blueprint (Model Lab JSON in Flora/Units) grown when Unit is empty; other units can then nest it by id.")]
+        public TextAsset UnitJson;
+        /// <summary>W-175 row 6: UnitJson read on the main thread (OnEnable), for growers on worker threads; null without one.</summary>
+        [System.NonSerialized] public UnitDef JsonUnit;
         public FloraLayer Layer = FloraLayer.Shrub;
         [Tooltip("Height range of fully grown plants, in metres.")]
         public Vector2 Height = new Vector2(1f, 1.6f);
@@ -258,6 +274,9 @@ namespace Punchy.Flora
         public bool RockStrata;
         [Tooltip("Mushrooms: caps that breathe, slowly swelling and settling.")]
         public bool Breathes;
+        [Tooltip("Mushrooms: grown out of a wall (the model's +Z points out of it), the stems running out from the wall and " +
+                 "bending up so the caps face the sky (W-177: cave wall clusters).")]
+        public bool WallGrown;
         [Tooltip("Benches: one carved stone slab for a seat instead of two planks (the elves' benches).")]
         public bool StoneSeat;
         [Tooltip("Rocks: keep their own colour wherever they lie (ice), instead of taking the biome's rock on dry ground.")]
@@ -320,6 +339,8 @@ namespace Punchy.Flora
         public Punchy.Terrain.FolkCulture KitCulture = Punchy.Terrain.FolkCulture.Human;
         [Tooltip("Kit Building only (#36): a house, a stilt house, a dock out along +Z from its land end, or a cluster of shore details.")]
         public Punchy.Terrain.KitShape KitShape;
+        [Tooltip("#550, Kit Building only: the fish its drying racks hang (the fishing code's own species: shape and coats); empty = a plain silver fish.")]
+        public Punchy.Fauna.CreatureSpecies[] HungFish;
         [Tooltip("W-127, Kit Shape Fixture only: which street light it builds (and so its light's colour and reach).")]
         public Punchy.Terrain.FixtureStyle FixtureStyle;
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]

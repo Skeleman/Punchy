@@ -255,6 +255,8 @@ namespace Punchy.Terrain
                 m.SetVertices(v);
                 m.SetNormals(n);
                 m.SetColors(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Repeat(Color.white, v.Count))); // Colossus reads vertex colour
+                // W-166 r4 (#336): the basalt is the library's natural stone (family 3, kind 0), one stone look shared with the library.
+                m.SetUVs(3, System.Linq.Enumerable.ToList(System.Linq.Enumerable.Repeat(new Vector2(3f, 0f), v.Count)));
                 m.SetTriangles(idx, 0);
                 m.RecalculateBounds();
                 return m;

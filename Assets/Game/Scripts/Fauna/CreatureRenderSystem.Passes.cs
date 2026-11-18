@@ -333,20 +333,45 @@ namespace Punchy.Fauna
                                                             in Punchy.Settings.DetailPolicy.View view,
                                                             Punchy.Settings.DetailPolicy.Decision previous)
         {
-            var distance = math.distance(state.Position, view.Camera);
+            // (A-119: a rider and its mount from the mount's position, as one size and pace, so they step together.)
+            var distance = math.distance(CreatureMotion.SeenAt(state), view.Camera);
             var first = previous.None;
             var quality = math.max(view.Detail, 0.1f);
             var fur = Punchy.Settings.DetailPolicy.Tier(
                 Punchy.Settings.DetailPolicy.ScreenSize(Punchy.Settings.DetailPolicy.CreatureFurSize, distance, view.PixelsPerMetre),
                 Punchy.Settings.DetailPolicy.CreatureFur.Scaled(quality), first ? -1 : previous.Fur);
-            if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held || state.Mode == CreatureMode.Ride)
+            // (A-119: a rider follows its mount's tier: in full only on a puppet mount, or one this machine hasn't paired.)
+            if (state.Mode == CreatureMode.Puppet || state.Mode == CreatureMode.Held ||
+                state.Mode == CreatureMode.Ride && (state.Pair.Size <= 0f || state.Pair.Full))
                 return Punchy.Settings.DetailPolicy.Decision.Of(0, 0, true).With(fur, true);
             var size = CreatureMotion.ApparentSize(state, ref body.Blob.Value);
-            var activity = math.max(math.saturate(state.Speed / math.max(size, 0.3f) / 3f), state.Fly > 0.5f ? 0.5f : 0f);
+            var activity = math.max(math.saturate(CreatureMotion.SeenSpeed(state) / math.max(size, 0.3f) / 3f), state.Fly > 0.5f ? 0.5f : 0f);
             var feet = Punchy.Settings.DetailPolicy.Holds(Punchy.Settings.DetailPolicy.ScreenSize(size, distance, view.PixelsPerMetre),
                                                           Punchy.Settings.DetailPolicy.CreatureFeetPixels / quality, !first && previous.Feet);
             return Punchy.Settings.DetailPolicy.Decide(Punchy.Settings.DetailPolicy.Creature, size, distance, activity, view, previous)
                                                .With(fur, feet);
+        }
+
+        /// <summary>A-119 probe (RideSizeTest): Decide for a state that may not be in the world as it is (a copy).</summary>
+        public static Punchy.Settings.DetailPolicy.Decision DecideFor(in CreatureState state, in CreatureBody body,
+                                                                      in Punchy.Settings.DetailPolicy.View view,
+                                                                      Punchy.Settings.DetailPolicy.Decision previous)
+            => Decide(state, body, view, previous);
+
+        /// <summary>A-119 probe (RideSizeTest): the decision a creature was last drawn with; false when it wasn't drawn
+        /// (culled, faded out or gone). A scan of the last posing: for tests only.</summary>
+        public bool LastDrawn(Entity entity, out Punchy.Settings.DetailPolicy.Decision decision)
+        {
+            decision = Punchy.Settings.DetailPolicy.Decision.First;
+            if (!havePrev)
+                return false;
+            for (int i = 0; i < prevPosed.Entities.Length; i++)
+                if (prevPosed.Entities[i] == entity)
+                {
+                    decision.Packed = prevPosed.Decisions[i];
+                    return true;
+                }
+            return false;
         }
 
         /// <summary>Where each creature is in last frame's posing, by entity, for PoseJob.Reuse.</summary>
@@ -457,17 +482,20 @@ namespace Punchy.Fauna
                     Keep[i] = true;
                     return;
                 }
-                var to = state.Position - CameraPosition;
+                // (A-119: a riding pair kept or culled as one, from the mount's position.)
+                var seenAt = CreatureMotion.SeenAt(state);
+                var seenFrom = CreatureMotion.SeenFrom(state, ref Bodies[i].Blob.Value);
+                var to = seenAt - CameraPosition;
                 var far = !NearBehind(math.length(to), state, ref Bodies[i].Blob.Value, PrevIndex.ContainsKey(AllEntities[i]));
                 var behind = far && math.dot(math.normalizesafe(to), CameraForward) < BehindCos &&
-                             math.length(to) > Bodies[i].Blob.Value.SeenFrom * 0.5f;
+                             math.length(to) > seenFrom * 0.5f;
                 // Well off to a side of the view (A-70 row 4), by more than its own size and a margin. Not a lantern or
                 // torch bearer, whose light reaches into view from further off.
                 var outside = false;
                 if (Frustum && far && state.Held != HeldItem.Lantern && state.Held != HeldItem.Torch)
                 {
-                    var r = -(FrustumMargin + 0.1f * Bodies[i].Blob.Value.SeenFrom);
-                    var p = state.Position;
+                    var r = -(FrustumMargin + 0.1f * seenFrom);
+                    var p = seenAt;
                     outside = math.dot(Left.xyz, p) + Left.w < r || math.dot(Right.xyz, p) + Right.w < r ||
                               math.dot(Bottom.xyz, p) + Bottom.w < r || math.dot(Top.xyz, p) + Top.w < r;
                 }
@@ -557,7 +585,7 @@ namespace Punchy.Fauna
                         GroupStarts[nextGroup++] = total;
                     Offsets[i] = total;
                     total += body.SegmentCount + MarkCount + (InWeb(state) ? WebCount : 0) + LairCount(ref body.Blob.Value) +
-                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state.Task) + WornCount(state) + HairCount(state);
+                             (state.Task == CreatureTask.Hunt ? 1 : 0) + HeldCount(state.Held, state.Task) + GearCount(state) + WornCount(Dressed(in state)) + SheathCount(state) + HairCount(state);
                     if (state.Mode == CreatureMode.Roost && state.Stage == 200)
                         Hanging.Add(state.Position);
                     // (Bodies of players emoting: their gestures scatter colonies.)

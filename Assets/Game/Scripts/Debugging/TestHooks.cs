@@ -321,6 +321,27 @@ namespace Punchy.Debugging
             return new[] { turns.Count, turns[turns.Count - 1], turns[(int)(turns.Count * 0.99f)] };
         }
 
+        /// <summary>W-153: how many places the water breaks each rule of WaterTruth (one count per kind, in WaterTruth.Names order).</summary>
+        public static int[] WaterTruthCounts() => Source(out var s) ? WaterTruth.Measure(s).Counts : new int[WaterTruth.Kinds];
+
+        /// <summary>
+        /// W-153: seams between the loaded chunks' water meshes within radius chunks of x,z: { borders checked,
+        /// wet vertices compared, gaps over 5 cm, open ends, largest gap in mm }. See WaterTruth.Seams.
+        /// </summary>
+        public static int[] WaterSeams(float x, float z, int radius)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var streaming = world?.GetExistingSystemManaged<TerrainStreamingSystem>();
+            if (streaming == null || !Source(out var s))
+                return new int[5];
+            using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
+            return query.TryGetSingleton<TerrainConfig>(out var config) ? WaterTruth.Seams(s, streaming, config.ChunkSize, new float2(x, z), radius) : new int[5];
+        }
+
+        /// <summary>W-153: the last WaterTruth run as text: counts, places and the worst few of each kind.</summary>
+        public static string WaterTruthReport(int worst) =>
+            WaterTruth.Last != null ? WaterTruth.Report(WaterTruth.Last, worst) : "not measured";
+
         /// <summary>Fireflies and butterflies per 100 m² over the critter tiles within radius of the player, and the tile count.</summary>
         public static Vector3 CritterDensity(float radius)
         {
@@ -1984,6 +2005,15 @@ namespace Punchy.Debugging
         /// <summary>A town's centre: [x, z, radius].</summary>
         public static float[] TownCentre(int landmark) =>
             Whereabouts.Towns.TryGetValue(landmark, out var town) ? new float[] { town.Centre.x, town.Centre.y, town.Radius } : new float[0];
+
+        /// <summary>P-47: every dungeon chest's container id on this island: "" when no two share one, else the clashes.
+        /// Logs "[chests] N chests in M dungeons (...)" for the test's measure line.</summary>
+        public static string ChestIdClashes()
+        {
+            var clashes = Punchy.Items.Items.ChestIdClashes(out var summary);
+            Debug.Log("[chests] " + summary);
+            return clashes;
+        }
     }
 }
 #endif

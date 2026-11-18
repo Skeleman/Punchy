@@ -1,29 +1,25 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Punchy.Fauna
 {
     /// <summary>
     /// W-89 (#40): keeps the ElectricWastelands rock golem (StoneColossi.BuildGolem) floating apart and wired together.
-    /// Each rock segment bobs and turns slowly on its own phase, and the floating rocks' arcs (ArcBolt.shader, the same
-    /// bolts the arcing spires fire) are drawn across every linked gap each frame, from rock surface to rock surface, so
-    /// the arcs follow the rocks as they drift. Cosmetic and driven by local time only: nothing here is shared.
+    /// Each rock segment bobs and turns slowly on its own phase, and the floating rocks' arcs (ElectricitySystem, the same
+    /// electricity the arcing spires fire) are drawn across every linked gap each frame, from rock surface to rock surface, so
+    /// the arcs follow the rocks as they drift. Cosmetic: the bob runs on local time and the arcs on the shared clock; nothing here is sent.
     /// </summary>
     public class GolemArcs : MonoBehaviour
     {
-        /// <summary>Bolt matrix x/y scale: ArcBolt is sized for spires, a colossus's arcs are this many times thicker.</summary>
+        /// <summary>Arc width: a colossus's arcs are this many times a spire's.</summary>
         const float Thickness = 7f;
 
         readonly List<Transform> segments = new List<Transform>();
         readonly List<Vector3> rest = new List<Vector3>();
         readonly List<float> radius = new List<float>(), bob = new List<float>(), phase = new List<float>();
         readonly List<(int a, int b, Vector3 offset, float scale)> links = new List<(int, int, Vector3, float)>();
-        readonly List<Matrix4x4> firing = new List<Matrix4x4>();
-        Material material;
-        Mesh mesh;
-        float nextCrack;
+        int seed;
 
         /// <summary>Adds a rock that bobs <paramref name="amplitude"/> m (0 holds it still); returns its index for <see cref="Link"/>.</summary>
         public int AddSegment(Transform t, float surface, float amplitude, float offset)
@@ -64,38 +60,23 @@ namespace Punchy.Fauna
 
         void LateUpdate()
         {
-            if (material == null)
-            {
-                material = Resources.Load<Material>("ArcBolt");
-                mesh = Punchy.Flora.FloraSystem.BoltMesh();
-                if (material == null)
-                    return;
-            }
+            // R-29: the arcs are the shared electricity (ElectricitySystem), which re-jags, forks, lights and cracks
+            // them. The seed is the golem's place when it formed plus the link, never where the rocks drift to.
+            if (seed == 0)
+                seed = (int)math.hash((int3)math.round((float3)transform.position)) | 1;
             var scale = transform.lossyScale.x;
-            firing.Clear();
-            foreach (var (a, b, offset, s) in links)
+            for (int i = 0; i < links.Count; i++)
             {
+                var (a, b, offset, s) = links[i];
                 Vector3 pa = segments[a].position, pb = segments[b].position;
                 var dir = (pb - pa).normalized;
                 var from = pa + (dir * radius[a] + offset) * scale;
                 var to = pb - (dir * radius[b] - offset) * scale;
-                var gap = to - from;
-                if (gap.sqrMagnitude < 0.01f)
+                if ((to - from).sqrMagnitude < 0.01f)
                     continue;
-                firing.Add(Matrix4x4.TRS(from, Quaternion.LookRotation(gap), new Vector3(Thickness * s, Thickness * s, gap.magnitude)));
-            }
-            if (firing.Count == 0)
-                return;
-            var rp = new RenderParams(material) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false,
-                                                  worldBounds = new Bounds(transform.position + Vector3.up * 30f * scale, Vector3.one * 90f * scale) };
-            Graphics.RenderMeshInstanced(rp, mesh, 0, firing);
-            // Now and then a crack from one of the arcs (the spires' zap).
-            if (Time.time >= nextCrack)
-            {
-                nextCrack = Time.time + UnityEngine.Random.Range(0.6f, 2.2f);
-                var at = firing[UnityEngine.Random.Range(0, firing.Count)].GetPosition();
-                if (Punchy.Audio.GameAudio.Audible(at, 90f))
-                    Punchy.Audio.GameAudio.PlayOneShot(Punchy.Audio.SoundId.Zip, at, 2.4f, 0.8f, 90f, Punchy.Audio.SoundGroup.World);
+                // One link cracks for the whole golem, as one random crack did before.
+                Punchy.Rendering.Effects.ElectricitySystem.AddArc(from, to, (int)math.hash(new int2(seed, i)),
+                    Punchy.Rendering.Effects.ElectricitySystem.Blue, Thickness * s, quiet: i != 0);
             }
         }
     }

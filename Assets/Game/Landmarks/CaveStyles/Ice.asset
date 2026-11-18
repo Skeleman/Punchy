@@ -12,19 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b92d8651f7a54b46b75fb6e4f0c3de3, type: 3}
   m_Name: Ice
   m_EditorClassIdentifier: Assembly-CSharp::Punchy.Terrain.CaveStyle
+  Stone: 5
   Biomes:
   - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
   - {fileID: 11400000, guid: 20ddf4d9933283446b410b041eced8ef, type: 2}
   Width: 1.1
   Height: 1.1
-  Roughness: 0.5
-  Grain: 0.6
-  Jaggedness: 0.8
-  Blockiness: 0.8
-  Ribs: 0.8
-  RibSpacing: 2.2
-  Angularity: 0
-  FacetSize: 2.5
   Straightness: 0
   Frame: {fileID: 0}
   FrameSpacing: 4
@@ -66,8 +59,6 @@ MonoBehaviour:
   FloorDark: {r: 0.6, g: 0.75, b: 0.92, a: 1}
   FloorGrit: 0.25
   FloorGloss: 0.7
-  Detail: 0.9
-  DetailScale: 0.9
   Sheen: 0.7
   GlowColor: {r: 0.15, g: 0.45, b: 1, a: 1}
   Glow: 0.5
@@ -79,3 +70,6 @@ MonoBehaviour:
   CrackBreakup: 0
   RoomChance: 0.55
   RoomWeights: {x: 2, y: 1.5, z: 0, w: 0.3}
+  RockKind: 3
+  Mushrooms: {fileID: 11400000, guid: f0bc63d3dde59f142948a597920d6c11, type: 2}
+  GlowMushrooms: {fileID: 11400000, guid: 17cfe4343a148844db935df7595a8316, type: 2}

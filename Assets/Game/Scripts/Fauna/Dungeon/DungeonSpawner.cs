@@ -10,7 +10,7 @@ namespace Punchy.Fauna
 {
     /// <summary>
     /// What the dungeon spawner can put in a socket (#24): creatures (by species asset name) and items. Items are
-    /// placeholder boxes for now, sized and tinted per kind, until the kit has dungeon props. Empty is a real pick: not
+    /// kit-built props drawn by screen size (<see cref="DungeonProps"/>), each with a collision box. Empty is a real pick: not
     /// every socket is filled. New entries go at the end; never renumber (pick hashes are built from these numbers).
     /// </summary>
     public enum DungeonContent : byte
@@ -88,6 +88,71 @@ namespace Punchy.Fauna
         }
 
         public static bool IsCreature(DungeonContent c) => c >= DungeonContent.CaveSalamander && c <= DungeonContent.Wolf;
+
+        /// <summary>
+        /// #24 phase 2: a dungeon's residents from its creature picks (<paramref name="picks"/>, from
+        /// <see cref="PickAll"/>), each with its post, in socket order. The one builder for the host's records and a
+        /// joined client's copy, so an ordinal (a resident's bit in the dead mask) means the same creature on both.
+        /// Returns the dungeon's creature picks: every one takes an ordinal, even one whose species is missing here.
+        /// </summary>
+        public static int Residents(DynamicBuffer<DungeonSocket> sockets, List<DungeonContent> picks, uint id, FaunaDirector director,
+                                    List<DungeonResident> into)
+        {
+            into.Clear();
+            var ordinal = 0;
+            for (int i = 0; i < sockets.Length; i++)
+            {
+                var s = sockets[i];
+                var c = picks[i];
+                if (!IsCreature(c))
+                    continue;
+                // (The ordinal counts every creature pick, so a species missing here doesn't shift the others' bits.)
+                var at = ordinal++;
+                var species = director.SpeciesIndex(c.ToString());
+                if (species < 0)
+                    continue;
+                var fwd = math.mul(s.Rot, new float3(0, 0, 1));
+                // (Every dungeon creature gets a post, even with nothing to do there: it marks it as the dungeon's,
+                // which the director's dungeon tier, not the wild one, makes and lets go.)
+                var post = DungeonPost.From(s, c);
+                post.Dungeon = id;
+                if (post.Behaviour == DungeonBehaviour.Patrol && !Beat(sockets, i, out post.Beat))
+                    // (Nowhere to walk to: a dark nook is still somewhere to nap.)
+                    post.Behaviour = ((SocketTags)s.Tags & SocketTags.Dark) != 0 && DungeonPost.Sleeps(c)
+                        ? DungeonBehaviour.Sleep : DungeonBehaviour.None;
+                into.Add(new DungeonResident
+                {
+                    Socket = i, Ordinal = at, Species = species, Position = s.Pos, Yaw = math.atan2(fwd.x, fwd.z), Post = post
+                });
+            }
+            return ordinal;
+        }
+
+        /// <summary>
+        /// r5: the far end of a patrol beat from socket <paramref name="from"/>: the nearest other Passage or Doorway
+        /// floor socket 4 to 20 m away and at about the same height (not up a shaft), or false when there is none.
+        /// </summary>
+        public static bool Beat(DynamicBuffer<DungeonSocket> sockets, int from, out float3 end)
+        {
+            end = default;
+            var at = sockets[from].Pos;
+            var best = 20f * 20f;
+            var found = false;
+            for (int j = 0; j < sockets.Length; j++)
+            {
+                var tags = (SocketTags)sockets[j].Tags;
+                if (j == from || (tags & (SocketTags.Passage | SocketTags.Doorway)) == 0 || (tags & SocketTags.Ceiling) != 0)
+                    continue;
+                var q = sockets[j].Pos;
+                var d = math.distancesq(q.xz, at.xz);
+                if (d < 4f * 4f || d >= best || math.abs(q.y - at.y) > 2.5f)
+                    continue;
+                best = d;
+                end = q;
+                found = true;
+            }
+            return found;
+        }
 
         /// <summary>Picks for a whole dungeon, with a hash of (socket index, content) and counts per socket kind.</summary>
         public static uint PickAll(DynamicBuffer<DungeonSocket> sockets, List<DungeonContent> into, int[] counts)
@@ -210,7 +275,7 @@ namespace Punchy.Fauna
         /// <summary>
         /// A-91 row 4, the P-23 hook for chests: an extra item for a chest socket from the chest rows of
         /// <see cref="LootTable"/> (P-23's gear goes there), seeded by the socket alone, so host and clients agree.
-        /// False while the table has no chest row that fits (today: none). Items (player lane) calls it when it fills a
+        /// False while the table has no chest row that fits (the temple's chests: none; caves and ruin rooms have their own rows). Items (player lane) calls it when it fills a
         /// chest; the spawner never opens chests.
         /// </summary>
         public static bool PickChestLoot(in DungeonSocket chest, out byte item, out byte count)
@@ -339,8 +404,9 @@ namespace Punchy.Fauna
 
     /// <summary>
     /// Fills dungeons (#24): for each entity with a <see cref="DungeonSocket"/> buffer, picks content per socket, logs
-    /// the pick hash, then makes the creatures (in the world animals live in: solo or the host's server) and the
-    /// placeholder items (in the presentation world, so a joined client sees them too). Picks are seed-derived state:
+    /// the pick hash, then hands the creatures to the director as residents (in the world animals live in: solo or the
+    /// host's server; the director makes them near players) and makes the placeholder items (in the presentation
+    /// world, so a joined client sees them too). Picks are seed-derived state:
     /// each machine makes them itself. Runs once per dungeon, so it costs nothing per frame after that.
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
@@ -349,7 +415,7 @@ namespace Punchy.Fauna
     {
         readonly List<DungeonContent> picks = new();
         readonly int[] counts = new int[5];
-        readonly List<GameObject> props = new();
+        bool placedProps;
         readonly List<DungeonSpawner.Loot> loot = new();
         FaunaDirector director;
         EntityQuery fresh, filled;
@@ -363,10 +429,8 @@ namespace Punchy.Fauna
 
         protected override void OnDestroy()
         {
-            foreach (var p in props)
-                if (p != null)
-                    Object.Destroy(p);
-            props.Clear();
+            if (placedProps)
+                DungeonProps.Clear();
         }
 
         protected override void OnUpdate()
@@ -378,8 +442,13 @@ namespace Punchy.Fauna
             var shows = World == World.DefaultGameObjectInjectionWorld;
             if (!animals && !World.IsClient())
                 return;
-            // A director rebuild (terrain re-baked) destroys every animal: make the creatures again, not the props.
-            if (animals && !filled.IsEmpty)
+            // #24 phase 2 row 3: a joined client (no animals on this machine, its species table built) keeps its own
+            // copy of the residents, so it can read the host's dead masks.
+            var joined = !animals && director != null && director.SimWorld == null && director.SpeciesCount > 0 && !AnyServer();
+            // A director rebuild (terrain re-baked) destroys every animal: register the residents again (the director
+            // keeps their dead and makes them near players), not the props. (On a joined client, also the dungeons
+            // filled before its species table was built.)
+            if ((animals || joined) && !filled.IsEmpty)
             {
                 using var done = filled.ToEntityArray(Allocator.Temp);
                 foreach (var d in done)
@@ -387,8 +456,9 @@ namespace Punchy.Fauna
                     if (EntityManager.GetComponentData<DungeonFilled>(d).Builds == director.Builds)
                         continue;
                     DungeonSpawner.PickAll(EntityManager.GetBuffer<DungeonSocket>(d, true), picks, counts);
-                    var made = MakeCreatures(d);
-                    Debug.Log($"[dungeon] {World.Name} dungeon {d.Index}: animals rebuilt, {made} creatures made again at their posts");
+                    var made = RegisterCreatures(d, joined);
+                    Debug.Log($"[dungeon] {World.Name} dungeon {d.Index}: {(joined ? "joined client's copy" : "animals rebuilt")}, " +
+                              $"{made} residents registered again");
                 }
             }
             using var dungeons = fresh.ToEntityArray(Allocator.Temp);
@@ -415,9 +485,8 @@ namespace Punchy.Fauna
                 {
                     using var items = sockets.ToNativeArray(Allocator.Temp);
                     for (int i = 0; i < items.Length; i++)
-                        if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]) &&
-                            MakeProp(items[i], picks[i], items, terrain) is { } prop)
-                            props.Add(prop);
+                        if (picks[i] != DungeonContent.Empty && !DungeonSpawner.IsCreature(picks[i]))
+                            placedProps |= PlaceProp(items[i], picks[i], items, terrain);
                     // Loose loot: the host or solo puts it in the world for everyone (Items.Spawn is ignored on a
                     // joined client, which is sent the host's items instead).
                     var lootSeed = DungeonSpawner.PickLoot(sockets, picks, loot);
@@ -431,8 +500,8 @@ namespace Punchy.Fauna
                     }
                     Debug.Log($"[dungeon] loot: dungeon {d.Index} type {type} seed 0x{lootSeed:x8}: {loot.Count} items, {spawned} spawned here:{list}");
                 }
-                if (animals)
-                    MakeCreatures(d);
+                if (animals || joined)
+                    RegisterCreatures(d, joined);
                 else
                     EntityManager.AddComponentData(d, new DungeonFilled());
             }
@@ -470,83 +539,52 @@ namespace Punchy.Fauna
             }
         }
 
+        readonly List<DungeonResident> residents = new();
+
         /// <summary>
-        /// Makes the creature picks (already in <see cref="picks"/>) at their sockets, each with its post, and marks the
-        /// dungeon filled in this director build. Returns how many were made.
+        /// #24 phase 2 row 2: hands the creature picks (already in <see cref="picks"/>) to the director as the dungeon's
+        /// residents, each with its post, and marks the dungeon filled in this director build. The director makes each
+        /// one only while a player is near, and never again once it dies. On a joined client (row 3) they are only its
+        /// copy, to read the host's dead masks against. Returns how many residents.
         /// </summary>
-        int MakeCreatures(Entity d)
+        int RegisterCreatures(Entity d, bool joined)
         {
-            var made = new List<(Entity e, DungeonPost post)>();
-            // (A copy: spawning a creature is a structural change, which invalidates the buffer.)
-            using var copy = EntityManager.GetBuffer<DungeonSocket>(d, true).ToNativeArray(Allocator.Temp);
-            var id = EntityManager.HasComponent<DungeonInfo>(d) ? EntityManager.GetComponentData<DungeonInfo>(d).Id : 0u;
-            for (int i = 0; i < copy.Length; i++)
-            {
-                var s = copy[i];
-                var c = picks[i];
-                if (!DungeonSpawner.IsCreature(c))
-                    continue;
-                var species = director.SpeciesIndex(c.ToString());
-                if (species < 0)
-                    continue;
-                var fwd = math.mul(s.Rot, new float3(0, 0, 1));
-                var e = director.Spawn(species, s.Pos, math.atan2(fwd.x, fwd.z));
-                // (Every dungeon creature gets a post, even with nothing to do there: the post is what keeps the
-                // director from letting it go.)
-                var post = DungeonPost.From(s, c);
-                post.Dungeon = id;
-                made.Add((e, post));
-            }
-            // (After the loop: adding components moves entities.)
-            foreach (var (e, post) in made)
-                if (EntityManager.Exists(e))
-                    EntityManager.AddComponentData(e, post);
+            var sockets = EntityManager.GetBuffer<DungeonSocket>(d, true);
+            var info = EntityManager.HasComponent<DungeonInfo>(d) ? EntityManager.GetComponentData<DungeonInfo>(d) : default;
+            DungeonSpawner.Residents(sockets, picks, info.Id, director, residents);
+            var key = FaunaDirector.DungeonKey(info.Type, info.Id);
+            if (joined)
+                director.RegisterSeenDungeon(World, key, residents);
+            else
+                director.RegisterDungeon(key, residents);
             if (EntityManager.HasComponent<DungeonFilled>(d))
                 EntityManager.SetComponentData(d, new DungeonFilled { Builds = director.Builds });
             else
                 EntityManager.AddComponentData(d, new DungeonFilled { Builds = director.Builds });
-            return made.Count;
+            return residents.Count;
         }
 
-        static Material propMaterial;
-        static MaterialPropertyBlock propBlock;
-        static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        /// <summary>Whether this process hosts (a server world): then its client world is the host's own, not a joined one.</summary>
+        static bool AnyServer()
+        {
+            foreach (var w in World.All)
+                if (w.IsServer())
+                    return true;
+            return false;
+        }
 
         /// <summary>
-        /// A placeholder box for an item pick: sized by kind, tinted by content, no collider. Null for a chest socket:
-        /// the player lane's Items draws the chest there. Drawn with the items' URP material (Resources/ItemMaterial,
-        /// the pipeline's default lit material), tinted through a property block, so it never draws magenta.
+        /// Places an item pick's prop to be drawn (row 4: <see cref="DungeonProps"/> draws it by screen size). Not for a
+        /// chest socket: the player lane's Items draws the chest there.
         /// </summary>
-        static GameObject MakeProp(in DungeonSocket s, DungeonContent c, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain)
+        static bool PlaceProp(in DungeonSocket s, DungeonContent c, in NativeArray<DungeonSocket> all, in Punchy.Terrain.TerrainSource terrain)
         {
             if (s.Kind == SocketKind.Chest)
-                return null;
+                return false;
             // (A-95: placed as its collision box is, nudged off a chest or out of a wall; see DungeonSpawner.PropPlace.)
             DungeonSpawner.PropPlace(s, all, terrain, out var centre, out var size, out var rot);
-            // A-91: the real prop, built from parts in the cave's dressed stone, wood and iron; the tinted box below
-            // only when there is no cave material to draw it with.
-            if (DungeonProps.Make(c, size) is { } built)
-            {
-                built.transform.SetPositionAndRotation(centre, rot);
-                return built;
-            }
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = $"Dungeon {c}";
-            Object.Destroy(go.GetComponent<Collider>());
-            go.transform.SetPositionAndRotation(centre, rot);
-            go.transform.localScale = size;
-            var h = DungeonSpawner.Scramble((uint)c * 0x9E3779B1u);
-            var r = go.GetComponent<Renderer>();
-            propMaterial ??= Resources.Load<Material>("ItemMaterial");
-            if (propMaterial != null)
-                r.sharedMaterial = propMaterial;
-            propBlock ??= new MaterialPropertyBlock();
-            // A-61: wall decor (skull niches) is a stone-grey stand-in set into the wall, not a bright tinted slab:
-            // the saturated purple read as a glitch box when the camera sat beside it (#24, a57-temple-mw).
-            bool wall = s.Kind == SocketKind.WallDecor;
-            propBlock.SetColor(BaseColorId, Color.HSVToRGB((h & 1023) / 1023f, wall ? 0.12f : 0.45f, wall ? 0.32f : 0.75f));
-            r.SetPropertyBlock(propBlock);
-            return go;
+            DungeonProps.Place(c, centre, size, rot);
+            return true;
         }
     }
 }

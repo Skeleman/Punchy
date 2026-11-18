@@ -98,6 +98,7 @@ Shader "Punchy/Water"
             {
                 float3 positionOS : POSITION;
                 float4 data       : TEXCOORD0;   // as WaterAttributes: z the depth below the surface
+                float2 fall       : TEXCOORD5;   // as WaterAttributes
             #ifdef _WATER_FIELD
                 float4 parent     : TEXCOORD3;   // as WaterAttributes
                 float2 parentY    : TEXCOORD4;
@@ -110,6 +111,7 @@ Shader "Punchy/Water"
                 float4 positionCS : SV_POSITION;
                 float2 restXZ     : TEXCOORD0;   // where the point is before the swell moves it
                 float3 positionWS : TEXCOORD1;   // where it ends up (R-21: is it behind a river curtain)
+                float  curtain    : TEXCOORD2;   // 1 on a fall's curtain mesh
             };
 
             DepthVaryings DepthVert(DepthAttributes input)
@@ -127,19 +129,25 @@ Shader "Punchy/Water"
                 float fallChurn;
                 float2 fallSlope;
                 o.positionWS.y += PunchyFallWater(rest, _PunchyClock, 0, fallChurn, fallSlope);
+                // (A fall's curtain mesh stays where it was built.)
+                o.positionWS = input.fall.y > 0.5 ? rest : o.positionWS;
             #endif
+                o.curtain = input.fall.y;
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;
             }
 
             half4 DepthFrag(DepthVaryings input) : SV_Target
             {
+                [branch] if (input.curtain < 0.5)
+                {
             #ifndef _WATER_FIELD
-                // (The fine sheet stands in for the chunk water near the player; cave water is never under it.)
-                clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
+                    // (The fine sheet stands in for the chunk water near the player; cave water is never under it.)
+                    clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
-                // (R-21: a river fall's face is drawn by its curtain, LandmarkEffectSystem.cs.)
-                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                    // (R-21: a river fall's face is drawn by its curtain, LandmarkEffectSystem.cs.)
+                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                }
                 return 0;
             }
             ENDHLSL
@@ -171,6 +179,8 @@ Shader "Punchy/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
+            #include "Glow.hlsl"
+            #include "Surface.hlsl"
             #include "SharedClock.hlsl"
             #include "WaterSwell.hlsl"
             // R-9: on for the fine sheet near the player (WaterPatchSystem.cs, WaterField.hlsl).
@@ -223,6 +233,9 @@ Shader "Punchy/Water"
                 float4 data       : TEXCOORD0;   // flow direction xz, depth below the surface, rapids 0..1
                 float4 look       : TEXCOORD1;   // biome water colour rgb, murk 0..1
                 float2 glow       : TEXCOORD2;   // self-glow (toxic water), lava 0..1
+                // W-153 row 3b: a fall's curtain mesh only (FallCurtain.cs): how steep the water reads here (x, 0 on the
+                // river above the lip up to 1 once it pours over), and 1 (y) on the curtain. Other meshes read 0.
+                float2 fall       : TEXCOORD5;
             #ifdef _WATER_FIELD
                 // The fine sheet only (WaterField.hlsl, PunchyWaterPatchVertex): on the square's edge, the depths at the
                 // chunk water edge's two corners, how far along it the vertex is, and which way it runs.
@@ -244,6 +257,7 @@ Shader "Punchy/Water"
                 float  swell      : TEXCOORD5;   // how strongly the sea swells here (WaterSwell.hlsl), 0 elsewhere
                 float  sea        : TEXCOORD6;   // 1 on the sea (its surface at sea level), 0 on lakes and rivers
                 float2 restXZ     : TEXCOORD7;   // where the point is before the swell moves it (the fine sheet's square)
+                float2 fall       : TEXCOORD8;   // as WaterAttributes
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -265,7 +279,11 @@ Shader "Punchy/Water"
                 float fallChurnV;
                 float2 fallSlopeV;
                 pos.positionWS.y += PunchyFallWater(float3(o.restXZ.x, pos.positionWS.y, o.restXZ.y), _PunchyClock, 0, fallChurnV, fallSlopeV);
+                // (A fall's curtain mesh stays where it was built, and is never the sea.)
+                pos.positionWS = input.fall.y > 0.5 ? TransformObjectToWorld(input.positionOS) : pos.positionWS;
+                o.sea *= 1 - input.fall.y;
             #endif
+                o.fall = input.fall;
                 pos.positionCS = TransformWorldToHClip(pos.positionWS);
                 o.positionCS = pos.positionCS;
                 o.positionWS = pos.positionWS;
@@ -546,12 +564,15 @@ Shader "Punchy/Water"
             half4 Frag(Varyings input, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                [branch] if (input.fall.y < 0.5)
+                {
             #ifndef _WATER_FIELD
-                // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
-                clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
+                    // (R-9: the fine sheet stands in for the chunk water near the player; cave water is never under it.)
+                    clip(PunchyWaterInPatch(input.restXZ) && _UnderRock < 0.5 ? -1 : 1);
             #endif
-                // (R-21: a river fall's face, here or on the fine sheet, is drawn by its curtain, LandmarkEffectSystem.cs.)
-                clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                    // (R-21: a river fall's face, here or on the fine sheet, is drawn by its curtain mesh, FallCurtain.cs.)
+                    clip(_UnderRock < 0.5 && PunchyWaterUnderCurtain(input.positionWS) ? -1 : 1);
+                }
                 float t = _PunchyClock;   // the shared clock, so every player sees the same ripples
                 float2 p = input.positionWS.xz;
                 float2 flow = input.data.xy;
@@ -591,6 +612,8 @@ Shader "Punchy/Water"
                 PunchyWaterFallOffset(float3(input.restXZ.x, input.positionWS.y, input.restXZ.y), t, fallChurn, fallCurtain);
                 steep = max(steep, (half)fallCurtain);
             #endif
+                // W-153 row 3b: the curtain mesh is steep by where it lies on its arc, not by each triangle's tilt.
+                steep = max(steep, (half)input.fall.x);
 
                 // Rivers run faster in the deep middle than at the banks, and much faster down steep rapids.
                 float riverSpeed = _FlowSpeed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6)) * kindSpeed;
@@ -658,12 +681,16 @@ Shader "Punchy/Water"
             #ifdef _WATER_FIELD
                 // R-9: on the fine sheet the wave field's own slope takes over from the ripples (they fade back in towards
                 // the square's edge), with a little foam where a splash or a bow wave stands steepest. (Drawn 2.5x steeper
-                // than it is: dents of a few cm barely tilt the light otherwise.)
+                // than it is: dents of a few cm barely tilt the light otherwise.) R-15: the slope's four taps only where
+                // the field shows; outside the square (most of every water draw) they changed nothing.
                 {
                     float fieldWeight = PunchyWaterFieldWeight(input.restXZ);
-                    float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
-                    wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
-                    wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                    [branch] if (fieldWeight > 0)
+                    {
+                        float2 fieldSlope = PunchyWaterFieldSlope(input.restXZ) * 2.5;
+                        wakeSlope = lerp(wakeSlope, fieldSlope, fieldWeight);
+                        wakeFoam = lerp(wakeFoam, (half)smoothstep(0.9, 1.8, length(fieldSlope)) * 0.7h, (half)fieldWeight);
+                    }
                     // Row 5: foam where a fall's curtain lands and churns the pool.
                     wakeFoam = max(wakeFoam, (half)(fallChurn * 0.7));
                 }
@@ -792,10 +819,13 @@ Shader "Punchy/Water"
                 float thickness = max(sceneEye - surfaceEye, 0);
 
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                // R-5: past the real-time shadows the wide cached map (WideShadow.hlsl) shades the water too; min, not
-                // product, so the two never darken the same caster twice.
-                half shadow = min(light.shadowAttenuation, 1 - PunchyWideShadow(input.positionWS, half3(0, 1, 0))) * (1 - PunchyCloudShadow(input.positionWS));
+                // The sun and its shadow tiers (real-time, wide past it, cloud) from Surface.hlsl, the wide map biased
+                // straight up. The lantern stays the water's own below (a glint, not a diffuse term).
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, (half3)n);
+                ps.wideNormalWS = half3(0, 1, 0);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                Light light = lit.sun;
+                half shadow = lit.shadow;
 
                 // Looking up from under the water: Snell's window (Zach, 11-08). Light from above reaches the eye only
                 // through a cone of about 48.6 degrees round the surface normal (asin(1 / 1.333)), so the whole sky shows
@@ -846,7 +876,7 @@ Shader "Punchy/Water"
                     }
                     return half4(under, 1);
                 }
-                half3 ambient = SampleSH(n);
+                half3 ambient = lit.ambient;
                 // Underground the sun and sky don't reach (cave rock deep down casts no sun shadow, so it's done here).
                 shadow *= 1 - _PunchyUnderground;
                 ambient *= lerp(1, 0.06, _PunchyUnderground);
@@ -990,12 +1020,15 @@ Shader "Punchy/Water"
                     // (theta falls with time: this rises 0..1 over each swell, from 0 as a crest passes.)
                     surgeCycle = frac(0.25 - atan2(arriving.phasor.x, arriving.phasor.y) / 6.2831853);
                 }
-                float surgeReach = _FoamDistance * lerp(1.5, 0.05, surgeCycle);
+                // (A thin band at the waterline, not a wash over the shallows: in depth a gentle beach turns small numbers
+                // into metres, so the surge runs in from 0.4x the foam distance, and the trail behind the front is short. Soft
+                // edges and a 0.75 peak keep the thin band from reading as a hard white streak.)
+                float surgeReach = _FoamDistance * lerp(0.4, 0.03, surgeCycle);
                 float fromFront = thickness - surgeReach;
-                half surfLine = (fromFront < 0 ? 1 - smoothstep(0, 0.03 + 0.03 * _FoamDistance, -fromFront)
-                                               : exp(-fromFront / (0.12 + 0.25 * _FoamDistance)))
-                              * smoothstep(0, 0.06, surgeCycle) * (1 - smoothstep(0.75, 1, surgeCycle));
-                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.15;
+                half surfLine = (fromFront < 0 ? 1 - smoothstep(0, 0.06 + 0.06 * _FoamDistance, -fromFront)
+                                               : exp(-fromFront / (0.05 + 0.08 * _FoamDistance)))
+                              * smoothstep(0, 0.06, surgeCycle) * (1 - smoothstep(0.75, 1, surgeCycle)) * 0.75;
+                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.1;
                 half seaFoam = saturate(max(surfLine * smoothstep(0.3, 0.45, foamNoise + 0.2), wash)) * (1 - inDeep);
                 foam = lerp(foam, seaFoam, seaShore);
                 // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
@@ -1117,7 +1150,7 @@ Shader "Punchy/Water"
                     return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe > 3.5 ? half4(foamParts * 2, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);
                 // The atmosphere (fog and weather) only above ground; a cave pool is right in front of you.
                 if (_PunchyUnderground < 0.999)
-                    color = lerp(PunchyAtmosphere(color, input.positionWS), color, _PunchyUnderground);
+                    color = lerp(PunchySurfaceFinish(color, ps), color, _PunchyUnderground);
                 // What lies under the water is seen bent by the ripples (Zach, 11-08): the bed and stones shimmer and, on a
                 // river, slide with the current. Read from the screen behind, nudged by the ripple normal, more through
                 // thicker water and near the camera, none at the water's edge (where alpha goes to 0 anyway); the nudge is

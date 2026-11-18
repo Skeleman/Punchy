@@ -289,6 +289,7 @@ namespace Punchy.Debugging
             PlaceAtLandmarkPending();
             PickSpeciesPending();
             PlaceAtBatFolkPending();
+            PlacePiecePending();
             RockWatch();
             Pose();
             FishProbe();

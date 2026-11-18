@@ -200,10 +200,11 @@ namespace Punchy.Fauna
                     ref var b = ref Bodies[i].Blob.Value;
                     Positions[i] = s.Position;
                     // (Huge animals seen from far off leave their marks as far: a serpent's splash across the lake.)
+                    // (A-119: a riding pair as one, from the mount's position.)
                     var range = math.max(Punchy.Settings.DetailPolicy.ExtraReach(CreatureMotion.ApparentSize(s, ref b),
-                        Punchy.Settings.DetailPolicy.TracePixels, View), b.SeenFrom);
+                        Punchy.Settings.DetailPolicy.TracePixels, View), CreatureMotion.SeenFrom(s, ref b));
                     var swimmer = b.Habitat == Habitat.Swims && !b.LavaDweller && !b.Breaches;
-                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(s.Position, Camera), range,
+                    if (!Punchy.Settings.DetailPolicy.Within(math.distance(CreatureMotion.SeenAt(s), Camera), range,
                             Steps.ContainsKey(Entities[i]) || swimmer && Under.ContainsKey(Entities[i])))
                     {
                         Steps.Remove(Entities[i]);
@@ -291,12 +292,12 @@ namespace Punchy.Fauna
             return height;
         }
 
-        /// <summary>True where the terrain surface isn't there to mark: over a cave's cut-out mouth, or from a position well
-        /// below it (inside a cave).</summary>
+        /// <summary>True where the terrain surface isn't there to mark: over or at the edge of a hole in it (a cave mouth, a
+        /// temple entrance or a scarp strip: GroundHoles, A-135), or from a position well below it (inside a cave).</summary>
         static bool NoSurface(in TerrainSource terrain, float3 at)
         {
             var h = terrain.SampleHeight(at.xz);
-            return at.y < h - 0.6f || terrain.MouthCut(at.xz, h) < 0.15f;
+            return at.y < h - 0.6f || Punchy.Terrain.GroundHoles.Edge(terrain, at.xz, h) < 0.15f || Punchy.Terrain.GroundHoles.Removed(terrain, at.xz);
         }
 
         void Add(in Trace trace)

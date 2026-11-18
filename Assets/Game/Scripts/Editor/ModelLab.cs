@@ -651,7 +651,19 @@ namespace Punchy.EditorTools
             try
             {
                 var s = State(ref b);
+                // (P-38: post items are kit items now, so fill the kit as FolkKitSystem does, or a worker shows none.)
+                if (b.Upright && b.Hands)
+                    s.Kit = Punchy.Items.FolkKits.Fill(in s, ref b);
                 CreatureAnimator.Evaluate(ref b, in s, 0, in flat, output, 0);
+                // (M-06 row 4: what each segment is made of, as CreatureRenderSystem.Rest writes it from the look table.)
+                var made = CreatureBlobBuilder.Materials(species);
+                for (int i = 0; i < made.Length && i < b.Segments.Length; i++)
+                    if (output[i].Material.x == 0f)
+                    {
+                        var seg = output[i];
+                        seg.Material.x = made[i];
+                        output[i] = seg;
+                    }
                 CreatureRenderSystem.PoseKit(ref b, in s, output, b.Segments.Length);
                 modelMesh = Capsules(output, modelMesh, out bounds);
             }
@@ -1097,7 +1109,8 @@ namespace Punchy.EditorTools
                 if (Skip(s))
                     continue;
                 var c = new Color(s.Color.x, s.Color.y, s.Color.z, 1f);
-                AddCapsule(verts, normals, colors, tris, s.Position, s.Rotation, s.Length, s.RadiusStart, s.RadiusEnd, math.max(s.Flatten, 0.05f), c);
+                AddCapsule(verts, normals, colors, tris, s.Position, s.Rotation, s.Length, s.RadiusStart, s.RadiusEnd, math.max(s.Flatten, 0.05f), c,
+                           (SegmentMaterial)(int)s.Material.x);
             }
             box = SegmentBounds(segs);
             if (mesh == null)
@@ -1112,7 +1125,8 @@ namespace Punchy.EditorTools
         }
 
         static void AddCapsule(List<Vector3> verts, List<Vector3> normals, List<Color> colors, List<int> tris,
-                               float3 at, quaternion rot, float length, float r0, float r1, float flatten, Color color)
+                               float3 at, quaternion rot, float length, float r0, float r1, float flatten, Color color,
+                               SegmentMaterial material = SegmentMaterial.Body)
         {
             const int sides = 12, capRows = 4;
             var start = verts.Count;
@@ -1142,7 +1156,7 @@ namespace Punchy.EditorTools
                     verts.Add(at + math.mul(rot, local));
                     var worldN = math.mul(rot, n);
                     normals.Add(worldN);
-                    colors.Add(Shade(color, worldN));
+                    colors.Add(Shade(color, worldN, material));
                 }
                 rows++;
             }
@@ -1159,12 +1173,25 @@ namespace Punchy.EditorTools
         // the game's lit shaders add the island's haze and cloud shadow, which washed the colours out on the turntable.
         static readonly float3 LightDir = math.normalize(new float3(0.35f, 0.85f, -0.4f));
 
-        static Color Shade(Color c, float3 n)
+        static Color Shade(Color c, float3 n, SegmentMaterial material = SegmentMaterial.Body)
         {
             var key = math.max(0f, math.dot(n, LightDir));
             var sky = 0.5f + 0.5f * n.y;
             var k = 0.32f + 0.22f * sky + 0.62f * key;
-            return new Color(c.r * k, c.g * k, c.b * k, c.a);
+            // (M-06 row 4: a rough hint of the library material, not Creature.shader's look: metal a hard highlight,
+            // bone and horn paler with a sheen, cloth flatter, leather and wood a little darker and warmer.)
+            var shine = 0f;
+            var rgb = new float3(c.r, c.g, c.b);
+            switch (material)
+            {
+                case SegmentMaterial.Metal: k = 0.25f + 0.2f * sky + 0.5f * key; shine = 0.9f * math.pow(key, 12f); break;
+                case SegmentMaterial.Bone: rgb = math.lerp(rgb, new float3(0.93f, 0.89f, 0.78f), 0.25f); shine = 0.25f * math.pow(key, 6f); break;
+                case SegmentMaterial.Cloth: k = 0.45f + 0.2f * sky + 0.4f * key; break;
+                case SegmentMaterial.Leather: rgb *= new float3(0.9f, 0.84f, 0.78f); shine = 0.12f * math.pow(key, 8f); break;
+                case SegmentMaterial.Wood: rgb *= new float3(0.92f, 0.85f, 0.75f); break;
+            }
+            rgb = rgb * k + shine;
+            return new Color(rgb.x, rgb.y, rgb.z, c.a);
         }
 
         /// <summary>A plain 1.8 m person (feet at the origin, facing +Z) for scale.</summary>

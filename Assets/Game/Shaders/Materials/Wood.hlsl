@@ -13,6 +13,7 @@
 //   tone:  rgb the hue late wood and knots take (luminance about 1), a streak strength
 float4 _PunchyWoodGrainKinds[8];
 float4 _PunchyWoodToneKinds[8];
+float4 _PunchyWoodFormKinds[8];   // x board scale, y knot spacing (m), z figure, w wear
 
 #define PUNCHY_WOOD_OAK 0
 #define PUNCHY_WOOD_PINE 1
@@ -28,6 +29,10 @@ struct PunchyWoodKind
     half grey;
     half3 hue;
     half streak;
+    half boardScale;
+    float knotCell;
+    half figure;
+    half wear;
 };
 
 /// A kind's row; oak until the table has been pushed (a zero row), so nothing divides by zero.
@@ -44,6 +49,12 @@ PunchyWoodKind PunchyWoodKindOf(int kind)
     k.grey = set ? (half)saturate(g.w) : 0;
     k.hue = set && dot(t.rgb, 1) > 0.1 ? (half3)t.rgb : half3(1.1, 0.96, 0.85);
     k.streak = set ? (half)t.a : 1;
+    float4 f = _PunchyWoodFormKinds[i];
+    bool formSet = f.x > 1e-3;
+    k.boardScale = formSet ? (half)f.x : 1;
+    k.knotCell = formSet ? max(f.y, 0.05) : 0.55;
+    k.figure = formSet ? (half)f.z : 1;
+    k.wear = formSet ? (half)f.w : 0.22;
     return k;
 }
 
@@ -70,15 +81,15 @@ half3 PunchyWoodGrain(half3 albedo, float along, float2 across, float footprint,
 
     // Domain warp, stretched along the grain.
     float2 q = float2(along * 0.14, side);
-    float warp = (PunchyValueNoise(q * float2(1.3, 9.0) + seed * 3.1) - 0.5) * 0.05
-               + (PunchyValueNoise(q * float2(5.3, 31.0) + seed * 1.7 + 4.2) - 0.5) * 0.012;
+    float warp = ((PunchyValueNoise(q * float2(1.3, 9.0) + seed * 3.1) - 0.5) * 0.05
+               + (PunchyValueNoise(q * float2(5.3, 31.0) + seed * 1.7 + 4.2) - 0.5) * 0.012) * k.figure;
 
-    // Knots: at most one per half-metre cell along the piece, placed across its face.
-    float cell = floor(along / 0.55);
+    // Knots: at most one per cell (the kind's knot spacing, half a metre for oak) along the piece, across its face.
+    float cell = floor(along / k.knotCell);
     int cellId = (int)cell + (int)(seed * 977.0);
     half kh = PunchyCellHash(int2(cellId, 71));
     half has = step(kh, k.knots * 0.45);
-    float kAlong = (cell + 0.2 + 0.6 * PunchyCellHash(int2(cellId, 72))) * 0.55;
+    float kAlong = (cell + 0.2 + 0.6 * PunchyCellHash(int2(cellId, 72))) * k.knotCell;
     float kSide = (PunchyCellHash(int2(cellId, 73)) - 0.5) * 0.14;
     float kSize = 0.008 + 0.014 * PunchyCellHash(int2(cellId, 74));
     float kd = length(float2((along - kAlong) * 0.55, side - kSide));
@@ -110,7 +121,7 @@ half3 PunchyWoodGrain(half3 albedo, float along, float2 across, float footprint,
     half3 c = ring < 0 ? lerp(albedo, early, saturate(-ring * 5)) : lerp(albedo, lateTone, saturate(ring * 1.25));
     c *= 1 + (pore - 0.5) * 0.28 * k.streak * fPore;
     c = lerp(c, albedo * 0.45 * k.hue, knot * 0.85 * fKnot);
-    c *= 1 + (dirt - 0.5) * 0.22 * fDirt;
+    c *= 1 + (dirt - 0.5) * k.wear * fDirt;
     // Weathered kinds go silver where the wear bands are, keeping their brightness.
     half lum = dot(c, half3(0.299, 0.587, 0.114));
     c = lerp(c, lum * half3(0.98, 1.0, 1.04), k.grey * saturate(dirt * 1.6 - 0.2));
@@ -139,6 +150,7 @@ void PunchyWoodFaceCoords(float3 p, float3 nOS, out float across, out float row)
 /// piece of tree, with a shadow under each lap and butt joints. The grain runs along each board.
 half3 PunchyWoodBoards(half3 albedo, float across, float row, float footprint, int kind, float height)
 {
+    height *= PunchyWoodKindOf(kind).boardScale;   // painted boards: the kind's width, not geometry
     float r = row / height;
     int board = (int)floor(r);
     half fr = frac(r);
@@ -162,14 +174,15 @@ half3 PunchyWoodShingles(half3 albedo, float across, float row, float footprint,
     half fr = frac(r);
     bool laid = course >= 0;
     float c = laid ? course : floor(r);
-    float t = across / 0.3 + frac(c * 0.618);
+    float width = 0.3 * PunchyWoodKindOf(kind).boardScale;   // laid courses keep their height, only width varies
+    float t = across / width + frac(c * 0.618);
     half ft = frac(t);
     half h = PunchyCellHash(int2((int)c, (int)floor(t)));
     half joint = 1 - smoothstep(0.02, 0.07, min(ft, 1 - ft));
     half under = laid ? 0 : smoothstep(0.7, 1.0, fr) * 0.4;
     half lip = laid ? 0 : (1 - smoothstep(0.0, 0.08, fr)) * 0.12;
     half m = lerp(0.8, 1.14, h) * (1 - under - joint * 0.45 * (1 - under)) * (1 + lip);
-    half3 g = PunchyWoodGrain(albedo, row, float2((ft - 0.5) * 0.3, 0), footprint, kind, h);
+    half3 g = PunchyWoodGrain(albedo, row, float2((ft - 0.5) * width, 0), footprint, kind, h);
     return g * lerp(1, m, PunchyWoodFade(0.24, footprint));
 }
 

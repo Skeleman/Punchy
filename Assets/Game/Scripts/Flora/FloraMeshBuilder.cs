@@ -87,6 +87,9 @@ namespace Punchy.Flora
         /// Bark + 0.015 + kind * 0.0025, which the flora shader decodes to pick the kind's grain and tone.
         /// </summary>
         public Punchy.Terrain.WoodKind WoodKind;
+        /// <summary>W-166 row 3: stone built next is rubble (packed irregular stones), not cut courses: it rides on the
+        /// stone mark as + 0.002 (Materials/Stone.hlsl's PunchyStoneBlocks). Cleared with the builder.</summary>
+        public bool Rubble;
         readonly int[] barkFamilies = new int[16];
         /// <summary>Bark vertices built per Punchy.Terrain.MaterialFamily since the last Clear (W-166's material test).</summary>
         public int BarkVerticesOf(Punchy.Terrain.MaterialFamily family) => barkFamilies[(int)family];
@@ -129,6 +132,7 @@ namespace Punchy.Flora
             Family = BaseFamily;
             System.Array.Clear(barkFamilies, 0, barkFamilies.Length);
             Surface = 0;
+            Rubble = false;
             Unfounded = false;
             unfounded.Clear();
         }
@@ -151,7 +155,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -164,6 +168,9 @@ namespace Punchy.Flora
             Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
             Punchy.Terrain.MaterialFamily.Brick => 0.115f,
             Punchy.Terrain.MaterialFamily.Ice => 0.13f,
+            Punchy.Terrain.MaterialFamily.Stone => 0.142f,
+            // #550: rope and netting (kit Net parts): twisted fibre, never the stone surface.
+            Punchy.Terrain.MaterialFamily.Cloth => 0.05f,
             _ => 0f
         };
 
@@ -241,11 +248,36 @@ namespace Punchy.Flora
             }
         }
 
+        /// <summary>
+        /// Turns the triangles added since <paramref name="firstIndex"/> inside out (W-175 row 4: a mirrored part, whose
+        /// mirrored vertices would otherwise face away).
+        /// </summary>
+        public void FlipWinding(int firstIndex)
+        {
+            for (int i = firstIndex; i + 2 < indices.Count; i += 3)
+                (indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
+        }
+
         /// <summary>Recolours vertices by position and normal (moss on the tops of rocks).</summary>
         public void Recolor(int firstVertex, Func<Vector3, Vector3, Color, Color> tint)
         {
             for (int v = firstVertex; v < positions.Count; v++)
                 colors[v] = tint(positions[v], normals[v], colors[v]);
+        }
+
+        /// <summary>
+        /// Darkens the vertices since a vertex that sit below a height (the darker footing of a building or walkway).
+        /// Only the colour: the alpha carries a wood piece's grain axis and look, and scaling it (#550) turned the
+        /// planks of every low deck into shingles.
+        /// </summary>
+        public void DarkenBelow(int firstVertex, float height, float factor)
+        {
+            for (int v = firstVertex; v < positions.Count; v++)
+                if (positions[v].y < height)
+                {
+                    var c = colors[v];
+                    colors[v] = new Color(c.r * factor, c.g * factor, c.b * factor, c.a);
+                }
         }
 
         // ------------------------------------------------------------------------------------------- primitives

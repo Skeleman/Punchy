@@ -285,14 +285,15 @@ namespace Punchy.Fauna
         /// <summary>A sprinting leg's sweep, longer than its run's by this share (a gallop's more).</summary>
         public float SprintStride => Gallops ? 0.6f : 0.35f;
 
-        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride.</summary>
-        public float3 LegAngles(int segment, float p, float move, float run, float sprint)
+        /// <summary>A leg's joint angles at a point of its cycle, with the sprint's longer stride and (A-124 row 2) the
+        /// person's own (GaitStyle.LegStride: both scale the swing about the rest pose).</summary>
+        public float3 LegAngles(int segment, float p, float move, float run, float sprint, float stride = 1f)
         {
             var a = Angles(segment, p, move, run);
-            if (sprint <= 0f)
+            if (sprint <= 0f && stride == 1f)
                 return a;
             var idle = Poses[segment * PoseCount + Idle];
-            return idle + (a - idle) * (1f + SprintStride * sprint);
+            return idle + (a - idle) * ((1f + SprintStride * math.max(sprint, 0f)) * stride);
         }
 
         public float3 Angles(int segment, float p, float move, float run)
@@ -565,9 +566,6 @@ namespace Punchy.Fauna
     public static class CreatureWorn
     {
         public const byte Hat = 1, Pack = 2;
-        /// <summary>A-103 row 5: a player's eyewear (Eyewear): a small dark pair of glasses, or chunky glow goggles. Eyes
-        /// is both, the bits NetAvatars owns (Items' gear keeps them).</summary>
-        public const byte Glasses = 4, Goggles = 8, Eyes = Glasses | Goggles;
     }
 
     /// <summary>How the body draws a player's weapon (P-28; the item table's ItemDef.Weapon). 0 for none.</summary>
@@ -580,6 +578,24 @@ namespace Punchy.Fauna
         public const byte Hammer = 6;
         /// <summary>P-33: a fishing rod (cast, not swung; the line and bobber are drawn by Items).</summary>
         public const byte Rod = 7;
+        /// <summary>Item row: a pickaxe, a miner's tool (a point one side, a flat adze the other), swung like an axe.</summary>
+        public const byte Pickaxe = 8;
+        /// <summary>Item row: a shovel, a digger's tool (a long haft, a T grip, a flat iron blade), swung like a club.</summary>
+        public const byte Shovel = 9;
+
+        // Zach 11-12, one item system: how the body draws everything else that goes in a hand, folk's and players' alike
+        // (ItemDef.Weapon is a hand look, not only a weapon's). Append only.
+        /// <summary>An ogre's great club; a goblin's scrap shield (on the forearm).</summary>
+        public const byte GreatClub = 10, Shield = 11;
+        /// <summary>Lights: a lantern hanging from the hand, a torch held up (its flame the world's).</summary>
+        public const byte Lantern = 12, Torch = 13;
+        /// <summary>A traveller's walking staff.</summary>
+        public const byte Staff = 14;
+        /// <summary>Workers' tools: a farmer's hoe, a broom, a smith's hammer, tongs, a bucket.</summary>
+        public const byte Hoe = 15, Broom = 16, SmithHammer = 17, Tongs = 18, Bucket = 19;
+        /// <summary>Carried things: a rolled letter, a sack of ore in both arms, a healer's bowl, a trader's jar or fruit,
+        /// a lump of dough, a child's stick or stone, a loaf.</summary>
+        public const byte Letter = 20, OreSack = 21, Bowl = 22, Jar = 23, Fruit = 24, Dough = 25, Stick = 26, Stone = 27, Loaf = 28;
     }
 
     /// <summary>A player's body's gear beyond CreatureWorn (P-28): the weapon (CreatureWeapon) and its swing, 0 at rest,
@@ -596,12 +612,31 @@ namespace Punchy.Fauna
         /// <summary>P-29: a player's body that wears gear: its hair is Hair / HairColour (bald included), drawn in place of
         /// the species' own hair parts, which are hidden. False for folk, who keep their species' hair.</summary>
         public bool OwnHair;
+        /// <summary>Zach 11-12: what's in the left hand (a CreatureWeapon hand look; 0 for nothing). Weapon is the right's:
+        /// there's no off hand, anything held goes in either.</summary>
+        public byte LeftHand;
+        /// <summary>Zach 11-12 row 4: a player's hand item put away or on its way there or back (ItemTable id + 1; 0 for
+        /// none), and how far into its sheath it is: 255 all the way, 0 in hand, between through the half-second Draw and
+        /// Sheathe (from 128 on, it's worn, not held: Weapon is then None).</summary>
+        public byte Kept, Stow;
+        /// <summary>Zach 11-12: a player's CreatureState.Held (a torch, a staff, a lantern) is in its left hand, not its
+        /// right.</summary>
+        public bool HeldLeft;
+        /// <summary>Zach 11-12: the left hand's swing (as Swing is the right's: 0 at rest, then 1..255), and which hands
+        /// are raised to block (bit 0 the right, bit 1 the left; a two-handed thing is the right's).</summary>
+        public byte LeftSwing, Block;
 
         public bool Armoured => (Head | Body | Legs | Feet | Back | Neck) != 0;
 
+        /// <summary>Which arm holds the body's CreatureState.Held (+1 the right, -1 the left: LimbPart.Side): one of the
+        /// folk's lantern in its left and anything else in its right; a player's where it put it (HeldLeft).</summary>
+        public static float HeldSide(in CreatureState s) =>
+            s.Mode == CreatureMode.Puppet ? (s.Outfit.HeldLeft ? -1f : 1f) : s.Held == HeldItem.Lantern ? -1f : 1f;
+
         public bool Equals(CreatureOutfit o) =>
             Weapon == o.Weapon && Swing == o.Swing && Head == o.Head && Body == o.Body && Legs == o.Legs && Feet == o.Feet &&
-            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair;
+            Back == o.Back && Neck == o.Neck && Hair == o.Hair && HairColour == o.HairColour && OwnHair == o.OwnHair && LeftHand == o.LeftHand &&
+            Kept == o.Kept && Stow == o.Stow && HeldLeft == o.HeldLeft && LeftSwing == o.LeftSwing && Block == o.Block;
     }
 
     /// <summary>
@@ -645,6 +680,22 @@ namespace Punchy.Fauna
         public const byte Boots = 1;
         public const byte Cloak = 1;
         public const byte Scarf = 1;
+        // Zach 11-12, one item system: what guards and workers wear, as items (append only, by place).
+        /// <summary>Head: guards' helmets by folk (a human's kettle hat, a dwarf's horned helm, an elf's crested helm, a
+        /// goblin's dented pot, an ogre's beast skull), a baker's cap, a straw hat, a fisher's hat, smoked goggles.</summary>
+        public const byte KettleHat = 6, HornedHelm = 7, CrestedHelm = 8, PotHelm = 9, SkullHelm = 10, BakerCap = 11, StrawHat = 12, FisherHat = 13, Goggles = 14;
+        /// <summary>P-38 row 3 (A-103 row 5 as items): a small dark pair of glasses (bat eyes see normally), chunky glow
+        /// goggles (any other eyes see as a bat's). Eyewear says which a body wants.</summary>
+        public const byte Glasses = 15, GlowGoggles = 16;
+        /// <summary>Whether this head look sits over the eyes and leaves the head's hair showing.</summary>
+        public static bool OverEyes(byte head) => head == Goggles || head == Glasses || head == GlowGoggles;
+        /// <summary>Body: a guard's breastplate (with shoulder pads), a leather cuirass (with leather pads), an apron down
+        /// the front: plain cloth (a stallholder's), leather (a smith's), floury white (a baker's).</summary>
+        public const byte Breastplate = 5, Cuirass = 6, Apron = 7, LeatherApron = 8, BakerApron = 9;
+        /// <summary>Back: an ogre's hide cape, a healer's satchel.</summary>
+        public const byte HideCape = 2, Satchel = 3;
+        /// <summary>Neck: a guard's sash, from the shoulder across to the other hip, in its town's colour.</summary>
+        public const byte Sash = 2;
 
         /// <summary>Cloth (row 3) is dyed by the wearer's folk: its main colour and its trim, linear, by GuardKit.</summary>
         public static Unity.Mathematics.float4 ClothMain(GuardKit kit) => kit switch
@@ -664,6 +715,31 @@ namespace Punchy.Fauna
             GuardKit.Ogre => new Unity.Mathematics.float4(0.25f, 0.19f, 0.1f, 0f),
             _ => new Unity.Mathematics.float4(0.55f, 0.42f, 0.18f, 0f),
         };
+    }
+
+    /// <summary>
+    /// What one of the folk has on it and about it (Zach 11-12, one item system): items from the item table (ItemTable)
+    /// in its hand and its other hand, its weapon or tool sheathed (on the back or at the hip, by its length:
+    /// ItemSheaths.OnBack), what it wears by place, and a bag of four. Each slot holds the item's id + 1, so 0 (as a
+    /// beast's or a new body's) is nothing. The host fills it (FolkKitSystem); clients get it with the creature.
+    /// </summary>
+    public struct FolkKit : System.IEquatable<FolkKit>
+    {
+        public ushort Hand, LeftHand, Sheath, Head, Body, Back, Neck, Bag0, Bag1, Bag2, Bag3;
+        /// <summary>Zach 11-12 row 5: what stands at its post while it works there (a kneading table and a loaf, the well's
+        /// rope and bucket, the hot iron, a chopping block and log), drawn by the Gear pass.</summary>
+        public ushort Post0, Post1;
+
+        /// <summary>A slot's value for an item (its id + 1: the catalog id, as ItemStack.Item), and the item in a slot (-1
+        /// for nothing). Ushort since P-35 r3 row 4, with the same values.</summary>
+        public static ushort Of(int item) => (ushort)(item + 1);
+        public static int Item(ushort slot) => slot - 1;
+
+        public bool Empty => (Hand | LeftHand | Sheath | Head | Body | Back | Neck | Bag0 | Bag1 | Bag2 | Bag3 | Post0 | Post1) == 0;
+
+        public bool Equals(FolkKit o) =>
+            Hand == o.Hand && LeftHand == o.LeftHand && Sheath == o.Sheath && Head == o.Head && Body == o.Body && Back == o.Back && Neck == o.Neck &&
+            Bag0 == o.Bag0 && Bag1 == o.Bag1 && Bag2 == o.Bag2 && Bag3 == o.Bag3 && Post0 == o.Post0 && Post1 == o.Post1;
     }
 
     public enum HeldItem : byte
@@ -693,10 +769,7 @@ namespace Punchy.Fauna
         /// <summary>A rolled message: on a messenger bird's leg, then in the hands of the one who took it, reading it.</summary>
         Letter,
         /// <summary>A chunk of honeycomb a raiding bear knocked down, on the ground at its nose while it licks at it.</summary>
-        Honey,
-        /// <summary>Smoked goggles over the eyes (bat folk on the surface by day, #35): worn, not held, so the light
-        /// doesn't make it cover its face.</summary>
-        Goggles
+        Honey
     }
 
     /// <summary>A town guard's weapon, by its folk: how long, and where it's worn sheathed.</summary>
@@ -861,6 +934,9 @@ namespace Punchy.Fauna
         /// <summary>What a player's body has on besides that (P-28): its weapon and where it is in a swing. Not sent:
         /// each machine sets it (Items.ApplyGear).</summary>
         public CreatureOutfit Outfit;
+        /// <summary>Zach 11-12: what one of the folk has on it and about it, as items (FolkKit). The host's: FolkKitSystem
+        /// fills it; replicated (CreatureNet). Empty for players (theirs is Items') and beasts.</summary>
+        public FolkKit Kit;
 
         /// <summary>The need cue it shows (NeedCue: none, tired, hungry, thirsty, lonely): its strongest need past 0.6,
         /// set by the brain (CreatureBrainSystem.Needs) and replicated as one byte, so clients draw the same cue (#64).</summary>
@@ -868,6 +944,11 @@ namespace Punchy.Fauna
         /// <summary>Half the width of what this player's body carries in its arms (m; 0 for nothing): local, set each
         /// frame on every machine by HeldPoseSystem from the creature carried, so the arms open round it. Not sent.</summary>
         public float CarryWidth;
+        /// <summary>A-119 (#339): the ride it is part of, rider or mount (RidePair; Size 0 = none), as last seated: every
+        /// detail, think-rate, trace and let-go decision reads it, so the pair steps together. Local, never sent.</summary>
+        public RidePair Pair;
+        /// <summary>A-119: the pair written by this frame's seating (Riding.Pair), Pair from the next (RidePairSystem).</summary>
+        public RidePair PairNext;
     }
 
     /// <summary>
@@ -1053,6 +1134,27 @@ namespace Punchy.Fauna
                 : role is LimbRole.Head or LimbRole.Neck ? (byte)(code | SurfaceLook.FeatherBody << 4)
                 : role is LimbRole.Wing or LimbRole.Tail ? (byte)(code | SurfaceLook.FeatherFlight << 4)
                 : code;
+        }
+
+        /// <summary>
+        /// M-06 row 4: what each segment of a species is made of (a SegmentMaterial, W-166 library family), in the same
+        /// order as <see cref="Looks"/> (segment 0 is the body). All Body (0) for a species that sets none. Kept off the
+        /// creature blob like the looks, so it never moves the fauna fingerprint.
+        /// </summary>
+        public static byte[] Materials(CreatureSpecies variant)
+        {
+            var species = variant.Body;
+            var parts = Expand(species);
+            var count = 1;
+            foreach (var p in parts)
+                count += p.Slot.Limb.Segments.Count;
+            var materials = new byte[count];
+            materials[0] = (byte)species.BodyMaterial;
+            var cursor = 1;
+            foreach (var p in parts)
+                foreach (var seg in p.Slot.Limb.Segments)
+                    materials[cursor++] = (byte)seg.Material;
+            return materials;
         }
 
         /// <summary>

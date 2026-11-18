@@ -32,25 +32,49 @@ namespace Punchy.Terrain
         Bleached = 4
     }
 
+    /// <summary>The kinds of natural stone (W-166 #336): rows of MaterialLibrary.Stone. Every bare rock wall names
+    /// one (cave walls now; cliff scarps and river notches next), and its relief (lumps, creases, bedding, ribs, faces,
+    /// fine grain) comes from that row, so a stone breaks the same way wherever it stands.</summary>
+    public enum StoneKind
+    {
+        Plain = 0,
+        Granite = 1,
+        Limestone = 2,
+        Sandstone = 3,
+        Basalt = 4,
+        Ice = 5,
+        Crystal = 6,
+        Ore = 7,
+        Shale = 8,
+        Tuff = 9
+    }
+
     /// <summary>
     /// W-166: the one material library. A table of kinds per family (base colour, grain scale, contrast, knots, wear),
     /// pushed to the shaders as globals so every piece of a kind looks the same wherever it's drawn, and the maps from
     /// what builders know (a kit part's KitMaterial, a culture, a flora form) to a family and kind. A piece keeps its
     /// own colour; the kind decides how its surface reads. Wood first; the other families get rows as their includes
-    /// land (W-166 row 3). Cosmetic and seed-free: nothing here moves placement or any hash.
+    /// land (W-166 row 3). Creature coverings (fur, feathers, scales, skin, chitin) are kinds too (Coat). Cosmetic and seed-free: nothing here moves placement or any hash.
     /// </summary>
     public static class MaterialLibrary
     {
         /// <summary>One kind of wood. Base: its reference colour (also the hue its late wood and knots darken to).
         /// RingSpacing: metres between growth rings. Contrast: how dark the late wood gets (1 oak). Knots: 0..1, how
-        /// many half-metre cells hold a knot. Grey: 0..1, how silver its wear bands go. Pores: fine streak strength.</summary>
+        /// many knot cells hold a knot. Grey: 0..1, how silver its wear bands go. Pores: fine streak strength.
+        /// BoardScale: painted board and shingle width (1 = 21 cm boards, 30 cm shingles; laid geometry keeps its size).
+        /// KnotSpacing: metres per knot cell. Figure: how far the grain wanders (1 oak). Wear: dirt band strength.</summary>
         public readonly struct WoodRow
         {
             public readonly Color Base;
-            public readonly float RingSpacing, Contrast, Knots, Grey, Pores;
+            public readonly float RingSpacing, Contrast, Knots, Grey, Pores, BoardScale, KnotSpacing, Figure, Wear;
 
-            public WoodRow(Color baseColour, float ringSpacing, float contrast, float knots, float grey, float pores)
+            public WoodRow(Color baseColour, float ringSpacing, float contrast, float knots, float grey, float pores,
+                float boardScale = 1f, float knotSpacing = 0.55f, float figure = 1f, float wear = 0.22f)
             {
+                BoardScale = boardScale;
+                KnotSpacing = knotSpacing;
+                Figure = figure;
+                Wear = wear;
                 Base = baseColour;
                 RingSpacing = ringSpacing;
                 Contrast = contrast;
@@ -64,25 +88,113 @@ namespace Punchy.Terrain
         public static readonly WoodRow[] Wood =
         {
             new WoodRow(new Color(0.36f, 0.24f, 0.15f), 0.011f, 1.0f, 0.45f, 0.0f, 1.0f),    // oak: warm, open rings
-            new WoodRow(new Color(0.46f, 0.33f, 0.20f), 0.007f, 1.25f, 0.9f, 0.0f, 0.7f),    // pine: pale, tight, knotty
-            new WoodRow(new Color(0.52f, 0.47f, 0.40f), 0.014f, 0.7f, 0.2f, 0.85f, 1.4f),    // driftwood: washed, silver
-            new WoodRow(new Color(0.27f, 0.18f, 0.12f), 0.009f, 0.6f, 0.3f, 0.0f, 0.8f),     // dark: walnut-brown, quiet
-            new WoodRow(new Color(0.48f, 0.42f, 0.34f), 0.012f, 0.8f, 0.4f, 0.5f, 1.2f),     // bleached: sun-greyed
+            new WoodRow(new Color(0.46f, 0.33f, 0.20f), 0.007f, 1.25f, 0.9f, 0.0f, 0.7f, 0.8f, 0.38f, 0.6f, 0.18f),    // pine: pale, tight, knotty; narrow straight boards
+            new WoodRow(new Color(0.52f, 0.47f, 0.40f), 0.014f, 0.7f, 0.2f, 0.85f, 1.4f, 1.2f, 0.8f, 1.6f, 0.35f),    // driftwood: washed, silver; wide twisted boards
+            new WoodRow(new Color(0.27f, 0.18f, 0.12f), 0.009f, 0.6f, 0.3f, 0.0f, 0.8f, 1.1f, 0.7f, 0.8f, 0.12f),     // dark: walnut-brown, quiet; kept clean
+            new WoodRow(new Color(0.48f, 0.42f, 0.34f), 0.012f, 0.8f, 0.4f, 0.5f, 1.2f, 1f, 0.55f, 1.2f, 0.34f),     // bleached: sun-greyed; worn
         };
 
+        /// <summary>How one kind of stone breaks as a bare wall (W-166 #336). Roughness: lumps (0 smooth, 1 rock).
+        /// Grain: lump size, above 1 smaller. Jaggedness: ridges, creases and overhangs up high. Blockiness: 0..1,
+        /// blocky collapse hollows as a share of the jaggedness (bedded or jointed rock). Ribs, RibSpacing (m):
+        /// scalloped ribs. Angularity, FacetSize (m): flat faces meeting in edges. Detail, DetailScale: the shader's
+        /// fine relief strength and repeats per metre. Roughness, Jaggedness, Ribs, Angularity and FacetSize set how far
+        /// the wall reaches out of its face, so changing them can move what is fitted round it (cave nodes); Grain,
+        /// Blockiness, RibSpacing, Detail and DetailScale only change how the wall reads.</summary>
+        public readonly struct StoneRow
+        {
+            public readonly float Roughness, Grain, Jaggedness, Blockiness, Ribs, RibSpacing, Angularity, FacetSize,
+                Detail, DetailScale;
+
+            public StoneRow(float roughness, float grain, float jaggedness, float blockiness, float ribs, float ribSpacing,
+                float angularity, float facetSize, float detail, float detailScale)
+            {
+                Roughness = roughness;
+                Grain = grain;
+                Jaggedness = jaggedness;
+                Blockiness = blockiness;
+                Ribs = ribs;
+                RibSpacing = ribSpacing;
+                Angularity = angularity;
+                FacetSize = facetSize;
+                Detail = detail;
+                DetailScale = detailScale;
+            }
+        }
+
+        /// <summary>The stone kinds, by StoneKind. Columns: roughness, grain, jaggedness, blockiness, ribs, rib
+        /// spacing, angularity, facet size, detail, detail scale.</summary>
+        public static readonly StoneRow[] Stone =
+        {
+            new StoneRow(1.0f, 1.0f, 1.15f, 0.3f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // plain: ordinary lumpy rock
+            new StoneRow(1.3f, 0.6f, 1.4f, 0.95f, 0f, 1.6f, 0f, 2.5f, 0.45f, 2.2f),    // granite: big jointed blocks
+            new StoneRow(1.0f, 1.0f, 1.05f, 0.3f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // limestone: dissolved, rounded
+            new StoneRow(0.7f, 0.45f, 0.75f, 1f, 0f, 1.6f, 0f, 2.5f, 0.25f, 1.4f),     // sandstone: bedded slabs
+            new StoneRow(0.2f, 0.5f, 0.15f, 0f, 0f, 1.6f, 0f, 2.5f, 0.05f, 1f),        // basalt: smooth flow skin
+            new StoneRow(0.5f, 0.6f, 0.8f, 0.8f, 0.8f, 2.2f, 0f, 2.5f, 0.9f, 0.9f),    // ice: melt-scalloped ribs
+            new StoneRow(0.8f, 1.6f, 1f, 0.5f, 0f, 1.6f, 0.7f, 1.8f, 0.12f, 2f),       // crystal: faceted
+            new StoneRow(0.3f, 1.2f, 0.35f, 0.1f, 0f, 1.6f, 1f, 2.2f, 0.08f, 1.8f),    // ore: hard faces, worked
+            new StoneRow(0.6f, 1.0f, 0.35f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // shale: soft, crumbly
+            new StoneRow(1.2f, 1.5f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.4f, 1.8f),     // tuff: soft, pitted
+        };
+
+        /// <summary>One kind of creature covering (W-166 #336), read by Shaders/Materials/Coat.hlsl so a creature's coat
+        /// and anything later made of it (a fur rug, a feathered cloak, a scale shield) look the same. Size: pattern
+        /// size (1 = strands, feathers, scales, pores and plates as A-97 / A-123 drew them). Contrast: how strongly the
+        /// pattern darkens (1 as drawn). Bump: relief (1 as drawn). Wrap: how far the diffuse wraps round. Rim: rim
+        /// light. Spec, SpecPower: the highlight (feathers add a sheen on dark plumage on top). Sky: sky mirrored at a
+        /// glancing angle (chitin's hard gloss).</summary>
+        public readonly struct CoatRow
+        {
+            public readonly float Size, Contrast, Bump, Wrap, Rim, Spec, SpecPower, Sky;
+
+            public CoatRow(float size, float contrast, float bump, float wrap, float rim, float spec, float specPower, float sky = 0f)
+            {
+                Size = size;
+                Contrast = contrast;
+                Bump = bump;
+                Wrap = wrap;
+                Rim = rim;
+                Spec = spec;
+                SpecPower = specPower;
+                Sky = sky;
+            }
+        }
+
+        /// <summary>The coverings, by Fauna.CoatKind. Columns: size, contrast, bump, wrap, rim, spec, spec power, sky.
+        /// The values are Creature.shader's own, so moving it onto Coat.hlsl changes nothing on screen.</summary>
+        public static readonly CoatRow[] Coat =
+        {
+            new CoatRow(1f, 1f, 1f, 0.25f, 0.25f, 0f, 8f),            // fur: soft strands, matte
+            new CoatRow(1f, 1f, 1f, 0.35f, 0.3f, 0.02f, 8f),          // feathers: layered vanes, a faint sheen
+            new CoatRow(1f, 1f, 1f, 0.2f, 0.15f, 0.35f, 30f),         // scales: grooved domes, a little gloss
+            new CoatRow(1f, 1f, 1f, 0.4f, 0.12f, 0.25f, 24f),         // skin: pores and mottling, moist
+            new CoatRow(1f, 1f, 1f, 0.15f, 0.1f, 0.6f, 40f, 0.25f),   // chitin: banded plates, hard gloss
+        };
+
+        /// <summary>The covering row for a creature's coat.</summary>
+        public static CoatRow CoatFor(Punchy.Fauna.CoatKind kind) => Coat[Mathf.Clamp((int)kind, 0, Coat.Length - 1)];
+
         public const int MaxWoodKinds = 8;
+        public const int MaxCoatKinds = 8;
+        static readonly int CoatShapeKinds = Shader.PropertyToID("_PunchyCoatShapeKinds");
+        static readonly int CoatLightKinds = Shader.PropertyToID("_PunchyCoatLightKinds");
         static readonly int GrainKinds = Shader.PropertyToID("_PunchyWoodGrainKinds");
         static readonly int ToneKinds = Shader.PropertyToID("_PunchyWoodToneKinds");
+        static readonly int FormKinds = Shader.PropertyToID("_PunchyWoodFormKinds");
 
-        /// <summary>Pushes the table to the shaders (Wood.hlsl's _PunchyWoodGrainKinds and _PunchyWoodToneKinds).</summary>
+        /// <summary>Pushes the tables to the shaders (Wood.hlsl's _PunchyWoodGrainKinds, _PunchyWoodToneKinds and
+        /// _PunchyWoodFormKinds; Coat.hlsl's _PunchyCoatShapeKinds and _PunchyCoatLightKinds).</summary>
         public static void Push()
         {
             var grain = new Vector4[MaxWoodKinds];
             var tone = new Vector4[MaxWoodKinds];
+            var form = new Vector4[MaxWoodKinds];
             for (int i = 0; i < MaxWoodKinds; i++)
             {
                 var row = Wood[Mathf.Min(i, Wood.Length - 1)];
                 grain[i] = new Vector4(row.RingSpacing, row.Contrast, row.Knots, row.Grey);
+                form[i] = new Vector4(row.BoardScale, row.KnotSpacing, row.Figure, row.Wear);
                 // The base colour's hue at luminance 1, so tinting the late wood by it keeps its brightness.
                 var lum = Mathf.Max(0.05f, row.Base.r * 0.299f + row.Base.g * 0.587f + row.Base.b * 0.114f);
                 var hue = new Vector3(row.Base.r, row.Base.g, row.Base.b) / lum;
@@ -91,6 +203,18 @@ namespace Punchy.Terrain
             }
             Shader.SetGlobalVectorArray(GrainKinds, grain);
             Shader.SetGlobalVectorArray(ToneKinds, tone);
+            Shader.SetGlobalVectorArray(FormKinds, form);
+
+            var shape = new Vector4[MaxCoatKinds];
+            var light = new Vector4[MaxCoatKinds];
+            for (int i = 0; i < MaxCoatKinds; i++)
+            {
+                var row = Coat[Mathf.Min(i, Coat.Length - 1)];
+                shape[i] = new Vector4(row.Size, row.Contrast, row.Bump, row.Sky);
+                light[i] = new Vector4(row.Wrap, row.Rim, row.Spec, row.SpecPower);
+            }
+            Shader.SetGlobalVectorArray(CoatShapeKinds, shape);
+            Shader.SetGlobalVectorArray(CoatLightKinds, light);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -131,7 +255,21 @@ namespace Punchy.Terrain
             KitMaterial.Ice => MaterialFamily.Ice,
             KitMaterial.Copper or KitMaterial.Lamp => MaterialFamily.Metal,
             KitMaterial.Net => MaterialFamily.Cloth,
+            KitMaterial.Fish => MaterialFamily.None,   // #550: a fish's own body (FloraGenerator.HungFish), not a built family
             _ => MaterialFamily.Plaster   // Trim, Opening, Moss, Sand, Ash, Dirt, Flame: coloured plaster for now
+        };
+
+        /// <summary>The family a creature's gear segment is made of (Fauna.SegmentMaterial): Creature.shader draws each
+        /// through that family's include, so gear wood is a town's wood and gear cloth its awnings. Body is None (a
+        /// creature's own coat, not a material).</summary>
+        public static MaterialFamily FamilyOf(Punchy.Fauna.SegmentMaterial material) => material switch
+        {
+            Punchy.Fauna.SegmentMaterial.Cloth => MaterialFamily.Cloth,
+            Punchy.Fauna.SegmentMaterial.Leather => MaterialFamily.Leather,
+            Punchy.Fauna.SegmentMaterial.Metal => MaterialFamily.Metal,
+            Punchy.Fauna.SegmentMaterial.Wood => MaterialFamily.Wood,
+            Punchy.Fauna.SegmentMaterial.Bone => MaterialFamily.Bone,
+            _ => MaterialFamily.None
         };
     }
 }

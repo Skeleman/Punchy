@@ -23,9 +23,9 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166): Creature.shader
-        // (fauna's) carries its own wood and reaches metal through the old Shaders/Metal.hlsl forwarder.
-        static readonly (string include, string shader)[] Pending = { ("Wood.hlsl", "Creature.shader"), ("Metal.hlsl", "Creature.shader") };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). Empty since
+        // Creature.shader draws its coats through Materials/Coat.hlsl; kept so a future hand-off has a place to go.
+        static readonly (string include, string shader)[] Pending = { };
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -82,20 +82,69 @@ namespace Punchy.Tests
             Assert.That(used.Any(u => u.Item1 == "Plaster"), "plaster has no slot");
             Assert.That(used.Any(u => u.Item1 == "Brick"), "brick has no slot");
             Assert.That(used.Any(u => u.Item1 == "Ice"), "ice has no slot");
+            Assert.That(used.Any(u => u.Item1 == "Stone"), "built stone has no slot");
         }
 
         // Each family's include: what defining its look by hand looks like, what drawing it looks like, and which
         // shaders must draw it through the include (W-166 rows 2-3).
         static readonly (string include, string defines, string draws, string[] users)[] Families =
         {
-            ("Wood.hlsl", @"\w*(WoodGrain|LogEnd|Plank|Shingle)\w*", @"PunchyWood\w*\s*\(", new[] { "Flora.shader", "Cave.shader" }),
+            ("Wood.hlsl", @"\w*(WoodGrain|LogEnd|Plank|Shingle)\w*", @"PunchyWood\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "Creature.shader" }),
             ("Thatch.hlsl", @"\w*(Thatch|Straw)\w*", @"PunchyThatch\w*\s*\(", new[] { "Flora.shader" }),
-            ("Cloth.hlsl", @"\w*(Linen|Hide|Weave)\w*", @"Punchy(Linen|Hide)\w*\s*\(", new[] { "Flora.shader" }),
-            ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader" }),
+            ("Cloth.hlsl", @"\w*(Linen|Hide|Weave)\w*", @"Punchy(Linen|Hide)\w*\s*\(", new[] { "Flora.shader", "Creature.shader" }),
+            ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader", "Creature.shader" }),
             ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
             ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
+            ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader", "TerrainSurface.shader" }),
+            ("Bone.hlsl", @"\w*Bone(Pit|Line|Ivory)\w*", @"PunchyBone\w*\s*\(", new[] { "Creature.shader" }),
+            ("Coat.hlsl", @"\w*Coat(Fur|Feathers|Scales|Skin|Chitin)\w*", @"PunchyCoat\w*\s*\(", new[] { "Creature.shader" }),
         };
+
+        // Coverings (W-166 #336): one library row per creature coat kind, so the look in Materials/Coat.hlsl and
+        // Fauna.CoatKind cannot drift apart, and each row is usable (a pattern size and a highlight power above 0).
+        [Test]
+        public void EveryCoatKindHasARow()
+        {
+            var coatKind = Game.GetType("Punchy.Fauna.CoatKind", true);
+            var library = Game.GetType("Punchy.Terrain.MaterialLibrary", true);
+            var rows = (Array)library.GetField("Coat").GetValue(null);
+            var max = (int)library.GetField("MaxCoatKinds").GetValue(null);
+            var kinds = Enum.GetValues(coatKind).Length;
+            Assert.AreEqual(kinds, rows.Length, "MaterialLibrary.Coat needs one row per CoatKind");
+            Assert.LessOrEqual(kinds, max, "Coat.hlsl holds at most MaxCoatKinds rows");
+            var problems = new List<string>();
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var row = rows.GetValue(i);
+                var size = (float)row.GetType().GetField("Size").GetValue(row);
+                var power = (float)row.GetType().GetField("SpecPower").GetValue(row);
+                if (size <= 1e-3f || power <= 1e-3f)
+                    problems.Add($"{Enum.GetName(coatKind, i)}: size {size}, spec power {power} (0 reads as an unpushed row)");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        // Gear (W-166 row 3): every creature gear material maps to a family, and Creature.shader is a user of that family's
+        // include in the table above, so SegmentMaterial and the library cannot drift apart.
+        [Test]
+        public void GearDrawsFromTheLibrary()
+        {
+            var segment = Game.GetType("Punchy.Fauna.SegmentMaterial", true);
+            var library = Game.GetType("Punchy.Terrain.MaterialLibrary", true);
+            var familyOf = library.GetMethod("FamilyOf", new[] { segment });
+            Assert.IsNotNull(familyOf, "MaterialLibrary.FamilyOf(SegmentMaterial) is missing");
+            var problems = new List<string>();
+            foreach (var name in Enum.GetNames(segment))
+            {
+                var family = familyOf.Invoke(null, new[] { Enum.Parse(segment, name) }).ToString();
+                if (name == "Body") { if (family != "None") problems.Add($"Body maps to {family}"); continue; }
+                var include = (family == "Leather" ? "Cloth" : family) + ".hlsl";
+                if (!Families.Any(f => f.include == include && f.users.Contains("Creature.shader")))
+                    problems.Add($"gear {name} -> {family}: Creature.shader isn't a user of Materials/{include}");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
 
         [Test]
         public void OnlyTheFamilyIncludeDrawsAFamily()
@@ -108,7 +157,7 @@ namespace Punchy.Tests
             {
                 var defines = new Regex(@"^\s*(half3|half|float3|float)\s+" + definesName + @"\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase);
                 var draws = new Regex(drawsName);
-                var quoted = $"\"Materials/{include}\"";
+                var family = Path.GetFullPath(Path.Combine(root, "Materials", include));
                 foreach (var path in files)
                 {
                     var name = Path.GetFileName(path);
@@ -117,17 +166,45 @@ namespace Punchy.Tests
                     var pending = Pending.Contains((include, name));
                     if (!inMaterials && !pending && defines.IsMatch(text))
                         problems.Add($"{name} defines its own {include} look ({defines.Match(text).Value.Trim()}): draw it through Materials/{include}");
-                    if (!inMaterials && !pending && name != include && draws.IsMatch(text) && !text.Contains(quoted))
+                    if (!inMaterials && !pending && name != include && draws.IsMatch(text) && !Includes(path, root).Contains(family))
                         problems.Add($"{name} draws {include}'s family without including Materials/{include}");
                 }
                 foreach (var name in users)
                 {
-                    var text = File.ReadAllText(Path.Combine(root, name));
-                    if (!text.Contains(quoted) || !draws.IsMatch(text))
+                    var path = Path.Combine(root, name);
+                    var reached = Includes(path, root);
+                    // The draw may sit in a shared include on the way (Cave and TerrainSurface reach Stone through
+                    // Materials/RockWall.hlsl), so the shader's own text and everything it pulls in short of the family count.
+                    var drawn = reached.Where(p => p != family).Prepend(Path.GetFullPath(path)).Any(p => draws.IsMatch(File.ReadAllText(p)));
+                    if (!reached.Contains(family) || !drawn)
                         problems.Add($"{name} should draw its {include} family through Materials/{include}");
                 }
             }
             Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        static readonly Regex IncludeLine = new(@"^\s*#include(_with_pragmas)?\s+""([^""]+)""", RegexOptions.Multiline);
+
+        /// <summary>Every project shader file a file reaches through #include, followed through chains (a family
+        /// include reached via another include counts). Paths resolve next to the including file, then under Shaders;
+        /// package includes don't resolve and are skipped.</summary>
+        static HashSet<string> Includes(string path, string root)
+        {
+            var seen = new HashSet<string>();
+            var todo = new Stack<string>();
+            todo.Push(Path.GetFullPath(path));
+            while (todo.Count > 0)
+            {
+                var file = todo.Pop();
+                foreach (Match m in IncludeLine.Matches(File.ReadAllText(file)))
+                {
+                    var rel = m.Groups[2].Value;
+                    var found = new[] { Path.Combine(Path.GetDirectoryName(file), rel), Path.Combine(root, rel) }
+                        .Select(Path.GetFullPath).FirstOrDefault(File.Exists);
+                    if (found != null && seen.Add(found)) todo.Push(found);
+                }
+            }
+            return seen;
         }
     }
 }

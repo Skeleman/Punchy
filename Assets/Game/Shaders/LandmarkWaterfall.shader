@@ -19,7 +19,7 @@ Shader "Punchy/Landmark Waterfall"
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Glow.hlsl"
             #include "LandmarkEffects.hlsl"
 

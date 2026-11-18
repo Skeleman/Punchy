@@ -16,6 +16,9 @@ namespace Punchy.Fauna
         public BlobArray<int> Starts;
         /// <summary>Whether any of a species' segments has fur (only those need a fur screen-size check).</summary>
         public BlobArray<bool> HasFur;
+        /// <summary>M-06 row 4: what each segment is made of (SegmentMaterial, CreatureBlobBuilder.Materials), at the
+        /// same index as its code in Codes; the render system writes it into SegmentInstance.Material.x.</summary>
+        public BlobArray<byte> Materials;
     }
 
     /// <summary>The look table, on the fauna render settings entity (made by FaunaDirector).</summary>
@@ -83,11 +86,13 @@ namespace Punchy.Fauna
         public static BlobAssetReference<CreatureLookBlob> Build(System.Collections.Generic.IReadOnlyList<CreatureSpecies> species)
         {
             var all = new System.Collections.Generic.List<byte[]>(species.Count);
+            var made = new System.Collections.Generic.List<byte[]>(species.Count);
             var total = 0;
             foreach (var s in species)
             {
                 var looks = CreatureBlobBuilder.Looks(s);
                 all.Add(looks);
+                made.Add(CreatureBlobBuilder.Materials(s));
                 total += looks.Length;
             }
             var builder = new BlobBuilder(Allocator.Temp);
@@ -95,15 +100,17 @@ namespace Punchy.Fauna
             var codes = builder.Allocate(ref root.Codes, total);
             var starts = builder.Allocate(ref root.Starts, all.Count + 1);
             var hasFur = builder.Allocate(ref root.HasFur, all.Count);
+            var materials = builder.Allocate(ref root.Materials, total);
             var at = 0;
             for (int i = 0; i < all.Count; i++)
             {
                 starts[i] = at;
                 var fur = false;
-                foreach (var c in all[i])
+                for (int k = 0; k < all[i].Length; k++)
                 {
-                    codes[at++] = c;
-                    fur |= IsFur(c);
+                    materials[at] = k < made[i].Length ? made[i][k] : (byte)0;
+                    codes[at++] = all[i][k];
+                    fur |= IsFur(all[i][k]);
                 }
                 hasFur[i] = fur;
             }

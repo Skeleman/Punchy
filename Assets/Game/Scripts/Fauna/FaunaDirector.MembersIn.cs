@@ -55,7 +55,8 @@ namespace Punchy.Fauna
                     continue;
                 var index = plan.HouseResidents[local][m];
                 var r = plan.Residents[index];
-                if (!Whereabouts.Built(plan, index, day, hour))
+                // (A-134 row 4: out at its door to face a thief; it goes back in once that is over.)
+                if (!Whereabouts.Built(plan, index, day, hour) || OwnerOut(s.Individual))
                     continue;
                 var w = Whereabouts.Of(plan, index, day, hour, seconds);
                 var into = Whereabouts.IndoorEnd(plan, w);

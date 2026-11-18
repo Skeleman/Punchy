@@ -8,6 +8,9 @@ or a double. Far forms cost no entities and nothing on the network.
 - Town far figures (A-109): `FaunaDirector.FarFolk.cs` places one figure per household member who is sure to spawn,
   from household records and the shared clock, with no random draw; `CreatureRenderSystem.FarFolk.cs` draws them as
   walkers (6 px and up) or motes and fades them out where the town has real folk. `-farfolk` logs counts and sizes.
+- Herds (A-108): `HerdBaking.Sources` is the one list of herding entries, read by the bake and by
+  `FaunaDirector.BuildHerdKinds`. It includes Model Lab species' Homes (#412), so saving `LabSpecies.asset` or a Lab
+  species re-bakes the herds (the island cache stamp covers that asset).
 
 Read before changing creatures, behaviour, poses, the player's body, settlements' residents or workers.
 
@@ -38,6 +41,15 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   spot facing FaceRing/FaceAngle, works by day in CreatureMode.Work (arm poses in CreatureAnimator.TaskPose),
   takes breaks within 7 m, and dozes at its post at night. LandmarkResident.Size overrides size (HumanChild is a
   small, playful Human variant).
+- **Folk kits (Zach 11-12):** what the folk carry and wear are items (Items/FolkKits.cs: the host fills each
+  upright body's CreatureState.Kit, sent with CreatureNet). Their helmets, armour, sashes, hats, aprons, work tools,
+  shields and sheathed weapons are drawn from the kit by the player's own Weapon/Armour passes (FolkKits.Dress,
+  FolkKits.Sheathed); only what moves its own way keeps its pass (a guard's drawn weapon and torch, lanterns, rods,
+  a hunter's spear, a miner's pick, staffs, letters, playthings). A new item with a look goes in HandLook/WornLook
+  too (checked at start: "FolkKits.HandLook" errors). What stands at a worker's post is the kit's Post0/Post1, drawn
+  by Gear (a new post item needs PostParts and a case there). Worn and sheath blocks are sized per look (LookParts,
+  HeadParts, BodyParts): a new look's capsule count must match what its pass writes. A player's sheathe key (H)
+  rides CreatureOutfit.Kept/Stow through the same sheath block.
 
 ## Animation conventions
 
@@ -116,6 +128,11 @@ Read before changing creatures, behaviour, poses, the player's body, settlements
   stalls and hitching rails as buildings (FloraPlacement.IsBuilding). Town paths come from StreetRoute (Road == 0
   streets, then string-pulled where Clear). Riders().clearance should read 0 overlaps; Despawn at 170 m cuts a
   far ride short, and a lent horse's stable can be km away.
+- A-119: a seated rider and its mount share one size. Riding.Pair (called at every seating point: SeatJob,
+  RideSeatSystem, PlayerRide Carry/SeatOthers) writes RidePair.PairNext on both; RidePairSystem copies it to Pair at
+  frame start. CreatureMotion.SeenAt/SeenFrom/SeenSpeed/ApparentSize read it, so detail, pose rate, ThinkRange, trace,
+  LetGoRange and SendRadius step together from the mount's spot. Local only, never sent. `-ridesize` (RideSizeTest)
+  probes it; 'drawn differently' must read 0.
 - A-121: FireSpots is both the "keep out of the flames" list and the heat-source list (HeatAt) comfort reads. A
   species' FireTemper (Auto: folk Ignores, friendly Wary, cold-blooded Basks, else Shy; set Loves by hand) and the
   heat a creature can't bear give CreatureMind.FireKeep, a berth past the flame's edge (Fire.cs Berth/FireStep);

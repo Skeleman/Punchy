@@ -106,6 +106,7 @@ namespace Punchy.Terrain
         NativeArray<ChunkBuildRequest> buildRequests;
         NativeArray<float2> buildRanges, buildWaterRanges;
         NativeArray<VertexAttributeDescriptor> buildWaterLayout;
+        NativeArray<VertexAttributeDescriptor> buildTerrainLayout;   // W-174 r6: chunks the temple's entrance re-cuts
 
         EntitiesGraphicsSystem graphics;
         BatchMaterialID materialId;
@@ -126,11 +127,15 @@ namespace Punchy.Terrain
             // A batch still meshing when play mode ends (or the game quits) reads the terrain blobs, which the scene
             // teardown frees before this system is destroyed: finish it first, so it never reads a freed blob.
             Application.quitting += CancelBuild;
+            // #259: leaving or joining switches the scene off (unloading the subscene and its blobs) before the worlds
+            // are disposed, and this batch isn't a tracked job, so it would still be reading them: finish it first.
+            Punchy.Net.GameBootstrap.WorldsReplacing += CancelBuild;
         }
 
         protected override void OnDestroy()
         {
             Application.quitting -= CancelBuild;
+            Punchy.Net.GameBootstrap.WorldsReplacing -= CancelBuild;
             CancelBuild();
             foreach (var chunk in loaded.Values)
             {
@@ -257,13 +262,17 @@ namespace Punchy.Terrain
                 }
             if (Loading)
                 FirstViewFirst(config, focus);
+            // Every chunk is the same size on the ground, so nearest first is largest on screen first (rule 20).
             wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+            // #400: one chunk meshes on one worker, so a batch wider than about half the workers fills them all and
+            // other systems' jobs (the creature cull) queue behind it. Loading takes every worker.
+            var workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+            var maxCount = math.min(config.MaxBuildsPerFrame * boost, Loading ? workers : math.max(1, workers / 2));
             var count = 0;
             var vertices = 0;
-            while (count < wanted.Count && count < config.MaxBuildsPerFrame * boost)
+            while (count < wanted.Count && count < maxCount)
             {
-                var quads = config.QuadsForLod(wanted[count].Lod);
-                vertices += BuildChunkMeshJob.VertexCount(quads);
+                vertices += BuildCost(config, source, wanted[count]);
                 if (count > 0 && vertices > budget)
                     break;
                 count++;
@@ -274,6 +283,9 @@ namespace Punchy.Terrain
         /// <summary>The graphics settings' View distance (GraphicsSettings.View) last applied, and one waiting to be.</summary>
         float appliedView = 1f, pendingView = 1f;
         double pendingViewSince;
+        /// <summary>R-15: the camera whose far plane this sets, and that plane as the camera came (its scene value).</summary>
+        Camera farCamera;
+        float ownFar;
 
         /// <summary>
         /// The config with its view radius and LOD distances at the graphics settings' View distance. A new setting
@@ -304,12 +316,18 @@ namespace Punchy.Terrain
             }
             config.Lod0Distance *= appliedView;
             config.ViewRadiusChunks = math.max(2, (int)math.round(config.ViewRadiusChunks * appliedView));
-            // The camera reaches past the farthest chunk (only ever pushed out: at View 1 its own far plane already does).
+            // The camera reaches past the farthest chunk, or the far ring's farthest tile, and never short of its own far
+            // plane (at View 1 that already covers the disc). R-15: set from its own plane each time, here only, so it
+            // comes back in when the View or the ring goes down (it was only ever pushed out).
+            var reach = math.max((config.ViewRadiusChunks + 1.5f) * config.ChunkSize, ApplyFarRing(config, appliedView));
             var cam = Camera.main;
-            var reach = (config.ViewRadiusChunks + 1.5f) * config.ChunkSize;
-            if (cam != null && cam.farClipPlane < reach)
-                cam.farClipPlane = reach;
-            ApplyFarRing(config, appliedView);
+            if (cam != farCamera)
+            {
+                farCamera = cam;
+                ownFar = cam != null ? cam.farClipPlane : 0f;
+            }
+            if (cam != null && cam.farClipPlane != math.max(ownFar, reach))
+                cam.farClipPlane = math.max(ownFar, reach);
             return config;
         }
 
@@ -389,6 +407,23 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>How many times its vertices a chunk over a cave is charged against the batch budget (#400).</summary>
+        const int CaveCostScale = 5;
+
+        /// <summary>
+        /// A chunk's charge against the batch's vertex budget (#400). At LOD 0-1 a chunk over a cave cuts its mouth, and
+        /// each vertex there samples the mouth cut five times (BuildChunkMeshJob.MouthCut), so it costs about five
+        /// plain chunks: it goes alone or with a few small ones instead of filling a batch with cave-mouth chunks.
+        /// </summary>
+        static int BuildCost(in TerrainConfig config, in TerrainSource source, in BuildItem item)
+        {
+            var vertices = BuildChunkMeshJob.VertexCount(config.QuadsForLod(item.Lod));
+            if (item.Lod > 1 || !source.Caves.IsCreated)
+                return vertices;
+            var min = (float2)item.Coord * config.ChunkSize;
+            return CaveSampling.NearRect(ref source.Caves.Value, min, min + config.ChunkSize) ? vertices * CaveCostScale : vertices;
+        }
+
         /// <summary>Starts building the first <paramref name="count"/> wanted chunks in the background.</summary>
         void StartBuild(in TerrainConfig config, in TerrainSource source, int count)
         {
@@ -400,6 +435,7 @@ namespace Punchy.Terrain
             buildWaterRanges = new NativeArray<float2>(count, Allocator.Persistent);
             var layout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Temp);
             buildWaterLayout = new NativeArray<VertexAttributeDescriptor>(WaterVertex.Layout, Allocator.Persistent);
+            buildTerrainLayout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Persistent);
             building.Clear();
 
             for (int i = 0; i < count; i++)
@@ -431,6 +467,7 @@ namespace Punchy.Terrain
                 Meshes = buildData,
                 Requests = buildRequests,
                 WaterLayout = buildWaterLayout,
+                TerrainLayout = buildTerrainLayout,
                 Source = source,
                 ChunkSize = config.ChunkSize,
                 NormalEpsilon = config.ChunkSize / config.Lod0Quads,
@@ -568,6 +605,7 @@ namespace Punchy.Terrain
             buildRanges.Dispose();
             buildWaterRanges.Dispose();
             buildWaterLayout.Dispose();
+            buildTerrainLayout.Dispose();
         }
 
         /// <summary>A chunk mesh's bounds from its height range, grown by <paramref name="pad"/> on every side (m; the

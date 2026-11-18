@@ -99,36 +99,71 @@ namespace Punchy.Flora
         /// </summary>
         public static bool Wall(in DynamicBuffer<KitBox> boxes, float3 feet, float radius, float stepUp, float head)
         {
-            float low = feet.y + stepUp, high = feet.y + head;
             for (int i = 0; i < boxes.Length; i++)
-            {
-                var b = boxes[i];
-                if (math.distancesq(b.Centre.xz, feet.xz) > math.square(b.Reach + radius))
-                    continue;
-                for (int k = 0; k < 9; k++)
-                {
-                    var at = feet.xz + (k == 0 ? float2.zero : Round(k, 8) * radius);
-                    if (Span(b, at, out var bottom, out var top) && top > low && bottom < high)
-                        return true;
-                }
-            }
+                if (WallBox(boxes[i], feet, radius, stepUp, head, out _))
+                    return true;
             return false;
         }
 
+        /// <summary>Wall, for one box; tall when it also rises over the head there (a wall, not a tread or a ledge).</summary>
+        static bool WallBox(in KitBox b, float3 feet, float radius, float stepUp, float head, out bool tall, float lift = 0f)
+        {
+            float low = feet.y + lift + stepUp, high = feet.y + head;
+            bool wall = tall = false;
+            if (math.distancesq(b.Centre.xz, feet.xz) > math.square(b.Reach + radius))
+                return false;
+            for (int k = 0; k < 9; k++)
+            {
+                var at = feet.xz + (k == 0 ? float2.zero : Round(k, 8) * radius);
+                if (Span(b, at, out var bottom, out var top) && top > low && bottom < high)
+                {
+                    wall = true;
+                    // (Tall: from the knees to over the head, a real wall. A slab overhead whose underside only brushes the
+                    // head, a tower's roof deck over the stair's last turns, is a ceiling and stopped the climb at 5 m.)
+                    tall |= top >= high && bottom <= low;
+                }
+            }
+            return wall;
+        }
+
         /// <summary>
-        /// A move into a kit wall: cut back to its clear X or Z part, or cancelled. A body already in a wall (spawned
-        /// there, or a box placed round it) is let move, so it can walk out.
+        /// Whether a body moving from the feet to xz (at the feet's height) would go into a wall box it isn't already in.
+        /// A body already in one (spawned there, a box placed round it, a stair's tread two up under its edge) may go
+        /// into low boxes, so it can walk out and on up a stair, but never into a tall one.
+        /// </summary>
+        static bool Entering(in DynamicBuffer<KitBox> boxes, float3 from, float2 xz, bool inOne, float radius, float stepUp, float head)
+            => EnteredBox(boxes, from, xz, inOne, radius, stepUp, head) >= 0;
+
+        /// <summary>Entering's box: its index, or -1 (public for the tower test's trail).</summary>
+        public static int EnteredBox(in DynamicBuffer<KitBox> boxes, float3 from, float2 xz, bool inOne, float radius, float stepUp, float head)
+        {
+            // (A step up from the floor the body would stand on there: a stair's tread is shallower than the body is wide,
+            // so at the next tread's edge the one after it is already under the body's edge, two steps up. The head is
+            // still measured from the feet, as before.)
+            var to = new float3(xz.x, from.y, xz.y);
+            var lift = Floor(boxes, to, radius * 0.6f, stepUp, out var step) ? math.max(step - from.y, 0f) : 0f;
+            for (int i = 0; i < boxes.Length; i++)
+                if (WallBox(boxes[i], to, radius, stepUp, head, out var tall, lift) && (tall || !inOne)
+                    && !WallBox(boxes[i], from, radius, stepUp, head, out _))
+                    return i;
+            return -1;
+        }
+
+        /// <summary>
+        /// A move into a kit wall: cut back to its clear X or Z part, or cancelled. A body already in a wall box (spawned
+        /// there, or a box placed round it) is let move out of it and into low boxes, but not into a tall one: #518, when
+        /// any box round the body let every move through, a stair's tread two up under the body's edge opened the tower
+        /// wall beside it, and a long frame on the stair walked the player out through it.
         /// </summary>
         public static float2 KeepOut(in DynamicBuffer<KitBox> boxes, float3 from, float2 to, float radius, float stepUp, float head, ref bool blocked)
         {
-            if (!Wall(boxes, new float3(to.x, from.y, to.y), radius, stepUp, head))
-                return to;
-            if (Wall(boxes, from, radius, stepUp, head))
+            bool inOne = Wall(boxes, from, radius, stepUp, head);
+            if (!Entering(boxes, from, to, inOne, radius, stepUp, head))
                 return to;
             blocked = true;
-            if (!Wall(boxes, new float3(to.x, from.y, from.z), radius, stepUp, head))
+            if (!Entering(boxes, from, new float2(to.x, from.z), inOne, radius, stepUp, head))
                 return new float2(to.x, from.z);
-            return !Wall(boxes, new float3(from.x, from.y, to.y), radius, stepUp, head) ? new float2(from.x, to.y) : from.xz;
+            return !Entering(boxes, from, new float2(from.x, to.y), inOne, radius, stepUp, head) ? new float2(from.x, to.y) : from.xz;
         }
 
         /// <summary>The lowest box bottom above a step up of the feet, straight overhead: the ceiling a jump stops under.</summary>

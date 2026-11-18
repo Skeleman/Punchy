@@ -72,9 +72,8 @@ namespace Punchy.Fauna
         public static byte TrunkGrade(float radius) => radius > TreeRadiusMost ? Smooth : Tree;
 
         /// <summary>
-        /// The grade of the wall a body is pushed into at point (its feet) facing into: a marked section's (ladders and
-        /// routes, from the sections source) when one is in reach, else a smooth wall, the grade of any unmarked wall
-        /// until the world lane grades cliffs and caves (W-144, W-150).
+        /// The grade of the wall a body is pushed into at point (its feet) facing into: the sections source's when one is
+        /// in reach (ladders, routes, and bare rock, W-162: cliff faces and cave walls), else a smooth wall (a building's).
         /// </summary>
         public static byte WallGrade<TSections>(in TSections sections, float3 point, float2 into, float reach)
             where TSections : struct, IClimbSections
@@ -231,8 +230,36 @@ namespace Punchy.Fauna
         }
     }
 
-    /// <summary>A-101: every graded section source at once: the marked bands (tests), the world's ladders and (A-107)
-    /// the colossi's climb sections; the easiest grade where several answer.</summary>
+    /// <summary>
+    /// W-162 row 3 (#327): bare rock as a climbing section: a probe point in a cliff face or a cave wall (TerrainSource.IsRock
+    /// at it or a little above) takes the rock's own grade (RockGrades: craggy, smooth, easier on ledges and cracks). The
+    /// terrain is the one the player moves on, set each frame by ClimbLadderSystem before movement (Live off until then).
+    /// </summary>
+    public struct RockClimbs : IClimbSections
+    {
+        public static readonly SharedStatic<Punchy.Terrain.TerrainSource> Terrain =
+            SharedStatic<Punchy.Terrain.TerrainSource>.GetOrCreate<RockClimbs, TerrainKey>();
+        public static readonly SharedStatic<bool> Live = SharedStatic<bool>.GetOrCreate<RockClimbs, LiveKey>();
+        class TerrainKey { }
+        class LiveKey { }
+
+        public bool GradeNear(float3 point, float radius, out byte grade) => At(point, out grade);
+
+        public static bool At(float3 point, out byte grade)
+        {
+            grade = Climbing.None;
+            if (!Live.Data || !math.all(math.isfinite(point)))
+                return false;
+            ref var terrain = ref Terrain.Data;
+            if (!(terrain.IsRock(point) || terrain.IsRock(point + new float3(0f, 1f, 0f))))
+                return false;
+            grade = Punchy.Terrain.RockGrades.At(terrain, point);
+            return true;
+        }
+    }
+
+    /// <summary>A-101: every graded section source at once: the marked bands (tests), the world's ladders, (A-107) the
+    /// colossi's climb sections and (W-162) bare rock; the easiest grade where several answer.</summary>
     public struct WorldClimbs : IClimbSections
     {
         public bool GradeNear(float3 point, float radius, out byte grade) => At(point, radius, out grade);
@@ -247,6 +274,8 @@ namespace Punchy.Fauna
                 Easiest(ref grade, ref any, ladderGrade);
             if (ColossusClimbs.At(point, reach, out var colossusGrade))
                 Easiest(ref grade, ref any, colossusGrade);
+            if (RockClimbs.At(point, out var rockGrade))
+                Easiest(ref grade, ref any, rockGrade);
             return any;
         }
 
@@ -278,6 +307,9 @@ namespace Punchy.Fauna
         {
             ref var list = ref ClimbLadders.List.Data;
             list.Clear();
+            // (W-162: the rock grades read this world's terrain, fresh each frame so a rebake never leaves a stale one.)
+            RockClimbs.Terrain.Data = SystemAPI.GetSingleton<Punchy.Terrain.TerrainSource>();
+            RockClimbs.Live.Data = true;
             // This world's Flora Lookup when it has one (solo), else the sim world's (a host's client world).
             var blob = SystemAPI.TryGetSingleton<Punchy.Flora.FloraLookup>(out var flora) ? flora.Blob : ClimbLadders.Flora.Data;
             if (!blob.IsCreated)

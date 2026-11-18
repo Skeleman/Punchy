@@ -54,8 +54,8 @@ namespace Punchy.Fauna
                         None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>() }
                     };
                     simCreatureQuery = sem.CreateEntityQuery(wild);
-                    // (Dungeon creatures are their own tier (#24): kept at their posts for the dungeon's life, never
-                    // let go by distance nor counted towards the wild, settled or cave caps.)
+                    // (Dungeon creatures are their own tier (#24): made and let go by their dungeon's records
+                    // (FaunaDirector.Dungeons.cs), never counted towards the wild, settled or cave caps.)
                     wild.None = new[] { ComponentType.ReadOnly<PlayerAvatar>(), ComponentType.ReadOnly<RemoteAvatar>(), ComponentType.ReadOnly<CreatureReplica>(), ComponentType.ReadOnly<DungeonPost>() };
                     wildQuery = sem.CreateEntityQuery(wild);
                     netPlayerQuery = sem.CreateEntityQuery(ComponentType.ReadOnly<NetPlayer>(), ComponentType.ReadOnly<LocalTransform>());
@@ -400,7 +400,8 @@ namespace Punchy.Fauna
         /// <summary>
         /// M-06: adds each species' Homes to those biomes' Fauna lists (by biome name), marked FromHomes, after the
         /// biome's own entries, so every reader of a biome's animals (spawning, LivesAt, home climate) sees them and
-        /// no existing slot moves. The herd bake and the world signature skip them.
+        /// no existing slot moves. The world signature's biome list skips them; the herd bake takes them through
+        /// HerdBaking.Sources, in the same slots (#412).
         /// </summary>
         void MergeHomes()
         {

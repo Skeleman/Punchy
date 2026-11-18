@@ -39,12 +39,22 @@ Shader "Punchy/Colossus"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
+            #include "Glow.hlsl"
+            #include "WideShadow.hlsl"
+            #include "Surface.hlsl"
+            // W-166 row 4: a vertex may name a material family (uv3: x the MaterialFamily, y its kind); 0 keeps the
+            // flat vertex colour, so meshes with no uv3 draw exactly as before. Stone reads the shared detail texture.
+            TEXTURE2D(_PunchyCaveDetail);
+            SAMPLER(sampler_PunchyCaveDetail);
+            #include "Materials/Library.hlsl"
+            #include "Materials/Metal.hlsl"
 
             struct Attributes
             {
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
                 float4 color : COLOR;
+                float2 family : TEXCOORD3;
             };
 
             struct Varyings
@@ -54,6 +64,10 @@ Shader "Punchy/Colossus"
                 half3 normalWS : TEXCOORD1;
                 half3 albedo : TEXCOORD2;
                 half glow : TEXCOORD3;
+                // The pattern frame: object space at the object's own scale, so a walking colossus's pattern rides on it.
+                float3 patternPos : TEXCOORD4;
+                half3 normalOS : TEXCOORD5;
+                nointerpolation half2 family : TEXCOORD6;
             };
 
             Varyings Vert(Attributes input)
@@ -64,6 +78,10 @@ Shader "Punchy/Colossus"
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 o.albedo = input.color.rgb * _BaseColor.rgb;
                 o.glow = saturate(1 - input.color.a) * _VertexGlow;
+                float3 scale = float3(length(UNITY_MATRIX_M._m00_m10_m20), length(UNITY_MATRIX_M._m01_m11_m21), length(UNITY_MATRIX_M._m02_m12_m22));
+                o.patternPos = input.positionOS.xyz * scale;
+                o.normalOS = input.normalOS;
+                o.family = input.family;
                 return o;
             }
 
@@ -73,19 +91,41 @@ Shader "Punchy/Colossus"
                 inputData.positionWS = input.positionWS;
                 inputData.normalWS = normalize(input.normalWS);
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                half3 albedo = input.albedo;
+                [branch] if (input.family.x > 0.5)
+                {
+                    float footprint = distance(input.positionWS, GetCameraPositionWS()) * 2 / (_ScreenParams.y * UNITY_MATRIX_P._m11);
+                    half3 n = normalize(input.normalOS);
+                    float3 v = normalize(TransformWorldToObjectDir(inputData.viewDirectionWS));
+                    half r = frac(input.family.y * 0.618 + 0.3);
+                    albedo = PunchyLibraryAlbedo((int)round(input.family.x), (int)round(input.family.y), input.patternPos, n, v, footprint, r, albedo);
+                    inputData.normalWS = normalize(TransformObjectToWorldNormal(n));
+                }
                 inputData.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-                inputData.bakedGI = SampleSH(inputData.normalWS);
+                PunchySurface ps = PunchySurfaceAt(input.positionWS, inputData.normalWS);
+                PunchyLit lit = PunchySurfaceLight(ps);
+                inputData.bakedGI = lit.ambient;
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
                 SurfaceData surface = (SurfaceData)0;
-                surface.albedo = input.albedo;
+                // Metal (the library's one metal look, Metal.hlsl): dim diffuse, the colour mostly from tinted sky
+                // reflections, a sharp sun highlight and glints (riding on the piece: hashed in its pattern frame).
+                bool metal = (int)round(input.family.x) == 6;
+                surface.albedo = metal ? albedo * 0.45 : albedo;
                 surface.smoothness = 0.08;
                 surface.occlusion = 1;
                 surface.alpha = 1;
                 half3 color = UniversalFragmentPBR(inputData, surface).rgb;
-                color *= 1 - 0.6 * PunchyCloudShadow(input.positionWS);
+                // The cloud and wide shadows dim only the share of the light that came straight from the sun (Surface.hlsl).
+                color = PunchySurfaceSunDim(color, ps, lit, inputData.bakedGI);
+                [branch] if (metal)
+                {
+                    // The metal's sun highlight takes the full shadow tiers (real-time, wide, cloud) from Surface.hlsl.
+                    color += PunchyMetalShade(albedo, inputData.normalWS, inputData.viewDirectionWS, input.patternPos, lit.sun.color,
+                                              lit.sun.direction, lit.shadow * lit.sun.distanceAttenuation, 1, 0);
+                }
                 color += input.albedo * (input.glow * _GlowStrength); // self-lit: no shadow, still hazed below
-                return half4(PunchyAtmosphere(color, input.positionWS), 1);
+                return half4(PunchySurfaceFinish(color, ps), 1);
             }
             ENDHLSL
         }
