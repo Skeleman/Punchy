@@ -361,3 +361,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Fungal view bad pixels (not chased): cave-Fungal shot from R-26 row 2, 14002 bad pixels already on HEAD.
 - Tooling note: ShotTool.Status stays Waiting if play stops mid-shot (no reset); CaveSurfaceProbe then stalls. Reset via reflection.
 - BENCH request: the extra mouth Detail read in Cave.shader, via supervisor.
+
+## Fix: ShotTool stuck in Waiting (11-18) - b/fix-shottool-wait 3bda49fc
+- Cause: play starts without a domain reload, and the HideAndDontSave runner outlived play, so its coroutine died with Status left at Waiting. Every later Take was refused. 7 leaked runners were found in the open editor.
+- ShotTool.cs: OnApplicationQuit fails the open shot ("[shot] FAIL '<name>' play stopped mid-shot") and destroys the runner. A SubsystemRegistration reset clears Busy and stale runners at play start.
+- Verified in the editor: Take, then stop play gives Status Failed with 0 runners left; stale count went 7 -> 0 on the next play. Compile clean.
