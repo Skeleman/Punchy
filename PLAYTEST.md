@@ -244,3 +244,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #558 (#550): buoys, trim, plaster, brick and ice walls no longer draw as stone; boat hulls are wood. #550 closed.
 - 11-17 #559 W-166 (#336): cloth and metal settings moved into the material library; no visible change.
 - 11-17 #560 W-166 (#336): storm-house lightning rods look like copper; bedrolls look like felt.
+- 11-17 #561 (W-166, #336): copper trim (storm-house rod fins, straps, gull bills, marsh paint) draws as paint instead of stone.
