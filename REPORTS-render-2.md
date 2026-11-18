@@ -409,3 +409,12 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Sheet: PunchyMilestones/W-154/sheet.jpg, with rows today/A/B/C and columns 5 m noon, 25 m noon and 25 m night. Zach picks; pools, flows and seeps come after the pick, and the unpicked looks get removed then.
 - This world has no cave lava pools, so the VolcanoCone crater (-891, -2021) is both "volcano" and "pool". The magma serpent and the moving rocks can block 25 m views, so those shots were retaken.
 - BENCH: report-only, listed after the pick.
+
+## #262 row 1 ambient bits WIP (11-18) - render/ambient-bits 929f03c5
+- Paused for the lava pick. Leaves are a new PlumeSystem family (StandardLeaves): lit, shadowed, tumbling quads under 40% of tall broadleaf crowns (TulipTree in Temperate). Vent wisps (smoke in vent-tagged Ashlands/Volcano, steam round geothermal landmarks) come from hashed 12 m cells, fade by screen size, and place nothing (no fingerprint change). Caves have no canopy foliage (tallest cave flora 2.6 m), so there are no cave leaves.
+- Still to do: vent shots, tuning and review of the forest shots.
+
+## W-154 (#303) row 2 lava look 3 only (11-18) - render/lava 21068faf
+- Look 3 (crust rafts on open melt) is now the only lava melt (LavaMelt in Water.shader). Looks 1-2, the old vein melt, `_PunchyLavaLook`, LavaVein and LavaStir are removed. Shimmer, grit and the HDR heat glow are kept, faded by screen size.
+- R-25: the surface lava light (SurfaceGlow LavaLight, near splat and far cores) and the cave pool light now use the redder melt hue (1 : 0.27 : 0.025).
+- The world has no lava flows or seeps (a 25 m scan found only the VolcanoCone crater), so the crater is the only spot. Sheet: PunchyMilestones/W-154/row2/sheet.jpg (5 m and 25 m, noon and night, plus a far night view; viewed).
