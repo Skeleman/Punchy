@@ -8730,3 +8730,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Rim gap max/p95 (m): c6 0.168/0.077 -> 0.128/0.059; c0 0.224/0.141 -> 0.200/0.097; c3 0.257/0.122 -> 0.171/0.086. c0 feet >2 cm: 175 -> 129. WorldTests 20/20.
 - The gaps left are cave-side: the wall mesh edge stops short of the foot line (foot already on the drawn field). That is a CaveSystem coverage follow-up, not foot placement.
 - Shots: PunchyMilestones/world/W-365-collarfoot/{before,after}/c6.png (lit, 5 m). Bench requested: collar build cost (8 field samples per foot eval).
+
+## 11-17 W-174 #365 collar-foot plate fix — DONE, world/collar-foot@0ab235fb, ready for PR
+- Cause confirmed: on the drawn field the foot search's gradient heading could tip, so a rim foot landed 1.2 m off at c6 and the collar fanned over it (29 flipped terrain triangles vs 0 on main).
+- Fix: FootOnSheet takes the nearest crossing of five headings; knot/split feet must stay in order along the rim edge. Flipped terrain triangles at c6: 29 -> 1 (0.2 m sliver).
+- Rim gap max (m): c6 0.08, c0 0.11, c3 0.11 (prev 0.128/0.200/0.171). WorldTests 20/20.
+- Shots: PunchyMilestones/world/W-365-collarfoot/{before,after}/{c6,c0}.png; plate gone at c6.
