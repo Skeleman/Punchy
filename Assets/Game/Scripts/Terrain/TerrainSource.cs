@@ -679,7 +679,7 @@ namespace Punchy.Terrain
         RiverQuery RiverAt(float2 xz)
         {
             var q = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
-            if (q.Bar <= 0f)
+            if (q.Bar <= 0f && q.Isle <= 0f)
                 return q;
             // Not by a cave mouth: lowering the ground under its rim flips the mouth's snapped triangles.
             var fade = 1f;
@@ -765,7 +765,7 @@ namespace Punchy.Terrain
                 g.River = RiverSampling.ChannelMask(river);
                 g.Mouth = MouthFan(ref Rivers.Value, xz, river, World.SeaLevel, out g.MouthStreak);
                 g.Spray = FallSpray(ref Rivers.Value, xz, river, g.Rapids);
-                g.PointBar = RiverSampling.BarMask(river);
+                g.PointBar = math.max(RiverSampling.BarMask(river), RiverSampling.IsleMask(river));
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
                 var riverLevel = float.MinValue;

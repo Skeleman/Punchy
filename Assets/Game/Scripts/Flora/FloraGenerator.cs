@@ -274,10 +274,11 @@ namespace Punchy.Flora
                                   : species.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Foliage;
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 builder.GlowPulse = species.GlowPulse;
-                builder.BarkSeams = species.GlowingSeams;
-                builder.BarkVeins = species.GlowingVeins;
+                var trunk = species.TrunkOf != null ? species.TrunkOf : species;
+                builder.BarkSeams = trunk.GlowingSeams;
+                builder.BarkVeins = trunk.GlowingVeins;
                 builder.BarkStrata = species.RockStrata;
-                builder.BarkKind = species.BarkKind;
+                builder.BarkKind = trunk.BarkKind;
                 builder.BaseFamily = FormFamily(species.Form);
                 builder.Family = builder.BaseFamily;
                 builder.TimberFamily = species.KitCulture == Punchy.Terrain.FolkCulture.Elf ? Punchy.Terrain.MaterialFamily.Stone : Punchy.Terrain.MaterialFamily.Wood;
@@ -690,7 +691,7 @@ namespace Punchy.Flora
             public Vector3 Direction() => FloraMeshBuilder.RandomDirection(rng);
             public Vector3 Flat(float angle) => new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
 
-            public Color Bark => S.Bark.linear;
+            public Color Bark => (S.TrunkOf != null ? S.TrunkOf.Bark : S.Bark).linear;
             public Color FoliageColor() => Color.Lerp(S.Foliage, S.FoliageVariation, R()).linear;
             public bool HasAccent => S.Accents.Count > 0 && S.AccentAmount > 0f;
             public Color Accent => S.Accents.Count > 0 ? S.Accents[Variant % S.Accents.Count].linear : Color.white;
