@@ -29,28 +29,34 @@ namespace Punchy.Flora
             {
                 var off = g.Flat(g.R() * 6.28f) * patch * Mathf.Sqrt(g.R());
                 var length = height * g.Range(0.35f, 1f) * (1f - 0.5f * off.magnitude / Mathf.Max(patch, 0.01f));
-                var r0 = Mathf.Clamp(length * s.Thickness, 0.012f, 0.08f);
-                var path = new List<Vector3>();
-                var radii = new List<float>();
-                var drift = g.Flat(g.R() * 6.28f) * length * 0.25f;
-                for (int k = 0; k <= rows; k++)
-                {
-                    var t = k / (float)rows;
-                    var wobble = k > 0 && k < rows ? g.Flat(g.R() * 6.28f) * length * 0.05f : Vector3.zero;
-                    path.Add(off + Vector3.up * (0.05f - length * t) + drift * t * t + wobble);
-                    radii.Add(r0 * (1f - 0.85f * t));
-                }
-                var colour = Color.Lerp(g.Bark, g.Bark * 1.25f, g.R());
-                b.Tube(path, radii, sides, colour, FloraPart.Bark, cap: true);
-                if (g.Lod == 0 && length > height * 0.5f)
-                {
-                    // A side root from partway down, splaying out.
-                    var from = path[rows / 2];
-                    var dir = (g.Flat(g.R() * 6.28f) - Vector3.up * 1.2f).normalized;
-                    var sideLength = length * g.Range(0.2f, 0.4f);
-                    b.Tube(new List<Vector3> { from, from + dir * sideLength * 0.5f + g.Direction() * sideLength * 0.1f, from + dir * sideLength },
-                           new List<float> { radii[rows / 2] * 0.6f, radii[rows / 2] * 0.35f, radii[rows / 2] * 0.1f }, 3, colour, FloraPart.Bark);
-                }
+                HangingRoot(g, off, length, height, sides, rows);
+            }
+        }
+
+        static void HangingRoot(Grower g, Vector3 top, float length, float longest, int sides, int rows, Color? tint = null)
+        {
+            var b = g.B;
+            var r0 = Mathf.Clamp(length * g.S.Thickness, 0.012f, 0.08f);
+            var path = new List<Vector3>();
+            var radii = new List<float>();
+            var drift = g.Flat(g.R() * 6.28f) * length * 0.25f;
+            for (int k = 0; k <= rows; k++)
+            {
+                var t = k / (float)rows;
+                var wobble = k > 0 && k < rows ? g.Flat(g.R() * 6.28f) * length * 0.05f : Vector3.zero;
+                path.Add(top + Vector3.up * (0.05f - length * t) + drift * t * t + wobble);
+                radii.Add(r0 * (1f - 0.85f * t));
+            }
+            var colour = tint ?? Color.Lerp(g.Bark, g.Bark * 1.25f, g.R());
+            b.Tube(path, radii, sides, colour, FloraPart.Bark, cap: true);
+            if (g.Lod == 0 && length > longest * 0.5f)
+            {
+                // A side root from partway down, splaying out.
+                var from = path[rows / 2];
+                var dir = (g.Flat(g.R() * 6.28f) - Vector3.up * 1.2f).normalized;
+                var sideLength = length * g.Range(0.2f, 0.4f);
+                b.Tube(new List<Vector3> { from, from + dir * sideLength * 0.5f + g.Direction() * sideLength * 0.1f, from + dir * sideLength },
+                       new List<float> { radii[rows / 2] * 0.6f, radii[rows / 2] * 0.35f, radii[rows / 2] * 0.1f }, 3, colour, FloraPart.Bark);
             }
         }
 
