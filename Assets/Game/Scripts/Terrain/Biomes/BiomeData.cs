@@ -257,6 +257,7 @@ namespace Punchy.Terrain
         public float Slope;        // degrees
         public float WaterDepth;   // metres below the local water surface (negative = above it)
         public float River;        // 0..1, 1 inside a river channel
+        public float Rapids;
         public float EdgeNoise;    // -1..1
         public float ColorNoise;   // -1..1
     }
@@ -1104,10 +1105,28 @@ namespace Punchy.Terrain
                     mask *= math.smoothstep(1f - layer.PatchCoverage - 0.08f, 1f - layer.PatchCoverage + 0.08f, n);
                 }
                 if (mask > 0f)
-                    props = SurfaceProps.Lerp(props, SurfaceWithVariation(ref set, layer.Surface, g.ColorNoise), mask);
+                {
+                    var surface = SurfaceWithVariation(ref set, layer.Surface, g.ColorNoise);
+                    if (layer.OnlyInRivers != 0)
+                        RiverBed(ref surface, (StoneKind)biome.Stone, g);
+                    props = SurfaceProps.Lerp(props, surface, mask);
+                }
             }
 
             return props;
+        }
+
+        static void RiverBed(ref SurfaceProps bed, StoneKind stone, in GroundContext g)
+        {
+            var under = math.smoothstep(-0.1f, 0.3f, g.WaterDepth);
+            var fast = math.smoothstep(0.08f, 0.35f, g.Rapids);
+            float3 tint = MaterialLibrary.StoneTint(stone);
+            var gravel = math.lerp(bed.Albedo, math.csum(bed.Albedo) / 3f, 0.5f) * tint * (1f + 0.15f * g.ColorNoise);
+            var sand = math.lerp(new float3(0.44f, 0.39f, 0.3f), new float3(0.27f, 0.25f, 0.21f), math.saturate((g.WaterDepth - 0.5f) / 1.5f));
+            bed.Albedo = math.lerp(bed.Albedo, math.lerp(sand, gravel, fast), under);
+            bed.Bump = math.lerp(bed.Bump, math.lerp(0.15f, 0.9f, fast), under);
+            bed.Pebbles = math.lerp(bed.Pebbles, math.lerp(0.1f, 1f, fast), under);
+            bed.Smoothness = math.lerp(bed.Smoothness, math.lerp(0.35f, 0.6f, fast), under);
         }
 
         static SurfaceProps SurfaceWithVariation(ref BiomeSetBlob set, int surfaceIndex, float colorNoise)

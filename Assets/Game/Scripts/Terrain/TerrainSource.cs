@@ -1323,6 +1323,7 @@ namespace Punchy.Terrain
                 Slope = math.degrees(math.acos(math.saturate(normal.y))),
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
+                Rapids = ground.Rapids,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1390,6 +1391,7 @@ namespace Punchy.Terrain
                 Slope = 0f,
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
+                Rapids = ground.Rapids,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
