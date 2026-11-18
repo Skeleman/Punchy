@@ -8706,3 +8706,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - v3 WaterTruth 82,0,0,0,0,10,0,89,10,17,225,0,0 -> 82,0,0,0,0,10,0,36,10,17,170,0,0 (fall walls 56->5; lake 5, pool 20, river 6 left); no kind rose, baseline lowered.
 - Pins: landmarks 114 -> "114 DE33C724" (only CampsiteSwamp near -1626,33 settles 0.2 m); fauna -> 3B4B93C6. WorldTests 20/20.
 - Shot (MatchedShot.Hold): PunchyMilestones/world/W-153r3-fallwalls/after/fall-121.png viewed: rock shoulders both sides of the sheet; a thin water slab still shows left of it (likely one of the 5). BENCH line added. Next: #365 c6 follow-up.
+
+## 2026-11-17 world: #365 c6 slits + temple close-up (W-174 r3 follow-up)
+- world/cave-seam-2 e000362d (from main 3675fce3): mouth collar triangles took their facing from foot normals, so fin/crease feet leaning into the rock flipped them (back-face slits at c6). New IntoHole mirrors the normal across the rim edge. Back-face debug at c6: slivers gone. Left: one small chip at c6 left side where no collar foot was found.
+- WorldTests 19/20: only Fauna_Fingerprint, which reads 3B4B93C6, the same as on world/fall-walls without this change, so main's 2486F68F pin was already stale; repinned (no rerun after the pin-only edit). Landmarks pin unchanged, nothing moved.
+- Shots: PunchyMilestones/world/W-174r3b-c6/before + after (c6-5m, c6-5m-backfaces, temple-20m). The seam test runs on the test source, so it can't cover c6 or face direction.
+- W-181 scoped, not started: ClimbLedges (Fauna/LedgeHang.cs) is a 12-slot SharedStatic list that only debug lips fill; CliffKit already bakes CliffLedge rows. A world feeder would refill the nearest ledges around the player each frame. Question: may world write LedgeHang/ClimbLedges, or should fauna/player own the feeder? BENCH line added for the collar check.

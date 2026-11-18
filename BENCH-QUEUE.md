@@ -1147,3 +1147,6 @@ Lake water now also covers the deep spots of lakes it used to leave dry (about 3
 
 ## Request (2026-11-17, world, W-153 row 3 tail #301, branch world/fall-walls 5a9f5f61): fall shoulder carve cost
 Carve now adds a shoulder term beside each fall lip (138 sheets on v3). One check vs origin/main: terrain chunk build ms and island bake ms on v3 near the fall at -3226,3102, High, uncapped, 300 frames. Report only.
+
+## Request (2026-11-17, world, #365 c6, branch world/cave-seam-2 e000362d): mouth collar facing check
+Collar faces now mirror their normal into the hole (one dot per triangle). One check vs origin/main: terrain chunk build ms on v3 at the temple 3510,366, High, uncapped, 300 frames. Expect no change. Report only.

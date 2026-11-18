@@ -11,7 +11,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
 | W-175 | #415 | world | merged #516 (world part), fungi caps #521 | - | Cookhouse blueprint in human villages; fungi-cap brightness |
 | W-177 | #522 | world | merged #527 | - | Cave mushrooms: clusters from the flora Mushroom grower on Fungi/GlowFungi patches, wall-grown form, LOD by screen size; tests 19/19; BENCH requested; next for world: open |
-| W-174 r3 | #365 | world | DONE/verified 11-17, WorldTests 20/20 | world/cave-seam@82caa471 | ready for PR; c6 specks gone but thin wedges into the cave show there (c6 not a test mouth), temple shot missing, see REPORTS |
+| W-174 r3 | #365 | world | DONE/verified 11-17, WorldTests 19/20 + fauna repin | world/cave-seam@82caa471, world/cave-seam-2@e000362d | ready for PR; c6 slits fixed (collar faces into the hole), temple shot taken; one small left chip remains (no collar foot), see REPORTS |
 | W-174 r6 | #405 | world | merged #520 (temple), #526 (cave mouths) | - | Entrance collars: row 1 temple collar in the chunk mesh at LOD0-2, rim on the grid, shared edges canonical, guard clean. Row 2: cave mouths (inner ring = cave wall 0.4 m level set) (option A: inner ring on the true wall field) |
 | W-180 | #529 | world | merged #530 | world/mouth-holes (docs only) | Shot artefact: the surface skip culled walls for the last frame's pose; posed a frame ahead, mouths are dark at 20 m and 150 m. Not #520 |
 | W-178 | #523 | world | merged #531, #533 | world/cave-setpieces |
@@ -20,7 +20,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-174 | #406 | world | merged rows 1-5 (#440 #481 #503 #512 #515), r6 (#520 #526), A-135 #525 | - | Done |
 | W-173 r1,3 | #301 #399 | world | next | world/playtest-1115 (new) | After W-174 row 1 |
 | W-162 | #327 | world | merged #535 | world/rock-walls | W-144 routes split to W-181 |
-| W-181 | #534 | world | later | - | Cave climb routes from W-144 on W-162 grades + W-178 hangings |
+| W-181 | #534 | world | scoped, needs owner call | - | Cave climb routes from W-144 on W-162 grades + W-178 hangings. Feeder must write Fauna/LedgeHang ClimbLedges (12-slot list); see REPORTS 11-17 |
 | W-166 r3-4 | #336 | materials | r4 sweep DONE: r4a gate 0 px, r4b salt tower stone, r4c ground items on the library (colours in vertex colours: MPB on Colossus loses the sun under Forward+); Landmarks_V3 pass | merged PR #476 | DONE; fauna sets colossus uv3 |
 | W-166 caves | #336 | materials | rock-wall row 1 (caves) #542, wood row #544 merged | materials/wood-kinds | Next: row 2 scarps + river notches on MaterialLibrary.Stone after W-153 rework frees ScarpSet/TerrainSource; meanwhile wood row (lane queue) |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
