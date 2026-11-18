@@ -392,7 +392,7 @@ Shader "Punchy/Water"
             }
 
             // Read in the flow's frame so foam stretches into streaks instead of round blobs.
-            half FlowFoam(float2 q, float2 dir, float drift, float t)
+            half FlowFoam(float2 q, float2 dir, float drift, float speed, float t)
             {
                 const float cycle = 1.6;
                 float jitter = PunchyValueNoise(q * 0.05 + 9.7) * 2;
@@ -402,11 +402,12 @@ Shader "Punchy/Water"
                 float2 f = float2(dot(q, dir), dot(q, float2(-dir.y, dir.x)));
                 float2 q0 = f - float2(drift * phase0, 0);
                 float2 q1 = f - float2(drift * phase1, 0) + 4.7;
-                float n0 = PunchyValueNoise(q0 * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q0 * float2(0.45, 1.8) + 2.9) * 0.45
+                float2 k = float2(lerp(2.6, 0.55, speed), 1);
+                float n0 = PunchyValueNoise(q0 * k * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q0 * k * float2(0.45, 1.8) + 2.9) * 0.45
                     - PunchyValueNoise(q0 * 9.0 + 1.3) * 0.22;
-                float n1 = PunchyValueNoise(q1 * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q1 * float2(0.45, 1.8) + 2.9) * 0.45
+                float n1 = PunchyValueNoise(q1 * k * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q1 * k * float2(0.45, 1.8) + 2.9) * 0.45
                     - PunchyValueNoise(q1 * 9.0 + 1.3) * 0.22;
-                float s = (n0 * w0 + n1 * (1 - w0)) + 0.11;
+                float s = (n0 * w0 + n1 * (1 - w0)) + 0.11 - 0.14 * (1 - speed);
                 // Cross-fading flattens the contrast mid-way; stretch it back out.
                 return saturate((s - 0.5) * (1.7 + 0.9 * (1 - abs(2 * w0 - 1))) + 0.5);
             }
@@ -689,7 +690,7 @@ Shader "Punchy/Water"
                             flowingSlope += FlowingSlope(q, flowDir, riverSpeed, t) * w;
                             flowLines += PunchyFlowLines(q, flowDir, riverSpeed, t) * w;
                             [branch] if (foamy)
-                                carried += FlowFoam(q * 1.8, flowDir, flowAmount * 1.8 * riverSpeed * 1.6, t) * w;
+                                carried += FlowFoam(q * 1.8, flowDir, flowAmount * 1.8 * riverSpeed * 1.6, flowAmount, t) * w;
                         }
                     }
                     flowingSlope *= (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
