@@ -375,3 +375,9 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Shots (MatchedShot.Hold, noon h12 and dusk h17.6): PunchyMilestones/W-159/sheet-{calm,fast,rapid}.jpg (viewed). The strip is strip-fast-20m.jpg (6 frames, 0.25 s apart; flow readable). The cave stream is cave-stream.jpg (no stripes). Sparkle 360 frames, -stopnan 0: fast river and cave stream, other bad 0, hot 0.
 - Tooling note: AssetDatabase.Refresh during play mode left the world wrong (terrain missing or moved). Refresh outside play.
 - BENCH request: the per-vertex lift (up to 4 anchors x 2 angles x 2 phases near the camera) and the frag's 2x2 line evals, via supervisor.
+
+## W-159 (#322) row 1 fix + row 2 churn foam (11-18) - render/flow-normals a6a2a653, afa02f6c
+- a6a2a653, rule 35 trim: one T-edge reason line is left in WaterFlowLines.hlsl; the W-159 comment and a restating comment are gone from the frag.
+- afa02f6c, churn: FlowFoam is read at 1.8x scale (smaller patches). Cover thresholds are raised; a gather term (thin water at banks/rocks from the depth thickness, plus standing-wave crests) brings the cover back and lifts it to full strength. Mid-stream is at 0.35 strength. The standing-wave trails and the rapids churn floor (0.35 -> 0.12) are gone. Crest flecks are broken into dots by noise (they had scratched long white streaks).
+- Shots: PunchyMilestones/W-159/sheet-churn.jpg (fast-20m and rapid-20m, noon, before|after; viewed). Rapids keep white at the rocks and banks; the flow ripples carry the middle.
+- Next: the rectangular edge in fast-20m (row 3).
