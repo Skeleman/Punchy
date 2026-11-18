@@ -6,6 +6,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - materials/river-mouths -> #619
 - world/perched-lake -> #617
 - world/mouth-tint -> #618
+- world/mouth-all -> #620
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
 - banks/overhangs -> #614

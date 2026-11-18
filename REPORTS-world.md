@@ -8774,3 +8774,6 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - All 23 mouths probed: problems 5 -> 1, open patch holes 0 everywhere. Mouths 6, 13 and 22 are clean. Mouth 21 has 7 flips -> 0, with 1 LOD0 terrain gap left at 1588,107,1051 (not visible in shots: PunchyMilestones/world/mouth-all).
 - WorldTests not run: free RAM fell to 4 GB, so the editor was closed. Run them before the PR. Collapse distance doubled, so BENCH-QUEUE should get a mesh-job cost check.
 - W-181 is still "needs owner call", so it stays blocked.
+
+## 11-18 #365 mouth-all: rebased and pushed, world/mouth-all@ebc5fcdd on main 40ea4973
+- WorldTests 19/21. Neither failure comes from this diff (2 mouth patch files). Water_TruthCounts has uphillGraph 19 > 10, which comes from main: #614 banks/overhangs (RiverData cut banks) was not in #617's test base. Setup_SpawnRainAndShot timed out on its Shots.Settled. Mouth 21's LOD0 gap is not a small fix, so it is left noted. I can take the uphillGraph check or repin it if you want.

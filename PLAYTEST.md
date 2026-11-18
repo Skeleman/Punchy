@@ -302,3 +302,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #617 W-153 perched lake at -490,546 lowered to its river: flat lake + short rapids instead of a water cliff (#301).
 - 11-18 #618 W-174 cave-mouth patch matches the chunk tint and contact shade, no seam at 20 m (#365).
 - 11-18 #619 W-166 silt and sand fans where rivers meet the sea or a lake (#336, #301).
+- 11-18 #620 W-174 cave-mouth folds fixed at all mouths; problems 5 -> 1, mouth 21 LOD0 gap left (#365).
