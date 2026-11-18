@@ -128,6 +128,7 @@ Shader "Punchy/Flora"
                 float4 moss : TEXCOORD9;   // FloraMossData: cover (2: not moss), point in the plant's frame
                 // Items 27-28: 1 on a model that moves (a living plant: its Bark is bark), 0 on FLORA_STATIC ones (rocks, logs).
                 nointerpolation half living : TEXCOORD10;
+                nointerpolation float2 plantXZ : TEXCOORD11;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -142,6 +143,7 @@ Shader "Punchy/Flora"
                 uint g = v.plant.ground;
                 o.ground = half4(g & 255, (g >> 8) & 255, (g >> 16) & 255, g >> 24) / 255.0;
                 o.baseHeight = float2(v.positionWS.y - v.plant.position.y, v.plant.scale);
+                o.plantXZ = v.plant.position.xz;
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 o.grainPos = input.positionOS;
                 o.grainAxis = input.color.a;
@@ -343,7 +345,18 @@ Shader "Punchy/Flora"
                     {
                         half ragged = PunchyValueNoise(float2(input.positionWS.x + input.positionWS.z, input.positionWS.y) * 6.3);
                         half top = wetTop * 0.04 * (0.85 + 0.3 * ragged);
+                        uint3 low = (uint3)round(input.ground.rgb * 255) & 3;
+                        half facing = 0;
+                        if (low.z & 2)
+                        {
+                            float a = (low.x | ((low.z & 1) << 2)) * (PI / 4);
+                            facing = dot(normalize(input.positionWS.xz - input.plantXZ + 1e-4), -float2(cos(a), sin(a)));
+                            // Flow piles up against a rock's upstream face and splashes higher there.
+                            top += lerp(-0.04, 0.3 * (0.7 + 0.6 * ragged), saturate(facing * 0.5 + 0.5));
+                        }
                         wet = max(wet, (1 - smoothstep(top - 0.03, top + 0.02, input.baseHeight.x)) * (1 - snow));
+                        half algae = (1 - smoothstep(0.03, 0.07, abs(input.baseHeight.x - top + 0.06))) * (1 - saturate(facing)) * (1 - snow) * (0.6 + 0.4 * ragged);
+                        albedo = lerp(albedo, half3(0.11, 0.13, 0.06), 0.7 * algae);
                     }
                 }
                 else if (part == 0 && !greenTint)
