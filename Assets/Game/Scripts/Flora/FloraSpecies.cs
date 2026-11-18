@@ -339,6 +339,8 @@ namespace Punchy.Flora
         public Punchy.Terrain.FolkCulture KitCulture = Punchy.Terrain.FolkCulture.Human;
         [Tooltip("Kit Building only (#36): a house, a stilt house, a dock out along +Z from its land end, or a cluster of shore details.")]
         public Punchy.Terrain.KitShape KitShape;
+        [Tooltip("#550, Kit Building only: the fish its drying racks hang (the fishing code's own species: shape and coats); empty = a plain silver fish.")]
+        public Punchy.Fauna.CreatureSpecies[] HungFish;
         [Tooltip("W-127, Kit Shape Fixture only: which street light it builds (and so its light's colour and reach).")]
         public Punchy.Terrain.FixtureStyle FixtureStyle;
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]

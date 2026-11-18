@@ -255,6 +255,7 @@ namespace Punchy.Terrain
             KitMaterial.Ice => MaterialFamily.Ice,
             KitMaterial.Copper or KitMaterial.Lamp => MaterialFamily.Metal,
             KitMaterial.Net => MaterialFamily.Cloth,
+            KitMaterial.Fish => MaterialFamily.None,   // #550: a fish's own body (FloraGenerator.HungFish), not a built family
             _ => MaterialFamily.Plaster   // Trim, Opening, Moss, Sand, Ash, Dirt, Flame: coloured plaster for now
         };
 
