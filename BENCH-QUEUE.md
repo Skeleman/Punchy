@@ -1177,3 +1177,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - 11-17 (world): world/collar-foot@3e44a14a: collar feet now sample DrawnWallFieldAt (8 WallFieldAt per eval) in MouthFoot/OntoWall. Report-only: BuildChunkMeshJob chunk build time at cave mouths c6/c0, main vs branch.
 - 11-17 (supervisor): #576 strangler roots: Bogwood trunks +1000-1150 tris at the closest LOD, +276 at the middle LOD; Roots.hlsl relief on cave walls. Report-only: swamp forest frame time + cave wall GPU, main before vs after #576.
 - #578 W-163 bark: Flora.shader 9-cell crack search per close pixel; check forest frame time vs pre-#578.
+- 11-17 (render-2): b/salt-cracks@6023b11c R-33 salt-flat crack plates: TerrainSurface.shader adds 9-18 Voronoi taps + ~5 noise samples per salt-flat pixel (branched off elsewhere). Report-only: salt-flat view frame time, main vs branch.

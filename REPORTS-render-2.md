@@ -323,3 +323,9 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Cause: the white sheet (32 columns) and the curtain (fewer) cut the lip's ~2 m waves at different points, so the curtain's column joins poked through the sheet near the lip (bluish lines and wedges). Not the shader: a smooth curtain normal in Water.shader left them unchanged (reverted).
 - Fix (FallCurtain.Point only, world's file, minimal): the curtain drops the lip and run waves and sits at their lowest, behind any chord of the sheet. No Water.shader change.
 - Matched pair at the fall-121 pose (main m1 vs branch a2): PunchyMilestones/R-29/curtain/pair-fall-121-d14-before-after.png (tight, viewed: lines gone) and -d40 (wide). WorldTests 20/20. No BENCH request: same mesh, same vertex count. Comment per rule 35.
+
+## R-33 (#331) salt-flat cracks (11-17) - b/salt-cracks 6023b11c (from main 67e83605)
+- New TerrainSurface.Cracks (Salt 0.9, SaltCrust 0.5), baked via BiomeData/BiomeBaking, carried as negative Strata.x (approved; reason line at the field). TerrainSurface.shader: Voronoi plates, dark crack lines, curled rims, sub-cracks on big plates, screen-size fade (rule 20). Near chunks only; the far ring has no detail, as with other micro detail.
+- Shots: PunchyMilestones/R-33/salt-{near,mid}-{before,after}.png (viewed: plates clear near and mid) and desert-* (ground unchanged, diff 0.5-0.8).
+- WorldTests 20/20 (Seams_NoOpenRims failed once from my stray CLI call logging an error, rerun passed). No new tests. BENCH line added.
+- PunchyBarkCells (#578) not used: it wraps x for trunks and returns only F2-F1, with no perpendicular distance or edge direction for the rim slope. Stale: TerrainSurface.hlsl TEXCOORD3 x header comment (render's file) should say strata>0 / cracks<0.
