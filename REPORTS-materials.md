@@ -217,3 +217,15 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
 - **Shots (PNG):** D:/Unity/PunchyMilestones/W-165/r2: human-village-near/far, dwarf-hold-near/far, agave-3m/15m, desert-beans-near, elf-herb-near, elf-grove-far. Before shots: D:/Unity/PunchyMilestones/W-165. Agave luminance is lower (80 -> 58) because of the darker adobe wall and the sparser blades, not a lighting fault.
 - **Tests:** EditMode 53/53. PlayMode 66/66 (65/66 on the full run, with only Fauna_Fingerprint failing; re-pinned 69053A54 -> 4EE0D127 for the new plots, and that test passes on rerun). Commit f6330187.
 - **BENCH (via supervisor):** draw calls and flora verts at the human village, the Sonoran village and the dwarf hold, uncapped. Compare against main 80d02c94.
+
+## W-165 row 3 rice tuft (#335) - DONE, branch materials/rice-tuft 122b1367
+- RiceTuft (Reeds form, Floats) in Grassland + Temperate flora lists, depth 0.05-0.45, still water only.
+- River check: 0 rice in 13 river shallows (reach -761,59,1930); still shallows: 240 rice at 59 points (ponds too).
+- No Grassland/Temperate paddies on this seed (all 124 paddy cells are PoisonSwamp/Ashlands/EmberForest), so shots show a rice pond: PunchyMilestones/W-165/r3 near/far/river.png.
+- Fauna fingerprint re-pinned 4EE0D127 -> 8E24FECC (144 species). EditMode 53/53, WorldTests 20/20, full PlayMode 65/66 before re-pin.
+
+## W-161 elf towns without wood (#326) - DONE, branch materials/elf-no-wood a458023d
+- FloraMeshBuilder.TimberFamily (Wood; Stone for elf species): b.Wood and Timber(g) both use it, so the shared sign, bridge, fence, stable and prop builders go stone for elves. No forked code (rule 33).
+- Elf copies of Signpost, Bridge, Garden, HitchRail and Stable (pale stone, KitCulture Elf) are swapped into ElfGroveLayout. ElfRamada, ElfShrine, ElfSpire and ElfTower are marked Elf. Bark wood count is 0 on all of them (ElfBench too).
+- Still wood: KitHouse roof shingles (StructureKit.Surfaces gives elves Shingles, and MaterialLibrary maps that to Wood) and the shared hazard shelter houses. Making these stone needs a world-lane Surfaces change or a stone-shingle look.
+- Shots: PunchyMilestones/W-161 elf-street/mid/far (lum 141/124/105). EditMode 53/53, WorldTests 20/20. Fauna fingerprint 4EE0D127 -> 9430B213, which conflicts with rice-tuft's 8E24FECC: re-pin after the second merge.
