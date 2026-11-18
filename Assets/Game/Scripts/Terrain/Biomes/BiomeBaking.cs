@@ -157,6 +157,7 @@ namespace Punchy.Terrain
                     Pebbles = s.Pebbles,
                     Strata = s.Strata,
                     Paving = s.Paving,
+                    Cracks = s.Cracks,
                     Snow = s.SnowDepth,
                     Porosity = s.Porosity
                 },

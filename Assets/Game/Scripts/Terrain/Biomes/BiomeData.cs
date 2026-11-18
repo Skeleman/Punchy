@@ -28,6 +28,7 @@ namespace Punchy.Terrain
         public float Paving;
         /// <summary>W-108: 1 where the paving is big flagstones (a town's square), 0 for cobbles (TerrainSurface).</summary>
         public float Slabs;
+        public float Cracks;
         /// <summary>How much rain soaks in (TerrainSurface.Porosity): sand darkens rather than pooling.</summary>
         public float Porosity;
 
@@ -44,6 +45,7 @@ namespace Punchy.Terrain
             Strata = math.lerp(a.Strata, b.Strata, t),
             Paving = math.lerp(a.Paving, b.Paving, t),
             Slabs = math.lerp(a.Slabs, b.Slabs, t),
+            Cracks = math.lerp(a.Cracks, b.Cracks, t),
             Porosity = math.lerp(a.Porosity, b.Porosity, t)
         };
 
@@ -60,6 +62,7 @@ namespace Punchy.Terrain
             Strata += s.Strata * w;
             Paving += s.Paving * w;
             Slabs += s.Slabs * w;
+            Cracks += s.Cracks * w;
             Porosity += s.Porosity * w;
         }
     }
