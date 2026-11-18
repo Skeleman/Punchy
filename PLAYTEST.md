@@ -306,3 +306,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #621 R-39 fall curtain ends, edge-on sheet blade and sheet foot softened; pale water above the lip remains (#269).
 - 11-18 #622 W-166 spray-wet ground, walls and rocks round falls and rapids (#336).
 - 11-18 #623 #617 follow-up: lake exits and old lake beds follow the lowered lake; no uphill water (#301).
+- #624 W-166 (#336): mid-river rocks splash higher on the upstream face, thin algae line at the waterline.
