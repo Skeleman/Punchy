@@ -247,3 +247,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #561 (W-166, #336): copper trim (storm-house rod fins, straps, gull bills, marsh paint) draws as paint instead of stone.
 - 11-17 #562 (W-153 r3, #301): waterfall lips get rock shoulders instead of flat fall walls; CampsiteSwamp moved.
 - 11-17 #563 (W-174 r3, #365): cave mouth collars face into the hole, so the slits at cave c6 are gone (one small chip left).
+- 11-17 #564 (W-166 row 2, #336): scarps take their biome's stone (granite canyon and notch banks, basalt cut bank): blockier faces, bolder bedding.
