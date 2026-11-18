@@ -11,7 +11,7 @@ namespace Punchy.Rendering.Effects
     /// </summary>
     static class EffectsDriver
     {
-        static Material electricity;
+        static Material electricity, plume;
         static int drawnFrame = -1;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -33,6 +33,9 @@ namespace Punchy.Rendering.Effects
             if (electricity == null)
                 electricity = Resources.Load<Material>("Electricity");
             ElectricitySystem.Draw(electricity, camera.transform.position);
+            if (plume == null)
+                plume = Resources.Load<Material>("LandmarkPlume");
+            PlumeSystem.Draw(plume);
         }
     }
 }
