@@ -518,12 +518,13 @@ Shader "Punchy/Terrain Surface"
                 // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
                 // carry the same detail as cave walls.
                 half rockShade = 1;
-                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * (1 - smoothstep(40, 90, distance)) * (input.extra.w <= 0.01);
+                float pxmR = (_PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110) / max(distance, 0.01);
+                half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * smoothstep(10.4, 23.4, pxmR) * (input.extra.w <= 0.01);
                 steep *= 1 - rockFace;   // (R-19's rock carries its own grain)
                 // W-112: round a cave mouth (its cut field under 8 m) any ground takes the walls' grain at the walls' own
                 // scale, so the terrain doesn't turn smooth where it meets the finer cave rock. Only there: the rest of
                 // the ground pays nothing.
-                half mouth = (1 - smoothstep(1.5, 8, input.cave)) * (1 - smoothstep(30, 60, distance));
+                half mouth = (1 - smoothstep(1.5, 8, input.cave)) * smoothstep(15.6, 31.2, pxmR);
                 steep = max(steep, mouth * 0.7);
                 if (steep > 0.01 && _PunchyCaveDetailReady > 0)
                 {

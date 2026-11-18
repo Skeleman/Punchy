@@ -126,20 +126,23 @@ Shader "Punchy/Cave"
             }
 
             // Distance to the nearest border between random cells (second-nearest minus nearest feature point): 0 on
-            // a border, growing towards a cell's middle.
-            float CellEdge(float3 q)
+            // a border, growing towards a cell's middle, with its gradient for the crack bevel.
+            float CellEdge(float3 q, out float3 grad)
             {
                 int3 c = int3(floor(q));
                 float f1 = 9, f2 = 9;
+                float3 u1 = 0, u2 = 0;
                 for (int z = -1; z <= 1; z++)
                 for (int y = -1; y <= 1; y++)
                 for (int x = -1; x <= 1; x++)
                 {
                     int3 cell = c + int3(x, y, z);
-                    float d = distance(q, float3(cell) + 0.5 + FacetHash(cell) * 0.9);
-                    if (d < f1) { f2 = f1; f1 = d; }
-                    else if (d < f2) f2 = d;
+                    float3 v = q - (float3(cell) + 0.5 + FacetHash(cell) * 0.9);
+                    float d = length(v);
+                    if (d < f1) { f2 = f1; u2 = u1; f1 = d; u1 = v / max(d, 1e-5); }
+                    else if (d < f2) { f2 = d; u2 = v / max(d, 1e-5); }
                 }
+                grad = u2 - u1;
                 return f2 - f1;
             }
 
@@ -468,6 +471,34 @@ Shader "Punchy/Cave"
                 }
                 [branch] if (dressed > -0.5 && dressed < 0.5 && !tunnel)
                     PunchyStranglerRelief(p, shape, stoneFootprint, smoothstep(0.62, 0.74, PunchyValueNoise(p.xz * 0.03 + 913) + damp * 0.2 + s7.w * 0.15) * bare, rock, n, gloss);
+                // Cracks are borders between random 3D cells, warped so they wander, in sparse patches (the style's
+                // Cracks share), never on the floor or in a road tunnel (W-138 row 4b). R-26: cut in as depth (bevel
+                // normal, occlusion, rougher inside) with varied width, glowing styles seeping light out of them.
+                half crackCore = 0, crackGlow = 0;
+                [branch] if (!tunnel && (any(s2.rgb > 0) || s4.w > 0))
+                {
+                    float g = s4.x;
+                    float patch = PunchyValueNoise(p.xz * 0.21 * g + p.y * 0.17 + 37) * 0.7 + PunchyValueNoise(p.zy * 0.5 * g - 11) * 0.3;
+                    float crack = smoothstep(1 - s4.z, 1 - s4.z + 0.12, patch) * (1 - smoothstep(0.2, 0.45, shape.y)) * (1 - terrain);
+                    [branch] if (crack > 0)
+                    {
+                        float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));
+                        float3 grad;
+                        float e = CellEdge(p * 1.3 * g + warp * 1.2, grad);
+                        float width = s2.w * lerp(0.45, 1.7, PunchyValueNoise(p.xz * 0.43 * g + p.y * 0.37 - 51));
+                        // Thinner than a pixel it widens and fades instead of aliasing into a drawn line.
+                        float wide = max(max(width, length(grad) * 1.3 * g * stoneFootprint * 1.5), 1e-4);
+                        float pieces = PunchyValueNoise(p.xz * 2.3 * g + p.y * 1.9) * 0.6 + PunchyValueNoise(p.zy * 4.1 * g - 7) * 0.4;
+                        crack *= lerp(1, smoothstep(0.42, 0.62, pieces) * smoothstep(1 - s4.z, 1 - s4.z + 0.3, patch), max(s8.w, 0.35)) * width / wide;
+                        float t = saturate(e / (wide * 1.6));
+                        crackCore = crack * (1 - smoothstep(0.05, 0.75, t));
+                        crackGlow = crack * pow(1 - smoothstep(0, 2.4 * wide, e), 2);
+                        float3 across = grad - n * dot(grad, n);
+                        n = normalize(n - across * rsqrt(max(dot(across, across), 1e-6)) * crack * 4 * t * (1 - t) * 0.9);
+                        rock *= 1 - crackCore * s4.w * 0.35;
+                        gloss *= 1 - crackCore;
+                    }
+                }
                 // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
                 half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
                 half3 albedo = lerp(rock, ground, terrain);
@@ -547,6 +578,8 @@ Shader "Punchy/Cave"
                     }
                 }
 
+                light *= 1 - crackCore * lerp(0.4, 0.75, s4.w);
+                shine *= 1 - crackCore;
                 half3 color = diffuse * light + specColor * shine + s0.rgb * through * translucency * 0.6;
                 // Ribs: their hollows darker and crests lighter, whatever look the wall has (rock, ice or the terrain's
                 // skin in a shallow cave), so they read in flat light.
@@ -656,32 +689,9 @@ Shader "Punchy/Cave"
                     color = lerp(color, groundColor, terrain);
                 }
 
-                // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest in cracks. Cracks are
-                // borders between random 3D cells, warped so they wander, small, and only in sparse patches (the style's
-                // Cracks share of the wall), never on the floor. They may also darken the rock (dark fissures in ice).
-                // Not in a road tunnel: its glowing crack net read as a white mesh over bored rock (W-138 row 4b).
-                if (!tunnel && (any(s2.rgb > 0) || s4.w > 0))
-                {
-                    // The mask first: the 27-cell crack search only runs where the mask leaves any crack to draw.
-                    float g = s4.x;
-                    float patch = PunchyValueNoise(p.xz * 0.21 * g + p.y * 0.17 + 37) * 0.7 + PunchyValueNoise(p.zy * 0.5 * g - 11) * 0.3;
-                    // Only on walls and ceilings: anything facing even half up (sloped floor) stays clear.
-                    float crack = smoothstep(1 - s4.z, 1 - s4.z + 0.12, patch) * (1 - smoothstep(0.2, 0.45, shape.y)) * (1 - terrain);
-                    if (crack > 0)
-                    {
-                        float3 warp = float3(PunchyValueNoise(p.xy * 0.9 + 3), PunchyValueNoise(p.yz * 0.9 - 5), PunchyValueNoise(p.zx * 0.9 + 9));
-                        crack *= 1 - smoothstep(s2.w * 0.4, s2.w * 1.6, CellEdge(p * 1.3 * g + warp * 1.2));
-                        // Broken cracks: the lines fade in and out along their length in short fragments, and the
-                        // patch fades towards its edge instead of stopping on a line.
-                        if (s8.w > 0)
-                        {
-                            float pieces = PunchyValueNoise(p.xz * 2.3 * g + p.y * 1.9) * 0.6 + PunchyValueNoise(p.zy * 4.1 * g - 7) * 0.4;
-                            crack *= lerp(1, smoothstep(0.42, 0.62, pieces) * smoothstep(1 - s4.z, 1 - s4.z + 0.3, patch), s8.w);
-                        }
-                    }
-                    color *= 1 - crack * s4.w * 0.85;
-                    color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crack * (1 - s4.y) * (1 - s4.w)) * (1 - terrain);
-                }
+                // Light the rock gives off: a share everywhere (ice, faintly lit crystal), the rest out of its cracks.
+                if (!tunnel && any(s2.rgb > 0))
+                    color += s2.rgb * (s4.y * (1 - floorShare * 0.5) + crackGlow * (1 - s4.y) * (1 - s4.w)) * (1 - terrain);
                 color += air * (1 - terrain);
                 return half4(color, 1);
             }

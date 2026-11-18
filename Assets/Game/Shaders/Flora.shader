@@ -56,6 +56,8 @@ Shader "Punchy/Flora"
             /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
             float _PunchyFloraDetailOff;
+            // Screen pixels per metre at 1 m (TerrainStreamingSystem, from DetailPolicy); fades go by screen size (rule 20).
+            float _PunchyTerrainDetailPpm;
 
             // A-115: the nearest town street lights a lamplighter hasn't lit yet (or has put out): xyz the light, w how
             // lit (LampRoutes.Tick). Count 0 by day and once the rounds are done.
@@ -254,8 +256,8 @@ Shader "Punchy/Flora"
                 // Built things keep it much further (W-23): faded by 45 m, a thatch roof turned into a smooth, plain cone
                 // whose few facets showed, across the 30-55 m where huts also change LOD. Few of them, and the texture's
                 // mips keep the far relief from shimmering.
-                float detailFade = distance(input.positionWS, GetCameraPositionWS());
-                float near = built ? 1 - smoothstep(60, 140, detailFade) : 1 - smoothstep(18, 45, detailFade);
+                float pxm = (_PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935) / max(distance(input.positionWS, GetCameraPositionWS()), 0.01);
+                float near = built ? smoothstep(6.7, 15.6, pxm) : smoothstep(20.8, 52, pxm);
                 // Timber keeps only a trace of the rock's relief (W-99: it gave the fishing huts' boards a plaster's depth).
                 near *= wood ? (look == 3 ? 0.35 : 0.15) : 1;
                 // A living plant's bark (items 27-28): the rock relief read as lumpy wet clay on trunks. Only a trace of
@@ -281,9 +283,11 @@ Shader "Punchy/Flora"
                     half2 bump = (detail.rg - 0.5) * 0.9 * near;
                     n = normalize(n + float3(0, bump.x, bump.y) * w.x + float3(bump.x, 0, bump.y) * w.y + float3(bump.x, bump.y, 0) * w.z);
                 }
+                half barkCrevice = 0;
                 if (detail && bark)
-                    albedo *= PunchyBark(input.grainPos, input.positionWS, r, frac(input.extra.x) < 0.009 ? (int)round(frac(input.extra.x) / 0.002) : 0,
-                                         input.baseHeight.y, input.baseHeight.x, n);
+                    PunchyBark(input.grainPos, input.positionWS, r, frac(input.extra.x) < 0.009 ? (int)round(frac(input.extra.x) / 0.002) : 0,
+                               input.baseHeight.y, input.baseHeight.x, saturate((input.ground.g - max(input.ground.r, input.ground.b)) / max(input.ground.g, 0.02) * 4),
+                               albedo, n, barkCrevice);
                 if (part == 1)
                 {
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
@@ -291,7 +295,7 @@ Shader "Punchy/Flora"
                     // with distance, where the crown reads as one mass anyway).
                     float3 q = (input.positionWS - frac(r * 7.3) * 10) * 2.2;
                     half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
-                    half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
+                    half leafNear = smoothstep(10.4, 23.4, pxm);
                     albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
                 }
                 // Moss (W-64): darker, greener clumps and yellower tips, and darker still in the thin cover near the rim.
@@ -344,7 +348,7 @@ Shader "Punchy/Flora"
                     albedo = lerp(albedo, input.ground.rgb * clamp(lum / groundLum, 0.2, 1.6), 0.6 * green);
                 }
                 // Wet darkens. Bark and leaves (items 27-28) soak it up, so they darken more and shine far less (below).
-                albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
+                albedo *= lerp(1, bark ? 0.5 - 0.15 * barkCrevice : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
                 half stoneWet = 0, crevice = 0;
                 half3 stoneN0 = n;
                 if (stone)
@@ -389,7 +393,7 @@ Shader "Punchy/Flora"
                 // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
                 // worked out at the vertices it smeared the tight band at the ground over a whole face, so a building's
                 // foundation exposed on a slope (a metre or two of skirt) showed it stretched down its length (Z-12, G-22).
-                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under);
+                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under) * (1 - barkCrevice * 0.6);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
                 half3 color = albedo * (light.color * shadow * (diffuse + through) * lerp(0.6, 1, ao) + sky * ao) * (metal ? PunchyMetalDiffuse(metalKind) : 1);
@@ -407,7 +411,7 @@ Shader "Punchy/Flora"
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
                     half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
-                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * (1 - barkCrevice) * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 }
 
                 // Glass (crystals): a dark clear body lit faintly from inside, a bright rim where the surface turns
@@ -534,7 +538,7 @@ Shader "Punchy/Flora"
                 // Items 27-28: wet bark and leaves are rough and absorbent: a faint, broad damp sheen, not the sharp
                 // highlight of wet stone or planks (on them it read as shiny plastic and showed up the evergreens' facets).
                 bool damp = bark || leafy;
-                half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5);
+                half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5) * (1 - barkCrevice);
                 if (stone && stoneWet > 0.01)
                 {
                     // Wet stone's own two lobes, from the sun and the lantern, in place of the wet gloss.
