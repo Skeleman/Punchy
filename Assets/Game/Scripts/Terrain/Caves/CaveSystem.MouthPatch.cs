@@ -228,7 +228,7 @@ namespace Punchy.Terrain
                         continue;
                     if (Flipped(t, raw) || FacesDown(t, raw))
                         PatchFlips[0]++;
-                    if (!(sa && sb && sc))
+                    if (!(sa && sb && sc) && !(inside && Ground(a, b, c)))
                     {
                         Indices[kept++] = a;
                         Indices[kept++] = b;
@@ -322,6 +322,16 @@ namespace Punchy.Terrain
                     return false;
                 var n = math.cross(Positions[b] - Positions[a], Positions[c] - Positions[a]);
                 return n.y >= 0f && math.lengthsq(n) > 0f;
+            }
+
+            // Skin the field left off the ground, steep or flat, is still ground: only faces turned into the passage keep the rock look.
+            bool Ground(int a, int b, int c)
+            {
+                float3 pa = Positions[a], pb = Positions[b], pc = Positions[c];
+                var n = math.normalizesafe(math.cross(pb - pa, pc - pa));
+                var centre = (pa + pb + pc) / 3f;
+                var up = Source.SampleNormal(centre.xz, GridStep);
+                return -n.y > 0.2f && -math.dot(n, up) > 0.7f && math.abs(centre.y - Source.SampleGround(centre.xz).Height) * up.y < 2f * Voxel;
             }
 
             float3 Raw(NativeHashMap<int, float3> raw, int v) => raw.TryGetValue(v, out var r) ? r : Positions[v];
