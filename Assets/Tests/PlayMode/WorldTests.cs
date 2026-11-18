@@ -136,7 +136,8 @@ namespace Punchy.Tests
         // wall 397 -> 89 (lake walls 307 -> 5, thin fringes the row 6 ground test covers). Re-based here.
         // Row 3 tail (fall lip shoulders: rock beside a sheet rises just above the upper water; lip pairs on an oblique
         // fall's minor grid axis count as the fall's sheet): wall 89 -> 36 (fall walls 56 -> 5), step 225 -> 170. Re-based here.
-        static readonly int[] WaterTruthBaseline = { 82, 0, 0, 0, 0, 10, 0, 36, 10, 17, 170, 0, 0 };
+        // Perched-lake fix (lakes re-lowered to a dam-cut outlet, reshaped): bend 82 -> 83. Re-based here.
+        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 10, 0, 36, 10, 17, 170, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8

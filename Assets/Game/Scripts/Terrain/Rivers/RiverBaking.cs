@@ -150,7 +150,7 @@ namespace Punchy.Terrain
                     Down = down, Width = width, Nearest = nearest, Points = points
                 }.Schedule(bedDownhill).Complete();
                 var lakesBefore = new NativeArray<float>(lakes, Allocator.Temp);
-                LowerBreachedLakes(resolution, elevation, bed, water, lakes, lakeLevel);
+                LowerBreachedLakes(resolution, elevation, bed, water, lakes, lakeLevel, bed);
                 ReshapeLoweredLakes(source, settings, cellSize * 0.0005f, resolution, origin, cellSize, seed, elevation,
                                     points, down, order, lakesBefore, lakes, lakeLevel, floor, width, bed, water);
                 lakesBefore.Dispose();
@@ -160,6 +160,17 @@ namespace Punchy.Terrain
                 if (settings.Smooth && meander)
                 {
                     CutDams(source.World.SeaLevel, bankLows, points, down, lakes, lakeLevel, width, bed, water);
+                    // A dam cut through a lake's outlet left the lake metres over its own river (-490, 546 on v3): it drops to that water.
+                    var lakesCut = new NativeArray<float>(lakes, Allocator.Temp);
+                    var spill = new NativeArray<float>(bed, Allocator.Temp);
+                    for (int c = 0; c < count; c++)
+                        if (width[c] > 0f)
+                            spill[c] = water[c];
+                    LowerBreachedLakes(resolution, elevation, bed, water, lakes, lakeLevel, spill);
+                    spill.Dispose();
+                    ReshapeLoweredLakes(source, settings, cellSize * 0.0005f, resolution, origin, cellSize, seed, elevation,
+                                        points, down, order, lakesCut, lakes, lakeLevel, floor, width, bed, water);
+                    lakesCut.Dispose();
                     SettleLakeRivers(settings, source.World.SeaLevel, down, order, lakes, lakeLevel, width, bed, water);
                 }
 
@@ -280,7 +291,7 @@ namespace Punchy.Terrain
         /// as walls of water round dry pits (F-22, kind-possum's glacier lake at 1118, 1553).
         /// </summary>
         static void LowerBreachedLakes(int resolution, NativeArray<float> elevation, NativeArray<float> bed, NativeArray<float> water,
-                                       NativeArray<float> lakes, NativeArray<float> lakeLevel)
+                                       NativeArray<float> lakes, NativeArray<float> lakeLevel, NativeArray<float> spill)
         {
             var count = lakes.Length;
             var seen = new NativeArray<bool>(count, Allocator.Temp);
@@ -319,7 +330,7 @@ namespace Punchy.Terrain
                             }
                         }
                         else
-                            breach = math.min(breach, bed[n]);
+                            breach = math.min(breach, spill[n]);
                     }
                 }
                 if (breach >= level - 2f)
@@ -425,6 +436,7 @@ namespace Punchy.Terrain
                         water[c] = math.max(water[c], water[d]);
                 }
             }
+            newFloor.CopyTo(floor);
             newFloor.Dispose();
             touched.Dispose();
         }
