@@ -8748,3 +8748,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Gate: 0 gaps, 0 flipped and 0 downward patch triangles at mouths 0/1/2/8/11, LOD0 and LOD1. Mouth 8 (-1664) sits on a chunk edge.
 - WorldTests 21/21, including the new MouthPatch_ExactRims plus fingerprint and placement. The collar path and its EntranceSeams mouth checks are retired (-589 lines). CaveSystem.cs is now 2503 lines.
 - Shots: PunchyMilestones/world/mouth-patch/{before,after}-c{6,0,3,8}.png. Look defect: the patch draws whole 4 m cells in the cave material, so pale blocky rectangles show round each mouth. Next row: blend the patch's surface to the terrain material.
+
+## 11-18 #301 patch look fix — DONE, world/mouth-patch@162b340a, ready for PR
+- The pale blocks were cave skin in patch cells that lay on the ground but was never snapped. Those faces now draw with the terrain material and inputs. Only faces turned into the passage keep the cave look. No blend and no rim fade were needed.
+- Gate: 0/0/0 (gaps/flips/facing down) at LOD0 and LOD1. WorldTests 21/21.
+- Shots: PunchyMilestones/world/mouth-patch/after2-c{0,3,6,8}{,f}.png (5 m and 20 m). No outline at any mouth.
