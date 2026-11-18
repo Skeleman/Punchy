@@ -35,7 +35,7 @@ namespace Punchy.Terrain
     }
 
     /// <summary>The kinds of natural stone (W-166 #336): rows of MaterialLibrary.Stone. Every bare rock wall names
-    /// one (cave walls now; cliff scarps and river notches next), and its relief (lumps, creases, bedding, ribs, faces,
+    /// one (cave walls by CaveStyle; cliff scarps and river notches by the biome under them, ScarpBake), and its relief (lumps, creases, bedding, ribs, faces,
     /// fine grain) comes from that row, so a stone breaks the same way wherever it stands.</summary>
     public enum StoneKind
     {
@@ -157,6 +157,25 @@ namespace Punchy.Terrain
             new StoneRow(0.3f, 1.2f, 0.35f, 0.1f, 0f, 1.6f, 1f, 2.2f, 0.08f, 1.8f),    // ore: hard faces, worked
             new StoneRow(0.6f, 1.0f, 0.35f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.3f, 1.2f),     // shale: soft, crumbly
             new StoneRow(1.2f, 1.5f, 0.85f, 0.2f, 0f, 1.6f, 0f, 2.5f, 0.4f, 1.8f),     // tuff: soft, pitted
+        };
+
+        public static StoneRow StoneOf(StoneKind kind) => Stone[Mathf.Clamp((int)kind, 0, Stone.Length - 1)];
+
+        /// <summary>How a stone kind tints the rock tone it takes from the ground (1 = as the ground): pale limestone,
+        /// warm sandstone, dark basalt, and so on. Scarp faces use it (ScarpPaint); cave walls take their colour from
+        /// their CaveStyle.</summary>
+        public static Vector3 StoneTint(StoneKind kind) => kind switch
+        {
+            StoneKind.Granite => new Vector3(1.03f, 0.98f, 0.96f),
+            StoneKind.Limestone => new Vector3(1.1f, 1.08f, 1.02f),
+            StoneKind.Sandstone => new Vector3(1.1f, 0.97f, 0.82f),
+            StoneKind.Basalt => new Vector3(0.68f, 0.68f, 0.7f),
+            StoneKind.Ice => new Vector3(0.95f, 1.03f, 1.12f),
+            StoneKind.Crystal => new Vector3(1f, 1f, 1.08f),
+            StoneKind.Ore => new Vector3(0.86f, 0.82f, 0.8f),
+            StoneKind.Shale => new Vector3(0.84f, 0.85f, 0.88f),
+            StoneKind.Tuff => new Vector3(1.05f, 1f, 0.9f),
+            _ => Vector3.one
         };
 
         /// <summary>One kind of creature covering (W-166 #336), read by Shaders/Materials/Coat.hlsl so a creature's coat

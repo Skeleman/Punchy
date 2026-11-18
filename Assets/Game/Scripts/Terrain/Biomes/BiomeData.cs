@@ -108,6 +108,8 @@ namespace Punchy.Terrain
         public int TerraceSteps;
         public float2 Wind;
         public float Rainfall;
+        /// <summary>The bare rock under the biome (StoneKind, W-166): what its scarps and river notches are cut through.</summary>
+        public byte Stone;
         /// <summary>Water look: rgb colour (linear), a murk 0..1; plus glow.</summary>
         public float4 Water;
         public float WaterGlow;

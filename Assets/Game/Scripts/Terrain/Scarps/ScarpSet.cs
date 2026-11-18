@@ -57,6 +57,13 @@ namespace Punchy.Terrain
         public BlobArray<ScarpLayer> Layers;
         /// <summary>Shaped after settlement plots are levelled (a river notch's bank, W-153), not with the other scarps.</summary>
         public bool Late;
+        /// <summary>The stone the scarp is cut through (StoneKind, W-166), from the biome at the middle of its face.
+        /// ScarpBake.Stone folds its row into Crack, Push and Setback; the rest is paint, kept as offsets so a
+        /// zeroed scarp paints as plain rock: the tone's tint less one, how much stronger the beds' light and dark
+        /// and the joints' grime read (0 as plain), and how much smoother the face is.</summary>
+        public byte Stone;
+        public float3 Tint;
+        public float Beds, Joints, Polish;
     }
 
     public struct ScarpSetBlob
