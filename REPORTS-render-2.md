@@ -434,3 +434,7 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Water.shader FlowFoam reads in the flow's frame about the camera-anchored grid: rapids foam is now small torn streaks along the flow, no round blobs near the camera.
 - Gated on rapids and flow, so lakes and sea are unchanged (lake shot matches main).
 - Shots: D:/Unity/PunchyMilestones/water-foam/water-foam-sheet.jpg (top: rapid main vs branch at 15 m; bottom: lake main vs branch).
+
+## R-15 water foam 2 (11-18) - render/water-foam-2 0dc7b050
+- FlowFoam streak length and coverage follow flow speed: slow edges get few short flecks, rapids long streaks. Same reads as before, so no new bench line.
+- Shot: D:/Unity/PunchyMilestones/water-foam/water-foam-2-pair.jpg (rapid -1048,-1521 at 15 m, main vs branch).
