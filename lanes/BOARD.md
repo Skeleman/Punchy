@@ -90,3 +90,4 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 - 11-17 materials: rows 1-2b done (#542 #544 #561 #564 #567) plus mouth floor #566; iron kit #569, wood grain #573 done; next: W-163 row 2 strangler roots (#330).
 - 11-16 R-35 (#333): Zach keeps the base clouds. Row 3 lands only E (screen-size fade); A-D are dropped unless BENCH shows one is cheaper. render-2 stays paused.
 - 11-16 colossus cloud dim: Zach sees no darkness change between clouds on and off; keep as is, no follow-up.
+- 11-18 #269 fall shelf: render-2 found the clip holes and pale shelf need FallShape box trimmed to where the sheet pours (or shelf geometry changed); queue to world after world/fall-pools.
