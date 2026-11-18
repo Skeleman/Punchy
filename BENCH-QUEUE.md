@@ -1206,3 +1206,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - render/river-clarity e9ecdcf7: Water.shader curtain clip (depth + forward) adds a ddx/ddy face normal and a wider box test per water pixel; report-only water pass at the rapid -1048,-1521, main vs branch, expect ~0.
 
 - 11-18 world: world/mouth-all@2d28e76d. Check the cave chunk MeshJob cost at mouths vs main 132fba38, because MouthPatch Collapse search now reaches 2 voxels (was 1).
+- materials/river-mouths a9129e66: MouthFan walks up to 4 river cells per terrain sample within 16 m of a river bank (TerrainSource ground sampling); report-only terrain chunk build time at -3440,-1800, main vs branch.

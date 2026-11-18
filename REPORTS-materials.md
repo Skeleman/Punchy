@@ -320,3 +320,9 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Point-bar hook: DampBank is where a future inner-bend bar flag could tint sand/gravel.
 - WorldTests 21/21, fingerprint 59A4BFD3 unchanged (colour/smoothness only).
 - Shots: D:/Unity/PunchyMilestones/damp-banks/damp-banks-pairs.jpg (rapid -1048,-1521; pool -40,300; slow bank -38,296; before|after). The exposure differs between runs.
+
+## river-mouths (#301, #336) - materials/river-mouths a9129e66, on main 4faa9d91
+- Where a river enters the sea or a lake, a pale silt/sand fan spreads about 22 m out to each side at the shore and narrows to the channel 20-40 m upstream, with darker wet silt streaks fanning out from the mouth. Lake outlets and rivers that flow through a lake get none. It covers ground from 3 m above to 2.5 m below the water.
+- How: a short downstream walk (up to 4 cells) over the river map in TerrainSource (MouthFan) fills GroundSample/GroundContext.Mouth and MouthStreak, and EvaluateBiome tints the ground (MouthSilt, before DampBank). Tint and smoothness only; the carve and Water.shader are untouched.
+- WorldTests 21/21, fingerprint 59A4BFD3 unchanged.
+- Shots: D:/Unity/PunchyMilestones/river-mouths/river-mouths-pairs.jpg (sea mouths -3455,-1815 and -3717,-290, 30 m up, before|after). Below-sea hollows count as sea, so the inland pond at 62,249 gets a fan too.
