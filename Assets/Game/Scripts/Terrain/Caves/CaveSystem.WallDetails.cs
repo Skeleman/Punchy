@@ -139,6 +139,7 @@ namespace Punchy.Terrain
                 }
             Shader.SetGlobalVector(CaveAirId, CameraCaveAir(ref set, camPos));
             DrawMushrooms(camPos);
+            GatherClimbs(camPos);
             DrawHangings(camPos);
         }
 

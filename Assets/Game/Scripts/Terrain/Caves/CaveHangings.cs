@@ -15,7 +15,7 @@ namespace Punchy.Terrain
         Rope
     }
 
-    /// <summary>One hanging: anchor on the rock, End the far pin (ropes only), Length the rest length.</summary>
+    /// <summary>One hanging: anchor on the rock, End the far pin (ropes and climb strands), Length the rest length.</summary>
     public struct CaveHanging
     {
         public CaveHangingKind Kind;

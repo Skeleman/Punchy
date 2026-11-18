@@ -365,6 +365,7 @@ namespace Punchy.Terrain
             {
                 hung = true;
                 PlaceHangings(source);
+                PlaceClimbs(source);
                 return false;
             }
             done = true;
