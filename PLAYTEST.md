@@ -241,3 +241,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #555 R-43: matched-shot debug helper (fixed sun, weather and clock for shot pairs); no in-game change.
 - 11-17 #556 (#550): piers and stilt houses have wooden plank stairs on stringers instead of stone steps.
 - 11-17 #557 (#550): pier ropes look like rope; drying racks hang real fish (mackerel, trout, carp...).
+- 11-17 #558 (#550): buoys, trim, plaster, brick and ice walls no longer draw as stone; boat hulls are wood. #550 closed.
