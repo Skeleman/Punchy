@@ -150,3 +150,17 @@ Branch materials/strangler-roots, commit 791c9a5c. Our own code from the techniq
 - Shots are in D:/Unity/PunchyMilestones/W-163/roots-before and roots-after (tree close, tree 20 m, 2 cave walls). Final caves are in roots-after3. The cave shots use a probe torch light, because those caves are pitch dark. Viewed the tree-close and cave-rock pairs: pale twisted roots on the trunk, braided strands on the wall.
 - Tests: new StranglerRootsAreStableAndLeaveTheFarLevelAlone (deterministic, LOD2 unchanged, roots grow). Full EditMode 52/52. Cave shader compiles with only the existing PunchyAtmosphere warning.
 - BENCH request (via supervisor): Bogwood trunk geometry. LOD0 is +7-17% triangles per tree in poison-swamp forest views. Optionally also cave-wall pixel cost: up to 2x3 root columns per natural wall pixel in patches. I did no timing.
+
+## W-163 row 3 (#330) - cracked bark per species (2026-11-17)
+
+Branch materials/cracked-bark, commit d99dd918. Our own code from the technique; nothing copied. TerrainSurface.shader untouched.
+- One new include, Materials/Bark.hlsl. Every living trunk, branch and stem draws through it (rule 33). It replaces Flora.shader's inline furrow block. Kinds come from MaterialLibrary.BarkKind and are set per species:
+  - Plated: Oak, Pine, AncientTree, FungalOak, CanopyTree, WhitePine. Deep plates that get deeper with instance scale, so older trees crack more.
+  - Checked: Birch, SilverTree. Fine checks and lenticel dashes, fissured and darker low on the trunk.
+  - Smooth: Beech, PaloVerde.
+  - Furrowed (the old look, plus sparse cracks): every other species. Ember/veined/strata bark keep their own marks.
+- The kind rides on the bark mark at 0.002, 0.004 and 0.006, under the wood band; only living plants with no family read it. The asset diffs are one line each. Every detail fades by on-screen size, and the far tone stays the vertex colour (rule 25).
+- Shots: D:/Unity/PunchyMilestones/W-163/bark-before and bark-after (oak and birch, close and 20 m; before is origin/main code). Viewed the close pair: the oak shows dark-edged plates, the birch shows checks. At 20 m the change is subtle.
+- Tests: new BarkKindReachesTheMark (the birch mark reaches the mesh and clears when reset, the band stays under wood, and Bark.hlsl defines match the enum). Full EditMode 53/53, up from 52. Flora compiles with no errors and no Bark warnings.
+- BENCH request (via supervisor): per-pixel bark cost is up. That is a 3x3 jittered-cell search (9 hashes x3) plus 2-3 value-noise calls per near bark pixel. Past the crack size on screen it is skipped by a branch. Forest close-up views are the case to time. I did no timing.
+- For you to decide: PunchyBarkCells (wrapping F2-F1 cell edges plus a per-cell tone) could serve as a shared crack-cell helper for the R-33 salt-flat cracks. It currently lives in Bark.hlsl.
