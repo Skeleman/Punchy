@@ -570,6 +570,53 @@ Shader "Punchy/Cave"
                     float3 groundNormal = shape;
                     half3 groundAlbedo = input.color.rgb;
                     half steep = 1 - smoothstep(0.55, 0.8, shape.y);
+                    // Flat ground takes the grain the terrain beside it has round a mouth, so the floor doesn't turn
+                    // smooth at the mouth line: the walls' grain read top-down at their own scale (TerrainSurface's W-112
+                    // mouth grain, weight 0.7) and single grains a shade lighter or darker at about 3 and 7 cm (its Grain).
+                    // Both fade by on-screen size (DetailPolicy pixels per metre), the grain cells from 4 px down to 1 px.
+                    float groundPxm = (_PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935) / max(distance(p, GetCameraPositionWS()), 0.01);
+                    half level = (1 - steep) * saturate((groundPxm - 15) / 16);
+                    // Its fine relief too (TerrainSurface's MicroHeight: octaves of 3, 0.7 and 0.21 m, each fading from 4 to
+                    // 2 px of its own wavelength, off on rock faces), bent into the normal and the colour as there. 0.8
+                    // stands in for the ground's per-vertex bump weight, which this mesh doesn't carry.
+                    float3 microW = saturate((float3(3.0, 0.7, 0.21) * groundPxm - 2) / 2) * 0.8 * smoothstep(0.574, 0.766, shape.y);
+                    [branch] if (max(microW.x, max(microW.y, microW.z)) > 0.001)
+                    {
+                        float3 mh;   // the height at p, p + x and p + z (4 cm on)
+                        float mc = 0;
+                        [unroll] for (int mi = 0; mi < 3; mi++)
+                        {
+                            float2 mp = p.xz + (mi == 1 ? float2(0.04, 0) : mi == 2 ? float2(0, 0.04) : float2(0, 0));
+                            float swell = microW.x > 0.001 ? (PunchyValueNoise(mp / 3.0 + 41.7) - 0.5) * microW.x : 0;
+                            float mhi = microW.y > 0.001 ? (PunchyValueNoise(mp / 0.7) - 0.5) * 0.6 * microW.y : 0;
+                            mhi += microW.z > 0.001 ? (PunchyValueNoise(mp / 0.21 + 17.3) - 0.5) * 0.4 * microW.z : 0;
+                            mh[mi] = mhi + swell * 1.6;
+                            if (mi == 0) mc = mhi + swell * 0.4;
+                        }
+                        groundNormal = normalize(groundNormal - float3(mh.y - mh.x, 0, mh.z - mh.x) / 0.04 * 0.45);
+                        groundAlbedo *= 1 + mc * 0.5;
+                    }
+                    [branch] if (level > 0.01 && _PunchyCaveDetailReady > 0)
+                    {
+                        half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, p.xz);
+                        half2 rb = (rd.rg - 0.5) * 0.56 * level;
+                        groundNormal = normalize(groundNormal + float3(rb.x, 0, rb.y));
+                        groundAlbedo *= 1 + (rd.b - 0.5) * 0.42 * level;
+                        half grainFade = (1 - steep) * saturate((groundPxm * 0.03 - 1) / 3);
+                        [branch] if (grainFade > 0.001)
+                        {
+                            float2 g[2] = { p.xz * 37, float2(p.x * 0.866 - p.z * 0.5, p.x * 0.5 + p.z * 0.866) * 15 + 11.3 };
+                            half grain = 0;
+                            [unroll] for (int gi = 0; gi < 2; gi++)
+                            {
+                                uint2 cell = (uint2)(int2)floor(g[gi]);
+                                uint h = cell.x * 73856093u ^ cell.y * 19349663u;
+                                h = (h ^ (h >> 13)) * 1274126177u;
+                                grain += ((h >> 22) / 1023.0 - 0.5) * (gi == 0 ? 0.6 : 0.4);
+                            }
+                            groundAlbedo *= 1 + grain * 0.5 * grainFade;
+                        }
+                    }
                     [branch] if (steep > 0.01 && _PunchyCaveDetailReady > 0)
                     {
                         half3 sa = groundAlbedo, sn = shape;
