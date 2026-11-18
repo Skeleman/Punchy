@@ -164,3 +164,28 @@ Branch materials/cracked-bark, commit d99dd918. Our own code from the technique;
 - Tests: new BarkKindReachesTheMark (the birch mark reaches the mesh and clears when reset, the band stays under wood, and Bark.hlsl defines match the enum). Full EditMode 53/53, up from 52. Flora compiles with no errors and no Bark warnings.
 - BENCH request (via supervisor): per-pixel bark cost is up. That is a 3x3 jittered-cell search (9 hashes x3) plus 2-3 value-noise calls per near bark pixel. Past the crack size on screen it is skipped by a branch. Forest close-up views are the case to time. I did no timing.
 - For you to decide: PunchyBarkCells (wrapping F2-F1 cell edges plus a per-cell tone) could serve as a shared crack-cell helper for the R-33 salt-flat cracks. It currently lives in Bark.hlsl.
+
+
+## W-165 row 1: farm fields plan (materials/farm-fields)
+
+Note: the card names world (REPORTS-world, world/farm-fields). The coordinator gave it to materials, so it is here. Placement touches SettlementBaking/LandmarkBeds, which is world's lane. **I ask world and you to confirm before row 2.**
+
+- **Which towns get fields:** HumanVillage (radius 82), DwarfHold (70), ElfGrove (90), plus the fishing, sea-folk and turtle villages (small strips only). Mining, goblin and ogre camps get none, or at most one scrappy patch. Fields go in a ring from the town radius (the palisade or the last plot) out to about 1.8x radius, along the roads out. Rules: ground slope under 25 % (steeper ground gets terraces, as in W-164); not on water, roads or other landmark footprints. Count is about radius/12, so roughly 6-8 for a village, each 15-40 m by 10-25 m.
+- **Shapes:** Fields are long strips with their long side on the contour, so they read as patchwork from above. Each gets a random size and angle jitter and keeps a 2-3 m gap for its boundary.
+  - Boundaries by culture: human hedgerows and rail fences (reuse the RoadFence rail); dwarf dry-stone walls (stone mark 0.142); elf stone-edged beds with no wood (W-161); sea folk wattle.
+  - A worn track runs from the town's gate or road to each field's gate. The track is a Road-0 SettlementStreet stretch, so it gets surface paint and folk paths for free.
+  - About one field hut per 3 fields, using an existing small House kit piece at farm scale. Each field also gets a scarecrow or tool rack and a few failed patches (bare soil cells).
+- **One system (rule 33):** a new founded form, FloraForm.Field, sibling to Garden. It is one instance per field, with the rows baked in and the field's size passed in. Each crop is a FloraSpecies entry (leaf colour, height, clump shape, frost or glow) carrying a crop-kind value that picks the clump builder. The biome's species list chooses which crop a town plants. The code goes in a new partial file, FloraGenerator.Fields.cs, so no large file grows.
+- **Crop looks:**
+  - temperate: swaying grain rows (gold-green, wind-bent cards), cabbage rows, bean poles, an orchard row along one edge;
+  - cold: snow potatoes (pale leaves on banked mounds, frosted tops), dark hardy kale, a glass cold frame;
+  - desert/volcanic: blue-grey agave rosettes on terraces with stone channels, or black ash mulch;
+  - marsh: rice in paddy cells. This reuses W-153's PaddySize cells: the field claims cells and plants green tufts in the water. No new water.
+  - salt flats: low fleshy succulents in raised plank or stone beds;
+  - elf: stone-edged beds of glowing herbs (an emission mark, soft blue-violet).
+- **Cost class (proposed; BENCH to confirm):**
+  - Each field is 1 flora instance plus 1 boundary instance, plus a hut or scarecrow on about one field in three. A village adds about 15-25 instances.
+  - LOD by ScreenSize (rule 20): LOD0 has every clump; LOD1 merges rows into ribbons; past that an impostor.
+  - The far tone comes from the ground: each field paints a tilled or crop colour stripe into the surface blend, as streets already do. So from 500 m the patchwork is ground colour that never pops off, with no hard end line (rule 25).
+  - Levelling: one LandmarkBed per field, plus terrace steps on slopes, using the GroundEdits profile.
+- **Anchors (row 3):** each field adds AnchorKind.Garden-style spots (hoe, harvest, water, scare birds) along its rows. The Home stays the farm house. I'll send the folk-lane note to you.
