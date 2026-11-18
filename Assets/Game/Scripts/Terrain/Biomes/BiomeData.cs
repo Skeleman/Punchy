@@ -1117,8 +1117,25 @@ namespace Punchy.Terrain
             }
 
             MouthSilt(ref props, g);
+            PointBarGravel(ref props, (StoneKind)biome.Stone, g);
             DampBank(ref props, g);
             return props;
+        }
+
+        static void PointBarGravel(ref SurfaceProps s, StoneKind stone, in GroundContext g)
+        {
+            if (g.PointBar <= 0f || g.WaterDepth > 0.4f) return;
+            var bar = g.PointBar * (1f - math.saturate(s.Snow)) * (1f - math.smoothstep(1.5f, 3f, -g.WaterDepth));
+            float3 tint = MaterialLibrary.StoneTint(stone);
+            var gravel = math.lerp(new float3(0.58f, 0.54f, 0.46f), new float3(0.5f, 0.5f, 0.48f) * tint, math.saturate(0.5f + 0.5f * g.EdgeNoise)) * (1f + 0.12f * g.ColorNoise);
+            s.Albedo = math.lerp(s.Albedo, gravel, bar);
+            s.Grass = math.lerp(s.Grass, 0f, bar);
+            s.Pebbles = math.lerp(s.Pebbles, 0.85f, bar);
+            s.Bump = math.lerp(s.Bump, 0.6f, bar);
+            s.Smoothness = math.lerp(s.Smoothness, 0.12f, bar);
+            var wet = bar * (1f - math.smoothstep(0.05f, 0.7f, -g.WaterDepth));
+            s.Albedo *= math.lerp(1f, 0.55f, wet);
+            s.Smoothness = math.lerp(s.Smoothness, 0.6f, wet);
         }
 
         static void MouthSilt(ref SurfaceProps s, in GroundContext g)
