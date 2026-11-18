@@ -11,6 +11,7 @@ float4 _PunchyClothKinds[8];
 
 #define PUNCHY_CLOTH_LINEN 0
 #define PUNCHY_CLOTH_HIDE 1
+#define PUNCHY_CLOTH_FELT 2
 
 /// How much of a detail of this period (m) to keep for a pixel covering `footprint` metres (as Wood.hlsl's fade).
 half PunchyClothFade(float period, float footprint)
@@ -60,6 +61,21 @@ half PunchyHide(float3 p, float3 nOS, float footprint)
     half worn = smoothstep(0.62, 0.8, PunchyValueNoise(uv * 2.2 + 31.7)) * 0.1;
     return 1 + (blotch * PunchyClothFade(0.4 * s, footprint) + crease * PunchyClothFade(0.03 * s, footprint)
                 + (hides - worn) * PunchyClothFade(0.1 * s, footprint)) * row.y;
+}
+
+/// Phase B (#336): a bedroll's felt, matted wool with no weave: soft lumps a hand across, fine fuzz, and a slow
+/// drift in tone where it's worn or packed; fading out with the pixels.
+half PunchyFelt(float3 p, float3 nOS, float footprint)
+{
+    float3 a = abs(nOS);
+    float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
+    float4 row = _PunchyClothKinds[PUNCHY_CLOTH_FELT];
+    uv /= row.x;
+    half lumps = (PunchyValueNoise(uv * 9.0 + 3.7) - 0.5) * 0.16 + (PunchyValueNoise(uv * 21.0) - 0.5) * 0.08;
+    half fuzz = (PunchyValueNoise(uv * 160.0) - 0.5) * 0.14 + (PunchyValueNoise(uv * 70.0 + 7.9) - 0.5) * 0.08;
+    half drift = (PunchyValueNoise(uv * 1.6 + 23.3) - 0.5) * 0.18;
+    return 1 + (lumps * PunchyClothFade(0.08 * row.x, footprint) + fuzz * PunchyClothFade(0.01 * row.x, footprint)
+                + drift * PunchyClothFade(0.4 * row.x, footprint)) * row.y;
 }
 
 /// #550: rope and netting (kit Net parts, Cloth on bark): strands twisted at a slant about 4 cm apart (a thick cord's twist, so it still reads at a few metres) with dark

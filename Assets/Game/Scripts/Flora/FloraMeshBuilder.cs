@@ -90,6 +90,9 @@ namespace Punchy.Flora
         /// <summary>W-166 row 3: stone built next is rubble (packed irregular stones), not cut courses: it rides on the
         /// stone mark as + 0.002 (Materials/Stone.hlsl's PunchyStoneBlocks). Cleared with the builder.</summary>
         public bool Rubble;
+        /// <summary>Phase B (#336): the kind of metal (MaterialLibrary.Metal) metal built next is: it rides on the part as
+        /// Metal + kind * 0.1 (under the 0.5 the part rounds by), which Flora.shader decodes. Cleared with the builder.</summary>
+        public Punchy.Terrain.MetalKind MetalKind;
         readonly int[] barkFamilies = new int[16];
         /// <summary>Bark vertices built per Punchy.Terrain.MaterialFamily since the last Clear (W-166's material test).</summary>
         public int BarkVerticesOf(Punchy.Terrain.MaterialFamily family) => barkFamilies[(int)family];
@@ -133,6 +136,7 @@ namespace Punchy.Flora
             System.Array.Clear(barkFamilies, 0, barkFamilies.Length);
             Surface = 0;
             Rubble = false;
+            MetalKind = Punchy.Terrain.MetalKind.Iron;
             Unfounded = false;
             unfounded.Clear();
         }
@@ -155,7 +159,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Metal ? Mathf.Clamp((int)MetalKind, 0, 4) * 0.1f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -1031,6 +1035,21 @@ namespace Punchy.Flora
             {
                 var d = data[v];
                 d.y = (float)FloraPart.Cloth + 0.45f;
+                d.z = 0f;
+                data[v] = d;
+            }
+        }
+
+        /// <summary>
+        /// Phase B (#336): makes the vertices from <paramref name="firstVertex"/> felt (a bedroll): cloth held still, drawn
+        /// as matted wool, not linen. Carried as Cloth + 0.48, past hide's 0.45 (Flora.hlsl holds anything over 0.42).
+        /// </summary>
+        public void Felt(int firstVertex)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.y = (float)FloraPart.Cloth + 0.48f;
                 d.z = 0f;
                 data[v] = d;
             }
