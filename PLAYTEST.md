@@ -272,3 +272,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #586 R-26 row 3 (#304): cave wall detail at mouths matches the ground grain in every style; no far-from-origin blur on mouth ground.
 - #587 tooling: ShotTool no longer sticks in Waiting when play stops mid-shot (no leaked runners).
 - #588 cave veins: plain stone caves show a few faint rock-tinted seams instead of white netting; ore, crystal and ice caves keep bright veins.
+- #589 W-165 row 4 (#335): fishing villages have two kale bed boxes and two kelp drying racks by the wharf.
