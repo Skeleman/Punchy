@@ -8736,3 +8736,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Fix: FootOnSheet takes the nearest crossing of five headings; knot/split feet must stay in order along the rim edge. Flipped terrain triangles at c6: 29 -> 1 (0.2 m sliver).
 - Rim gap max (m): c6 0.08, c0 0.11, c3 0.11 (prev 0.128/0.200/0.171). WorldTests 20/20.
 - Shots: PunchyMilestones/world/W-365-collarfoot/{before,after}/{c6,c0}.png; plate gone at c6.
+
+## 11-18 W-153 #301 river row 6 (sheet vs bank) — DONE, world/river-mesh@1fe689e0, ready for PR
+- Water triangles across a level step (>1 m, away from falls) now split at the ground test's crossing, with a curtain between, instead of drawing a ramp over the lower bank.
+- Gate (WaterSheet hang edges + gaps): 0 at -2039,1715 / -2729,546 / 185,3200 / -1991,1970. At -490,546: 58 mesh hang points (worst 2.4 m) + 60 where the ground test itself is wet, plus 31 gaps. Cause: a perched lake at 56.2 standing over 51-54 m ground with no rim (ground-test defect, wants a truth row). Over-bank stays report-only (W-52 shore extension draws over test-dry ground by design).
+- WorldTests 20/20. Shots: PunchyMilestones/world/W-153r6-sheet/{before,after}.png (-490,546); small change at this pose.
+- Mouth sizing (shared-vertex patch): BuildChunkMeshJob(.Mouths/.Collars), CaveSystem mouth walls, TestHooks.Seams + new MouthPatch file; ~1000 lines; risks: LOD1 needs patch edges on even grid points, wall stitch can flip on overhangs, chunk-edge mouths need a world-grid mask, retires the collar path.
