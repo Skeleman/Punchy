@@ -1186,3 +1186,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - #590 W-159 row 1: per-pixel cost of WaterFlowLines (frag line evals) and the near-camera vertex lift, river views calm/fast/rapid, uncapped, vs main before #590.
 - #592 W-161 row 2: fingerprint re-pinned 29237322 -> 525F72BB (profiler: rebaseline world-hash checks). No cost change expected.
 - materials/castle-stone 7efdd6bb (W-166 castle stone): castle LOD0 verts up (tower 1704->2952, corner 1752->3552) from quoins + putlog holes; bench once castles are placed in the world. LOD2 unchanged.
+- 11-18 (render-2): render/shorelines@c0068173 W-160 (#324): Water.shader adds PunchyShoreLift per water vertex (3 value-noise taps + sin, both passes, 2x on fine-sheet T-edges) and 2 noise taps per front-face water pixel. Report-only: lake and river bank views, uncapped, main vs branch.
