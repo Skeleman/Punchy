@@ -258,6 +258,7 @@ namespace Punchy.Terrain
         public float WaterDepth;   // metres below the local water surface (negative = above it)
         public float River;        // 0..1, 1 inside a river channel
         public float Rapids;
+        public float Inland;
         public float EdgeNoise;    // -1..1
         public float ColorNoise;   // -1..1
     }
@@ -1113,7 +1114,24 @@ namespace Punchy.Terrain
                 }
             }
 
+            DampBank(ref props, g);
             return props;
+        }
+
+        static void DampBank(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Inland <= 0f || g.WaterDepth < -2.5f || g.WaterDepth > 0.3f)
+                return;
+            var fast = math.smoothstep(0.08f, 0.35f, g.Rapids);
+            // Steep banks stand in for outer bends: the current undercuts them and splashes higher.
+            var reach = 0.5f + 0.6f * fast + 0.4f * math.smoothstep(15f, 40f, g.Slope) + 0.15f * g.EdgeNoise;
+            var damp = (1f - math.smoothstep(reach * 0.4f, reach, -g.WaterDepth)) * (1f - math.saturate(s.Snow)) * g.Inland;
+            var grass = math.saturate(s.Grass);
+            s.Albedo *= math.lerp(1f, math.lerp(math.lerp(0.68f, 0.55f, math.saturate(s.Porosity)), 0.86f, grass), damp);
+            s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, math.lerp(0.55f, 0.3f, grass)), damp);
+            var mud = (1f - math.smoothstep(0.02f, 0.1f, math.abs(g.WaterDepth + 0.03f))) * (1f - 0.6f * fast) * damp;
+            s.Albedo = math.lerp(s.Albedo, new float3(0.19f, 0.16f, 0.12f), 0.85f * mud);
+            s.Smoothness = math.lerp(s.Smoothness, 0.62f, mud);
         }
 
         static void RiverBed(ref SurfaceProps bed, StoneKind stone, in GroundContext g)

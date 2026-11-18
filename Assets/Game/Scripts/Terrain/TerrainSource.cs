@@ -1324,6 +1324,7 @@ namespace Punchy.Terrain
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
                 Rapids = ground.Rapids,
+                Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1392,6 +1393,7 @@ namespace Punchy.Terrain
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
                 Rapids = ground.Rapids,
+                Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
