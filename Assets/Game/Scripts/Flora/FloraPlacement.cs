@@ -196,6 +196,14 @@ namespace Punchy.Flora
             return a;
         }
 
+        static uint NameHash(string text)
+        {
+            var h = 2166136261u;
+            foreach (var ch in text)
+                h = (h ^ ch) * 16777619u;
+            return h;
+        }
+
         /// <summary>The most tree cells one FindTree looks at.</summary>
         const int MaxTreeCells = 24;
 
@@ -289,10 +297,13 @@ namespace Punchy.Flora
             var perches = new List<float3>();
             var chimneys = new List<float3>();
             var ladders = new List<Punchy.Terrain.ClimbLadder>();
+            var drawIndex = 0;
             for (int i = 0; i < species.Count; i++)
             {
                 var s = species[i];
-                var h = math.hash(new int2(s.Seed, i));
+                // Late species stay out of the running index, so adding one never moves another species' patches or groves.
+                var key = s.LateAddition ? (int)(NameHash(s.name) | 0x40000000u) : drawIndex++;
+                var h = math.hash(new int2(s.Seed, key));
                 rules[i] = new FloraRules
                 {
                     FirstModel = shapes.Count,
@@ -316,7 +327,7 @@ namespace Punchy.Flora
                     GroveGain = s.GroveGain,
                     GroveStraggle = s.GroveStraggle,
                     EdgeAffinity = s.EdgeAffinity,
-                    GroveSeed = math.hash(new int2(s.Seed, i * 31 + 7)),
+                    GroveSeed = math.hash(new int2(s.Seed, key * 31 + 7)),
                     ExtraGain = (s.GroveSpacing > 0f ? math.max(1f, s.GroveGain) : 1f) * (1f + s.EdgeAffinity),
                     SizeRange = s.SizeRange,
                     Aquatic = s.Aquatic ? 1 : 0,

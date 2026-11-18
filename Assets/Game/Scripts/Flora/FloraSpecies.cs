@@ -373,6 +373,8 @@ namespace Punchy.Flora
         [Range(1, 32)] public int Variants = 4;
         [Tooltip("Changes every generated shape of this species.")]
         public int Seed = 1;
+        [Tooltip("Added after the world was tuned: keyed by name and skipped in the other species' draw keys, so adding it moves no other plant.")]
+        public bool LateAddition;
     }
 
     /// <summary>A species growing in a biome, and how densely.</summary>
