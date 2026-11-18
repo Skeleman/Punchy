@@ -168,7 +168,7 @@ namespace Punchy.Tests
             Assert.AreEqual(1.3f, F("Crack"), 1e-5f);
             Assert.AreEqual(2.1f, F("Push"), 1e-5f);
             Assert.AreEqual(0.7f, F("Setback"), 1e-5f);
-            foreach (var f in new[] { "Beds", "Joints", "Polish" }) Assert.AreEqual(0f, F(f), 1e-6f, f);
+            foreach (var f in new[] { "Beds", "Joints", "Polish", "Gully", "Chimneys" }) Assert.AreEqual(0f, F(f), 1e-6f, f);
             var tint = scarp.GetField("Tint").GetValue(sc);
             foreach (var c in new[] { "x", "y", "z" }) Assert.AreEqual(0f, (float)tint.GetType().GetField(c).GetValue(tint), 1e-6f, "Tint." + c);
         }
