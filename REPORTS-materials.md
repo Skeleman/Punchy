@@ -266,3 +266,14 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
 - 12 blueprints in Assets/Game/Flora/Units: castle wall/corner/tower/gatehouse x plain/mossy/ruined, host StoneHall, doors at walkway level (6 m). No world placement.
 - Verts LOD0/1/2: wall 336/336/264, mossy 1191/1191/1119, ruined 3342/3342/3198; corner 1752/1752/1056, 3891/3891/3195, 7020/7020/6780; tower 1704/1704/864, 2781/2781/1941, 1359/1359/1263; gatehouse 2552/2552/1584, 4364/4364/3396, 5101/5101/4149. LOD1 = LOD0 as for every building part; ruined rubble is most of the count (corner ruined has 198 boxes).
 - Shots: PunchyMilestones/castle-kit (12 PNGs). Test EveryCastlePartGrowsCollidesAndWears; UnitLibraryTests 14/14 pass.
+
+## W-182 row 2 (castle trim) - DONE, materials/castle-trim 1a3bc6f5
+
+Castle builder authors collision: exact blocks for walkway/passage (plinths, bodies, piers, lintel, voussoirs), one box per battlement, ragged top, rubble heap, portcullis. LOD2 drops fine pieces (merlons, rubble, chips, slits, streaks, bars). LOD0 look unchanged (same pieces, same RNG). UnitLibraryTests 14/14 incl. EveryCastlePartGrowsCollidesAndWears.
+
+| Unit | Boxes before -> after | LOD0 | LOD2 before -> after |
+|---|---|---|---|
+| wall / mossy / ruined | 11/10/91 -> 3/3/18 | 336/1191/3342 | 264/1119/3198 -> 72/855/966 |
+| corner / mossy / ruined | 38/36/198 -> 16/16/41 | 1752/3891/7020 | 1056/3195/6780 -> 336/2235/1812 |
+| tower / mossy / ruined | 26/23/21 -> 10/10/9 | 1704/2781/1359 | 864/1941/1263 -> 192/1245/543 |
+| gatehouse / mossy / ruined | 68/67/81 -> 23/23/25 | 2552/4364/5101 | 1584/3396/4149 -> 864/2556/2733 |
