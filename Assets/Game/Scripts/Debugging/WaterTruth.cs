@@ -392,6 +392,139 @@ namespace Punchy.Debugging
             return result;
         }
 
+        /// <summary>
+        /// W-153 row 6: the drawn water sheets of loaded chunks round a place against the ground test. Returns { points,
+        /// over a bank (sheet above ground the test calls dry), gaps (test wet, no sheet over the ground), level off by
+        /// over 25 cm (report only), worst over-bank height in mm, sheet edge points hanging over the ground, worst hang
+        /// in mm, edge points hanging where the test is wet: a pool standing over lower ground with no rim (test only) }.
+        /// </summary>
+        public static int[] Sheet(TerrainSource s, TerrainStreamingSystem streaming, float size, float2 centre, int radius)
+        {
+            const float lattice = 0.25f, cell = 0.5f;
+            var result = new int[8];
+            var edges = new List<float3>();
+            var points = new List<float2>();
+            var drawn = new List<float>();
+            var drawnGround = new List<float>();
+            var covered = new Dictionary<int2, float>();
+            var first = (int2)math.floor(centre / size);
+            for (int z = -radius; z <= radius; z++)
+                for (int x = -radius; x <= radius; x++)
+                {
+                    var coord = first + new int2(x, z);
+                    if (!streaming.TryGetWater(coord, out var mesh, out _, out _) || mesh == null || mesh.vertexCount == 0)
+                        continue;
+                    var origin = (float2)coord * size;
+                    var vs = mesh.vertices;
+                    var ts = mesh.triangles;
+                    // The terrain grid shares the water grid's indices, so its height under a sheet point is the same blend.
+                    var gs = streaming.TryGetGround(coord, out var groundMesh) ? groundMesh.vertices : null;
+                    // Edges by position: a split's vertices repeat the corners' positions under other indices.
+                    var uses = new Dictionary<(int3, int3), int>();
+                    var ends = new Dictionary<(int3, int3), (float3, float3)>();
+                    for (int t = 0; t < ts.Length; t += 3)
+                        for (int e = 0; e < 3; e++)
+                        {
+                            float3 p0 = vs[ts[t + e]], p1 = vs[ts[t + (e + 1) % 3]];
+                            int3 k0 = (int3)math.round(p0 * 1000f), k1 = (int3)math.round(p1 * 1000f);
+                            if (k0.Equals(k1))
+                                continue;
+                            var k = k0.x < k1.x || k0.x == k1.x && (k0.z < k1.z || k0.z == k1.z && k0.y < k1.y) ? (k0, k1) : (k1, k0);
+                            uses[k] = uses.TryGetValue(k, out var u) ? u + 1 : 1;
+                            ends[k] = (p0, p1);
+                        }
+                    foreach (var pair in uses)
+                    {
+                        if (pair.Value != 1)
+                            continue;
+                        var (a, b) = ends[pair.Key];
+                        // An edge along the chunk's border carries on in the neighbour's sheet.
+                        if (a.x == b.x && (a.x < 0.01f || a.x > size - 0.01f) || a.z == b.z && (a.z < 0.01f || a.z > size - 0.01f))
+                            continue;
+                        var n = math.max(1, (int)math.ceil(math.distance(a.xz, b.xz) / lattice));
+                        for (int i = 0; i <= n; i++)
+                        {
+                            var p = math.lerp(a, b, (float)i / n);
+                            edges.Add(new float3(origin.x + p.x, p.y, origin.y + p.z));
+                        }
+                    }
+                    for (int t = 0; t < ts.Length; t += 3)
+                    {
+                        float3 a = vs[ts[t]], b = vs[ts[t + 1]], c = vs[ts[t + 2]];
+                        // A step's curtain stands between two levels; it is no sheet over the ground.
+                        var normal = math.cross(b - a, c - a);
+                        if (math.lengthsq(normal) < 1e-8f || math.abs(math.normalize(normal).y) < 0.2f)
+                            continue;
+                        var shared = gs != null && math.max(ts[t], math.max(ts[t + 1], ts[t + 2])) < gs.Length &&
+                                     math.distance(((float3)gs[ts[t]]).xz, a.xz) < 0.01f && math.distance(((float3)gs[ts[t + 1]]).xz, b.xz) < 0.01f &&
+                                     math.distance(((float3)gs[ts[t + 2]]).xz, c.xz) < 0.01f;
+                        var under = shared ? new float3(gs[ts[t]].y, gs[ts[t + 1]].y, gs[ts[t + 2]].y) : new float3(float.NaN);
+                        var n = math.max(1, (int)math.ceil(math.max(math.distance(a.xz, b.xz), math.max(math.distance(b.xz, c.xz), math.distance(c.xz, a.xz))) / lattice));
+                        for (int i = 0; i <= n; i++)
+                            for (int j = 0; i + j <= n; j++)
+                            {
+                                // Nudged into the triangle: on a curtain's line the point would belong to both levels.
+                                var wi = (float)i / n * 0.99f + 0.01f / 3f;
+                                var wj = (float)j / n * 0.99f + 0.01f / 3f;
+                                var p = a + (b - a) * wi + (c - a) * wj;
+                                var xz = origin + p.xz;
+                                points.Add(xz);
+                                drawn.Add(p.y);
+                                drawnGround.Add(under.x + (under.y - under.x) * wi + (under.z - under.x) * wj);
+                                var key = (int2)math.floor(xz / cell);
+                                covered[key] = covered.TryGetValue(key, out var top) ? math.max(top, p.y) : p.y;
+                            }
+                    }
+                }
+            var lo = (float2)(first - radius) * size;
+            var side = (int)math.round((2 * radius + 1) * size / cell);
+            var grid = points.Count;
+            for (int z = 0; z < side; z++)
+                for (int x = 0; x < side; x++)
+                    points.Add(lo + (new float2(x, z) + 0.5f) * cell);
+            Sample(s, points, out var ground, out var surface, out _);
+            for (int i = 0; i < grid; i++)
+            {
+                if (s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, points[i]))
+                    continue;
+                var wet = surface[i] > ground[i] + WetDepth;
+                // The grid's chord under a curved bank, or a scarp's cut, lowers the shown ground under water at its true level.
+                var shown = math.max(ground[i], float.IsNaN(drawnGround[i]) ? ground[i] : drawnGround[i]);
+                if (!wet && drawn[i] > shown + WetDepth)
+                {
+                    result[1]++;
+                    result[4] = math.max(result[4], (int)math.round((drawn[i] - shown) * 1000f));
+                }
+                if (wet && math.abs(drawn[i] - surface[i]) > 0.25f)
+                    result[3]++;
+            }
+            result[0] = grid;
+            var edgeAt = new List<float2>();
+            foreach (var e in edges)
+                edgeAt.Add(e.xz);
+            Sample(s, edgeAt, out var edgeGround, out var edgeSurface, out _);
+            for (int i = 0; i < edges.Count; i++)
+            {
+                if (edges[i].y <= edgeGround[i] + WetDepth || (s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, edgeAt[i])))
+                    continue;
+                if (edgeSurface[i] > edgeGround[i] + WetDepth && math.abs(edges[i].y - edgeSurface[i]) < 0.25f)
+                {
+                    result[7]++;
+                    continue;
+                }
+                result[5]++;
+                result[6] = math.max(result[6], (int)math.round((edges[i].y - edgeGround[i]) * 1000f));
+            }
+            for (int i = grid; i < points.Count; i++)
+            {
+                if (surface[i] <= ground[i] + 2f * WetDepth || (s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, points[i])))
+                    continue;
+                if (!covered.TryGetValue((int2)math.floor(points[i] / cell), out var top) || top < ground[i])
+                    result[2]++;
+            }
+            return result;
+        }
+
         /// <summary>A chunk water mesh's border vertices as (along, height, wet 1/0), sorted along: -x, +x, -z, +z.</summary>
         static List<float3>[] Edges(UnityEngine.Mesh mesh, float size)
         {

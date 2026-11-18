@@ -606,6 +606,19 @@ namespace Punchy.Terrain
                     quadCount++;
             }
 
+            // Unsplit, a step between two levels with no fall (a raised pool by a river) draws as a ramp over the lower bank.
+            int splits = 0;
+            for (int z = 0; z < q; z++)
+            for (int x = 0; x < q; x++)
+            {
+                if (!wetQuad[z * q + x])
+                    continue;
+                int i0 = z * v + x, i1 = i0 + 1, i2 = i0 + v, i3 = i2 + 1;
+                var diagonal = StepEdge(surface, i1, i2, v, step, origin);
+                splits += (diagonal || StepEdge(surface, i0, i2, v, step, origin) || StepEdge(surface, i0, i1, v, step, origin) ? 1 : 0) +
+                          (diagonal || StepEdge(surface, i1, i3, v, step, origin) || StepEdge(surface, i2, i3, v, step, origin) ? 1 : 0);
+            }
+
             var range = new float2(1f, 0f);
             if (quadCount == 0)
             {
@@ -616,8 +629,8 @@ namespace Punchy.Terrain
             }
             else
             {
-                mesh.SetVertexBufferParams(v * v, WaterLayout);
-                mesh.SetIndexBufferParams(quadCount * 6, IndexFormat.UInt32);
+                mesh.SetVertexBufferParams(v * v + splits * 4, WaterLayout);
+                mesh.SetIndexBufferParams(quadCount * 6 + splits * 18, IndexFormat.UInt32);
                 var verts = mesh.GetVertexData<WaterVertex>();
                 var indices = mesh.GetIndexData<uint>();
                 range = new float2(float.MaxValue, float.MinValue);
@@ -637,17 +650,15 @@ namespace Punchy.Terrain
                 }
 
                 int t = 0;
+                int extra = v * v;
                 for (int z = 0; z < q; z++)
                 for (int x = 0; x < q; x++)
                 {
                     if (!wetQuad[z * q + x])
                         continue;
-                    uint i0 = (uint)(z * v + x);
-                    uint i1 = i0 + 1;
-                    uint i2 = i0 + (uint)v;
-                    uint i3 = i2 + 1;
-                    indices[t++] = i0; indices[t++] = i2; indices[t++] = i1;
-                    indices[t++] = i1; indices[t++] = i2; indices[t++] = i3;
+                    int i0 = z * v + x, i1 = i0 + 1, i2 = i0 + v, i3 = i2 + 1;
+                    SplitStep(verts, indices, water, surface, i0, i2, i1, v, step, origin, ref t, ref extra);
+                    SplitStep(verts, indices, water, surface, i1, i2, i3, v, step, origin, ref t, ref extra);
                 }
                 mesh.subMeshCount = 1;
                 mesh.SetSubMesh(0, new SubMeshDescriptor(0, t), MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
@@ -657,6 +668,110 @@ namespace Punchy.Terrain
             flow.Dispose();
             wetQuad.Dispose();
             return range;
+        }
+
+        /// <summary>A water triangle's surface rise (m) between corners above which it is split by level (SplitStep).</summary>
+        const float StepRise = 1f;
+
+        bool NearFall(float2 xz)
+        {
+            if (!Source.Rivers.IsCreated)
+                return false;
+            ref var falls = ref Source.Rivers.Value.Falls;
+            for (int f = 0; f < falls.Length; f++)
+                if (math.distance(xz, falls[f].Lip.xz) < falls[f].Width * 0.5f + 30f)
+                    return true;
+            return false;
+        }
+
+        /// <summary>Whether grid edge (a, b) joins two levels further apart than StepRise, away from any fall.</summary>
+        bool StepEdge(NativeArray<float> surface, int a, int b, int v, float step, float2 origin) =>
+            math.abs(surface[a] - surface[b]) > StepRise && !NearFall(origin + (Grid(a, v) + Grid(b, v)) * 0.5f * step);
+
+        static float2 Grid(int i, int v) => new float2(i % v, i / v);
+
+        /// <summary>
+        /// Emits water triangle (a, b, c), split on its step edges (StepEdge): each side keeps its corners' levels out to
+        /// where the water's level crosses the step, joined by a two-sided curtain. One step edge splits it in two; two
+        /// (or three) cut off the corner they share.
+        /// </summary>
+        void SplitStep(NativeArray<WaterVertex> verts, NativeArray<uint> indices, NativeArray<float4> water,
+                       NativeArray<float> surface, int a, int b, int c, int v, float step, float2 origin, ref int t, ref int extra)
+        {
+            bool ab = StepEdge(surface, a, b, v, step, origin), bc = StepEdge(surface, b, c, v, step, origin), ca = StepEdge(surface, c, a, v, step, origin);
+            if (!ab && !bc && !ca)
+            {
+                indices[t++] = (uint)a; indices[t++] = (uint)b; indices[t++] = (uint)c;
+                return;
+            }
+            int x = a, y = b, z = c;
+            if ((ab ? 1 : 0) + (bc ? 1 : 0) + (ca ? 1 : 0) == 1)
+            {
+                if (ab) { x = b; y = c; z = a; }
+                else if (bc) { x = c; y = a; z = b; }
+                var f = StepAt(surface, z, x, v, step, origin);
+                uint pz = (uint)extra, px = pz + 1;
+                verts[extra++] = OnEdge(verts, water, z, x, f, z);
+                verts[extra++] = OnEdge(verts, water, z, x, f, x);
+                indices[t++] = (uint)x; indices[t++] = (uint)y; indices[t++] = px;
+                indices[t++] = pz; indices[t++] = (uint)y; indices[t++] = (uint)z;
+                indices[t++] = px; indices[t++] = (uint)y; indices[t++] = pz;
+                indices[t++] = pz; indices[t++] = (uint)y; indices[t++] = px;
+                return;
+            }
+            if (ab && bc && !ca) { x = b; y = c; z = a; }
+            else if (bc && ca && !ab) { x = c; y = a; z = b; }
+            uint xy = (uint)extra, xz = xy + 1, yx = xy + 2, zx = xy + 3;
+            var fy = StepAt(surface, x, y, v, step, origin);
+            var fz = StepAt(surface, x, z, v, step, origin);
+            verts[extra++] = OnEdge(verts, water, x, y, fy, x);
+            verts[extra++] = OnEdge(verts, water, x, z, fz, x);
+            verts[extra++] = OnEdge(verts, water, x, y, fy, y);
+            verts[extra++] = OnEdge(verts, water, x, z, fz, z);
+            indices[t++] = (uint)x; indices[t++] = xy; indices[t++] = xz;
+            indices[t++] = yx; indices[t++] = (uint)y; indices[t++] = (uint)z;
+            indices[t++] = yx; indices[t++] = (uint)z; indices[t++] = zx;
+            indices[t++] = xy; indices[t++] = xz; indices[t++] = zx;
+            indices[t++] = xy; indices[t++] = zx; indices[t++] = yx;
+            indices[t++] = xy; indices[t++] = zx; indices[t++] = xz;
+            indices[t++] = xy; indices[t++] = yx; indices[t++] = zx;
+        }
+
+        /// <summary>Where (0..1 from a) the water's level crosses the middle of the step along edge (a, b); the middle of
+        /// the edge where the corners' levels are borrowed rather than their own.</summary>
+        float StepAt(NativeArray<float> surface, int a, int b, int v, float step, float2 origin)
+        {
+            // From the lower index, so the triangles and chunks sharing the edge split it at one point.
+            var flip = a > b;
+            if (flip)
+                (a, b) = (b, a);
+            var pa = origin + Grid(a, v) * step;
+            var pb = origin + Grid(b, v) * step;
+            var mid = (surface[a] + surface[b]) * 0.5f;
+            var highA = surface[a] > surface[b];
+            if (WaterAt(pa).x > mid != highA || WaterAt(pb).x > mid == highA)
+                return 0.5f;
+            float lo = 0f, hi = 1f;
+            for (int k = 0; k < 10; k++)
+            {
+                var m = (lo + hi) * 0.5f;
+                if (WaterAt(math.lerp(pa, pb, m)).x > mid == highA)
+                    lo = m;
+                else
+                    hi = m;
+            }
+            return flip ? 1f - (lo + hi) * 0.5f : (lo + hi) * 0.5f;
+        }
+
+        /// <summary>The point f along edge (a, b) at corner own's level, with own's flow and looks.</summary>
+        static WaterVertex OnEdge(NativeArray<WaterVertex> verts, NativeArray<float4> water, int a, int b, float f, int own)
+        {
+            var o = verts[own];
+            var y = o.Position.y;
+            var ground = math.lerp(water[a].w, water[b].w, f);
+            o.Position = new float3(math.lerp(verts[a].Position.xz, verts[b].Position.xz, f), y).xzy;
+            o.Data.z = y - ground;
+            return o;
         }
 
         /// <summary>

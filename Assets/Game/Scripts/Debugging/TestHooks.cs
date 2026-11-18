@@ -328,6 +328,17 @@ namespace Punchy.Debugging
         /// W-153: seams between the loaded chunks' water meshes within radius chunks of x,z: { borders checked,
         /// wet vertices compared, gaps over 5 cm, open ends, largest gap in mm }. See WaterTruth.Seams.
         /// </summary>
+        /// <summary>W-153 row 6: drawn water sheets within radius chunks of x,z against the ground test. See WaterTruth.Sheet.</summary>
+        public static int[] WaterSheet(float x, float z, int radius)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var streaming = world?.GetExistingSystemManaged<TerrainStreamingSystem>();
+            if (streaming == null || !Source(out var s))
+                return new int[8];
+            using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
+            return query.TryGetSingleton<TerrainConfig>(out var config) ? WaterTruth.Sheet(s, streaming, config.ChunkSize, new float2(x, z), radius) : new int[8];
+        }
+
         public static int[] WaterSeams(float x, float z, int radius)
         {
             var world = World.DefaultGameObjectInjectionWorld;
