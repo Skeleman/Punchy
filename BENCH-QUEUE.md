@@ -1166,3 +1166,6 @@ The kit fingerprint includes each part's material, so fixture and house hashes c
 
 ## Request (2026-11-17, render-2, R-29 row 4 #320, branch render/effects-kit-3 bff9d4ec): spray plume family cost
 Waterfall spray (river, cave, grand and landmark falls: lip white water, foot churn, foam, mist) now draws through PlumeSystem.Spray (one more RenderPrimitives from EffectsDriver) instead of LandmarkEffectSystem's plume draw. One check vs main 38ec6aec: EffectsDriver and LandmarkEffectSystem main-thread ms and whole-frame GPU ms at river fall -218,382 (12 spray plumes) and the waterfall landmark at -1994,3010 (47), High, uncapped, 300 frames. Expect no change. Report only.
+
+## Request (2026-11-17, render-2, R-29 row 4 #320, branch render/effects-kit-4 cd82ecf3): sparks plume family cost
+Hot orange glow plumes (village/hold/camp fire sparks, fumarole vents, volcano crater) now draw through PlumeSystem.Sparks (one more RenderPrimitives from EffectsDriver) instead of LandmarkEffectSystem's plume draw. One check vs main 93d2c4a1: EffectsDriver and LandmarkEffectSystem main-thread ms and whole-frame GPU ms at HumanVillage 2972,-885 and VolcanoCone -891,-2021, High, uncapped, 300 frames. Expect no change. Report only.
