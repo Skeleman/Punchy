@@ -267,3 +267,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #581 W-153 row 6 (#301): river water sheets stop at the bank, no hanging edges over dry ground.
 - #582 W-165 row 2 (#335): simpler crop shapes (fields ~4-5k verts), desert beans in Sonoran/Mesa villages, adobe wall round agave, elf glow-herb beds.
 - #583 R-26 row 2 (#304): cave cracks read as recessed seams (glow from the floor in glowing caves), softer bark furrows with faint lichen/moss.
+- #584 W-165 row 3 (#335): rice tufts in still shallow ponds of grassland and temperate land, none in rivers.
