@@ -53,10 +53,8 @@ namespace Punchy.Terrain
             return new int2(columns, rows);
         }
 
-        static float LipWave(float x, float seed) => math.sin(x * 1.3f + seed * 37f) * 0.6f + math.sin(x * 3.1f + seed * 91f) * 0.4f;
-
         /// <summary>A point of the curtain: u across (0..1), f from behind the lip to the foot (0..1); FallPoint in
-        /// LandmarkEffects.hlsl for an open fall, without its moving ripple.</summary>
+        /// LandmarkEffects.hlsl for an open fall, without its moving ripple or its lip's waves.</summary>
         public static float3 Point(in FallShape s, float u, float f, out float tau, out float lipIn)
         {
             var outDir = new float3(s.Out.x, 0f, s.Out.y);
@@ -65,8 +63,11 @@ namespace Punchy.Terrain
             var x = (u - 0.5f) * s.Width;
             lipIn = math.saturate(f / RunIn);
             tau = math.saturate((f - RunIn) / (1f - RunIn));
-            var lipShift = s.Skew * side * 0.5f - s.Bow * side * side + LipWave(x, s.Seed) * math.min(0.6f, s.Width * 0.08f);
-            var run = s.Run * (1f + 0.15f * (1f - side * side) + 0.1f * LipWave(x * 0.7f + 11f, s.Seed + 0.37f));
+            // (No lip wave here: the sheet's 32 columns and the curtain's fewer cut its ~2 m ripples at different points,
+            // so the curtain's joins poked through the sheet as thin dark lines, fall-121. It lies the waves' whole
+            // height behind instead, behind any chord of the sheet's; its reach likewise takes the wave's least.)
+            var lipShift = s.Skew * side * 0.5f - s.Bow * side * side - math.min(0.6f, s.Width * 0.08f);
+            var run = s.Run * (0.9f + 0.15f * (1f - side * side));
             const float dip = 0.15f;
             var down = dip * lipIn * lipIn + (s.Drop - dip) * math.pow(tau, math.lerp(2f, 1.15f, s.Cascade));
             var along = lipShift - 1.5f * (1f - lipIn) + run * tau - Behind * tau;
