@@ -75,3 +75,11 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - Hung fish: new KitMaterial.Fish drawn by FloraGenerator.HungFish from FloraSpecies.HungFish (real fish species proportions and coats; fauna files only read). Hung on cords by StructureKit.HangFish in the StructureKit.Fish.cs partial, so stalls can reuse it. Sea set Mackerel/SilverFish/Trout, marsh set Trout/Carp.
 - Root cause of "draws as stone": the shader's stone flag covers every non-wood built part. Still hit: Trim/Roof accents and buoy floats (Plaster), plaster/brick/ice walls (stone on top of their own include), and the moored boat hull. The fix is a small shader flag change and needs an OK.
 - Same-pose after shot viewed: fish read as fish, rope strands visible on the mooring knot. Edit-mode 43/43. Editor reached via --project-path.
+
+## 11-17 Stone fallback fix, b/fix-stone-fallback 9fa4278c
+- Flora.shader: the stone flag now skips plaster, brick, ice and the new paint, so each keeps its own look. Plaster and brick keep 0.3 of the rock relief; paint, ice and rope keep none.
+- New MaterialFamily.Paint (Materials/Paint.hlsl, mark 0.041): KitMaterial.Trim and buoy floats (Trim piece on a plaster Roof) get a smooth, slightly chipped coat. Cloth's mark moves from 0.05 to 0.053, and the rope decode moves with it.
+- Afloat Trim (boat strakes) is now Wood, so the hulls come out as wood.
+- Check: matched before/after shots with MatchedShot.Hold(xz,12,1000) of the pier with buoys, a plaster house and a turtle igloo. Mean diffs 1.9/2.0/2.0, with 3-4% of pixels changed. I viewed the pier pair: buoys are smooth and painted, walls lose the stone mottling. EditMode tests pass, 45/45.
+- Follow-up for cloth-metal: Copper and Lamp (Metal) still have mark 0, so they fall back to stone.
+- Unity commands still use --project-path D:/Unity/Punchy-materials.
