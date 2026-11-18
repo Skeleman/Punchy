@@ -294,3 +294,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #609 W-166 (#336) river and bank rocks take the biome stone tint; placement unchanged, fingerprint F00119AC.
 - 11-18 #610 R-15 (#269) river foam in the water shader as flow-aligned torn streaks, no near-camera blobs; lakes and sea unchanged.
 - 11-18 #611 R-15 (#269) river foam streak length follows flow speed: long in rapids, short flecks at slow edges.
+- 11-18 #612 W-166 (#336) river beds: biome-stone cobbles in fast reaches, sand then silt in pools; lakes and sea unchanged (#301).
