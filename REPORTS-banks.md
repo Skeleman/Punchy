@@ -9,3 +9,8 @@
 - Cause: FloraPlacement.Build keyed PatchOffset/GroveSeed by sorted species index, so the 4 new species shifted later species (trees +4). Now LateAddition species key by name and skip the running index.
 - Placement probe, 120 m box round the river 25 m pose, main-equivalent blob vs branch: L2 trees 115/115, hash E9B86B40 both, 0 cells differ (was 115 vs 125, 93 cells). L0/L1: 0 differing cells except those the new species take (42/39).
 - Retook after shots + driftwood-5m-after.png (D:/Unity/PunchyMilestones/river-details/after/). WorldTests 20/20, Fauna_Fingerprint repinned 8D2194F3.
+
+## #301 row 1 main merge + grain fix: banks/river-details@50a84903
+- Merged origin/main (#605 gatehouse). Fauna_Fingerprint repinned F00119AC; landmarks 5B47CDAE and temple pins unchanged. WorldTests 20/21: Village_CreatureDensity read 54 against a cap of 50, then passed alone. The count varies run to run (30/44/54 seen), so it's a flaky cap, not this change.
+- Grain across the logs: static Log/Driftwood forms had FormFamily None, so they drew through the stone surface (a fan pattern round the log). Now they're MaterialFamily.Wood, so the shared GrainAlong path runs the grain along each tube, root stubs and snag branches included. MaterialLibraryTests 13/13.
+- Shots: after/driftwood-5m-after.png (retaken) and after/driftwood-1m-after.png (new close-up; fine grain fades by 5 m by design).
