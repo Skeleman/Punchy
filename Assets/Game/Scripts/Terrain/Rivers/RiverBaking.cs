@@ -171,6 +171,8 @@ namespace Punchy.Terrain
                     ReshapeLoweredLakes(source, settings, cellSize * 0.0005f, resolution, origin, cellSize, seed, elevation,
                                         points, down, order, lakesCut, lakes, lakeLevel, floor, width, bed, water);
                     lakesCut.Dispose();
+                    DrainLakeExits(settings, down, order, lakes, lakeLevel, width, bed, water);
+                    RiverProfiles.FillPits(settings, source.World.SeaLevel, down, order, lakes, width, bed, water);
                     SettleLakeRivers(settings, source.World.SeaLevel, down, order, lakes, lakeLevel, width, bed, water);
                 }
 
@@ -439,6 +441,25 @@ namespace Punchy.Terrain
             newFloor.CopyTo(floor);
             newFloor.Dispose();
             touched.Dispose();
+        }
+
+        // A lake lowered to a cut beside it still drained over rim cells holding its old surface (-1740, -976 on v3).
+        static void DrainLakeExits(in RiverSettings settings, NativeArray<int> down, NativeList<int> order, NativeArray<float> lakes,
+                                   NativeArray<float> lakeLevel, NativeArray<float> width, NativeArray<float> bed, NativeArray<float> water)
+        {
+            var capped = new NativeArray<bool>(water.Length, Allocator.Temp);
+            for (int k = order.Length - 1; k >= 0; k--)
+            {
+                var c = order[k];
+                var d = down[c];
+                var top = lakes[c] > 0f ? lakeLevel[c] : water[c];
+                if (d < 0 || lakes[d] > 0f || width[d] <= 0f || (lakes[c] <= 0f && !capped[c]) || water[d] <= top + 0.01f)
+                    continue;
+                water[d] = top;
+                bed[d] = math.min(bed[d], water[d] + RiverSampling.Depth(width[d], settings) * 0.25f);
+                capped[d] = true;
+            }
+            capped.Dispose();
         }
 
         /// <summary>
