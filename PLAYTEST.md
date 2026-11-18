@@ -268,3 +268,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #582 W-165 row 2 (#335): simpler crop shapes (fields ~4-5k verts), desert beans in Sonoran/Mesa villages, adobe wall round agave, elf glow-herb beds.
 - #583 R-26 row 2 (#304): cave cracks read as recessed seams (glow from the floor in glowing caves), softer bark furrows with faint lichen/moss.
 - #584 W-165 row 3 (#335): rice tufts in still shallow ponds of grassland and temperate land, none in rivers.
+- #585 W-161 (#326, closed): elf towns in stone, with no wood signs, fences, bridges, doors or shingles; flora metal no longer renders white-hot (all metal props).
