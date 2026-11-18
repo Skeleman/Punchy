@@ -1163,3 +1163,6 @@ Waterfall curtains now fade their edge columns in the water shader (one smoothst
 
 ## Note (2026-11-17, supervisor): re-pin after #569 (iron kit material)
 The kit fingerprint includes each part's material, so fixture and house hashes change (lanterns, braziers, brackets, hoops moved Trim -> Iron). No geometry moved.
+
+## Request (2026-11-17, render-2, R-29 row 4 #320, branch render/effects-kit-3 bff9d4ec): spray plume family cost
+Waterfall spray (river, cave, grand and landmark falls: lip white water, foot churn, foam, mist) now draws through PlumeSystem.Spray (one more RenderPrimitives from EffectsDriver) instead of LandmarkEffectSystem's plume draw. One check vs main 38ec6aec: EffectsDriver and LandmarkEffectSystem main-thread ms and whole-frame GPU ms at river fall -218,382 (12 spray plumes) and the waterfall landmark at -1994,3010 (47), High, uncapped, 300 frames. Expect no change. Report only.
