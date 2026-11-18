@@ -276,3 +276,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #590 W-159 row 1 (#322): rivers show their flow as surface ripples, no white streaks on smooth water.
 - #591 W-159 row 2 (#322): fast rivers and rapids show small foam at banks and rocks instead of white blotches.
 - #592 W-161 row 2 (#326): elf groves build hazard shelters in stone (no wood); not visible yet, groves avoid hazard biomes.
+- 11-18 #593 W-159 row 3 (#322): mist no longer shows hard rectangles over river and lake edges; fades into the water. #322 closed.
