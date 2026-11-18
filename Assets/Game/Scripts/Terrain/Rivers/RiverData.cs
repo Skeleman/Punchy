@@ -175,6 +175,7 @@ namespace Punchy.Terrain
         public float ShoulderLevel, ShoulderWeight; // rock a fall's lip rises to beside its sheet, and how much (W-153)
         public float2 Flow;      // downstream direction at the closest point
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
+        public float Cut;        // #301 row 2: height of the cut bank face here (outer side of a bend, else 0)
     }
 
     public static class RiverSampling
@@ -226,7 +227,7 @@ namespace Punchy.Terrain
         /// </summary>
         struct Bank
         {
-            public float WidthScale, Slope, Edge, BaseSlope;
+            public float WidthScale, Slope, Edge, BaseSlope, Cut;
 
             public static Bank At(ref RiverMapBlob map, in RiverSettings s, float2 xz, bool rough)
             {
@@ -241,7 +242,7 @@ namespace Punchy.Terrain
                 var slope = s.BankSlope * math.lerp(0.5f, 2.2f, math.smoothstep(-0.6f, 0.6f, noise.snoise(p / 140f + 17.3f)));
                 // A broken shoreline: bumps and bites of up to about a metre along the water's edge.
                 var edge = 0.6f * noise.snoise(p / 9f + 41.7f) + 0.3f * noise.snoise(p / 3.5f - 23.1f);
-                return new Bank { WidthScale = width, Slope = slope, Edge = edge, BaseSlope = s.BankSlope };
+                return new Bank { WidthScale = width, Slope = slope, Edge = edge, BaseSlope = s.BankSlope, Cut = 1f };
             }
         }
 
@@ -251,6 +252,7 @@ namespace Punchy.Terrain
             var q = new RiverQuery { Carve = float.MaxValue, Distance = float.MaxValue, FallWater = float.MinValue };
             var bank = Bank.At(ref map, s, xz, rough);
             bank.Slope = math.min(bank.Slope, maxBankSlope);
+            bank.Cut *= math.smoothstep(0.5f, 1.25f, maxBankSlope);
             var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
             // W-153 row 2: each segment once (the cells' lists overlap), and the carve and water blended over them.
             var seen = new FixedList128Bytes<int>();
@@ -351,6 +353,7 @@ namespace Punchy.Terrain
             var ab = b - a;
             float t, distance;
             var flow = math.normalizesafe(ab);
+            var outer = 0f;
             if (s.Smooth && down >= 0)
             {
                 // Nearest point on the curve: five samples, then refine either side of the best one.
@@ -374,6 +377,10 @@ namespace Punchy.Terrain
                     }
                 }
                 flow = math.normalizesafe(Hermite(a, b, ta, tb, math.min(t + 0.02f, 1f)) - Hermite(a, b, ta, tb, math.max(t - 0.02f, 0f)), flow);
+                var turn = (ta.x * tb.y - ta.y * tb.x) / math.max(math.length(ta) * math.length(tb), 1e-6f);
+                var off = xz - Hermite(a, b, ta, tb, t);
+                if (turn * (flow.x * off.y - flow.y * off.x) < 0f)
+                    outer = math.saturate(math.abs(turn) / 0.3f);
             }
             else
             {
@@ -388,7 +395,8 @@ namespace Punchy.Terrain
             var level = profile.Bed(tl);
             var baseWidth = profile.Width(t);
             var width = baseWidth * bank.WidthScale;
-            var carve = Profile(distance, level, width, Depth(baseWidth, s), bank);
+            var cut = fall || baseWidth < 3f ? 0f : math.smoothstep(0.25f, 0.6f, outer) * math.lerp(0.5f, 1.5f, outer);
+            var carve = Profile(distance, level, width, Depth(baseWidth, s), bank, cut * bank.Cut);
 
             // Carve and water come from the same profile, so water and banks agree.
             // A fall's water steps on its lip line, straight across the channel at the curve's middle (where FallShape
@@ -443,6 +451,7 @@ namespace Punchy.Terrain
                 // rather than dry ground below the water just past its edge (an open end on a low floodplain).
                 q.Width = math.max(width, baseWidth);
                 q.Flow = flow;
+                q.Cut = cut;
                 // The water's fall too (W-36): where it backs up flat to a lake or a dam over a steep bed, no rapids.
                 // W-98: blended mid-segment to mid-segment with the segment upstream or downstream, so the rapids (and
                 // the water's apparent speed) ramp up over a segment into white water rather than jumping at a cell.
@@ -488,7 +497,7 @@ namespace Punchy.Terrain
         /// depth comes from the unwobbled width so the bed stays continuous; the shoreline offset only acts in a
         /// band round the water's edge.
         /// </summary>
-        static float Profile(float distance, float level, float width, float depth, in Bank bank)
+        static float Profile(float distance, float level, float width, float depth, in Bank bank, float cut = 0f)
         {
             var half = width * 0.5f;
             var h = distance < half
@@ -500,6 +509,16 @@ namespace Punchy.Terrain
                 // A dip in the noisy edge must not drop the bank below the water, or the river spills out (an open end).
                 if (distance >= half)
                     h = math.max(h, level + 0.4f + math.min(distance - half, SurfaceMargin + 2f) * bank.BaseSlope);
+            }
+            if (cut > 0f)
+            {
+                var e = distance - half;
+                var fade = 1f - math.smoothstep(6f, 14f, e);
+                var terrace = math.saturate(cut / 0.5f) * fade * math.max(e - 0.7f, 0f) * bank.Slope * 0.7f;
+                h += cut * math.smoothstep(0f, 0.7f, e) * fade - terrace;
+                h -= 0.25f * cut * math.smoothstep(-1.4f, -0.6f, e) * (1f - math.smoothstep(-0.2f, 0.3f, e));
+                if (e >= 0f)
+                    h = math.max(h, level + 0.4f + math.min(e, SurfaceMargin + 2f) * bank.BaseSlope);
             }
             return h;
         }

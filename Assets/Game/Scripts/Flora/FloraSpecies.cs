@@ -159,7 +159,9 @@ namespace Punchy.Flora
         [Tooltip("A shallow narrows, in bands across the water (stepping stones).")] Narrows,
         [Tooltip("Across a narrows, bank to bank, with both ends on dry ground (a fallen log; rare).")] LogNarrows,
         [Tooltip("Caught at the waterline: the outer bank of a bend, more rarely a straight bank, and still lake shores (driftwood snags).")] Snag,
-        [Tooltip("The waterline band of any river or lake, fast water too (wet, dark bank rocks).")] Waterline
+        [Tooltip("The waterline band of any river or lake, fast water too (wet, dark bank rocks).")] Waterline,
+        [Tooltip("The bank top at the lip of an outer bend, over a drop to the water (a Boulder there is an undercut turf lip " +
+                 "with roots hanging under it).")] Undercut
     }
 
     public enum FoliageFinish : byte

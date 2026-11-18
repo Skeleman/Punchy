@@ -336,7 +336,7 @@ namespace Punchy.Flora
                     MinRapids = s.MinRapids,
                     MaxRapids = s.MaxRapids,
                     RiverSpot = (int)s.RiverSpot,
-                    Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
+                    Tilt = s.Form == FloraForm.Boulder && s.RiverSpot != RiverSpot.Undercut ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
                     BiomeRock = s.TakeBiomeRock ? 1 : 0,
                     Dirt = s.Form == FloraForm.Field ? 2 : FloraGenerator.Founded(s.Form) ? 1 : 0,
@@ -1209,7 +1209,7 @@ namespace Punchy.Flora
             var q = RiverSampling.Query(ref map, source.RiverSettings, xz);
             if (!q.Found || q.Width <= 0.5f || q.Distance > q.Width * 0.5f + 4f)
             {
-                if (!late || !StillShore(source, xz, ground))
+                if (!late || kind == (int)RiverSpot.Undercut || !StillShore(source, xz, ground))
                     return 0f;
                 var shoreCell = (int2)math.floor(xz / (map.CellSize * 3f));
                 return ReachDraw(map.Seed, (uint)(shoreCell.x * 73856093 ^ shoreCell.y * 19349663), kind) * (waterline ? 1f : 0.5f);
@@ -1228,6 +1228,9 @@ namespace Punchy.Flora
             }
             if (kind == (int)RiverSpot.LogNarrows)
                 return q.Width <= 10f && q.Distance < 2f ? 1f : 0f;
+            if (kind == (int)RiverSpot.Undercut)
+                return Dry(ground) && edge > -2f && edge < 4f && q.Cut > 0.45f
+                    ? math.lerp(0.4f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind)) : 0f;
             var reach = math.max(10f, q.Width * 1.5f);
             var up = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz - flow * reach);
             var down = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz + flow * reach);
@@ -1267,6 +1270,50 @@ namespace Punchy.Flora
             var near = map.Nearest[c.y * map.Resolution + c.x];
             return near.x >= 0 && (map.Kind[near.x] & (byte)RiverProfileKind.Fall) != 0
                 || near.y >= 0 && (map.Kind[near.y] & (byte)RiverProfileKind.Fall) != 0;
+        }
+
+        static FloraSystem.FloraInstance UndercutLip(in TerrainSource source, in FloraRules rule, float2 xz, in GroundSample ground,
+                                                     float scale, ref Random rng)
+        {
+            var none = new FloraSystem.FloraInstance { Model = -1 };
+            ref var map = ref source.Rivers.Value;
+            var q = RiverSampling.Query(ref map, source.RiverSettings, xz);
+            var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
+            var left = new float2(-flow.y, flow.x);
+            var toWater = source.SampleHeight(xz + left * 2f) < source.SampleHeight(xz - left * 2f) ? left : -left;
+            var edge = xz;
+            var top = 0f;
+            var found = false;
+            for (var step = -3f; step <= 3f && !found; step += 0.25f)
+            {
+                edge = xz + toWater * step;
+                top = source.SampleHeight(edge);
+                found = top - source.SampleHeight(edge + toWater * 0.5f) > 0.45f
+                     && source.SampleHeight(edge - toWater * 0.5f) - top < 0.2f;
+            }
+            if (!found || source.SampleHeight(edge + toWater * 1.5f) > top - 0.6f)
+                return none;
+            var model = rule.FirstModel + rng.NextInt(rule.Variants);
+            var yaw = FacingYaw(toWater) + rng.NextFloat(-0.2f, 0.2f);
+            var at = new float3(edge.x, top + 0.02f, edge.y);
+            if (rng.NextFloat() < 0.15f)
+            {
+                var foot = edge + toWater;
+                for (var k = 0; k < 8 && source.SampleHeight(foot) - source.SampleHeight(foot + toWater * 0.5f) > 0.25f; k++)
+                    foot += toWater * 0.5f;
+                at = new float3(foot.x, source.SampleHeight(foot) - 0.15f, foot.y);
+                yaw += rng.NextFloat(-1.2f, 1.2f);
+                scale *= 0.65f;
+            }
+            return new FloraSystem.FloraInstance
+            {
+                Position = at,
+                Yaw = yaw,
+                Scale = scale,
+                Model = model,
+                Random = rng.NextFloat(),
+                Ground = GroundFor(source, rule, edge, 1f, 0.25f)
+            };
         }
 
         static bool StillShore(in TerrainSource source, float2 xz, in GroundSample ground) =>
@@ -2916,6 +2963,8 @@ namespace Punchy.Flora
                     Ground = GroundFor(source, rule, xz, 1f, 0.25f)
                 };
             }
+            if (rule.RiverSpot == (int)RiverSpot.Undercut)
+                return UndercutLip(source, rule, xz, ground, scale, ref rng);
             if (rule.RiverSpot == (int)RiverSpot.GravelBar || rule.RiverSpot == (int)RiverSpot.Snag)
             {
                 // Driftwood lies roughly along the flow, as the water left it.
