@@ -80,6 +80,9 @@ namespace Punchy.Terrain
                 var under = RiverSampling.Depth(width[c], settings) * 0.25f;
                 if (water[c] > bed[c] - under + 0.05f)
                     bed[c] = water[c] + under;
+                // A wider cell below sits a few cm higher under the same water: match it rather than rise downstream.
+                if (bed[d] > bed[c] && bed[d] < bed[c] + 0.25f)
+                    bed[c] = bed[d];
             }
         }
 

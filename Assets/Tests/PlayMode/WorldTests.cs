@@ -104,8 +104,11 @@ namespace Punchy.Tests
             var counts = Game.Hook<int[]>("WaterTruthCounts");
             LogWatch.Measure($"water truth ({string.Join(", ", WaterTruthKinds)}): {string.Join(", ", counts)}");
             Assert.AreEqual(WaterTruthBaseline.Length, counts.Length, "the probe's kinds changed: update the baseline");
+            var over = new System.Collections.Generic.List<string>();
             for (int k = 0; k < counts.Length; k++)
-                Assert.LessOrEqual(counts[k], WaterTruthBaseline[k], $"more '{WaterTruthKinds[k]}' water defects than the baseline");
+                if (counts[k] > WaterTruthBaseline[k])
+                    over.Add($"{WaterTruthKinds[k]} {counts[k]} > {WaterTruthBaseline[k]}");
+            Assert.IsEmpty(over, $"more water defects than the baseline: {string.Join(", ", over)}");
             yield return null;
         }
 
@@ -137,7 +140,10 @@ namespace Punchy.Tests
         // Row 3 tail (fall lip shoulders: rock beside a sheet rises just above the upper water; lip pairs on an oblique
         // fall's minor grid axis count as the fall's sheet): wall 89 -> 36 (fall walls 56 -> 5), step 225 -> 170. Re-based here.
         // Perched-lake fix (lakes re-lowered to a dam-cut outlet, reshaped): bend 82 -> 83. Re-based here.
-        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 10, 0, 36, 10, 17, 170, 0, 0 };
+        // Lake exits and left-lake river beds kept to the lowered lake (#617 follow-up): uphillGraph 10 -> 0, deep 10 -> 1
+        // (rivers in an old lake bed meet the lowered lake's surface, not its floor).
+        // Wall 36 -> 48: the -1750,-750 lake dropped 2.5 m to its dam-cut outlet and bared its old bed below the -2006,-1064 pond's ledge.
+        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 48, 1, 17, 170, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
