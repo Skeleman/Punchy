@@ -515,20 +515,18 @@ Shader "Punchy/Terrain Surface"
                         normalWS = normalize(normalWS - half3(crackSlope.x, 0, crackSlope.y) * crackOn);
                     }
                 }
-                // Rock faces (steep ground) up close: the caves' shared grain and fine relief, read three ways, so cliffs
-                // carry the same detail as cave walls.
+                // Cliffs carry the same grain as cave walls.
                 half rockShade = 1;
                 float pxmR = (_PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110) / max(distance, 0.01);
                 half steep = (1 - smoothstep(0.55, 0.8, normalWS.y)) * smoothstep(10.4, 23.4, pxmR) * (input.extra.w <= 0.01);
                 steep *= 1 - rockFace;   // (R-19's rock carries its own grain)
-                // W-112: round a cave mouth (its cut field under 8 m) any ground takes the walls' grain at the walls' own
-                // scale, so the terrain doesn't turn smooth where it meets the finer cave rock. Only there: the rest of
-                // the ground pays nothing.
+                // W-112: ground round a mouth takes the grain the cave walls carry there, so neither side turns smooth.
                 half mouth = (1 - smoothstep(1.5, 8, input.cave)) * smoothstep(15.6, 31.2, pxmR);
                 steep = max(steep, mouth * 0.7);
                 if (steep > 0.01 && _PunchyCaveDetailReady > 0)
                 {
-                    float3 q = input.positionWS * lerp(0.6, 1.0, mouth);
+                    // One scale (Cave.shader's groundGrainScale): one that varies over the ground smears far from the origin.
+                    float3 q = input.positionWS * 0.6;
                     float3 tw = pow(abs(normalWS), 4);
                     tw /= tw.x + tw.y + tw.z;
                     half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
@@ -538,10 +536,7 @@ Shader "Punchy/Terrain Surface"
                     normalWS = normalize(normalWS + float3(0, rb.x, rb.y) * tw.x + float3(rb.x, 0, rb.y) * tw.y + float3(rb.x, rb.y, 0) * tw.z);
                     rockShade = 1 + (rd.b - 0.5) * 0.6 * steep;
                 }
-                // R-19: the rock on steep faces, from the one rock wall (Materials/RockWall.hlsl, W-162): a thick and a
-                // thin set of beds by height, wandering slowly along the face, each bed's top a ledge; and slabs of lighter
-                // and darker stone. The surface on them is the shared stone (Materials/Stone.hlsl, R-34 row 2). Every part
-                // fades by its own on-screen size (DetailPolicy.ScreenSize via the reference pixels a metre spans).
+                // R-19: steep rock from the one rock wall (Materials/RockWall.hlsl, W-162), its surface the shared stone (R-34 row 2).
                 half rockBand = 0, rockBlock = 0, rockLedge = 0;
                 [branch] if (rockFace > 0.001)
                 {
