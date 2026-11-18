@@ -177,7 +177,7 @@ namespace Punchy.Terrain
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
         public float Cut;        // #301 row 2: height of the cut bank face here (outer side of a bend, else 0)
         public float Bar;
-        public float Isle;       // #301: mid-channel gravel island here, 0..1 (its dome blended into Carve)
+        public float Isle;
     }
 
     public static class RiverSampling
@@ -565,11 +565,7 @@ namespace Punchy.Terrain
 
         const float IsleWidth = 9f;
 
-        /// <summary>
-        /// #301: a rare gravel island in the middle of a wide, slow, straight segment: a teardrop dome (blunt upstream)
-        /// about a fifth of the channel wide, its crown 0.4 m above the water, wholly inside the segment so it never
-        /// meets a neighbouring segment's carve.
-        /// </summary>
+        // Kept wholly inside one segment so it never meets a neighbour's carve.
         static float Isle(ref RiverMapBlob map, int start, float2 xz, float t, float distance, float width, float water, out float top)
         {
             top = 0f;

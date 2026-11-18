@@ -4,17 +4,14 @@ using Random = Unity.Mathematics.Random;
 
 namespace Punchy.Flora
 {
-    // #301 river details: a fallen tree bridging a narrow stream, and the dressing of a mid-channel gravel island
-    // (pebbles over it, reeds round its tail, a snag lodged on its nose). Seeded from the river map alone.
     public static partial class FloraPlacement
     {
         const float LogStreamWidth = 10.5f;
 
-        /// <summary>A fallen log's spot: the middle of one of the narrowest streams (rivers start near 9 m), on about half their reaches.</summary>
+        // Rivers start near 9 m wide, so only the narrowest streams qualify.
         static float LogFit(ref RiverMapBlob map, in RiverQuery q, float2 xz, int kind) =>
             q.Width <= LogStreamWidth && q.Distance < 2f && ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind) >= 0.6f ? 1f : 0f;
 
-        /// <summary>The island's share of a RiverSpot (0 off islands): pebbles over it, reeds at its tail, a snag on its nose.</summary>
         static float IsleFit(in RiverQuery q, in RiverQuery up, in RiverQuery down, float2 xz, int kind)
         {
             var isle = RiverSampling.IsleMask(q);
@@ -29,10 +26,6 @@ namespace Punchy.Flora
             return 0f;
         }
 
-        /// <summary>
-        /// W-63 / #301: a fallen log lies across the stream (its X across the flow), both ends on dry bank no more than
-        /// 1.5 m apart in height, its middle at their mean and its length tilted down to the lower bank.
-        /// </summary>
         static FloraSystem.FloraInstance LogAcross(in TerrainSource source, in FloraRules rule, float2 xz, in GroundSample ground, float scale, ref Random rng)
         {
             var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
