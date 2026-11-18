@@ -388,3 +388,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Tried ZTest Always on the mist: the mist then covers the whole frame (row3/cmp3.jpg). Reverted, nothing committed.
 - Fix options (AmbientMist.shader, render family / R-29, not W-159's Water.shader scope): (a) fade the mist alpha by distance to the water surface, (b) cull or lift the mist spawn above water, (c) draw the mist before the water depth pass. Waiting on main.
 - Shots: PunchyMilestones/W-159/row3/cmp1.jpg (base vs fine sheet off), noamb-s.jpg (ambient off: edge gone), cmp3.jpg.
+
+## W-159 (#322) row 3 mist vs water (11-18) - render/mist-water 59357697
+- Each particle now carries its nearby water surface (GroundSample.WaterSurface, in the old Pad slot). AmbientMist fades alpha by the pixel's height above that surface over the same soft width as its ground fade, so the water's depth no longer cuts quads off hard. Spawns already sit at max(ground, water); nothing new is needed there. Pass order is unchanged. Glow uses the struct but its look is unchanged.
+- Shots: PunchyMilestones/W-159/sheet-mist.jpg (fast-20m, rapid-20m, mist over land; noon; before|after; viewed). The edges are gone (also a second one at the lake edge in the land shot); the mist over land is unchanged.
+- BENCH: none expected (one varying and one min per mist pixel).
