@@ -295,3 +295,11 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Fix: Village_CreatureDensity sent the player to stale v1 spots (DebugControls keyed its spot list on count + first landmark, which v1 and v3 now shared). The key now sums all landmark positions. WorldTests 20/20.
 - Shots: PunchyMilestones/castle-place/castle-{15m,60m}.png.
 - 11-18 W-166 row 2 scarp-stone: main (incl. #600 mouth patch, #601) merged into materials/w166-scarp-stone 341d0807, clean, no conflicts. WorldTests 20/21 then Setup_SpawnRainAndShot alone 1/1 (180 s timeout under load; its shot was taken). Pins hold: landmarks 114 DE33C724, temple C41A5BA2.
+
+## 11-18 W-182 row 4 (#254) castle gatehouse: materials/castle-gatehouse@22f1fc4e
+- Gate kit: units `castle gate` (gatehouse arch, two flanking castle towers, portcullis lowered as its own part) and `castle gate raised`. Shared kit draw and the stone library only, no new materials. Portcullis static: no ghost field or wire enum.
+- Ruin variant: `castle ruin gate` nests `castle gate raised` (part `unit`, Wear 0.8). New landmark type CastleGateRuins (Temperate, Grassland; Density 1.2, PerRealm 1) grows species CastleRuinGate, because a landmark uses only its first centrepiece.
+- Engine: a nested unit now ages to at least its part's Wear (DrawParts takes wear). FloraSpecies.NestedJson registers the units a UnitJson nests, so builds have them (only species-listed units load outside the editor).
+- WorldTests 21/21 after repins: landmarks 120 5B47CDAE, fingerprint 436594EF, temple 646F01C4.
+- Shots: PunchyMilestones/castle-gatehouse/gate-15m-nz.png, gate-60m-nz.png (gate side; play world at 282,2837), plus lab-castle-gate-{0,180}, lab-castle-gate-raised-{0,180}, lab-castle-ruin-gate.
+- Next, on hold: BankRock and RiverRock onto MaterialLibrary.Stone once banks/river-details is on main.
