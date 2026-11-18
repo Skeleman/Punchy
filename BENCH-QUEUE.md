@@ -1215,3 +1215,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - render-2 11-18 river-leaves (c5cd86c2): about 20-40 extra Leaves plumes (1-5 particles) near wooded rivers; list rebuilt every 5 s or on river-cell change, with one FloraSystem.TreesNear call per riverside species. Check frame cost + rebuild spikes at -2390,-842 vs main.
 
 - materials/river-bed (materials): RiverBed adds 3 noise.snoise per underwater river-bed sample on the per-vertex terrain path; check chunk build time against main.
+- 11-18 banks: banks/river-logs@ae15d970: RiverSampling.Query adds island work (Isle blend, a 5-point Lake check when Isle > 0) and Consider calls Isle per segment; report-only terrain chunk build time near the island at -1427,-1323, main vs branch.

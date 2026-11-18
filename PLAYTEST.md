@@ -314,3 +314,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #629 W-166 (#336): pale gravel tops on river point bars, wet and dark at the waterline.
 - #630 W-142 (#262): leaves and petals float down wooded rivers, circle in eddies; riverside trees drop the odd leaf.
 - #631 W-166 (#336): river beds get gravel/sand patches in the shallows and dark silt in pools.
+- #632 #301 row 4: fallen logs bridge narrow streams; small gravel islands with reeds on wide slow reaches.
