@@ -336,7 +336,8 @@ namespace Punchy.Debugging
             type.Dispose();
         }
 
-        /// <summary>A drop from hi to lo is a fall's own sheet: hi sits on the lip line, inside the fall's width, and lo is downstream of it.</summary>
+        /// <summary>A drop from hi to lo is a fall's own sheet: hi sits on the lip line, inside the fall's width, and lo is downstream of it
+        /// (any grid neighbour with a downstream lean: an oblique fall's lip line crosses both grid axes, W-153).</summary>
         static bool AtFallLip(ref RiverMapBlob r, float2 hi, float2 lo, float step)
         {
             var dir = math.normalizesafe(lo - hi);
@@ -346,7 +347,7 @@ namespace Punchy.Debugging
                 var o = r.Falls[f].Out;
                 var along = math.dot(rel, o);
                 var across = math.abs(rel.x * o.y - rel.y * o.x);
-                if (across <= r.Falls[f].Width * 0.5f + step * 0.5f && along >= -step - 1f && along <= 1f && math.dot(dir, o) > 0.5f)
+                if (across <= r.Falls[f].Width * 0.5f + step * 0.5f && along >= -step - 1f && along <= 1f && math.dot(dir, o) > 0.25f)
                     return true;
             }
             return false;

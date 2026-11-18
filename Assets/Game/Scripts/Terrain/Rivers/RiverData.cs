@@ -172,6 +172,7 @@ namespace Punchy.Terrain
         public float Carve;      // carved height of the nearest river's profile, blended with others near joins
         public float Water;      // water surface of the same profiles, blended the same way
         public float FallWater;  // upper water of a fall whose channel covers this point above its lip line (else MinValue)
+        public float ShoulderLevel, ShoulderWeight; // rock a fall's lip rises to beside its sheet, and how much (W-153)
         public float2 Flow;      // downstream direction at the closest point
         public float Gradient;   // drop per metre of the riverbed at the closest point (no more than its water's drop)
     }
@@ -406,6 +407,20 @@ namespace Punchy.Terrain
                 water = above ? profile.WaterA : profile.WaterB;
                 if (above && distance < width * 0.38f)
                     q.FallWater = math.max(q.FallWater, profile.WaterA);
+                // W-153: beside the sheet the upper water would stand at the lip over the cliff below with no curtain
+                // to carry it down (56 walls on v3). Rock shoulders rise just above it there instead, so the sheet is
+                // the only way over the lip; they narrow a wider channel to the sheet over its last few metres.
+                if (above)
+                {
+                    var side = math.smoothstep(0f, 2f, distance - baseWidth * 0.5f)
+                             * math.smoothstep(LipHold - 10f, LipHold - 4f, past)
+                             * (1f - math.smoothstep(width * 0.5f + SurfaceMargin, width * 0.5f + SurfaceMargin + 4f, distance));
+                    if (side > q.ShoulderWeight)
+                    {
+                        q.ShoulderWeight = side;
+                        q.ShoulderLevel = profile.WaterA + 0.4f;
+                    }
+                }
                 if (!above)
                 {
                     var drop = math.max(profile.BedA - profile.BedB, 0f);
@@ -501,7 +516,11 @@ namespace Punchy.Terrain
             var carved = SmoothMin(height, q.Carve, 2f);
             var w = GroundEdits.Band(q.Distance, s.MaxCarveDistance * 0.5f, s.MaxCarveDistance * 0.7f, s.MaxCarveDistance,
                 GroundEdits.EdgeNoise(xz, 1f / 40f, 17.3f));
-            return GroundEdits.Apply(xz, height, carved, w, 0.2f);
+            var h = GroundEdits.Apply(xz, height, carved, w, 0.2f);
+            // A fall's lip shoulders (W-153): ground beside its sheet rises to just above the upper water.
+            if (q.ShoulderWeight > 0f && h < q.ShoulderLevel)
+                h = math.lerp(h, q.ShoulderLevel, q.ShoulderWeight);
+            return h;
         }
 
         /// <summary>min(a, b) with the corner rounded over a band of width k, so banks don't end in a crease.</summary>
