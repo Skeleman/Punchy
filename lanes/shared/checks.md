@@ -9,6 +9,10 @@ Separate commits per item. Split only for risk or a decision that is Zach's.
 
 ## Stage
 - Clear weather, fixed time: `-weather Clear -time 12` (or what the feature needs), `-weatherseed 4`.
+- Matched before/after pairs (two branches, two sessions): after landing, eval
+  `Punchy.Debugging.MatchedShot.Hold(new Vector2(x, z), 12f, 1000f);` (Sunny day with Clear held, hour paused,
+  `_PunchyClock` pinned so swell and tide match), wait about 25 s, then shoot. `-weather Clear` alone keeps an
+  overcast day grey.
 - HUD and debug panel off: `-nohud`, `DebugControls.ShowReadout = false`.
 - Avatar out of frame and out of the camera's line (the reveal cone cuts holes): `-camlook` or `-camrel`; a side
   view is `-goto x,z` plus `-camlook`.

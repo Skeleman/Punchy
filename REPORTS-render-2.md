@@ -294,3 +294,9 @@ Row 3 keeps every look the same. Weather precipitation and underwater stay as th
 - Pair at the g2 pose and noon: PunchyMilestones/shore-foam/pair.png (before = g2-base on main, after = g5-base). The after sky came out overcast even with -weather Clear, so brightness differs; the foam shape is the point. An in-session shader swap gave stale frames, so the two shots come from separate play sessions.
 - BENCH line added (water GPU at Medium, budget +0.1 ms).
 - Rework (fca46f65): pair retaken matched, both shaders under one script: Sunny day type plus Clear held (-weather Clear only clears cells, so an overcast day type stayed grey), hour paused at 12, _PunchyClock pinned per shot so the swell and tide match. Edges softened, peak 0.75. Pair: PunchyMilestones/shore-foam/pair-matched.png (main vs after at clocks 1000 and 1005).
+
+## R-43 Matched-shot helper (11-17) - render/matched-shot fdbd6db6
+- New tracked helper `Assets/Game/Scripts/Debugging/MatchedShot.cs` (my file; DebugControls is fauna's, so no flag there). Any lane calls it from its shot eval after landing: `Punchy.Debugging.MatchedShot.Hold(new Vector2(x, z), 12f, 1000f);`, waits about 25 s, shoots; `MatchedShot.Clock` can change between shots for other swell phases; `Release()` frees it.
+- Holds: Sunny day type plus Clear forced and held, the day/night cycle paused at the hour, `_PunchyClock` pinned in a late Update/LateUpdate and before rendering (after WorldSync writes it).
+- Checked in play: clock stayed 1000, day Sunny; two shots 8 s apart differ by 0.97 mean (life only). Usage line in lanes/shared/checks.md (Stage); lanes/README.md has no shots section and docs keep one home per fact.
+- Follow-up for fauna if wanted: a one-line `-matched` flag in DebugControls.Flags.cs calling Hold, for -shotlist runs in player builds.

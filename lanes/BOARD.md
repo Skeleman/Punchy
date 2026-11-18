@@ -65,6 +65,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | R-29 | #320 | render-2 | electricity kit merged #540 (spires + golem arcs) | render/effects-kit | Next: steam, smoke, sparks, spray, wind families (after R-28 r2) |
 | R-41 | - | render-2 | beach glare fixed: walkway lanterns now night-only pier lamps (f36e362b) | render/beach-glare | Review + merge |
 | R-42 | - | render-2 | shore foam thin soft band at the waterline (Water.shader constants only; fca46f65 softens 95153679); matched pair taken | render/shore-foam@fca46f65 | Review + merge; pair PunchyMilestones/shore-foam/pair-matched.png |
+| R-43 | - | render-2 | matched-shot helper: MatchedShot.Hold(xz, hour, clock) holds Sunny/Clear, hour, _PunchyClock (fdbd6db6); usage in lanes/shared/checks.md Stage | render/matched-shot@fdbd6db6 | Review + merge |
 | #400 cull | #400 | fauna | held: #400 closed by #509; start only if BENCH q137b still shows the cull stall | fauna/cull-no-stall (new off main) | CreatureRenderSystem: no same-frame Complete of the cull |
 | #400 mesh | #400 | world | queued after M-07 r2b, W-172 r7 | world/chunk-mesh-budget (new off main) | Per-frame chunk-mesh budget by screen size; tunnel-mouth burst |
 | Job 96 | #400 | profiler | next | - | Tunnel hitch on v0.16 |
