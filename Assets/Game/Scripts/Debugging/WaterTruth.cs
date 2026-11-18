@@ -217,8 +217,11 @@ namespace Punchy.Debugging
                         if (!Wet(k) && (k == 0 || down >= 0))
                         {
                             var none = type[b + k] == 0;
+                            var q = RiverSampling.Query(ref r, s.RiverSettings, points[b + k], s.RiverRoughOn);
+                            if (q.Isle > 0f)
+                                break;   // a mid-channel gravel island stands above the water by design
                             // Ground well above what the river carved here was raised afterwards (a paddy, a landmark, a plot).
-                            var carved = RiverSampling.Query(ref r, s.RiverSettings, points[b + k], s.RiverRoughOn).Carve;
+                            var carved = q.Carve;
                             hits[DryRun].Add(new Hit { Score = none ? 50f : ground[b + k] - surface[b + k], At = k == 0 ? here : mid, A = none ? 1f : 0f, B = r.Width[i], I = ground[b + k] > carved + 2f ? 1 : 0 });
                             break;
                         }
