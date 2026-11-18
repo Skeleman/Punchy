@@ -993,7 +993,8 @@ Shader "Punchy/Water"
                 // Where the water itself is deep, thin water in front of the bed can only be something standing in it (a
                 // swimmer, a rock): a much narrower, fainter line there.
                 half inDeep = smoothstep(0.5, 1.3, depth);
-                half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids) * lerp(1, 0.3, inDeep))));
+                float2 rimBreak = PunchyShoreFoamBreak(p, pixelsPerMetre);
+                half foam = smoothstep(foamNoise * 0.7, 1, saturate(1 - thickness / (_FoamDistance * lap * (1 + rapids) * rimBreak.x * lerp(1, 0.3, inDeep))));
                 foam *= lerp(1, 0.55, inDeep);
                 // A lake's line is faint.
                 foam *= lerp(1, 0.45, lakeShore);
@@ -1029,6 +1030,7 @@ Shader "Punchy/Water"
                 // flickers pixel to pixel and this line came out as fine static all down steep cave creeks. The falling
                 // sheets below carry the white there instead.
                 foam *= 1 - steep;
+                foam *= lerp(rimBreak.y, 1, seaShore);
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, broken into
                 // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
                 // mesh's corners and drew zigzags), and flecks ride the flow lines' crests on fast water.
