@@ -1184,3 +1184,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - #586 R-26 row 3: per-pixel cost of the extra Detail read at cave mouths (Cave.shader + TerrainSurface), uncapped, vs main before #586.
 - #589 W-165 row 4 sea-village plots: fingerprint re-pinned 9EA6387D -> 29237322 (profiler: rebaseline world-hash checks). Flora verts at fishing villages up slightly (kale beds ~1000, kelp racks ~610 LOD0 each).
 - #590 W-159 row 1: per-pixel cost of WaterFlowLines (frag line evals) and the near-camera vertex lift, river views calm/fast/rapid, uncapped, vs main before #590.
+- #592 W-161 row 2: fingerprint re-pinned 29237322 -> 525F72BB (profiler: rebaseline world-hash checks). No cost change expected.
