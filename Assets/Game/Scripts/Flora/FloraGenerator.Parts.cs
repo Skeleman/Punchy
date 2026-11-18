@@ -82,11 +82,13 @@ namespace Punchy.Flora
         /// Draws a unit's parts in order in a frame, each placed by Place. With streams, each part draws from its own
         /// stream, salted for a nested unit (0 at the top, so coded units draw exactly as before).
         /// </summary>
-        static void DrawParts(Grower g, UnitDef unit, UnitFrame frame, uint salt, bool streams)
+        static void DrawParts(Grower g, UnitDef unit, UnitFrame frame, uint salt, bool streams, float wear = 0f)
         {
             var b = g.B;
-            foreach (var part in unit.Parts)
+            foreach (var shared in unit.Parts)
             {
+                var part = shared;
+                part.Wear = Mathf.Max(part.Wear, wear);
                 b.Family = b.BaseFamily;
                 var mark = new PartMark(g);
                 if (streams)
@@ -106,7 +108,7 @@ namespace Punchy.Flora
         /// <summary>
         /// W-175 row 6: a whole unit as one part (UnitPart.Unit, looked up in UnitLibrary). Its parts draw about the origin
         /// in a frame Span in size, or the unit's own Size, or this unit's frame; Place then stands it at At, turned and
-        /// mirrored. A nested unit always uses part streams, salted by its id and the part's Seed.
+        /// mirrored. A nested unit always uses part streams, salted by its id and the part's Seed, and ages at least to the part's Wear.
         /// </summary>
         static void NestedUnit(Grower g, UnitFrame f, UnitPart p)
         {
@@ -118,7 +120,7 @@ namespace Punchy.Flora
             nesting++;
             try
             {
-                DrawParts(g, unit, frame, Hash(StableHash(p.Unit), (uint)p.Seed, 0x6E57u), true);
+                DrawParts(g, unit, frame, Hash(StableHash(p.Unit), (uint)p.Seed, 0x6E57u), true, p.Wear);
             }
             finally
             {
