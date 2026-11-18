@@ -235,3 +235,19 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
 - Door and shingles: added MaterialLibrary.FamilyOf(material, look, timber). Kit doors and wall/roof families now use b.TimberFamily, so elf doors are stone. Stone timber also drops the plank/shingle wood mark, so elf roofs are stone with slate courses (RoofCourses). StructureKit.Surfaces is unchanged.
 - Merged origin/main and re-pinned the fauna fingerprint once, to 9EA6387D. WorldTests 20/20. Shot: PunchyMilestones/W-161/elf-street.png (viewed: clean).
 - Tails: hazard shelters stay wood. The elf door keeps its tan trim colour (stone family, no grain). The metal decode and NaN fixes change all flora metal, not just elves.
+
+## W-166 row 2 (#336) - 2026-11-18 - branch materials/w166-scarp-stone 80b5fb0a
+- Scarps and river notches already took the biome's MaterialLibrary.Stone (#564/#567). Caves took their style's stone instead, so a cave and a cliff in one biome could use different stone rows. CaveBaking now gives a cave's wall relief from ScarpBake.StoneAt at the mouth (CaveStyle.ReliefIn). Themed styles keep their own stone: ice, crystal, ore.
+- Changed: Mesa cave plain->sandstone, Tundra mine shale->granite, plus the fungal, electric, ember and glass caves. Mountains and Ashlands (the only biomes with scarps, 5 in all) already matched, so the shots there are unchanged. The lighting differs between runs.
+- Not done: the cave colour deep inside still comes from the style. The country-rock fade is in CaveSystem.RockLook (RockReach 30 m), which is World's mouth area. Matching the colour deep inside needs that file, or a per-cave stone channel, so I stopped there. Elf hazard shelters are biome species with no culture, so making them stone means passing the culture per settlement. Not cheap, skipped.
+- Shots: D:/Unity/PunchyMilestones/W-166/row2/ (scarp, notch, cave, mesacave, far; before/after). Sparkle NaN 0 (mesacave and scarp, 20 frames each). WorldTests 20/20.
+
+## b/fix-cave-veins: Mesa cave white squiggles (no change, as ordered)
+- Cause found: the bright squiggles are Cave.shader's mineral veins (abs(noise-0.5) contour lines, pale calcite 0.88 albedo plus gloss 0.55, added in A-91 row 2 3cf43ad0), not #583's cracks. With `vein = 0` as a temporary edit they all vanish: D:/Unity/PunchyMilestones/cave-veins/mesa-noveins.png vs W-166/row2/mesacave-before.png.
+- They're meant to be there (W-138 row 4b already turned them off in road tunnels for reading as white squiggles), so per the order nothing is changed. The edit is reverted, the branch is not pushed.
+- Proposed fix if wanted (shader only): drop calcite to a darker tone near the rock colour, cut the 0.85 blend to about 0.4 and the gloss, or gate veins to ore and crystal styles.
+
+## b/fix-cave-veins: veins toned down (acdd2690, pushed)
+- In plain stone caves the veins are now sparser, thinner seams tinted towards the rock, with blend 0.4 and gloss 0.3. Ore, crystal and ice styles (metallic, facets or translucency of at least 0.5) keep the bright veins. Only Cave.shader changed.
+- Shots in D:/Unity/PunchyMilestones/cave-veins/: in mesa-before/after (matched, both viewed) the netting is gone and a few faint seams remain. crystal-before/after is the Crystal style cave at -2754,-643 and is unchanged (mean diff 0.86/255, 0.25% of pixels over 16, all sparkle particles).
+- Gotcha: the first shot after AssetDatabase.Refresh can catch the cave mid-reimport (dark, with the mouth openings missing). Retake it.
