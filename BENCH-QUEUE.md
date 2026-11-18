@@ -1141,3 +1141,6 @@ Near chunks round a cave mouth now build collars to the cave walls (BuildChunkMe
 
 ## Request (2026-11-17, render-2, R-42, branch render/shore-foam 95153679): shore foam water GPU cost
 Compare water GPU ms on render/shore-foam against main at Medium, standing at the beach near (-4038, 1.75, 1077) looking at the shore, noon. Budget is +0.1 ms. The diff only changes constants in the shore-foam term of Water.shader, so the cost should be unchanged.
+
+## Request (2026-11-17, world, W-153 row 4 #301, branch world/river-lakes 8d1e9937): deep-lake water mesh cost
+Lake water now also covers the deep spots of lakes it used to leave dry (about 300 points on v3), so a few more water patches build. One check vs world/river-curtain: water patch build ms and water GPU ms looking over the lake at -2990,2734 from (-2900,300,2650), v3, High, uncapped, 300 frames. Report only.

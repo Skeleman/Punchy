@@ -8688,3 +8688,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Shots: PunchyMilestones/world/W-174r3-mouth-seam/after (same 6 poses). c6-5m viewed: both speck islands gone, but where they sat thin wedges into the cave now show (blue/dark slivers left of the mouth), and the older dark vertical slits remain. c6 is not a test mouth, so the guard does not see them. Suggest a follow-up: add c6 to the seam test mouths.
 - Temple shot not taken: the temple at the test source's spot (1320,-2720) is not in the v3 shot world (only sand there). Temple seams are still covered by the seams test. 4-43 feet per mouth/LOD sit off-sheet above the ring (tiny hidden gaps under the collar possible).
 - BENCH-QUEUE line added (collar + DropSpecks + OntoRing build cost). Next: W-153 rows 4-6 (rivers), then W-181 ledges.
+
+### W-153 row 4 (#301) - DONE/verified 11-17, world/river-lakes@8d1e9937 (on river-curtain 7a9af48e)
+- F-22 lake clip now only in river channels; deep lake ground is lake bed. v3 WaterTruth wall 397->89 (lake walls 307->5, lake-above-river 0); no kind rose; baseline lowered.
+- 5 lake walls left: 1.5-3.5 m drops at lake fringes (coverage <0.13, -622,634 and 4 near 2838-3082,142-510); row 6 ground-test mesh covers these. No per-lake outlet re-level needed.
+- WorldTests 20/20; landmark pins unchanged, no landmark moved. Shots: PunchyMilestones/world/W-153r4-lakes (before: rock holes in lake at -2990,2734; after: clean; after lighting a bit dimmer).
+- BENCH line added (water mesh at a deep lake). Next: row 5.
