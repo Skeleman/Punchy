@@ -69,7 +69,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 4EE0D127", line);   // desert-bean and elf glow-herb plots shift spawn spots near towns
+            StringAssert.Contains("fingerprint 8E24FECC", line);   // rice tuft joins the flora list (144 species)
             yield return null;
         }
 
