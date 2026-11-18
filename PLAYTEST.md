@@ -255,3 +255,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #569 (W-166, #336): lantern caps, braziers, brackets, sign chains and barrel hoops are dark wrought iron instead of painted trim.
 - 11-17 #570 (R-29 row 4a, #320): every waterfall's spray mist uses one shared spray effect. Same look.
 - 11-17 #571 R-29 row 4b (#320, closed): fires, fumaroles and the volcano throw small rising embers.
+- 11-17 #572 W-174 r3 (#365): cave mouth rim welds to the terrain collar; c6 sky chip gone, seam softer. Collar-side fix next.
