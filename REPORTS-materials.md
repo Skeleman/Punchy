@@ -251,3 +251,10 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
 - In plain stone caves the veins are now sparser, thinner seams tinted towards the rock, with blend 0.4 and gloss 0.3. Ore, crystal and ice styles (metallic, facets or translucency of at least 0.5) keep the bright veins. Only Cave.shader changed.
 - Shots in D:/Unity/PunchyMilestones/cave-veins/: in mesa-before/after (matched, both viewed) the netting is gone and a few faint seams remain. crystal-before/after is the Crystal style cave at -2754,-643 and is unchanged (mean diff 0.86/255, 0.25% of pixels over 16, all sparkle particles).
 - Gotcha: the first shot after AssetDatabase.Refresh can catch the cave mid-reimport (dark, with the mouth openings missing). Retake it.
+
+## 2026-11-18 W-165 row 4 (#335 tail): sea-village plots - DONE, materials/sea-plots a193ecd0
+- FishingVillage gets 2 SeaBedBox (kale in a wattle bed, ring 0.28) and 2 SeaKelpRack (new CropKind.Kelp: pole racks with hanging strips in a stone kerb, ring 0.45), all on the W-165 Field form. WetPlot (PlotKit) keeps them off water and slopes over 1.5 m. Fields under 8 m skip the scarecrow, tool rack and hut.
+- Verts per plot (LOD0/1/2): bed box about 1000/960/220, kelp rack about 610/584/420.
+- Pushback: racks sit on the shore next to the wharf, not on the piers (props stand on terrain). Rice skipped: these villages sit at river mouths with no still shallows.
+- Shots: PunchyMilestones/sea-plots v104 and v103 before/after. In the far view the ground is unchanged; only sky and mist differ.
+- WorldTests 19/20. Fauna_Fingerprint re-pinned 9EA6387D -> 29237322, and it passes on the rerun.
