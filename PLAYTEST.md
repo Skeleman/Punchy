@@ -299,3 +299,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #614 #301 row 2 cut banks: earth faces with waterline notch on outer bends, turf lips with hanging roots, fallen chunks; fingerprint 59A4BFD3.
 - 11-18 #615 W-166 damp river banks: darker glossy strip above inland water, mud line at the edge (#336, #301).
 - 11-18 #616 R-15 fewer pale water panes beside river falls (#269, #301).
+- 11-18 #617 W-153 perched lake at -490,546 lowered to its river: flat lake + short rapids instead of a water cliff (#301).
+- 11-18 #618 W-174 cave-mouth patch matches the chunk tint and contact shade, no seam at 20 m (#365).
