@@ -9,8 +9,8 @@ namespace Punchy.Flora
         /// <summary>
         /// The family a form's bark is unless its builder tags a piece (FloraMeshBuilder.Family / Wood). Timber forms
         /// return None on purpose: every piece of a fence, frame or stall must say it's wood, so a missed flag shows up
-        /// in the material test instead of drawing as a flat-colour plank. Natural forms (trees, rocks, logs) are None
-        /// too: they aren't built and keep their own bark.
+        /// in the material test instead of drawing as a flat-colour plank. Trees and rocks are None too and keep their
+        /// own bark; lying logs are wood, so their grain runs along each piece and not round it as rock.
         /// </summary>
         public static MaterialFamily FormFamily(FloraForm form) => form switch
         {
@@ -18,6 +18,7 @@ namespace Punchy.Flora
             FloraForm.Fountain or FloraForm.Forum or FloraForm.HazardShelter => MaterialFamily.Stone,
             FloraForm.Tent or FloraForm.Bedroll => MaterialFamily.Cloth,
             FloraForm.Lodge => MaterialFamily.Leather,
+            FloraForm.Log or FloraForm.Driftwood => MaterialFamily.Wood,
             FloraForm.Hut or FloraForm.Inn or FloraForm.Smithy or FloraForm.Hall or FloraForm.KitBuilding or
             FloraForm.Tower => MaterialFamily.Plaster,
             _ => MaterialFamily.None

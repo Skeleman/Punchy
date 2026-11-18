@@ -124,11 +124,8 @@ namespace Punchy.Terrain
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
             var glows = new NativeArray<float2>(v * v, Allocator.Temp);
             var pooled = new NativeArray<bool>(v * v, Allocator.Temp);
-            // W-174 r6: the entrance cut per vertex (the sunken temple's, and from row 2 the cave mouths'), and where each
-            // vertex lies, for the collars.
             var templeLod = request.Lod <= TempleMaxLod && Source.Landmarks.IsCreated && TerrainLayout.IsCreated;
-            var mouthLod = request.Lod <= MouthMaxLod && Source.Caves.IsCreated && TerrainLayout.IsCreated;
-            var entranceLod = templeLod || mouthLod;
+            var entranceLod = templeLod;
             var templeCut = new NativeArray<float>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
             var worlds = new NativeArray<float2>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
             var rawCave = new NativeArray<float>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
@@ -149,6 +146,12 @@ namespace Punchy.Terrain
                                          ContactPixelsPerMetre, ContactStrength, ContactReach, shade);
             }
 
+            var patchMin = (int2)math.floor(request.Origin / MouthPatch.Cell) - 1;
+            var patchSize = (int)(ChunkSize / MouthPatch.Cell) + 2;
+            var patch = new NativeArray<bool>(request.Lod <= MouthPatch.MaxLod ? patchSize * patchSize : 1, Allocator.Temp);
+            var patched = request.Lod <= MouthPatch.MaxLod && MouthPatch.Fill(Source, patchMin, patchSize, patch);
+            var rims = new NativeArray<bool>(patched ? v * v : 1, Allocator.Temp);
+
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
             {
@@ -165,17 +168,31 @@ namespace Punchy.Terrain
                 // W-174 r6: the vertex nearest a corner of the temple's entrance takes it, so the rim turns on a vertex.
                 if (templeLod && world.Equals(grid) && SnapCorner(corners, grid, step, out var corner))
                     world = corner;
+                var rim = false;
+                if (patched)
+                {
+                    MouthPatch.Membership(grid, patch, patchMin, patchSize, out var any, out var all);
+                    rim = any && !all;
+                    rims[z * v + x] = rim;
+                }
+                if (rim)
+                {
+                    world = grid;
+                    strip = 100f;
+                }
                 if (!world.Equals(grid))
                 {
                     local = world - request.Origin;
                     ground = Source.SampleGround(world);
                     h = ground.Height;
                 }
+                if (rim)
+                    h = MouthPatch.Height(Source, grid, patch, patchMin, patchSize);
                 // W-174 r6: entrance cuts are not snapped to; their triangles are split on the rim (Collars). They still go
                 // into the vertex's cut, so a triangle Collars can't split is clipped per pixel as before.
                 if (entranceLod)
                 {
-                    var tc = math.min(templeLod ? Source.TempleCut(world) : 100f, mouthLod ? MouthCutAt(Source, world, step) : 100f);
+                    var tc = templeLod ? Source.TempleCut(world) : 100f;
                     templeCut[z * v + x] = tc;
                     worlds[z * v + x] = world;
                     collared |= tc < 0f;
@@ -282,6 +299,17 @@ namespace Punchy.Terrain
 
             if (request.CanMorph)
                 WriteMorphOffsets(verts, q, request.Lod + 1 <= HollowMaxLod);
+            // #301: the patch doesn't morph, so its rim mustn't either.
+            for (int i = 0; patched && i < v * v; i++)
+            {
+                if (!rims[i])
+                    continue;
+                var vertex = verts[i];
+                vertex.Emission.w = default;
+                vertex.Soak.y = vertex.Strata.z;
+                verts[i] = vertex;
+            }
+            rims.Dispose();
 
             var depth = SkirtDepth * (request.Lod + 1);
             int skirtBase = v * v;
@@ -307,6 +335,12 @@ namespace Punchy.Terrain
                 uint i1 = i0 + 1;
                 uint i2 = i0 + (uint)v;
                 uint i3 = i2 + 1;
+                if (patched && InPatch(request.Origin + (new float2(x, z) + 0.5f) * step))
+                {
+                    for (int k = 0; k < 6; k++)
+                        indices[t++] = i0;
+                    continue;
+                }
                 indices[t++] = i0; indices[t++] = i2; indices[t++] = i1;
                 indices[t++] = i1; indices[t++] = i2; indices[t++] = i3;
             }
@@ -319,6 +353,13 @@ namespace Punchy.Terrain
                 uint b = (uint)EdgeVertex(edge, k + 1, q);
                 uint sa = (uint)(skirtBase + edge * v + k);
                 uint sb = sa + 1;
+                var inside = 0.5f * (verts[(int)a].Position.xz + verts[(int)b].Position.xz);
+                if (patched && InPatch(request.Origin + inside + math.sign(ChunkSize * 0.5f - inside) * (step * 0.5f)))
+                {
+                    for (int n = 0; n < 12; n++)
+                        indices[t++] = a;
+                    continue;
+                }
                 indices[t++] = a; indices[t++] = b; indices[t++] = sa;
                 indices[t++] = b; indices[t++] = sb; indices[t++] = sa;
                 indices[t++] = a; indices[t++] = sa; indices[t++] = b;
@@ -328,6 +369,13 @@ namespace Punchy.Terrain
             if (collared)
                 Collars(ref mesh, verts, worlds, templeCut, request, step, depth, ref minY, ref maxY);
             templeCut.Dispose();
+            patch.Dispose();
+
+            bool InPatch(float2 xz)
+            {
+                var cell = (int2)math.floor(xz / MouthPatch.Cell) - patchMin;
+                return patch[cell.y * patchSize + cell.x];
+            }
             corners.Dispose();
             worlds.Dispose();
 
@@ -815,7 +863,7 @@ namespace Punchy.Terrain
         /// </summary>
         public float2 Seam(float2 grid, float h, float step, int lod, out float cave, out float strip, out float stripY)
         {
-            var cutHoles = false;   // W-174 r6 row 2: cave mouths are split on their rim by Collars, not snapped to
+            var cutHoles = false;   // #301: cave mouths are patched (MouthPatch), not cut
             cave = SeamCut(grid, h, step, cutHoles, lod, out strip, out stripY);
             if (!(cave > 0f && cave < 1.3f * step) || !SeamSnap(grid, cave, step, cutHoles, lod, out var rim))
                 return grid;
