@@ -259,6 +259,7 @@ namespace Punchy.Terrain
         public float River;        // 0..1, 1 inside a river channel
         public float Rapids;
         public float Inland;
+        public float Mouth, MouthStreak;
         public float EdgeNoise;    // -1..1
         public float ColorNoise;   // -1..1
     }
@@ -1114,8 +1115,21 @@ namespace Punchy.Terrain
                 }
             }
 
+            MouthSilt(ref props, g);
             DampBank(ref props, g);
             return props;
+        }
+
+        static void MouthSilt(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Mouth <= 0f || g.WaterDepth < -3f || g.WaterDepth > 2.5f)
+                return;
+            var fan = g.Mouth * (1f - math.smoothstep(1.5f, 3f, -g.WaterDepth)) * (1f - math.saturate(s.Snow)) * (1f - 0.5f * math.saturate(s.Grass));
+            s.Albedo = math.lerp(s.Albedo, new float3(0.52f, 0.46f, 0.35f) * (1f + 0.12f * g.ColorNoise), fan);
+            s.Smoothness = math.lerp(s.Smoothness, 0.22f, fan);
+            var wet = g.MouthStreak * fan;
+            s.Albedo = math.lerp(s.Albedo, new float3(0.13f, 0.11f, 0.085f), 0.85f * wet);
+            s.Smoothness = math.lerp(s.Smoothness, 0.55f, wet);
         }
 
         static void DampBank(ref SurfaceProps s, in GroundContext g)
