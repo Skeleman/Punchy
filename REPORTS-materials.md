@@ -326,3 +326,8 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - How: a short downstream walk (up to 4 cells) over the river map in TerrainSource (MouthFan) fills GroundSample/GroundContext.Mouth and MouthStreak, and EvaluateBiome tints the ground (MouthSilt, before DampBank). Tint and smoothness only; the carve and Water.shader are untouched.
 - WorldTests 21/21, fingerprint 59A4BFD3 unchanged.
 - Shots: D:/Unity/PunchyMilestones/river-mouths/river-mouths-pairs.jpg (sea mouths -3455,-1815 and -3717,-290, 30 m up, before|after). Below-sea hollows count as sea, so the inland pond at 62,249 gets a fan too.
+
+## 2026-11-18 materials/fall-spray (baa5df12) DONE
+- Spray (0..1) on GroundSample/GroundContext from fall segments in the 3x3 cells: lip, side walls and a 3-8 m ring round the plunge pool scaled by drop; plus 0.6*rapids at the banks. BiomeSampling.FallSpray darkens (x0.5) and glosses (0.72) after V3Ground; flora wet-rock band uses max(Rapids, Spray).
+- Shots: D:/Unity/PunchyMilestones/fall-spray/fall-spray-pairs.jpg (fall 1 at -2342,-532, 4.2 m drop: walls clearly wet; fall 0 at -1289,-1347: small change, its side faces look like scarp strips, which are world's files).
+- WorldTests 20/21, fingerprint 59A4BFD3. Water_TruthCounts (uphillGraph 19 > 10) fails on origin/main 88ce95d1 too: not from this card.
