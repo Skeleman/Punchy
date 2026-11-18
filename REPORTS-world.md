@@ -8724,3 +8724,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Collar foot to drawn wall, before -> after: c6 gap max 0.227 -> 0.168 m, p50 0.030 -> 0.019, angle p50 18.7 -> 10.6 deg; c3 gap max 0.257 -> 0.257, p50 0.031 -> 0.025, angle p95 41.6 -> 31.2; c0 unchanged (0.224 max, p50 ~0.05).
 - The c6 left sky chip is gone (matched lit 5 m shots c6 + c0, no new holes). The remaining max gaps sit at feet that are off the walls' field themselves (c0 worst foot field 0.18): a collar-side follow-up in BuildChunkMeshJob, not done here.
 - WorldTests 20/20, pins unchanged (no landmark moves). Shots: PunchyMilestones/world/W-365-mouthrim/{before,after}/{c6,c0}.png. BENCH line added.
+
+## 11-17 W-174 #365 collar-side seam — DONE, world/collar-foot@3e44a14a (from main), ready for PR
+- Collar feet and the seam checks now sit on the field the cave mesh actually draws (trilinear between voxel samples, new BuildChunkMeshJob.DrawnWallFieldAt), not the exact field. Rule 35 comment trim in the touched Mouths functions.
+- Rim gap max/p95 (m): c6 0.168/0.077 -> 0.128/0.059; c0 0.224/0.141 -> 0.200/0.097; c3 0.257/0.122 -> 0.171/0.086. c0 feet >2 cm: 175 -> 129. WorldTests 20/20.
+- The gaps left are cave-side: the wall mesh edge stops short of the foot line (foot already on the drawn field). That is a CaveSystem coverage follow-up, not foot placement.
+- Shots: PunchyMilestones/world/W-365-collarfoot/{before,after}/c6.png (lit, 5 m). Bench requested: collar build cost (8 field samples per foot eval).
