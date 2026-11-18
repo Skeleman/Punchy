@@ -280,3 +280,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #594 W-182 row 1 (#254): castle kit (wall, corner, tower, gatehouse; plain, mossy, ruined) in the Lab only.
 - 11-18 #595 W-182 row 2 (#254): castle parts get far fewer collision boxes and a real LOD2; looks unchanged.
 - 11-18 #596 W-166 (#254): castle towers and gatehouses get corner quoins, walls get putlog holes (Lab only).
+- 11-18 #597 W-160 row 1 (#324): waterline lifts and laps slightly on shallow banks with a ragged fade; subtle so far.
