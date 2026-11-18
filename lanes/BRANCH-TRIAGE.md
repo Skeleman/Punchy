@@ -3,6 +3,7 @@
 Every unlanded branch on origin, checked with merge-tree against origin/main on 11-15. Only chemistry-* is left out (Zach: not this project). The first pass covered 36 branches and missed the 11-13 to 11-15 ones.
 
 ## Merged 11-15 (catch-up)
+- materials/castle-gatehouse: #605 (W-182 row 4)
 - render/lava -> #601 (W-154 row 2, 11-18)
 - materials/castle-place -> #602 (W-182 row 3, 11-18)
 - materials/w166-scarp-stone -> #603 (W-166 row 2, 11-18)

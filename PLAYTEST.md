@@ -288,3 +288,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #602 W-182 row 3 (#254): four castle ruins in Temperate, Grassland and Tundra; landmarks 114 -> 118, others unmoved.
 - 11-18 #603 W-166 row 2 (#336): cave walls cut in the scarps' country rock unless themed (ice, crystal, ore).
 - 11-18 #604 (#262 row 1): falling leaves from tall broadleaf trees; steam wisps at fumaroles, smoke wisps in Ashlands and Volcano.
+- 11-18 #605 W-182 row 4 (#254): castle gatehouse kit (static portcullis) and CastleGateRuins landmark; fingerprint 436594EF.
