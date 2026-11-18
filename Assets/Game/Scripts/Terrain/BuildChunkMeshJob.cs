@@ -239,17 +239,7 @@ namespace Punchy.Terrain
                 // rise (twice it), so a gully running downhill, or anywhere on a slope, has a side that falls away
                 // and gets none, however far it sits below its banks on average.
                 if (request.Lod <= HollowMaxLod)
-                {
-                    float ring = 0f, lowest = float.MaxValue;
-                    for (int k = 0; k < 8; k++)
-                    {
-                        math.sincos(k * (math.PI / 4f) + (k & 1) * 0.3f, out var sn, out var cs);
-                        var around = Source.SampleHeight(world + new float2(cs, sn) * ((k & 1) == 0 ? 2.5f : 6f));
-                        ring += around;
-                        lowest = math.min(lowest, around);
-                    }
-                    vertex.Strata.z = (half)math.clamp(math.min(ring / 8f - h, 2f * (lowest - h)), -1f, 1f);
-                }
+                    vertex.Strata.z = (half)HollowDepth(Source, world, h);
                 vertex.Soak.y = vertex.Strata.z;   // (an unmorphed chunk keeps its own; WriteMorphOffsets sets the rest)
                 verts[z * v + x] = vertex;
                 // Landmark pools are left out of the sheet: CaveSystem bakes each on the finer 0.5 m water lattice, fitted
@@ -422,6 +412,19 @@ namespace Punchy.Terrain
 
         /// <summary>The coarsest LOD that carries the hollow depth (puddles): its 2.5 m and 6 m rings need about 2 m vertices.</summary>
         const int HollowMaxLod = 1;
+
+        internal static float HollowDepth(in TerrainSource source, float2 world, float h)
+        {
+            float ring = 0f, lowest = float.MaxValue;
+            for (int k = 0; k < 8; k++)
+            {
+                math.sincos(k * (math.PI / 4f) + (k & 1) * 0.3f, out var sn, out var cs);
+                var around = source.SampleHeight(world + new float2(cs, sn) * ((k & 1) == 0 ? 2.5f : 6f));
+                ring += around;
+                lowest = math.min(lowest, around);
+            }
+            return math.clamp(math.min(ring / 8f - h, 2f * (lowest - h)), -1f, 1f);
+        }
 
         /// <summary>How far (metres) still water reaches out over dry vertices below its level, and wets the shore.</summary>
         const float StillReach = 8f;

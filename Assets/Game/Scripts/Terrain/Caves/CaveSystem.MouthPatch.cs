@@ -8,7 +8,6 @@ using UnityEngine.Rendering;
 
 namespace Punchy.Terrain
 {
-    /// <summary>#301: draws a mouth patch's ground with the terrain material, its rim on the terrain rim's own vertices.</summary>
     public partial class CaveSystem
     {
         const int PatchCells = 12;
@@ -20,6 +19,8 @@ namespace Punchy.Terrain
             public NativeList<int> PatchIndices;
             public NativeArray<int> PatchFlips;
             public Mesh PatchMesh;
+            public TerrainVertex[] PatchBase;
+            public int PatchContacts = -1;
 
             public void DisposePatch(bool mesh)
             {
@@ -65,16 +66,72 @@ namespace Punchy.Terrain
         {
             if (b.PatchIndices.Length == 0)
                 return false;
-            var mesh = new Mesh { name = "Cave mouth patch", indexFormat = IndexFormat.UInt32 };
-            mesh.SetVertexBufferParams(b.PatchVerts.Length, TerrainVertex.Layout);
-            mesh.SetVertexBufferData(b.PatchVerts.AsArray(), 0, 0, b.PatchVerts.Length);
-            mesh.SetIndexBufferParams(b.PatchIndices.Length, IndexFormat.UInt32);
-            mesh.SetIndexBufferData(b.PatchIndices.AsArray(), 0, 0, b.PatchIndices.Length);
-            mesh.SetSubMesh(0, new SubMeshDescriptor(0, b.PatchIndices.Length), MeshUpdateFlags.DontRecalculateBounds);
-            mesh.RecalculateBounds();
-            mesh.UploadMeshData(true);
-            b.PatchMesh = mesh;
+            b.PatchBase = b.PatchVerts.AsArray().ToArray();
+            b.PatchMesh = new Mesh { name = "Cave mouth patch", indexFormat = IndexFormat.UInt32 };
+            b.PatchMesh.SetIndexBufferParams(b.PatchIndices.Length, IndexFormat.UInt32);
+            b.PatchMesh.SetIndexBufferData(b.PatchIndices.AsArray(), 0, 0, b.PatchIndices.Length);
+            ShadePatch(b);
             return true;
+        }
+
+        // W-136 contact shade, as BuildChunkMeshJob puts it in the chunk round the patch; redone when the flora republishes.
+        void ShadePatch(Built b)
+        {
+            b.PatchContacts = GroundContacts.Version;
+            var verts = new NativeArray<TerrainVertex>(b.PatchBase, Allocator.TempJob);
+            if (GroundContacts.Flora.IsCreated && GroundContacts.Contacts.IsCreated)
+                new PatchShadeJob
+                {
+                    Flora = GroundContacts.Flora, Contacts = GroundContacts.Contacts, Source = lastSource, Verts = verts,
+                    Strength = ContactShade.Strength, Reach = ContactShade.ReachScale,
+                    PixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail
+                }.Run();
+            var mesh = b.PatchMesh;
+            var indices = (int)mesh.GetIndexCount(0);
+            mesh.SetVertexBufferParams(verts.Length, TerrainVertex.Layout);
+            mesh.SetVertexBufferData(verts, 0, 0, verts.Length);
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, indices), MeshUpdateFlags.DontRecalculateBounds);
+            mesh.RecalculateBounds();
+            verts.Dispose();
+        }
+
+        [BurstCompile]
+        struct PatchShadeJob : IJob
+        {
+            [ReadOnly] public BlobAssetReference<Punchy.Flora.FloraBlob> Flora;
+            [ReadOnly] public BlobAssetReference<GroundContacts.Table> Contacts;
+            public TerrainSource Source;
+            public NativeArray<TerrainVertex> Verts;
+            public float4 Strength, Reach;
+            public float PixelsPerMetre;
+
+            public void Execute()
+            {
+                const float step = 1f;
+                float2 lo = float.MaxValue, hi = float.MinValue;
+                for (int i = 0; i < Verts.Length; i++)
+                {
+                    lo = math.min(lo, Verts[i].Position.xz);
+                    hi = math.max(hi, Verts[i].Position.xz);
+                }
+                var origin = math.floor(lo / step) * step;
+                var v = (int)math.ceil(math.cmax(hi - origin) / step) + 2;
+                var shade = new NativeArray<float>(v * v, Allocator.Temp);
+                for (int i = 0; i < shade.Length; i++)
+                    shade[i] = 1f;
+                GroundContacts.Rasterise(ref Flora.Value, ref Contacts.Value, Source, origin, v, step, 0f, PixelsPerMetre, Strength, Reach, shade);
+                for (int i = 0; i < Verts.Length; i++)
+                {
+                    var vertex = Verts[i];
+                    var g = (vertex.Position.xz - origin) / step;
+                    var c = math.min((int2)math.floor(g), v - 2);
+                    var f = g - c;
+                    var k = c.y * v + c.x;
+                    var s = math.lerp(math.lerp(shade[k], shade[k + 1], f.x), math.lerp(shade[k + v], shade[k + v + 1], f.x), f.y);
+                    vertex.Surface.xyz = (half3)((float3)vertex.Surface.xyz * s);
+                    Verts[i] = vertex;
+                }
+            }
         }
 
         internal int ProbePatch(in TerrainSource source, int3 key, System.Collections.Generic.List<Vector3> rock, System.Collections.Generic.List<int> rockTris,
@@ -104,6 +161,8 @@ namespace Punchy.Terrain
         {
             if (b.PatchMesh == null || configQuery.IsEmpty)
                 return;
+            if (b.PatchContacts != GroundContacts.Version)
+                ShadePatch(b);
             var config = configQuery.GetSingleton<TerrainConfig>();
             var material = config.Material.Value;
             patchStreaming ??= World.DefaultGameObjectInjectionWorld?.GetExistingSystemManaged<TerrainStreamingSystem>();
@@ -260,7 +319,6 @@ namespace Punchy.Terrain
             {
                 int a = Indices[t], b = Indices[t + 1], c = Indices[t + 2];
                 bool sa = raw.ContainsKey(a), sb = raw.ContainsKey(b), sc = raw.ContainsKey(c);
-                // A patch triangle answers to the ground, not to the field it came from.
                 if (sa == sb && sb == sc)
                     return false;
                 float3 ra = Raw(raw, a), rb = Raw(raw, b), rc = Raw(raw, c);
@@ -302,7 +360,6 @@ namespace Punchy.Terrain
                 return true;
             }
 
-            // Quads come in triangle pairs, so a fold can often be cut along the quad's other diagonal instead.
             bool OtherDiagonal(int q, NativeHashMap<int, float3> raw)
             {
                 int v0 = Indices[q], v1 = Indices[q + 1], v2 = Indices[q + 2], v3 = Indices[q + 5];
