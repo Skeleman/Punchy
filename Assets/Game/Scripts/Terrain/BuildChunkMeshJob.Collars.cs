@@ -373,7 +373,7 @@ namespace Punchy.Terrain
                         var t = 0.5f * (along[k] + along[k + 1]);
                         var normal = float3.zero;
                         if (along[k + 1] - along[k] > FootSplitMin &&
-                            WallFieldAt(source, foot, normalEpsilon) > FootBow &&
+                            DrawnWallFieldAt(source, foot, normalEpsilon) > FootBow &&
                             (OntoWall(source, ref foot, normalEpsilon, out normal) ||
                              MouthFoot(source, math.lerp(pa, pb, t), normalEpsilon, out foot, out normal)))
                         {
