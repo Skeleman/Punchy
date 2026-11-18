@@ -423,3 +423,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Leaves fall from tall broadleaf crowns (55% of trees 8 m+, warm autumn tints by hash so they show against the canopy); fade by screen size, so they read at 5 m and are gone by 25 m. Caves have no canopy foliage, so there are no cave leaves.
 - Vent wisps: steam round geothermal landmarks (fumarole field), sparse pale smoke in vents-tagged biomes (Ashlands, Volcano); a quarter are intermittent. Hash per 12 m cell, no landmark or fingerprint change.
 - Shots: D:/Unity/PunchyMilestones/262/sheet.jpg (forest, steam, smoke; 5 m and 25 m; before/after). Merges origin/main (de1a60f8). BENCH line updated.
+
+## R-29 river spray row 1 (11-18) - render/river-spray c6ecd23e
+- Rapids: river segments whose water drops 3 cm/m or more (about 330 segments) get up to 3 white churn spots each, stronger on steeper water; falls and lake segments are skipped (falls keep their own spray). River mouths (6 that end in open water) get a low soft mist.
+- On the Spray family under its own owner, read-only on river data, rebuilt per river cell, faded by screen size. No river files touched.
+- Shots: D:/Unity/PunchyMilestones/river-spray/sheet.jpg (rapid at -1048,-1521, 15 m and 60 m).
