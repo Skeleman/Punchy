@@ -202,7 +202,7 @@ namespace Punchy.Flora
             Piece(parts, KitPiece.Beam, KitMaterial.Wood, board, s, q);
             Piece(parts, KitPiece.Trim, KitMaterial.Trim, board, new Vector3(s.x + 0.06f, s.y + 0.06f, s.z * 0.5f), q);
             foreach (var side in new[] { -1f, 1f })
-                Piece(parts, KitPiece.Trim, KitMaterial.Trim, at + new Vector3(side * s.x * 0.35f, -0.075f, 0f), new Vector3(0.02f, 0.15f, 0.02f), q);
+                Piece(parts, KitPiece.Trim, KitMaterial.Iron, at + new Vector3(side * s.x * 0.35f, -0.075f, 0f), new Vector3(0.02f, 0.15f, 0.02f), q);
             DrawBuildParts(g, parts);
         }
 
@@ -212,7 +212,7 @@ namespace Punchy.Flora
             var at = f.At(p);
             var parts = new List<KitPart>();
             StructureKit.LanternHead(parts, at, 0f);
-            Piece(parts, KitPiece.Trim, KitMaterial.Trim, at + Vector3.up * (StructureKit.LanternGlass.y * 0.5f + 0.15f), new Vector3(0.02f, 0.2f, 0.02f), Quaternion.identity);
+            Piece(parts, KitPiece.Trim, KitMaterial.Iron, at + Vector3.up * (StructureKit.LanternGlass.y * 0.5f + 0.15f), new Vector3(0.02f, 0.2f, 0.02f), Quaternion.identity);
             DrawBuildParts(g, parts);
         }
 
