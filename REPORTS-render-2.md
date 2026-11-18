@@ -366,3 +366,12 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Cause: play starts without a domain reload, and the HideAndDontSave runner outlived play, so its coroutine died with Status left at Waiting. Every later Take was refused. 7 leaked runners were found in the open editor.
 - ShotTool.cs: OnApplicationQuit fails the open shot ("[shot] FAIL '<name>' play stopped mid-shot") and destroys the runner. A SubsystemRegistration reset clears Busy and stale runners at play start.
 - Verified in the editor: Take, then stop play gives Status Failed with 0 runners left; stale count went 7 -> 0 on the next play. Compile clean.
+
+## W-159 (#322) row 1 river flow in the surface (11-18) - render/flow-normals 95611bd8
+- New WaterFlowLines.hlsl; Water.shader edit is additive (include plus hooks, no rewrites). StreakNoise/FlowStreaks are gone with their white and colour bands. Flow lines run along the flow and are carried downstream with the two-phase cross-fade. They feed wakeSlope (normal only). Fast water gets sharper, choppier, longer lines; slow water gets faint, broad ones.
+- foamParts.z: flecks only on line crests where rapids are 0.25 or more. Shore, churn and fall foam are unchanged. Calm water: no white.
+- Vertex lift of 2 cm or less near the camera (smoothstep 47-90 px/m, rule 20), applied identically in both passes. T-edge vertices lerp their edge ends like PunchyWaterPatchVertex. It lives in Water.shader, not WaterField.hlsl (world-owned). River mesh and BuildChunkMeshJob are untouched.
+- Fixed in-row: the line spacing, length and angle are fixed per sample (the angle quantized into 16 steps and blended). Per-pixel values bent the lines into kinks at triangle edges, because q is up to 90 m from its anchor.
+- Shots (MatchedShot.Hold, noon h12 and dusk h17.6): PunchyMilestones/W-159/sheet-{calm,fast,rapid}.jpg (viewed). The strip is strip-fast-20m.jpg (6 frames, 0.25 s apart; flow readable). The cave stream is cave-stream.jpg (no stripes). Sparkle 360 frames, -stopnan 0: fast river and cave stream, other bad 0, hot 0.
+- Tooling note: AssetDatabase.Refresh during play mode left the world wrong (terrain missing or moved). Refresh outside play.
+- BENCH request: the per-vertex lift (up to 4 anchors x 2 angles x 2 phases near the camera) and the frag's 2x2 line evals, via supervisor.
