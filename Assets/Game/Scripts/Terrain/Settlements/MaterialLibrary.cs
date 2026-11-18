@@ -1,3 +1,4 @@
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Punchy.Terrain
@@ -186,6 +187,8 @@ namespace Punchy.Terrain
             StoneKind.Tuff => new Vector3(1.05f, 1f, 0.9f),
             _ => Vector3.one
         };
+
+        public static float3 StoneTintAt(in TerrainSource source, float2 at) => StoneTint(ScarpBake.StoneAt(source, at));
 
         /// <summary>One kind of creature covering (W-166 #336), read by Shaders/Materials/Coat.hlsl so a creature's coat
         /// and anything later made of it (a fur rug, a feathered cloak, a scale shield) look the same. Size: pattern

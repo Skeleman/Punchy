@@ -533,7 +533,7 @@ namespace Punchy.Flora
 
         /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
         static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
-            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at, rule.RiverSpot == (int)RiverSpot.Waterline)
+            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at, rule.RiverSpot == (int)RiverSpot.Waterline || rule.MinRapids > 0f)
             : rule.Dirt != 0 ? DirtColor(source, rule, at, reach, band) : GreenTint(source, at);
 
         /// <summary>
@@ -549,7 +549,7 @@ namespace Punchy.Flora
             if (!wet && (flat.Grass > 0.3f || ground.HasWater && ground.WaterSurface > ground.Height))
                 return 0u;
             var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
-            var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow)) * (wet ? 0.55f : 1f)) * 255f);
+            var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow)) * (wet ? 0.55f * MaterialLibrary.StoneTintAt(source, at) : 1f)) * 255f);
             return c.x | (c.y << 8) | (c.z << 16) | (RockTintMark << 24);
         }
 
