@@ -139,6 +139,8 @@ Shader "Punchy/Water"
 
             half4 DepthFrag(DepthVaryings input) : SV_Target
             {
+                // (A curtain's faded edge writes no depth.)
+                clip(input.curtain > 0.5 && input.curtain < 0.75 ? -1 : 1);
                 [branch] if (input.curtain < 0.5)
                 {
             #ifndef _WATER_FIELD
@@ -281,7 +283,7 @@ Shader "Punchy/Water"
                 pos.positionWS.y += PunchyFallWater(float3(o.restXZ.x, pos.positionWS.y, o.restXZ.y), _PunchyClock, 0, fallChurnV, fallSlopeV);
                 // (A fall's curtain mesh stays where it was built, and is never the sea.)
                 pos.positionWS = input.fall.y > 0.5 ? TransformObjectToWorld(input.positionOS) : pos.positionWS;
-                o.sea *= 1 - input.fall.y;
+                o.sea *= input.fall.y > 0.5 ? 0 : 1;
             #endif
                 o.fall = input.fall;
                 pos.positionCS = TransformWorldToHClip(pos.positionWS);
@@ -1156,6 +1158,10 @@ Shader "Punchy/Water"
                 // thicker water and near the camera, none at the water's edge (where alpha goes to 0 anyway); the nudge is
                 // dropped where it would land on something in front of the water. The water is then composited here.
                 // (Refactor 3.4: in the near and mid tiers only, fading out from mid to far.)
+                // A fall's curtain fades out over its outer column (FallCurtain.CurtainMin up to 1 in fall.y), so its
+                // ragged edge reads soft rather than as hard triangles.
+                [branch] if (input.fall.y > 0.5)
+                    alpha *= smoothstep(0, 1, saturate((input.fall.y - 0.55) / 0.45));
                 half refractionTier = saturate((pixelsPerMetre - _PunchyWaterTiers.w) / max(_PunchyWaterTiers.z - _PunchyWaterTiers.w, 1e-3));
                 [branch] if (frontFace && _PunchyRefraction > 0 && alpha < 0.995 && distanceFade * refractionTier > 0)
                 {

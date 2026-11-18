@@ -403,14 +403,18 @@ namespace Punchy.Terrain
             {
                 var lip = CurveMid(ref map, start, out var lipFlow);
                 var past = math.dot(xz - lip, lipFlow);
-                var above = past <= LipHold;
+                var lipSide = past <= LipHold;
+                // The bed starts down just short of the lip line (Along steps on the curve). Beside the sheet the upper
+                // water also ends where the bed has begun to fall: it would otherwise stand over the drop as a thin
+                // floating wall that no curtain covers (fall 121's sliver). Inside the sheet's width it runs to the lip.
+                var above = lipSide && (tl < 0.05f || distance < baseWidth * 0.5f);
                 water = above ? profile.WaterA : profile.WaterB;
                 if (above && distance < width * 0.38f)
                     q.FallWater = math.max(q.FallWater, profile.WaterA);
                 // W-153: beside the sheet the upper water would stand at the lip over the cliff below with no curtain
                 // to carry it down (56 walls on v3). Rock shoulders rise just above it there instead, so the sheet is
                 // the only way over the lip; they narrow a wider channel to the sheet over its last few metres.
-                if (above)
+                if (lipSide)
                 {
                     var side = math.smoothstep(0f, 2f, distance - baseWidth * 0.5f)
                              * math.smoothstep(LipHold - 10f, LipHold - 4f, past)
