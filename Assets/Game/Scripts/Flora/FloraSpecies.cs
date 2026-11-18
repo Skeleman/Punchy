@@ -157,7 +157,9 @@ namespace Punchy.Flora
         [Tooltip("The slow inner side of a bend, on the wet shelf and in the shallows (cattail and reed beds).")] InnerBend,
         [Tooltip("A gravel bar: the bank edge at the waterline on the inner side of a bend, or by slow water (driftwood).")] GravelBar,
         [Tooltip("A shallow narrows, in bands across the water (stepping stones).")] Narrows,
-        [Tooltip("Across a narrows, bank to bank, with both ends on dry ground (a fallen log; rare).")] LogNarrows
+        [Tooltip("Across a narrows, bank to bank, with both ends on dry ground (a fallen log; rare).")] LogNarrows,
+        [Tooltip("Caught at the waterline: the outer bank of a bend, more rarely a straight bank, and still lake shores (driftwood snags).")] Snag,
+        [Tooltip("The waterline band of any river or lake, fast water too (wet, dark bank rocks).")] Waterline
     }
 
     public enum FoliageFinish : byte
@@ -347,6 +349,8 @@ namespace Punchy.Flora
         public bool Floats;
         [Tooltip("Aquatic: only in river rapids at least this steep (0..1; 0 = anywhere). Rocks in white water.")]
         [Range(0f, 1f)] public float MinRapids;
+        [Tooltip("Aquatic: thins out as rapids reach this (0..1; 0 = anywhere) and never grows by a waterfall. Reeds in slow water.")]
+        [Range(0f, 1f)] public float MaxRapids;
         [Tooltip("W-63 river dressing: only on this kind of river spot (inner bend, gravel bar, narrows, across a narrows).")]
         public RiverSpot RiverSpot;
         [Tooltip("Blocks the player (trees, big cacti).")]
@@ -375,6 +379,8 @@ namespace Punchy.Flora
         [Range(1, 32)] public int Variants = 4;
         [Tooltip("Changes every generated shape of this species.")]
         public int Seed = 1;
+        [Tooltip("Added after the world was tuned: keyed by name and skipped in the other species' draw keys, so adding it moves no other plant.")]
+        public bool LateAddition;
     }
 
     /// <summary>A species growing in a biome, and how densely.</summary>

@@ -34,7 +34,7 @@ namespace Punchy.Flora
         public float2 SizeRange;
         public int Aquatic, Floats;
         public float2 WaterDepth;
-        public float MinRapids;
+        public float MinRapids, MaxRapids;
         /// <summary>W-63: the FloraSpecies.RiverSpot it is dressed onto (0 = none; see RiverFit).</summary>
         public int RiverSpot;
         /// <summary>How far it lies over onto the slope it stands on (rocks 0.85; upright plants 0).</summary>
@@ -196,6 +196,14 @@ namespace Punchy.Flora
             return a;
         }
 
+        static uint NameHash(string text)
+        {
+            var h = 2166136261u;
+            foreach (var ch in text)
+                h = (h ^ ch) * 16777619u;
+            return h;
+        }
+
         /// <summary>The most tree cells one FindTree looks at.</summary>
         const int MaxTreeCells = 24;
 
@@ -289,10 +297,13 @@ namespace Punchy.Flora
             var perches = new List<float3>();
             var chimneys = new List<float3>();
             var ladders = new List<Punchy.Terrain.ClimbLadder>();
+            var drawIndex = 0;
             for (int i = 0; i < species.Count; i++)
             {
                 var s = species[i];
-                var h = math.hash(new int2(s.Seed, i));
+                // Late species stay out of the running index, so adding one never moves another species' patches or groves.
+                var key = s.LateAddition ? (int)(NameHash(s.name) | 0x40000000u) : drawIndex++;
+                var h = math.hash(new int2(s.Seed, key));
                 rules[i] = new FloraRules
                 {
                     FirstModel = shapes.Count,
@@ -316,13 +327,14 @@ namespace Punchy.Flora
                     GroveGain = s.GroveGain,
                     GroveStraggle = s.GroveStraggle,
                     EdgeAffinity = s.EdgeAffinity,
-                    GroveSeed = math.hash(new int2(s.Seed, i * 31 + 7)),
+                    GroveSeed = math.hash(new int2(s.Seed, key * 31 + 7)),
                     ExtraGain = (s.GroveSpacing > 0f ? math.max(1f, s.GroveGain) : 1f) * (1f + s.EdgeAffinity),
                     SizeRange = s.SizeRange,
                     Aquatic = s.Aquatic ? 1 : 0,
                     Floats = s.Floats ? 1 : 0,
                     WaterDepth = s.WaterDepth,
                     MinRapids = s.MinRapids,
+                    MaxRapids = s.MaxRapids,
                     RiverSpot = (int)s.RiverSpot,
                     Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
@@ -521,7 +533,7 @@ namespace Punchy.Flora
 
         /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
         static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
-            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at)
+            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at, rule.RiverSpot == (int)RiverSpot.Waterline)
             : rule.Dirt != 0 ? DirtColor(source, rule, at, reach, band) : GreenTint(source, at);
 
         /// <summary>
@@ -530,14 +542,14 @@ namespace Punchy.Flora
         /// shader's sign for a rock tint); on grassy, wet ground 0, so the rock keeps its own grey and moss.
         /// </summary>
         public const uint RockTintMark = 255u;
-        static uint RockTint(in TerrainSource source, float2 at)
+        static uint RockTint(in TerrainSource source, float2 at, bool wet = false)
         {
             var ground = source.SampleGround(at);
             var flat = source.SampleSurface(at, ground, source.SampleNormal(at, 1f));
-            if (flat.Grass > 0.3f || ground.HasWater && ground.WaterSurface > ground.Height)
+            if (!wet && (flat.Grass > 0.3f || ground.HasWater && ground.WaterSurface > ground.Height))
                 return 0u;
             var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
-            var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow))) * 255f);
+            var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow)) * (wet ? 0.55f : 1f)) * 255f);
             return c.x | (c.y << 8) | (c.z << 16) | (RockTintMark << 24);
         }
 
@@ -1187,11 +1199,21 @@ namespace Punchy.Flora
         /// </summary>
         static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind)
         {
-            if (!source.Rivers.IsCreated || ground.Rapids > 0.3f)
+            var waterline = kind == (int)RiverSpot.Waterline;
+            if (!source.Rivers.IsCreated || ground.Rapids > 0.3f && !waterline)
                 return 0f;
-            var q = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz);
+            ref var map = ref source.Rivers.Value;
+            var late = kind >= (int)RiverSpot.Snag;
+            if (late && OnFall(ref map, xz))
+                return 0f;
+            var q = RiverSampling.Query(ref map, source.RiverSettings, xz);
             if (!q.Found || q.Width <= 0.5f || q.Distance > q.Width * 0.5f + 4f)
-                return 0f;
+            {
+                if (!late || !StillShore(source, xz, ground))
+                    return 0f;
+                var shoreCell = (int2)math.floor(xz / (map.CellSize * 3f));
+                return ReachDraw(map.Seed, (uint)(shoreCell.x * 73856093 ^ shoreCell.y * 19349663), kind) * (waterline ? 1f : 0.5f);
+            }
             var half = q.Width * 0.5f;
             var edge = q.Distance - half;   // negative in the channel, positive up the bank
             var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
@@ -1223,8 +1245,37 @@ namespace Punchy.Flora
                 return inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
             if (kind == (int)RiverSpot.GravelBar)
                 return edge > -1.2f && edge < 2.5f ? (inner ? math.max(bend, 0.3f) : 0.08f) : 0f;
-            return 0f;
+            if (!late || edge < -1.5f || edge > 2f)
+                return 0f;
+            var draw = ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind);
+            if (waterline)
+                return draw;
+            return draw * (inner ? 0.12f : math.max(math.smoothstep(0.2f, 0.7f, bend), 0.2f));
         }
+
+        static int NearestSegment(ref RiverMapBlob map, float2 xz)
+        {
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            return map.Nearest[c.y * map.Resolution + c.x].x;
+        }
+
+        static bool OnFall(ref RiverMapBlob map, float2 xz)
+        {
+            if (map.Kind.Length == 0)
+                return false;
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            var near = map.Nearest[c.y * map.Resolution + c.x];
+            return near.x >= 0 && (map.Kind[near.x] & (byte)RiverProfileKind.Fall) != 0
+                || near.y >= 0 && (map.Kind[near.y] & (byte)RiverProfileKind.Fall) != 0;
+        }
+
+        static bool StillShore(in TerrainSource source, float2 xz, in GroundSample ground) =>
+            ground.HasWater && math.lengthsq(ground.Flow) < 1e-4f && ground.WaterSurface > source.World.SeaLevel + 0.3f &&
+            math.abs(ground.WaterSurface - RiverSampling.ShoreLevel(ref source.Rivers.Value, xz)) < 0.3f;
+
+        // Scrambled so neighbouring reaches don't draw alike (math.hash alone has no avalanche).
+        static float ReachDraw(uint seed, uint reach, int kind) =>
+            math.lerp(0.25f, 1f, (BiomeSampling.Scramble(math.hash(new uint3(reach, (uint)kind, seed ^ 0xB4A2u))) & 1023u) / 1023f);
 
         /// <summary>W-63: dry ground (no water over it).</summary>
         static bool Dry(in GroundSample g) => !g.HasWater || g.Height > g.WaterSurface + 0.05f;
@@ -2704,6 +2755,12 @@ namespace Punchy.Flora
                         fw = 0f;
                     if (r.MinRapids > 0f)
                         fw *= math.smoothstep(r.MinRapids - 0.1f, r.MinRapids + 0.1f, ground.Rapids);
+                    if (r.MaxRapids > 0f && fw > 0f)
+                    {
+                        fw *= 1f - math.smoothstep(r.MaxRapids * 0.3f, r.MaxRapids, ground.Rapids);
+                        if (fw > 0f && ground.River > 0.02f && source.Rivers.IsCreated && OnFall(ref source.Rivers.Value, xz))
+                            fw = 0f;
+                    }
                     // W-63 river dressing: only on its kind of river spot (asked only once the rest allows it).
                     if (r.RiverSpot != 0 && fw > 0f)
                         fw *= RiverFit(source, xz, ground, r.RiverSpot);
@@ -2859,7 +2916,7 @@ namespace Punchy.Flora
                     Ground = GroundFor(source, rule, xz, 1f, 0.25f)
                 };
             }
-            if (rule.RiverSpot == (int)RiverSpot.GravelBar)
+            if (rule.RiverSpot == (int)RiverSpot.GravelBar || rule.RiverSpot == (int)RiverSpot.Snag)
             {
                 // Driftwood lies roughly along the flow, as the water left it.
                 var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
