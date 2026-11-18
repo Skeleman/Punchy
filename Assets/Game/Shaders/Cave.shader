@@ -100,6 +100,7 @@ Shader "Punchy/Cave"
             float _PunchyCaveDetailReady;
             float _PunchyTerrainDetailPpm;
             #include "Materials/RockWall.hlsl"
+            #include "Materials/Roots.hlsl"
 
             Varyings Vert(CaveAttributes input)
             {
@@ -465,6 +466,8 @@ Shader "Punchy/Cave"
                     n = normalize(lerp(n, (float3)stoneN, stoneOn));
                     gloss *= 1 - stoneOn * stoneWet;
                 }
+                [branch] if (dressed > -0.5 && dressed < 0.5 && !tunnel)
+                    PunchyStranglerRelief(p, shape, stoneFootprint, smoothstep(0.62, 0.74, PunchyValueNoise(p.xz * 0.03 + 913) + damp * 0.2 + s7.w * 0.15) * bare, rock, n, gloss);
                 // Where it stands in for the terrain, speckle it like the terrain's own close-up detail.
                 half3 ground = input.color.rgb * (0.7 + 0.45 * blotch);
                 half3 albedo = lerp(rock, ground, terrain);
