@@ -380,6 +380,8 @@ namespace Punchy.Flora
                 b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Metal);
                 b.MetalKind = Punchy.Terrain.MetalKind.Iron;
             }
+            else if (p.Material == Punchy.Terrain.KitMaterial.Iron)
+                b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Metal);   // wrought iron fittings: Iron metal (MetalKind stays Iron)
             else if (g.Lod < 2 && Contacts(parts, i, contacts))
                 b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
             else

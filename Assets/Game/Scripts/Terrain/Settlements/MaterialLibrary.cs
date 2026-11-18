@@ -62,7 +62,7 @@ namespace Punchy.Terrain
     }
 
     /// <summary>The kinds of metal (W-166 #336): rows of MaterialLibrary.Metal, read by Shaders/Materials/Metal.hlsl.
-    /// Iron is tools, gear, colossus metal and metallic plants; Copper is kit copper rods and stakes (storm houses), drawn
+    /// Iron is tools, gear, colossus metal, metallic plants and kit iron fittings (KitMaterial.Iron); Copper is kit copper rods and stakes (storm houses), drawn
     /// through FloraMeshBuilder.MetalKind.</summary>
     public enum MetalKind
     {
@@ -376,7 +376,7 @@ namespace Punchy.Terrain
             KitMaterial.Wood => MaterialFamily.Wood,
             KitMaterial.Stone or KitMaterial.Rune => MaterialFamily.Stone,
             KitMaterial.Ice => MaterialFamily.Ice,
-            KitMaterial.Copper or KitMaterial.Lamp => MaterialFamily.Metal,
+            KitMaterial.Copper or KitMaterial.Lamp or KitMaterial.Iron => MaterialFamily.Metal,
             KitMaterial.Net => MaterialFamily.Cloth,
             KitMaterial.Trim => MaterialFamily.Paint,   // painted boards and accents, not plaster
             KitMaterial.Fish => MaterialFamily.None,   // #550: a fish's own body (FloraGenerator.HungFish), not a built family

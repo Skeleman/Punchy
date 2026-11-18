@@ -47,7 +47,9 @@ namespace Punchy.Terrain
         Flame,
         /// <summary>#550: a hung fish (drying racks, stalls): FloraGenerator.HungFish draws a real fish species in the
         /// part's box, head down; the colour here is only its silver fallback.</summary>
-        Fish
+        Fish,
+        /// <summary>Wrought iron fittings (lantern caps, brackets, hoops, braziers): drawn as Iron metal.</summary>
+        Iron
     }
 
     /// <summary>
@@ -375,7 +377,7 @@ namespace Punchy.Terrain
             KitMaterial.Sand => new Color(0.84f, 0.73f, 0.52f),
             KitMaterial.Ash => new Color(0.36f, 0.34f, 0.33f),
             KitMaterial.Dirt => Color.Lerp(new Color(0.52f, 0.41f, 0.29f), t.Wall, 0.15f),
-            _ => t.Wall
+            _ => ColourOther(t, m)
         };
 
         // ------------------------------------------------------------------------------------------- coast (#36)
@@ -1816,7 +1818,7 @@ namespace Punchy.Terrain
                     var h = 1.5f + R() * 0.3f;
                     Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.7f, h, 0.35f), 0f, true);
                     Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, h + 0.05f, 0f), new Vector3(0.8f, 0.1f, 0.45f), 0f, false);
-                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, h - 0.15f, 0.3f), new Vector3(0.05f, 0.05f, 0.3f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Iron, new Vector3(0f, h - 0.15f, 0.3f), new Vector3(0.05f, 0.05f, 0.3f), 0f, false);
                     Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h - 0.32f, 0.42f), new Vector3(0.2f, 0.28f, 0.2f), 0f, false);
                     break;
                 }
@@ -1825,9 +1827,9 @@ namespace Punchy.Terrain
                     for (int k = 0; k < 3; k++)
                     {
                         var a = k * 120f + R() * 10f;
-                        Add(parts, KitPiece.Column, KitMaterial.Trim, Turn(a, new Vector3(0f, 0.5f, 0.28f)), new Vector3(0.06f, 1.05f, 0.06f), a, false, -14f);
+                        Add(parts, KitPiece.Column, KitMaterial.Iron, Turn(a, new Vector3(0f, 0.5f, 0.28f)), new Vector3(0.06f, 1.05f, 0.06f), a, false, -14f);
                     }
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 1.02f, 0f), new Vector3(0.8f, 0.22f, 0.8f), R() * 90f, true);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 1.02f, 0f), new Vector3(0.8f, 0.22f, 0.8f), R() * 90f, true);
                     Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, 1.16f, 0f), new Vector3(0.62f, 0.14f, 0.62f), R() * 90f, false);
                     for (int k = 0, n = 2 + rng.Next(2); k < n; k++)
                         Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3((R() - 0.5f) * 0.3f, 1.24f, (R() - 0.5f) * 0.3f), new Vector3(0.08f, 0.08f, 0.5f), R() * 180f, false, (R() - 0.5f) * 30f);
@@ -1836,13 +1838,13 @@ namespace Punchy.Terrain
                 case FixtureStyle.Candelabra:
                 {
                     var h = 1.9f + R() * 0.3f;
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.06f, 0f), new Vector3(0.5f, 0.12f, 0.5f), 45f, false);
-                    Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.08f, h, 0.08f), 0f, true);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 0.06f, 0f), new Vector3(0.5f, 0.12f, 0.5f), 45f, false);
+                    Add(parts, KitPiece.Column, KitMaterial.Iron, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.08f, h, 0.08f), 0f, true);
                     var arms = 3 + rng.Next(3);
                     for (int k = 0; k < arms; k++)
                     {
                         var a = k * 360f / arms + R() * 8f;
-                        Add(parts, KitPiece.Beam, KitMaterial.Trim, Turn(a, new Vector3(0f, h - 0.1f, 0.2f)), new Vector3(0.04f, 0.04f, 0.4f), a, false);
+                        Add(parts, KitPiece.Beam, KitMaterial.Iron, Turn(a, new Vector3(0f, h - 0.1f, 0.2f)), new Vector3(0.04f, 0.04f, 0.4f), a, false);
                         Add(parts, KitPiece.Window, KitMaterial.Lamp, Turn(a, new Vector3(0f, h + 0.02f, 0.38f)), new Vector3(0.07f, 0.2f, 0.07f), a, false);
                     }
                     Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h + 0.12f, 0f), new Vector3(0.08f, 0.24f, 0.08f), 0f, false);
@@ -1877,10 +1879,10 @@ namespace Punchy.Terrain
                     // lantern hung off it: a cap, the glass and a drip tray.
                     var armOut = WallLanternAt.z;
                     var first = parts.Count;
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.12f, -0.06f), new Vector3(0.14f, 0.34f, 0.2f), 0f, false);
-                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, 0.3f, armOut * 0.5f - 0.04f), new Vector3(0.035f, 0.035f, armOut + 0.1f), 0f, false);
-                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, 0.15f, 0.1f), new Vector3(0.03f, 0.03f, 0.28f), 0f, false, -38f);
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.25f, armOut), new Vector3(0.02f, 0.08f, 0.02f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 0.12f, -0.06f), new Vector3(0.14f, 0.34f, 0.2f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Iron, new Vector3(0f, 0.3f, armOut * 0.5f - 0.04f), new Vector3(0.035f, 0.035f, armOut + 0.1f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Iron, new Vector3(0f, 0.15f, 0.1f), new Vector3(0.03f, 0.03f, 0.28f), 0f, false, -38f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 0.25f, armOut), new Vector3(0.02f, 0.08f, 0.02f), 0f, false);
                     LanternHead(parts, new Vector3(0f, WallLanternAt.y, armOut), R() * 10f, KitMaterial.Flame, 0.7f);
                     // It hangs on a wall, off the ground: keep the foundation skirt from carrying its foot to the floor.
                     for (int k = first; k < parts.Count; k++)
@@ -1952,7 +1954,7 @@ namespace Punchy.Terrain
             }
             // The fire: an iron bowl of glowing coals and split logs on a stone plinth.
             Add(parts, KitPiece.Column, KitMaterial.Stone, new Vector3(0f, BeaconDeck + 0.25f, 0f), new Vector3(0.7f, 0.5f, 0.7f), 0f, true);
-            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, BeaconDeck + 0.6f, 0f), new Vector3(1.3f, 0.24f, 1.3f), 45f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, BeaconDeck + 0.6f, 0f), new Vector3(1.3f, 0.24f, 1.3f), 45f, false);
             Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, BeaconDeck + 0.72f, 0f), new Vector3(1.04f, 0.12f, 1.04f), 45f, false);
             for (int k = 0; k < 4; k++)
                 Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3((R() - 0.5f) * 0.4f, BeaconDeck + 0.82f, (R() - 0.5f) * 0.4f), new Vector3(0.1f, 0.1f, 0.7f), k * 45f + R() * 30f, false, (R() - 0.5f) * 24f);
@@ -2947,7 +2949,7 @@ namespace Punchy.Terrain
             for (int k = 0; k < 2; k++)
                 Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(-half * (0.42f + k * 0.17f), 0.3f + 0.42f, front + 0.45f + (float)rng.NextDouble() * 0.2f),
                     new Vector3(0.6f, 0.84f, 0.6f), (float)rng.NextDouble() * 90f, false);
-            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(-half * 0.42f, 0.3f + 0.6f, front + 0.5f), new Vector3(0.64f, 0.06f, 0.64f), 20f, false);   // a hoop
+            Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(-half * 0.42f, 0.3f + 0.6f, front + 0.5f), new Vector3(0.64f, 0.06f, 0.64f), 20f, false);   // a hoop
             Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(half * 0.45f, 0.3f + 0.45f, front + 0.4f), new Vector3(1.6f, 0.08f, 0.42f), 0f, false);
             foreach (var e in new[] { -0.7f, 0.7f })
                 Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(half * 0.45f + e, 0.3f + 0.21f, front + 0.4f), new Vector3(0.08f, 0.42f, 0.36f), 0f, false);
