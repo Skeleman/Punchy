@@ -292,3 +292,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #606 #301 bank details row 1: cattails, reeds, driftwood with grain along the logs, bank rocks; trees unchanged; fingerprint F00119AC. Village_CreatureDensity test flaky (30-54 vs cap 50).
 - 11-18 #608 R-29 river spray: foam streaks on ~330 rapids, mist at 6 river mouths (#301 rivers).
 - 11-18 #609 W-166 (#336) river and bank rocks take the biome stone tint; placement unchanged, fingerprint F00119AC.
+- 11-18 #610 R-15 (#269) river foam in the water shader as flow-aligned torn streaks, no near-camera blobs; lakes and sea unchanged.
