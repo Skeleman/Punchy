@@ -1186,8 +1186,10 @@ Shader "Punchy/Water"
                 // (Refactor 3.4: in the near and mid tiers only, fading out from mid to far.)
                 // A fall's curtain fades out over its outer column (FallCurtain.CurtainMin up to 1 in fall.y), so its
                 // ragged edge reads soft rather than as hard triangles.
+                float curtainFacing = abs(dot(normalize(cross(ddy(input.positionWS), ddx(input.positionWS))), normalize(GetCameraPositionWS() - input.positionWS)));
                 [branch] if (input.fall.y > 0.5)
-                    alpha *= smoothstep(0, 1, saturate((input.fall.y - 0.55) / 0.45));
+                    // (Seen edge-on, the curtain reads as a pale blade with a hard top edge.)
+                    alpha *= smoothstep(0, 1, saturate((input.fall.y - 0.55) / 0.45)) * smoothstep(0.05, 0.3, curtainFacing);
                 half refractionTier = saturate((pixelsPerMetre - _PunchyWaterTiers.w) / max(_PunchyWaterTiers.z - _PunchyWaterTiers.w, 1e-3));
                 [branch] if (frontFace && _PunchyRefraction > 0 && alpha < 0.995 && distanceFade * refractionTier > 0)
                 {
