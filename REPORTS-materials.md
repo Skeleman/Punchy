@@ -104,3 +104,10 @@ coordinator's OK after the world lane's river rows land (it is in the scarp and 
 - The real fallback was Copper Trim (storm-house rod fins, stake wire, ridge strap, gull bills, marsh paint, float weights): it is Metal family with mark 0. It now takes the Paint family (FloraGenerator.Kit.cs, +4/-2).
 - Iron lantern caps would need a new KitMaterial in StructureKit.cs, which is over 2500 lines, so I skipped them.
 - Matched rod shots (main vs branch): diff 0.5, 0.96% of pixels changed. I viewed the crop: only the fins and wire change, from stone mottle to a flat coat. EditMode tests 47/47, CRLF kept.
+
+## 11-17 W-166 row 2: scarp stone from the biome, materials/scarp-stone e21bddb8
+- Each biome names a MaterialLibrary.Stone row (BiomeDefinition.Stone, baked into BiomeBlobData). ScarpBake takes the stone under each scarp's middle and folds it into the shape (Crack by grain, Push and Setback by blockiness) and into the paint (tint, bed contrast, joint grime, polish via ScarpPaint; debris follows). Plain bakes exactly as before.
+- Stones set: Basalt for Ashlands and Volcano, Sandstone for Dunes, Mesa and Sonoran, Shale for the wastes and swamps, Tuff for EmberForest, Limestone for Fungal, Grassland and SaltFlat, Ice for Glacier, Crystal for GlassDesert, Granite for Mountains, Sparkling and Tundra, Plain for Temperate. 18 biome assets edited (world files?).
+- Current world: 5 scarps (canyon plus 3 notch banks are Granite, cut bank is Basalt). Shape changes, so ground heights near them move: possible hash change, profiler should re-pin.
+- Matched shots (main vs branch): canyon 16.4% of pixels changed (blockier granite face, bolder beds), notch 2.8%, bank 4.2%. Tests 49/49 (2 new).
+- river-profiles touches only RiverData/WorldTests, not scarp or TerrainSource files, so nothing is held back. Deferred: RibSpacing, Roughness, Jaggedness per stone; a per-vertex stone channel (SurfaceProps has no spare slot).
