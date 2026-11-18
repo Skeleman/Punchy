@@ -429,3 +429,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - On the Spray family under its own owner, read-only on river data, rebuilt per river cell, faded by screen size. No river files touched.
 - Review fix e4996db3: rapids no longer draw round puffs. They draw flat noise-eroded foam streaks on the water along the flow, every fourth a small hopping fleck, faded within 3-10 m of the camera (also on all puffs, by size).
 - Shots: D:/Unity/PunchyMilestones/river-spray/sheet.jpg (rapid at -1048,-1521, 15 m and 60 m).
+
+## R-15 water foam (11-18) - render/water-foam 589e9f6d
+- Water.shader FlowFoam reads in the flow's frame about the camera-anchored grid: rapids foam is now small torn streaks along the flow, no round blobs near the camera.
+- Gated on rapids and flow, so lakes and sea are unchanged (lake shot matches main).
+- Shots: D:/Unity/PunchyMilestones/water-foam/water-foam-sheet.jpg (top: rapid main vs branch at 15 m; bottom: lake main vs branch).

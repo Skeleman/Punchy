@@ -1196,4 +1196,5 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - 11-18 (materials): materials/castle-place@aeaeeafd W-182 row 3: 4 CastleRuins landmarks (3 variants pregrown, kit boxes at LOD 0). Report-only: pregrow time and draw cost near a castle, uncapped, main vs branch.
 - 11-18 (materials): materials/castle-gatehouse@22f1fc4e W-182 row 4: new CastleGateRuins landmark type (2 in the play world), ruin gate about 24.8k tris with nested gate kit. Report-only: draw cost near the gate ruin (282,2837), uncapped, main vs branch.
 - 11-18 (render-2): render/river-spray@e4996db3 R-29 river spray: extra Spray plumes over rapids and mouths (about 9 near a rapid, 24-48 quads each). Report-only: rapid at -1048,-1521, main vs branch.
+- 11-18 (render-2): render/water-foam@589e9f6d R-15 water foam: river FlowFoam now read in the camera-anchored corner loop (up to 4 reads near grid lines, rapids only). Report-only: water frame cost at rapid -1048,-1521 and lake -1727,-1004, main vs branch.
 - materials/river-rock-stone: flora placement time with StoneTintAt on wet boulders vs main (expect ~0).
