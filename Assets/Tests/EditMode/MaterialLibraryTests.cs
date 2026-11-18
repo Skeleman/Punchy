@@ -249,6 +249,39 @@ namespace Punchy.Tests
             Assert.IsEmpty(problems, string.Join("\n", problems));
         }
 
+        // W-163 row 1: the one wood grain keeps its layers (a domain warp, darker dirt bands, a seed per piece of
+        // timber), each detail fades by on-screen size (rule 20), and the shaders that draw wood still compile.
+        [Test]
+        public void WoodGrainKeepsItsLayers()
+        {
+            var text = File.ReadAllText(Path.Combine(Application.dataPath, "Game", "Shaders", "Materials", "Wood.hlsl"));
+            var grain = Regex.Match(text, @"half3 PunchyWoodGrain\(.*?
+}", RegexOptions.Singleline).Value;
+            Assert.IsNotEmpty(grain, "PunchyWoodGrain is missing");
+            StringAssert.Contains("q += shift", grain, "the ring noise should be read through a warped coordinate");
+            StringAssert.Contains("smoothstep(0.5, 0.9, dirt)", grain, "dirt should come in darker bands");
+            foreach (var fade in new[] { "fRing", "fPore", "fKnot", "fDirt" })
+                Assert.IsTrue(Regex.IsMatch(grain, fade + @" = PunchyWoodFade\("), fade + " should fade by on-screen size");
+            StringAssert.Contains("PunchyWoodAlongAxis(albedo, p, axisCode, footprint, kind, PunchyWoodPieceSeed(key))", text,
+                "posts and beams should each get their own seed");
+        }
+
+        [Test]
+        public void WoodShadersCompile()
+        {
+            var problems = new List<string>();
+            foreach (var name in new[] { "Punchy/Flora", "Punchy/Cave", "Punchy/Creature" })
+            {
+                var shader = Shader.Find(name);
+                if (shader == null) { problems.Add(name + " not found"); continue; }
+                foreach (var m in ShaderUtil.GetShaderMessages(shader))
+                    if (m.severity == UnityEditor.Rendering.ShaderCompilerMessageSeverity.Error)
+                        problems.Add($"{name}: {m.message} ({m.file}:{m.line})");
+            }
+            Assert.IsEmpty(problems, string.Join("
+", problems));
+        }
+
         static readonly Regex IncludeLine = new(@"^\s*#include(_with_pragmas)?\s+""([^""]+)""", RegexOptions.Multiline);
 
         /// <summary>Every project shader file a file reaches through #include, followed through chains (a family
