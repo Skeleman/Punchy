@@ -94,10 +94,11 @@ namespace Punchy.Ambience
         const int FineColumns = 32, FineRows = 48, CoarseColumns = 12, CoarseRows = 16;
 
         readonly List<Emitter> plumes = new List<Emitter>();
-        /// <summary>R-29 rows 3-4: the steam, smoke and waterfall spray among the plumes, drawn by the effects kit
+        /// <summary>R-29 rows 3-4: the steam, smoke, waterfall spray and warm sparks among the plumes, drawn by the effects kit
         /// (PlumeSystem) instead of here; handed over at the end of each gather.</summary>
         readonly List<Punchy.Rendering.Effects.PlumeSystem.Plume> steam = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>(),
-            smoke = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>(), spray = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>();
+            smoke = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>(), spray = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>(),
+            sparks = new List<Punchy.Rendering.Effects.PlumeSystem.Plume>();
         /// <summary>Every fall in range, and the one description each was built from (FallShape), in step.</summary>
         readonly List<Emitter> falls = new List<Emitter>();
         readonly List<FallShape> fallShapes = new List<FallShape>();
@@ -151,6 +152,7 @@ namespace Punchy.Ambience
             Punchy.Rendering.Effects.PlumeSystem.Steam.Set(this, null);
             Punchy.Rendering.Effects.PlumeSystem.Smoke.Set(this, null);
             Punchy.Rendering.Effects.PlumeSystem.Spray.Set(this, null);
+            Punchy.Rendering.Effects.PlumeSystem.Sparks.Set(this, null);
             lastNearby.Clear();
             fineFalls.Clear();
             // (No curtains drawn: the water draws its falls' faces again.)
@@ -536,6 +538,7 @@ namespace Punchy.Ambience
             steam.Clear();
             smoke.Clear();
             spray.Clear();
+            sparks.Clear();
             falls.Clear();
             fallShapes.Clear();
             WaterPatchSystem.Vents.Clear();
@@ -695,7 +698,7 @@ namespace Punchy.Ambience
                             {
                                 At = emitter.Position.xz, Period = effect.Period, Duty = effect.Duty, Seed = emitter.Seed
                             });
-                        // R-29: steam and smoke go to the effects kit; glowing or coloured plumes stay here.
+                        // R-29: steam, smoke and warm sparks go to the effects kit; cold sparkles and coloured gas stay here.
                         var family = effect.Kind == LandmarkEffectKind.Plume ? Punchy.Rendering.Effects.PlumeSystem.FamilyOf(effect.Color, effect.Glow) : null;
                         if (family == Punchy.Rendering.Effects.PlumeSystem.Steam && FallType(types[inst.Type]))
                             spray.Add(ToKit(emitter)); // a waterfall landmark's pale plume is the spray where it lands
@@ -703,6 +706,8 @@ namespace Punchy.Ambience
                             steam.Add(ToKit(emitter));
                         else if (family == Punchy.Rendering.Effects.PlumeSystem.Smoke)
                             smoke.Add(ToKit(emitter));
+                        else if (family == Punchy.Rendering.Effects.PlumeSystem.Sparks)
+                            sparks.Add(ToKit(emitter));
                         else
                         {
                             plumes.Add(emitter);
@@ -721,6 +726,7 @@ namespace Punchy.Ambience
             Punchy.Rendering.Effects.PlumeSystem.Steam.Set(this, steam);
             Punchy.Rendering.Effects.PlumeSystem.Smoke.Set(this, smoke);
             Punchy.Rendering.Effects.PlumeSystem.Spray.Set(this, spray);
+            Punchy.Rendering.Effects.PlumeSystem.Sparks.Set(this, sparks);
             return true;
         }
 

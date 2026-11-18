@@ -7,16 +7,16 @@ using UnityEngine.Rendering;
 namespace Punchy.Rendering.Effects
 {
     /// <summary>
-    /// R-29 rows 3-4 (#320, rule 30): steam, smoke and spray, three families of puffs on the effects kit. Each family is
-    /// one asset (PlumeEffect: Resources/StandardSteam, StandardSmoke, StandardSpray) and one draw path: callers hand it their
+    /// R-29 rows 3-4 (#320, rule 30): steam, smoke, spray and sparks, four families of puffs on the effects kit. Each family
+    /// is one asset (PlumeEffect: Resources/StandardSteam, StandardSmoke, StandardSpray, StandardSparks) and one draw path: callers hand it their
     /// plumes whenever their own set changes (Set, keyed by the caller) and EffectsDriver draws every family once a
     /// frame in one procedural draw with the Landmark Plume shader, which animates every puff from the shared clock
     /// and the plume's seed (no simulation, the same on every machine). Fade by screen size (rule 20): each plume goes
     /// below its family's GonePixels (LandmarkEffects.hlsl, _PunchyPlumeReach).
     /// Callers: LandmarkEffectSystem (steam: geysers, hot springs, mud pits; smoke: chimneys, fumaroles and other dark
     /// landmark plumes; spray: every waterfall's lip white water, landing churn, foam and mist, river, cave, grand and
-    /// landmark falls). Still on their own path: FireSystem's smoke over flames, glowing or coloured plumes (embers,
-    /// sparkles, toxic gas).
+    /// landmark falls; sparks: warm glowing embers over camp and village fires, forges, fumaroles and volcano vents).
+    /// Still on their own path: FireSystem's smoke and embers (the fire quad shader), cold sparkles, toxic gas.
     /// </summary>
     public static class PlumeSystem
     {
@@ -38,15 +38,17 @@ namespace Punchy.Rendering.Effects
         public static readonly PlumeFamily Steam = new PlumeFamily("StandardSteam");
         public static readonly PlumeFamily Smoke = new PlumeFamily("StandardSmoke");
         public static readonly PlumeFamily Spray = new PlumeFamily("StandardSpray");
+        public static readonly PlumeFamily Sparks = new PlumeFamily("StandardSparks");
 
         /// <summary>
         /// Which family a landmark-style plume of this authored (sRGB) colour and glow belongs to: pale grey-white is
-        /// steam, dark grey is smoke, and anything glowing or coloured (embers, sparkles, toxic gas) is neither (null).
+        /// steam, dark grey is smoke, glowing orange-red is sparks, and anything else glowing or coloured (cold sparkles,
+        /// toxic gas) is none of them (null).
         /// </summary>
         public static PlumeFamily FamilyOf(Color authored, float glow)
         {
             if (glow > 0.05f)
-                return null;
+                return authored.r >= 0.8f && authored.r - authored.b >= 0.5f && authored.g <= 0.7f ? Sparks : null;
             var hi = math.max(authored.r, math.max(authored.g, authored.b));
             var lo = math.min(authored.r, math.min(authored.g, authored.b));
             if (hi - lo > 0.12f)
@@ -60,6 +62,7 @@ namespace Punchy.Rendering.Effects
             Steam.Draw(material);
             Smoke.Draw(material);
             Spray.Draw(material);
+            Sparks.Draw(material);
         }
     }
 
