@@ -1160,9 +1160,11 @@ namespace Punchy.Terrain
         }
 
         // After the rock pass, so rock and scree banks keep the wet line DampBank's soil tint loses under V3Ground.
+        public const float WaterlineWetAbove = 0.45f;
+
         static void WaterlineWet(ref SurfaceProps s, in GroundContext g)
         {
-            if (g.Inland <= 0f || g.WaterDepth < -0.45f || g.WaterDepth > 0.05f) return;
+            if (g.Inland <= 0f || g.WaterDepth < -WaterlineWetAbove || g.WaterDepth > 0.05f) return;
             var reach = 0.2f + 0.2f * math.saturate(0.5f + 0.5f * g.EdgeNoise) + 0.15f * math.smoothstep(0.08f, 0.35f, g.Rapids);
             var wet = (1f - math.smoothstep(0.05f, reach, -g.WaterDepth)) * (1f - math.saturate(s.Snow)) * g.Inland;
             s.Albedo *= math.lerp(1f, math.lerp(0.78f, 0.62f, math.saturate(s.Porosity)), wet);

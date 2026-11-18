@@ -170,8 +170,12 @@ Shader "Punchy/Flora"
                 bool greenTint = input.ground.a > 0.994 && !rockTint;
                 half wetTop = input.ground.a * 255 - 224;
                 bool wetRock = wetTop > -0.5 && !greenTint && !rockTint;
-                rockTint = rockTint || wetRock;
-                bool built = input.ground.a > 0 && !rockTint && !greenTint;
+                // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
+                bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
+                // A trunk or log in the bank's wet band keeps its own colour; only the wet line rises up it (MaterialLibrary.WetLineSteps).
+                bool wetBase = wetRock && (input.living > 0.5 || wood);
+                rockTint = rockTint || (wetRock && !wetBase);
+                bool built = input.ground.a > 0 && !rockTint && !greenTint && !wetBase;
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
                 // Phase B (#336): the metal's kind rides on the part as + kind * 0.1 (FloraMeshBuilder.MetalKind); frac() wrapped an interpolated 3.99999 to kind 10.
@@ -200,8 +204,6 @@ Shader "Punchy/Flora"
                     n = dot(facet, v) < 0 ? -facet : facet;
                 // The facet in the plant's own frame (W-99's surfaces and weave are laid out there).
                 float3 facetOS = normalize(cross(ddy(input.grainPos), ddx(input.grainPos)) + 1e-9);
-                // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
-                bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
                 int look = wood ? (int)round((input.grainAxis - round(input.grainAxis * 4) * 0.25) / 0.02) : 0;
                 int woodKind = wood ? (int)round((frac(input.extra.x) - 0.015) / 0.0025) : 0;
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
@@ -334,7 +336,12 @@ Shader "Punchy/Flora"
                 // Rocks on dry ground take the biome's own rock colour (FloraPlacement.RockTint: the ground's alpha at its
                 // top value), keeping their own light and dark (and losing their moss's green) (G-36). Built things: a
                 // band of the ground's colour up their base, like dirt splashed up the walls.
-                if (part == 0 && rockTint)
+                if (part == 0 && wetBase)
+                {
+                    half top = wetTop * 0.04 * (0.85 + 0.3 * PunchyValueNoise(float2(input.positionWS.x + input.positionWS.z, input.positionWS.y) * 6.3));
+                    wet = max(wet, (1 - smoothstep(top - 0.03, top + 0.02, input.baseHeight.x)) * (1 - snow));
+                }
+                else if (part == 0 && rockTint)
                 {
                     half lum = dot(albedo, half3(0.3, 0.59, 0.11));
                     half rockLum = max(dot(input.ground.rgb, half3(0.3, 0.59, 0.11)), 0.02);

@@ -563,10 +563,10 @@ namespace Punchy.Flora
         {
             var ground = source.SampleGround(at);
             var flat = source.SampleSurface(at, ground, new float3(0f, 1f, 0f));
-            if (flat.Grass <= 0.3f)
+            if (flat.Grass <= 0.3f && MaterialLibrary.WetLineSteps(ground, source.World.SeaLevel) == 0u)
                 return 0u;
             var c = (uint3)math.round(math.saturate(flat.Albedo) * 255f);
-            return c.x | (c.y << 8) | (c.z << 16) | (GreenTintMark << 24);
+            return c.x | (c.y << 8) | (c.z << 16) | ((MaterialLibrary.WetLineSteps(ground, source.World.SeaLevel) is var wet && wet > 0u ? WetRockMark + wet : GreenTintMark) << 24);
         }
 
         /// <summary>FloraRules.Footprint for a species (from its settings, without growing it).</summary>
