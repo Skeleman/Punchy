@@ -69,7 +69,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 9430B213", line);   // W-161: elf copies of the signpost, bridge, garden, hitch rail and stable
+            StringAssert.Contains("fingerprint 9EA6387D", line);   // W-161 on rice: elf copies of the signpost, bridge, garden, hitch rail and stable
             yield return null;
         }
 
