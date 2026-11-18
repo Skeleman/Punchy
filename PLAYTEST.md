@@ -264,3 +264,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #578 W-163 row 3 (#330, closed): bark by species: plates on oak and pine, checks on birch, smooth beech, furrows elsewhere.
 - #579 R-33 (#331, closed): cracked salt crust on salt flats, plates and raised crack edges up close.
 - #580 W-165 row 1 (#335): farm fields round human villages and dwarf holds, crops per biome.
+- #581 W-153 row 6 (#301): river water sheets stop at the bank, no hanging edges over dry ground.
