@@ -52,6 +52,7 @@ namespace Punchy.Ambience
             Vents(source, palette, eye);
             RiverSpray(source, eye);
             RiverMist(source, eye);
+            RiverLeaves(source, palette, eye);
         }
 
         void AmbientTables(BiomePalette palette)
@@ -215,6 +216,7 @@ namespace Punchy.Ambience
             Kit.Steam.Set(ventOwner, null);
             ClearRiverSpray();
             ClearRiverMist();
+            ClearRiverLeaves();
             leavesAt = new float3(float.MaxValue);
             ventCellAt = new int2(int.MinValue);
         }
