@@ -29,6 +29,7 @@ MonoBehaviour:
   - {r: 0.55, g: 0.9, b: 0.6, a: 1}
   AccentAmount: 0.15
   ColorVariation: 0.12
+  BarkKind: 1
   Finish: 0
   GlowingAccents: 1
   MaxSlope: 60
