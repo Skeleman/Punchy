@@ -38,8 +38,9 @@ namespace Punchy.Terrain
         /// <summary>
         /// Cuts a scarp through a stone (W-166 #336): its MaterialLibrary.Stone row, taken relative to plain rock so a
         /// plain scarp stays exactly as styled. Blocky stone (granite, sandstone) juts its beds further and steps back
-        /// further from the rim, smooth stone (basalt) hardly at all; fine-grained stone has smaller cracks. Roughness
-        /// and jaggedness, which would move the face's outline a long way, are left for later.
+        /// further from the rim, smooth stone (basalt) hardly at all; fine-grained stone has smaller cracks. Ribbed stone
+        /// (ice) spaces its gullies wider; jagged stone (granite) breaks into more chimneys, smooth stone into fewer.
+        /// Roughness, which would move the whole outline, is left as paint (polish).
         /// </summary>
         public static void Stone(StoneKind kind, ref Scarp sc)
         {
@@ -50,6 +51,8 @@ namespace Punchy.Terrain
             sc.Crack *= math.sqrt(row.Grain / plain.Grain);
             sc.Push *= 1f + 0.8f * blocks;
             sc.Setback *= 1f + 0.4f * blocks;
+            sc.Gully = row.RibSpacing / plain.RibSpacing - 1f;
+            sc.Chimneys = 0.25f * (row.Jaggedness - plain.Jaggedness);
             var tint = MaterialLibrary.StoneTint(kind);
             sc.Tint = new float3(tint.x, tint.y, tint.z) - 1f;
             sc.Beds = 0.8f * blocks;
