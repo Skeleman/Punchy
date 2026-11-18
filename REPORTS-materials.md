@@ -199,3 +199,21 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
 - **Shots (PNG):** D:/Unity/PunchyMilestones/W-165: human-village-near/far, dwarf-hold-near/far, agave-3m/15m.
 - **BENCH request (via supervisor):** frame time and flora draw/vertex count at the human village and the dwarf hold, uncapped, NaN 0. Compare against main 80d02c94.
 - **Row 2:** rice paddies, elf beds, sea village, huts/scarecrows and tracks.
+
+
+## W-165 row 2: paused for the cheap-fields question (materials/farm-fields-2, WIP 9fec7dc5)
+- **Done (WIP, compiles, not shot or tested):** rule 35 trim (a3eba169). Biome borders: adobe wall, dry brush fence, stone kerb. Field hut on prop 2. Glow-herb crop. Worn track from the gate toward town. Species assets are not wired yet.
+- **Cost now (verts per field mesh, LOD0/1/2):** grain 20-21k/12k/1k, cabbage 18k/5k/1.4k, beans 12k/5k/0.5-1k, agave 21k/14k/0.7k, dwarf 10-16k/5-10k/0.7-1.4k.
+- **Already shared:** fields are 3 variant meshes per crop, drawn instanced, so there is no unique mesh per field. The soil boxes are about 2% of the verts (17 rows x 24 verts).
+- **Open:** (1) furrows in the shader need a mask plus a furrow coordinate per vertex, and no channel is free. (2) Per-crop instancing goes through FloraPlacement, which is 2957 lines (over the 2500-line limit). Questions sent to the supervisor.
+
+
+## W-165 row 2: cheaper crops + wired species (materials/farm-fields-2, f6330187, DONE)
+- **Verts per field LOD0 (3 variants), before -> after:** grain 20.4-21.2k -> 4.8-5.0k, cabbage 17.8-18.7k -> 5.4-5.6k, beans 11.8-12.5k -> 4.1-4.3k, agave 20.4-21.0k -> 4.0-4.1k, dwarf barley 14.7-15.3k -> 4.1-4.2k, kale 14.6-15.9k -> 4.7-5.0k, snow potato 9.9-10.1k -> 4.9-5.0k. New: desert beans 5.0-5.1k, elf glow herb 4.0-4.2k. LOD2 (far read) is unchanged.
+- **How:** grain and rice as 2 crossed cards; cabbage, kale and potato as one blob; agave as 4 tapered blades; beans as pole + blob; glow herb as blob + 2 glow diamonds. Hedge, wattle and dry-stone edges are thinned. LOD1 is not pulled in: it is now only 25-40% cheaper than LOD0, which doesn't justify the pop risk.
+- **Wired:** HumanDesertBeans (dusty, brush fence) in Sonoran/Mesa villages. HumanBeans is now Grassland/Temperate only. HumanAgave gets an adobe wall. ElfGlowHerb stone-kerb beds at elf groves (10 at the test grove). Borders, hut and track come from WIP 9fec7dc5.
+- **Pushback, rice on paddies:** placing rice needs either FloraPlacement reading the terrain paddy blob (2957 lines, terrain code is outside the lane) or biome asset edits (outside the lane). CropKind.Rice is built. Cheaper option for an OK: an aquatic rice-tuft species (water depth about 0.05-0.45) in the Grassland/Temperate flora lists, so it lands in the paddy pools.
+- **Pushback, sea villages:** these are landmark-prop villages with no layout, so FieldBaking can't reach them. A small prop plot could come later.
+- **Shots (PNG):** D:/Unity/PunchyMilestones/W-165/r2: human-village-near/far, dwarf-hold-near/far, agave-3m/15m, desert-beans-near, elf-herb-near, elf-grove-far. Before shots: D:/Unity/PunchyMilestones/W-165. Agave luminance is lower (80 -> 58) because of the darker adobe wall and the sparser blades, not a lighting fault.
+- **Tests:** EditMode 53/53. PlayMode 66/66 (65/66 on the full run, with only Fauna_Fingerprint failing; re-pinned 69053A54 -> 4EE0D127 for the new plots, and that test passes on rerun). Commit f6330187.
+- **BENCH (via supervisor):** draw calls and flora verts at the human village, the Sonoran village and the dwarf hold, uncapped. Compare against main 80d02c94.
