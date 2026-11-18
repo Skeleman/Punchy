@@ -1172,3 +1172,5 @@ Hot orange glow plumes (village/hold/camp fire sparks, fumarole vents, volcano c
 
 ## Request (2026-11-17, world, W-174 r3 #365 mouth rim, branch world/cave-chip a7b5c0cb): cave wall build cost
 CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wall vertex it drops onto a mouth ring (only vertices inside a mouth cut). One check vs main c675a638: CaveSystem chunk build job ms (worker) at cave c6 -2686,1229 walking in, High, uncapped. Expect a small rise on mouth chunks only. Report only.
+
+- 11-17 (supervisor): #573 wood grain adds ~2 noise lookups per wood pixel (Wood.hlsl). Report-only GPU check at a wood-heavy village/pier pose, main before vs after #573.
