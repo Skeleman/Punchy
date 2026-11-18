@@ -353,6 +353,8 @@ namespace Punchy.Flora
                      : p.Afloat && p.Material == Punchy.Terrain.KitMaterial.Trim ? Punchy.Terrain.MaterialFamily.Wood
                      : p.Piece == Punchy.Terrain.KitPiece.Trim && p.Material == Punchy.Terrain.KitMaterial.Roof && Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look) == Punchy.Terrain.MaterialFamily.Plaster ? Punchy.Terrain.MaterialFamily.Paint
                      : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
+                     // Copper trim (rod fins, straps, marsh paint) is a painted copper coat: Metal has no bark mark and fell back to stone.
+                     : p.Material == Punchy.Terrain.KitMaterial.Copper ? Punchy.Terrain.MaterialFamily.Paint
                      : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
             b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
             b.Unfounded = p.Afloat;
@@ -372,8 +374,8 @@ namespace Punchy.Flora
             }
             else if (p.Material == Punchy.Terrain.KitMaterial.Copper && p.Piece == Punchy.Terrain.KitPiece.Column)
             {
-                // Phase B (#336): a copper rod or stake (storm houses) is drawn as copper metal. Small copper trim stays
-                // painted bark: the same material colours gull bills and marsh totems.
+                // Phase B (#336): a copper rod or stake (storm houses) is drawn as copper metal. Small copper trim is
+                // painted (Paint family above): the same material colours gull bills and marsh totems.
                 b.MetalKind = Punchy.Terrain.MetalKind.Copper;
                 b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Metal);
                 b.MetalKind = Punchy.Terrain.MetalKind.Iron;
