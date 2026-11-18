@@ -8742,3 +8742,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Gate (WaterSheet hang edges + gaps): 0 at -2039,1715 / -2729,546 / 185,3200 / -1991,1970. At -490,546: 58 mesh hang points (worst 2.4 m) + 60 where the ground test itself is wet, plus 31 gaps. Cause: a perched lake at 56.2 standing over 51-54 m ground with no rim (ground-test defect, wants a truth row). Over-bank stays report-only (W-52 shore extension draws over test-dry ground by design).
 - WorldTests 20/20. Shots: PunchyMilestones/world/W-153r6-sheet/{before,after}.png (-490,546); small change at this pose.
 - Mouth sizing (shared-vertex patch): BuildChunkMeshJob(.Mouths/.Collars), CaveSystem mouth walls, TestHooks.Seams + new MouthPatch file; ~1000 lines; risks: LOD1 needs patch edges on even grid points, wall stitch can flip on overhangs, chunk-edge mouths need a world-grid mask, retires the collar path.
+
+## 11-18 #301 exact cave-mouth patch — DONE, world/mouth-patch@a316fc08, ready for PR
+- The cave mesh patches onto the terrain on shared rim vertices at exact heightmap heights. A world-grid mask (4 m cells) uses even LOD1 points. Folds are fixed by flipping the diagonal, then collapsing.
+- Gate: 0 gaps, 0 flipped and 0 downward patch triangles at mouths 0/1/2/8/11, LOD0 and LOD1. Mouth 8 (-1664) sits on a chunk edge.
+- WorldTests 21/21, including the new MouthPatch_ExactRims plus fingerprint and placement. The collar path and its EntranceSeams mouth checks are retired (-589 lines). CaveSystem.cs is now 2503 lines.
+- Shots: PunchyMilestones/world/mouth-patch/{before,after}-c{6,0,3,8}.png. Look defect: the patch draws whole 4 m cells in the cave material, so pale blocky rectangles show round each mouth. Next row: blend the patch's surface to the terrain material.
