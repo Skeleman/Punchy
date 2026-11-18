@@ -4,8 +4,7 @@
 #include "SkyCommon.hlsl"
 #include "WaterSwell.hlsl"
 
-// W-160: the waterline wanders on shallow banks. The sheet runs on under the banks, so a small lift moves the line
-// a long way up a gentle slope; it is held to the shallows, so deep water and fall curtains never move.
+// The sheet runs on under the banks, so a small lift moves the waterline a long way up a gentle slope.
 float PunchyShoreLift(float3 restWS, float4 data, float t)
 {
     float shallow = 1 - smoothstep(0.05, 0.8, data.z);
@@ -17,7 +16,7 @@ float PunchyShoreLift(float3 restWS, float4 data, float t)
         float2 p = restWS.xz;
         float bays = PunchyValueNoise(p * 0.11) * 0.65 + PunchyValueNoise(p * 0.37 + 4.1) * 0.35;
         float lap = sin(t * 0.7 + PunchyValueNoise(p * 0.23 + 9.3) * 6.2831853);
-        lift = (bays - 0.5) * 0.2 + lap * 0.02;
+        lift = (bays - 0.5) * 0.5 + lap * 0.03;
     }
     return lift * weight;
 }
@@ -36,14 +35,22 @@ float PunchyShorePatchLift(float3 restWS, float4 data, float4 parent, float t)
     return PunchyShoreLift(restWS, data, t);
 }
 
-// The pixel side: the water thins to nothing over a ragged band of the depth difference, so the line breaks up
-// even where the mesh is coarse. The fine ragging fades in by screen size.
+// The line breaks up even where the mesh is coarse.
 half PunchyShoreEdge(float2 p, float thickness, float pixelsPerMetre)
 {
     float fine = smoothstep(30, 80, pixelsPerMetre);
     float rag = PunchyValueNoise(p * 0.9 + 2.7) * lerp(1, 0.6, fine) + PunchyValueNoise(p * 3.7) * 0.4 * fine;
-    float reach = 0.25 * smoothstep(3, 12, pixelsPerMetre);
+    float reach = 0.6 * smoothstep(3, 12, pixelsPerMetre);
     return (half)saturate((thickness - reach * rag) / max(reach * 0.5, 1e-3));
+}
+
+// Width and presence of the foam rim along the line, so it is never one continuous white stroke.
+float2 PunchyShoreFoamBreak(float2 p, float pixelsPerMetre)
+{
+    float fine = smoothstep(30, 80, pixelsPerMetre);
+    float along = PunchyValueNoise(p * 0.45 + 7.1) * 0.7 + PunchyValueNoise(p * 1.9 + 1.3) * 0.3 * fine + 0.15 * (1 - fine);
+    float width = lerp(0.35, 1.5, PunchyValueNoise(p * 0.3 + 3.3));
+    return float2(width, smoothstep(0.42, 0.62, along));
 }
 
 #endif
