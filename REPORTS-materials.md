@@ -189,3 +189,13 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
   - The far tone comes from the ground: each field paints a tilled or crop colour stripe into the surface blend, as streets already do. So from 500 m the patchwork is ground colour that never pops off, with no hard end line (rule 25).
   - Levelling: one LandmarkBed per field, plus terrace steps on slopes, using the GroundEdits profile.
 - **Anchors (row 3):** each field adds AnchorKind.Garden-style spots (hoe, harvest, water, scare birds) along its rows. The Home stays the farm house. I'll send the folk-lane note to you.
+
+### W-165 row 1 DONE: farm fields, human and dwarf towns (materials/farm-fields 968fdc56)
+- **Counts (seed 8121, v3):** 16 fields. Human village: 9 (6 agave, 3 beans). Dwarf hold: 7 (6 kale, 1 snow potato). Dwarf mining camp: 0. Grain, cabbage and barley are defined; this seed's slots did not roll them.
+- **Vertices per field (LOD0/LOD1/LOD2):** grain 20448/11616/1224, cabbage 18198/4776/1440, beans 12048/4956/552, agave 20952/14232/696, snow potato 10104/7632/1176, kale 15138/5724/744, barley 15288/10344/1368.
+- **LOD:** new DetailPolicy.FloraClass.Field rule: Geometry 1150/200/0 px. LOD0 hands off to LOD1 at 1150 px, about one field width away (about 13-27 m at Detail 1, depending on field size). LOD1 hands off to LOD2 at 200 px (about 127 m for agave). Before this, fields used the Structure rule (295/75), which kept LOD0 out to about 91 m. ContactShade treats Field like Structure.
+- **Hashes:** landmarks 114 DE33C724 unmoved. Fauna fingerprint 3B4B93C6 -> 69053A54: field plots join the settlement plot list and the flora blob gains 7 species, so fauna spawn spots near the towns shift. Re-pinned in WorldTests.
+- **Tests:** PlayMode 66/66, including TempleSockets_Pinned (73 sockets, C41A5BA2). EditMode 53/53.
+- **Shots (PNG):** D:/Unity/PunchyMilestones/W-165: human-village-near/far, dwarf-hold-near/far, agave-3m/15m.
+- **BENCH request (via supervisor):** frame time and flora draw/vertex count at the human village and the dwarf hold, uncapped, NaN 0. Compare against main 80d02c94.
+- **Row 2:** rice paddies, elf beds, sea village, huts/scarecrows and tracks.
