@@ -8763,3 +8763,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Fix: the reshade re-set the vertex buffer params, which reset the submesh and blanked the nearby terrain. Now the submesh is set once and a reshade only re-uploads the vertices. Hollow depth, contact shade and the rule 35 trims are in.
 - 20 m shots: no seam at c3 or c6. Shadow test: c3f with the sun's shadows off looks the same as with them on. Clearing the patch shows its footprint, and the tree shadows and wide shadows cross it just as they cross the chunks. The patch does receive shadows, so no fix was needed. The pale halo round the mouth is on the chunk terrain, not on the patch.
 - WorldTests 21/21. Shots: PunchyMilestones/world/mouth-patch/tint-c3f-20m, tint-c6f-20m, tint-c3f-nosunshadow, tint-c3f-patch-footprint (.png).
+
+## 11-18 perched lake at -490,546 (rivers): DONE, world/perched-lake@cbff5a6d, ready for PR
+- Cause: CutDams cut a lake's outlet below the lake, so the lake sat metres above its own river. Fix in RiverBaking: after CutDams, breached lakes are lowered again, with the river's water as the spill level on river cells, then reshaped. The floor copy-back is fixed too.
+- WaterSheet at -490,546: 523322,2025,31,830,5248,58,2364,60 -> 460768,0,0,0,0,0,0,0. -2039,1715, -2729,546 and -1991,1970 are unchanged. Minor regression: 185,3200 over-bank 0 -> 14 (worst 58 mm).
+- WorldTests 20/21, the fail being Water_TruthCounts bend 83 > 82. Re-pinned to 83 in the same commit. Shots: PunchyMilestones/world/perched-lake/perched-{before,after}-c{a,b}.png. The water cliff across the valley is gone: a flat lake, then a short rapids line into the river.
