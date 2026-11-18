@@ -351,3 +351,13 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Shots: PunchyMilestones/R-26/sheet-{bark-close,bark-10m,mouths,cracks,far}-r2.jpg (viewed), per-shot png in before/ after/ base/. Rule 25: far views on HEAD vs branch read the same (only sun and cloud differ). Some row 1 pairs have new backgrounds because the layout changed.
 - Sparkle 360 frames, NaN 0, bad 0 at far Granite, oak bark close and Rock mouth (rule 24). Fungal cave view has bad pixels already on HEAD (14002), not from this row.
 - BENCH request: cave crack and bark furrow cost (Cave.shader, Bark.hlsl), via supervisor.
+
+## R-26 (#304) row 3 mouth detail (11-18) - render/mouth-detail 809ebe73
+- Cave.shader: wall detail lerps its scale from the style's s7.y to the ground's 0.6 over openness (one extra Detail read, mouths only), and its fade follows the blended scale. Bare stone walls take the ground's mouth grain at the same weights as TerrainSurface. The floor's ground share samples at 0.6 too.
+- TerrainSurface.shader: mouth grain at one scale of 0.6. The old lerp(0.6, 1.0, mouth) varied over space and smeared the texture far from the origin. Mouth mesh untouched.
+- Wall vs ground at the seam, before -> after: plain 1.2-2.0x -> 1.0x; sandstone 1.4-2.3x -> 1.0x; granite 2.2-3.7x -> 1.0x (blends back to s7.y with depth). Shared stone vs terrain rock stays 1x.
+- Shots: PunchyMilestones/R-26/r3/sheet-{granite,rock-sand}-r3.jpg (viewed), png in before/ after/. Far views with MatchedShot.Hold: lum 125.3 -> 127.1 (Rock), 153.2 -> 152.2 (Granite), so the far read is unchanged. An unheld pair read 25% darker from the session's overcast day type; HEAD gave the same under the same session.
+- Rule 35: Cave Frag comments cut to reason lines; TerrainSurface steep/mouth/R-19 block trimmed; Flora:59 removed. Compile clean. No SparkleProbe run this row.
+- Fungal view bad pixels (not chased): cave-Fungal shot from R-26 row 2, 14002 bad pixels already on HEAD.
+- Tooling note: ShotTool.Status stays Waiting if play stops mid-shot (no reset); CaveSurfaceProbe then stalls. Reset via reflection.
+- BENCH request: the extra mouth Detail read in Cave.shader, via supervisor.
