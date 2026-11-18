@@ -68,6 +68,7 @@ namespace Punchy.Terrain
                 return false;
             b.PatchBase = b.PatchVerts.AsArray().ToArray();
             b.PatchMesh = new Mesh { name = "Cave mouth patch", indexFormat = IndexFormat.UInt32 };
+            b.PatchMesh.SetVertexBufferParams(b.PatchBase.Length, TerrainVertex.Layout);
             b.PatchMesh.SetIndexBufferParams(b.PatchIndices.Length, IndexFormat.UInt32);
             b.PatchMesh.SetIndexBufferData(b.PatchIndices.AsArray(), 0, 0, b.PatchIndices.Length);
             ShadePatch(b);
