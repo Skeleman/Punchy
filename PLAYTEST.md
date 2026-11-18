@@ -273,3 +273,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #587 tooling: ShotTool no longer sticks in Waiting when play stops mid-shot (no leaked runners).
 - #588 cave veins: plain stone caves show a few faint rock-tinted seams instead of white netting; ore, crystal and ice caves keep bright veins.
 - #589 W-165 row 4 (#335): fishing villages have two kale bed boxes and two kelp drying racks by the wharf.
+- #590 W-159 row 1 (#322): rivers show their flow as surface ripples, no white streaks on smooth water.
