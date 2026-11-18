@@ -1185,3 +1185,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - #589 W-165 row 4 sea-village plots: fingerprint re-pinned 9EA6387D -> 29237322 (profiler: rebaseline world-hash checks). Flora verts at fishing villages up slightly (kale beds ~1000, kelp racks ~610 LOD0 each).
 - #590 W-159 row 1: per-pixel cost of WaterFlowLines (frag line evals) and the near-camera vertex lift, river views calm/fast/rapid, uncapped, vs main before #590.
 - #592 W-161 row 2: fingerprint re-pinned 29237322 -> 525F72BB (profiler: rebaseline world-hash checks). No cost change expected.
+- materials/castle-stone 7efdd6bb (W-166 castle stone): castle LOD0 verts up (tower 1704->2952, corner 1752->3552) from quoins + putlog holes; bench once castles are placed in the world. LOD2 unchanged.

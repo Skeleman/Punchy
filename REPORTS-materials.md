@@ -277,3 +277,9 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 | corner / mossy / ruined | 38/36/198 -> 16/16/41 | 1752/3891/7020 | 1056/3195/6780 -> 336/2235/1812 |
 | tower / mossy / ruined | 26/23/21 -> 10/10/9 | 1704/2781/1359 | 864/1941/1263 -> 192/1245/543 |
 | gatehouse / mossy / ruined | 68/67/81 -> 23/23/25 | 2552/4364/5101 | 1584/3396/4149 -> 864/2556/2733 |
+
+## W-166 castle stone (#336, castle kit #254) - DONE, materials/castle-stone
+
+- Cause: the Lab preview bakes vertex colours (no Flora.shader), and in game the 0.34 m cut courses fade on 8-11 m faces, so the castle read as plaster boxes. Fix in geometry: alternating proud quoins (0.7 m courses) on tower and gatehouse corners, scattered putlog holes on wall faces and gatehouse piers. Fine pieces: LOD0-1 only, no boxes. Hash-placed, no new RNG draws, so worn variants keep their layout.
+- LOD0 verts: tower 1704->2952, corner 1752->3552, gatehouse 2552->3656, wall 336->792 (ruined corner 7020->8436). LOD2 and boxes unchanged. BENCH-QUEUE: castle LOD0 cost after world placement.
+- Shots: PunchyMilestones/castle-stone/castle-{tower,wall,gatehouse}.png. UnitLibraryTests 14/14.
