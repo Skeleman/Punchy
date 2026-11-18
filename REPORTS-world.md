@@ -8777,3 +8777,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 
 ## 11-18 #365 mouth-all: rebased and pushed, world/mouth-all@ebc5fcdd on main 40ea4973
 - WorldTests 19/21. Neither failure comes from this diff (2 mouth patch files). Water_TruthCounts has uphillGraph 19 > 10, which comes from main: #614 banks/overhangs (RiverData cut banks) was not in #617's test base. Setup_SpawnRainAndShot timed out on its Shots.Settled. Mouth 21's LOD0 gap is not a small fix, so it is left noted. I can take the uphillGraph check or repin it if you want.
+
+## 11-18 b/fix-uphill-graph: DONE, b/fix-uphill-graph@c91d0f0b, ready for PR
+- Correction: the earlier note blaming #614 was wrong (a stale read). A fresh bake of e96da9d7 gives uphillGraph 10, and #617 (perched lake) brings it to 19.
+- Fix in RiverBaking: after the second lake lowering, lake exits drain to the lake's level. FillPits matches tiny rises. A river cell a lowered lake leaves behind takes the new base level as its lowest bed, not the floor of the lake next to it.
+- Truth counts: e96da9d7 82,0,0,0,0,10,0,36,10,17,169 -> 83,0,0,0,0,0,0,48,1,17,115. Re-pinned uphillGraph 0 and deep 1. Wall 48: 24 hits sit at the -2006,-1064 pond ledge, which was bared when the -1750,-750 lake dropped 2.5 m (its rim is intact).
+- Water_TruthCounts now lists every kind over its baseline in one assert. WorldTests 20/21; the only fail is the flaky Setup_SpawnRainAndShot timeout.

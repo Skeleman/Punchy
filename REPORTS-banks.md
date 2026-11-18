@@ -25,3 +25,10 @@
 - Lips find the face's top edge, so they line up along it. Each lip is a set of overlapping sheets, 0.6-1.6 m wide, with uneven gaps and lengths. 15% fall to the foot as half-sunk chunks. Density is now 30. The side-root comment is dropped (rule 35).
 - Shots: same 5 m and 25 m views. At 25 m the bare face shows, with turf strips along its grassy top.
 - Fauna_Fingerprint repinned 59A4BFD3; landmark and temple pins unchanged. WorldTests all pass except the fingerprint (repinned and re-run: pass); MaterialLibraryTests 13/13.
+
+## #301 row 3 (point bars): banks/point-bars@6266ff45
+- RiverData.cs (minimal diff; functions touched: RiverQuery (+Bar), Join (BarBlend 0.5 m), Consider, Query (+barScale), PointBar, BarWidth, BarMask). On inner bends opposite a cut bank, the rough carve lowers the ground into a low bar sloping gently to the water, wider on sharper bends. It fades within a cell of a lake, because the lake surface would otherwise stand as a wall over it.
+- TerrainSource.cs: the new RiverAt fades the bar within 24-40 m of a cave's bounding box, because lowering ground under a mouth rim flips its snapped triangles. GroundSample and GroundContext gain a PointBar flag (BiomeData). Tint is left to the materials lane.
+- FloraPlacement.cs: RiverFit adds pebble patches across the bar, the odd driftwood pile at its head and small reeds at its tail (row 1 species). UndercutLip now drops lips that aren't on a cut face.
+- Shot: river-details/point-bars/pointbar-25m.png shows the cut bank and the bar at -1268,630. Water walls are still 36 (the baseline).
+- Pins unchanged: Fauna_Fingerprint 59A4BFD3, plus the landmark and temple pins. WorldTests 21/21; MaterialLibraryTests 13/13.
