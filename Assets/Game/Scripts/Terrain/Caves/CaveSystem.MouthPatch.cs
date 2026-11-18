@@ -71,6 +71,7 @@ namespace Punchy.Terrain
             b.PatchMesh.SetVertexBufferParams(b.PatchBase.Length, TerrainVertex.Layout);
             b.PatchMesh.SetIndexBufferParams(b.PatchIndices.Length, IndexFormat.UInt32);
             b.PatchMesh.SetIndexBufferData(b.PatchIndices.AsArray(), 0, 0, b.PatchIndices.Length);
+            b.PatchMesh.SetSubMesh(0, new SubMeshDescriptor(0, b.PatchIndices.Length), MeshUpdateFlags.DontRecalculateBounds);
             ShadePatch(b);
             return true;
         }
@@ -87,12 +88,8 @@ namespace Punchy.Terrain
                     Strength = ContactShade.Strength, Reach = ContactShade.ReachScale,
                     PixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail
                 }.Run();
-            var mesh = b.PatchMesh;
-            var indices = (int)mesh.GetIndexCount(0);
-            mesh.SetVertexBufferParams(verts.Length, TerrainVertex.Layout);
-            mesh.SetVertexBufferData(verts, 0, 0, verts.Length);
-            mesh.SetSubMesh(0, new SubMeshDescriptor(0, indices), MeshUpdateFlags.DontRecalculateBounds);
-            mesh.RecalculateBounds();
+            b.PatchMesh.SetVertexBufferData(verts, 0, 0, verts.Length);
+            b.PatchMesh.RecalculateBounds();
             verts.Dispose();
         }
 
