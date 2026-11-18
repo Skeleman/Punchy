@@ -635,7 +635,6 @@ Shader "Punchy/Water"
                             flowLines += PunchyFlowLines(q, flowDir, riverSpeed, t) * w;
                         }
                     }
-                    // (Stronger as the river quickens, so the current shows in the surface itself.)
                     flowingSlope *= (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
                 }
                 float2 slope = lerp(WaveSlope(p / kindSize, tk), flowingSlope, flowAmount);
@@ -702,7 +701,6 @@ Shader "Punchy/Water"
                     wakeSlope += fallWaterSlope;
                     wakeFoam = max(wakeFoam, (half)(fallWaterChurn * 0.7));
                 }
-                // W-159 (Zach 11-14): the flow shows in the surface, not as white stripes; kept to where a line spans a few pixels.
                 float lineFade = flowAmount * smoothstep(2.5, 7, pixelsPerMetre * PunchyFlowLineSpacing)
                     * (1 - steep) * (1 - 0.75 * murk) * (1 - viscous) * (1 - lava);
                 wakeSlope += flowLines.xy * lineFade;

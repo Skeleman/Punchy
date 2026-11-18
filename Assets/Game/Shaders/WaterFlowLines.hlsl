@@ -8,12 +8,9 @@ float PunchyFlowFast(float speed)
     return saturate((speed - 0.8) / 3.5);
 }
 
-// (Spacing, length and the angle are fixed per sample: q reaches 90 m from its anchor, so letting them vary per pixel
-// bends the lines into kinks at every triangle edge.)
 static const float PunchyFlowLineSpacing = 1.1;
 static const float PunchyFlowLineAngles = 16;
 
-// xy slope, z height (m), w crest 0..1.
 float4 PunchyFlowLine(float2 q, float2 along, float fast, float seed)
 {
     float2 across = float2(-along.y, along.x);
@@ -31,7 +28,6 @@ float4 PunchyFlowLine(float2 q, float2 along, float fast, float seed)
     return float4(across * rise * amp, crest * amp, crest);
 }
 
-// (Two copies half a cycle apart cross-fade, like FlowFoam, so the lines never stretch out however long the water runs.)
 float4 PunchyFlowLinesAt(float2 p, float2 along, float speed, float fast, float t, float seed)
 {
     const float cycle = 2.0;
@@ -58,7 +54,6 @@ float4 PunchyFlowLines(float2 p, float2 along, float speed, float t)
     return (l0 * (1 - f) + l1 * f) * rsqrt((1 - f) * (1 - f) + f * f);
 }
 
-// (The same anchor as Water.shader's frag, so the lift and the lit lines line up.)
 float2 PunchyFlowAnchor(int corner, out float weight)
 {
     const float AnchorGrid = 64;
@@ -78,7 +73,6 @@ float PunchyFlowRiverSpeed(float speed, float depth, float rapids)
     return speed * (1 + 2.5 * rapids) * lerp(0.45, 1.25, saturate(depth / 1.6));
 }
 
-// (Only within about 10 m at the reference view, gone by 20: further out the sheet is too coarse for the lines, rule 20.)
 float PunchyFlowLift(float3 restWS, float4 data, float flowSpeed, float t)
 {
     float flowAmount = saturate(length(data.xy));
@@ -100,7 +94,7 @@ float PunchyFlowLift(float3 restWS, float4 data, float flowSpeed, float t)
     return lift * weight;
 }
 
-// (A T-edge vertex takes its edge's ends' lift, as in PunchyWaterPatchVertex, so the sheet never cracks.)
+// T-edge vertices take their edge ends' lift so the sheet never cracks.
 float PunchyFlowPatchLift(float3 restWS, float4 data, float4 parent, float flowSpeed, float t)
 {
     [branch] if (abs(parent.w) > 1e-4)
