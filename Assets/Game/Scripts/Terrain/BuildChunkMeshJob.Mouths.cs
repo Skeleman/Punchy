@@ -118,6 +118,24 @@ namespace Punchy.Terrain
             CaveSampling.WallField(p.y, source.MeshHeight(p.xz, gridStep), source.AcrossSlope(p.xz),
                                    CaveSampling.Distance(ref source.Caves.Value, p, out _));
 
+        // Must equal CaveSystem.Voxel at level 0.
+        public const float WallVoxel = 0.5f;
+
+        // #365: the cave mesh draws this trilinear field, not WallFieldAt, so collar feet must sit on it.
+        public static float DrawnWallFieldAt(in TerrainSource source, float3 p, float gridStep)
+        {
+            var cell = math.floor(p / WallVoxel);
+            var t = p / WallVoxel - cell;
+            var sum = 0f;
+            for (int c = 0; c < 8; c++)
+            {
+                var o = new float3(c & 1, (c >> 1) & 1, (c >> 2) & 1);
+                var w = math.lerp(1f - t, t, o);
+                sum += w.x * w.y * w.z * WallFieldAt(source, (cell + o) * WallVoxel, gridStep);
+            }
+            return sum;
+        }
+
         /// <summary>Shallower sheets a foot is looked for on, in turn, where the walls cross none within FootReach at
         /// CollarDepth (the cave's roof rises above that depth at the mouth's edge).</summary>
         const float FootDepthStep = 0.1f, FootDepthMin = 0.1f;
@@ -126,22 +144,10 @@ namespace Punchy.Terrain
         static float3 FootSheet(in TerrainSource source, float2 xz, float gridStep, float depth) =>
             new float3(xz.x, CaveSampling.MouthRing(source.MeshHeight(xz, gridStep), source.AcrossSlope(xz), depth), xz.y);
 
-        /// <summary>The walls' field on the foot sheet at xz (positive in the cave's air; WallFieldAt at FootSheet, with
-        /// the surface and slope read once).</summary>
-        static float FootField(in TerrainSource source, float2 xz, float gridStep, float depth)
-        {
-            var surface = source.MeshHeight(xz, gridStep);
-            var scale = source.AcrossSlope(xz);
-            var y = CaveSampling.MouthRing(surface, scale, depth);
-            return CaveSampling.WallField(y, surface, scale, CaveSampling.Distance(ref source.Caves.Value, new float3(xz.x, y, xz.y), out _));
-        }
+        static float FootField(in TerrainSource source, float2 xz, float gridStep, float depth) =>
+            DrawnWallFieldAt(source, FootSheet(source, xz, gridStep, depth), gridStep);
 
-        /// <summary>
-        /// The foot of a collar under rim point xz: the nearest point on the foot sheet (CollarDepth down, or shallower
-        /// in FootDepthStep steps where that sheet has none) where the walls' field is zero, along the sheet field's
-        /// gradient (towards the cave's air, or back from it). Only xz is read, so the chunks on both sides of a shared
-        /// rim point find the same foot. False when none lies within FootReach on any sheet.
-        /// </summary>
+        // Reads only xz, so the chunks on both sides of a shared rim point find the same foot.
         public static bool MouthFoot(in TerrainSource source, float2 xz, float gridStep, out float3 foot, out float3 normal)
         {
             foot = default;
@@ -154,13 +160,13 @@ namespace Punchy.Terrain
             // At the mouth's shallow edge the walls' skin runs just under the ground: drop straight down onto it.
             var top = new float3(xz.x, source.MeshHeight(xz, gridStep), xz.y);
             var bottom = top - new float3(0f, CollarDepth / source.AcrossSlope(xz), 0f);
-            var air = WallFieldAt(source, top, gridStep) >= 0f;
-            if (air == WallFieldAt(source, bottom, gridStep) >= 0f)
+            var air = DrawnWallFieldAt(source, top, gridStep) >= 0f;
+            if (air == DrawnWallFieldAt(source, bottom, gridStep) >= 0f)
                 return false;
             for (int k = 0; k < FootSteps; k++)
             {
                 var m = 0.5f * (top + bottom);
-                if (WallFieldAt(source, m, gridStep) >= 0f == air)
+                if (DrawnWallFieldAt(source, m, gridStep) >= 0f == air)
                     top = m;
                 else
                     bottom = m;
@@ -173,10 +179,6 @@ namespace Punchy.Terrain
         /// <summary>How close (m of the walls' field) OntoWall must bring a point, and how far it may move it.</summary>
         const float WallSnap = 0.002f, WallSnapReach = 0.5f;
 
-        /// <summary>
-        /// Moves p onto the cave walls' field along its gradient (a few Newton steps), with the wall's normal there.
-        /// False where the field steps or folds near p and no point within WallSnapReach is found (p is then unchanged).
-        /// </summary>
         public static bool OntoWall(in TerrainSource source, ref float3 p, float gridStep, out float3 normal)
         {
             normal = default;
@@ -184,39 +186,38 @@ namespace Punchy.Terrain
             var q = p;
             for (int k = 0; k < 6; k++)
             {
-                var f = WallFieldAt(source, q, gridStep);
+                var f = DrawnWallFieldAt(source, q, gridStep);
                 if (math.distance(q, p) > WallSnapReach)
                     return false;
-                var g = new float3(WallFieldAt(source, q + new float3(n, 0f, 0f), gridStep) - f,
-                                   WallFieldAt(source, q + new float3(0f, n, 0f), gridStep) - f,
-                                   WallFieldAt(source, q + new float3(0f, 0f, n), gridStep) - f) / n;
+                var g = new float3(DrawnWallFieldAt(source, q + new float3(n, 0f, 0f), gridStep) - f,
+                                   DrawnWallFieldAt(source, q + new float3(0f, n, 0f), gridStep) - f,
+                                   DrawnWallFieldAt(source, q + new float3(0f, 0f, n), gridStep) - f) / n;
                 if (math.lengthsq(g) < 1e-8f)
                     return false;
                 if (math.abs(f) <= WallSnap)
                 {
-                    normal = math.normalize(g);
+                    normal = WallNormal(source, q, gridStep, math.normalize(g));
                     p = q;
                     return true;
                 }
                 q -= f * g / math.lengthsq(g);
             }
-            // Newton wandered (the field steps or folds near p): march along the walls' normal at p, both ways, to the
-            // nearest sign change and bisect it.
+            // Newton wanders where the field folds near p.
             var dir = WallNormal(source, p, gridStep, float3.zero);
             if (math.lengthsq(dir) == 0f)
                 return false;
-            var f0 = WallFieldAt(source, p, gridStep);
+            var f0 = DrawnWallFieldAt(source, p, gridStep);
             for (var s = FootMarch; s <= WallSnapReach + 1e-4f; s += FootMarch)
                 for (var side = -1f; side <= 1f; side += 2f)
                 {
                     var far = p + dir * (side * s);
-                    if (WallFieldAt(source, far, gridStep) >= 0f == f0 >= 0f)
+                    if (DrawnWallFieldAt(source, far, gridStep) >= 0f == f0 >= 0f)
                         continue;
                     var near = p + dir * (side * (s - FootMarch));
                     for (int k = 0; k < FootSteps; k++)
                     {
                         var m = 0.5f * (near + far);
-                        if (WallFieldAt(source, m, gridStep) >= 0f == f0 >= 0f)
+                        if (DrawnWallFieldAt(source, m, gridStep) >= 0f == f0 >= 0f)
                             near = m;
                         else
                             far = m;
@@ -239,7 +240,6 @@ namespace Punchy.Terrain
             return math.lengthsq(grad) > 1e-12f ? math.normalize(grad) : fallback;
         }
 
-        /// <summary>MouthFoot on the one sheet depth down.</summary>
         static bool FootOnSheet(in TerrainSource source, float2 xz, float gridStep, float depth, out float3 foot, out float3 normal)
         {
             foot = default;
@@ -251,16 +251,26 @@ namespace Punchy.Terrain
             if (math.lengthsq(g) < 1e-12f)
                 return false;
             // In rock, towards the air; in air, back towards the rock.
-            var dir = math.normalize(g) * (f0 < 0f ? 1f : -1f);
+            var ahead = math.normalize(g) * (f0 < 0f ? 1f : -1f);
+            var dir = ahead;
             float lo = 0f, hi = -1f;
-            for (var t = FootMarch; t <= FootReach + 1e-4f; t += FootMarch)
+            // #365: the drawn field's kinks can tip the gradient away from the nearest crossing; take the nearest of five headings.
+            for (var t = FootMarch; t <= FootReach + 1e-4f && hi < 0f; t += FootMarch)
             {
-                if (FootField(source, xz + dir * t, gridStep, depth) < 0f != f0 < 0f)
+                for (int h = 0; h < 5; h++)
                 {
-                    hi = t;
-                    break;
+                    var turn = (h + 1) / 2 * (h % 2 == 0 ? -0.25f : 0.25f) * math.PI;
+                    math.sincos(turn, out var sin, out var cos);
+                    var d = new float2(ahead.x * cos - ahead.y * sin, ahead.x * sin + ahead.y * cos);
+                    if (FootField(source, xz + d * t, gridStep, depth) < 0f != f0 < 0f)
+                    {
+                        dir = d;
+                        hi = t;
+                        break;
+                    }
                 }
-                lo = t;
+                if (hi < 0f)
+                    lo = t;
             }
             if (hi < 0f)
                 return false;
@@ -273,17 +283,7 @@ namespace Punchy.Terrain
                     hi = m;
             }
             foot = FootSheet(source, xz + dir * (0.5f * (lo + hi)), gridStep, depth);
-            // The sheet's crossing is on the field to well under a millimetre unless the field steps there; then a few
-            // steps along its gradient may still find the wall close by.
-            if (math.abs(WallFieldAt(source, foot, gridStep)) > WallSnap)
-            {
-                var snapped = foot;
-                if (OntoWall(source, ref snapped, gridStep, out normal) && math.distance(snapped, foot) < 0.1f)
-                {
-                    foot = snapped;
-                    return true;
-                }
-            }
+            // The walls' own vertices take the exact field's normal.
             normal = WallNormal(source, foot, gridStep, new float3(-dir.x, 0f, -dir.y) * (f0 < 0f ? -1f : 1f));
             return true;
         }

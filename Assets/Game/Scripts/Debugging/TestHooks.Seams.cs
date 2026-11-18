@@ -366,7 +366,7 @@ namespace Punchy.Debugging
                             ringOver = math.max(ringOver, over);
                             if (over > RingFootTolerance)
                                 highFeet++;
-                            var off = math.abs(BuildChunkMeshJob.WallFieldAt(job.Source, w, footStep));
+                            var off = math.abs(BuildChunkMeshJob.DrawnWallFieldAt(job.Source, w, footStep));
                             if (off > CollarFootTolerance && FieldStep(job.Source, w, footStep))
                                 stepFeet++;   // on a step in the walls' own field (the walls break there too)
                             else
@@ -477,7 +477,7 @@ namespace Punchy.Debugging
                         // Signed: an edge bowing into the rock is hidden behind the wall; one bowing into the cave's air
                         // stands proud of the wall under it. Feet a few centimetres apart with the field folding between
                         // them are a crease in the walls themselves (counted with the steps).
-                        var off = BuildChunkMeshJob.WallFieldAt(job.Source, m, footStep);
+                        var off = BuildChunkMeshJob.DrawnWallFieldAt(job.Source, m, footStep);
                         rockBow = math.max(rockBow, -off);
                         if (off <= CollarChordTolerance)
                             chordOff = math.max(chordOff, off);
@@ -505,10 +505,10 @@ namespace Punchy.Debugging
                     bool Stepped(float3 x, float3 y)
                     {
                         int flips = 0;
-                        var last = BuildChunkMeshJob.WallFieldAt(job.Source, x, footStep);
+                        var last = BuildChunkMeshJob.DrawnWallFieldAt(job.Source, x, footStep);
                         for (int q = 1; q <= 16; q++)
                         {
-                            var f = BuildChunkMeshJob.WallFieldAt(job.Source, math.lerp(x, y, q / 16f), footStep);
+                            var f = BuildChunkMeshJob.DrawnWallFieldAt(job.Source, math.lerp(x, y, q / 16f), footStep);
                             if (f < 0f != last < 0f && math.abs(f - last) > 2f * CollarFootTolerance)
                                 flips++;
                             last = f;
