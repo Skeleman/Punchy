@@ -1020,12 +1020,15 @@ Shader "Punchy/Water"
                     // (theta falls with time: this rises 0..1 over each swell, from 0 as a crest passes.)
                     surgeCycle = frac(0.25 - atan2(arriving.phasor.x, arriving.phasor.y) / 6.2831853);
                 }
-                float surgeReach = _FoamDistance * lerp(1.5, 0.05, surgeCycle);
+                // (A thin band at the waterline, not a wash over the shallows: in depth a gentle beach turns small numbers
+                // into metres, so the surge runs in from 0.4x the foam distance, and the trail behind the front is short. Soft
+                // edges and a 0.75 peak keep the thin band from reading as a hard white streak.)
+                float surgeReach = _FoamDistance * lerp(0.4, 0.03, surgeCycle);
                 float fromFront = thickness - surgeReach;
-                half surfLine = (fromFront < 0 ? 1 - smoothstep(0, 0.03 + 0.03 * _FoamDistance, -fromFront)
-                                               : exp(-fromFront / (0.12 + 0.25 * _FoamDistance)))
-                              * smoothstep(0, 0.06, surgeCycle) * (1 - smoothstep(0.75, 1, surgeCycle));
-                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.15;
+                half surfLine = (fromFront < 0 ? 1 - smoothstep(0, 0.06 + 0.06 * _FoamDistance, -fromFront)
+                                               : exp(-fromFront / (0.05 + 0.08 * _FoamDistance)))
+                              * smoothstep(0, 0.06, surgeCycle) * (1 - smoothstep(0.75, 1, surgeCycle)) * 0.75;
+                half wash = (1 - saturate(thickness / max(surgeReach, 1e-3))) * 0.1;
                 half seaFoam = saturate(max(surfLine * smoothstep(0.3, 0.45, foamNoise + 0.2), wash)) * (1 - inDeep);
                 foam = lerp(foam, seaFoam, seaShore);
                 // Not a solid white strip: clear right at the edge (a wet line, where the bed shows through), and broken
