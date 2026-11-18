@@ -8700,3 +8700,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Row 6 log: audited fresh v3 bakes print '[island] water truth 82,0,0,0,0,10,0,89,10,17,225,0,0' (WorldTests order). Verified in play.
 - Row 6 gate at 0 is out of reach this row: wall 89 = 56 river-by-fall, 20 pool, 8 river, 5 lake; step 225, bend 82. A ground-test water mesh won't change these (WaterTruth samples SampleGround, not the mesh). Fall walls go back to row 3 work. Baseline stays only-down.
 - No test change, no landmark move. Next per order: W-181 ledges, unless you want the fall walls first.
+
+### W-153 row 3 tail (#301) - DONE/verified 11-17, world/fall-walls@5a9f5f61 (from main 8b97c7cd)
+- RiverData: ground beside a fall sheet rises to just above the upper water at the lip (ShoulderLevel/Weight in RiverQuery, applied at the end of Carve), so only the sheet crosses the lip. WaterTruth AtFallLip also excuses oblique lips (dot > 0.25).
+- v3 WaterTruth 82,0,0,0,0,10,0,89,10,17,225,0,0 -> 82,0,0,0,0,10,0,36,10,17,170,0,0 (fall walls 56->5; lake 5, pool 20, river 6 left); no kind rose, baseline lowered.
+- Pins: landmarks 114 -> "114 DE33C724" (only CampsiteSwamp near -1626,33 settles 0.2 m); fauna -> 3B4B93C6. WorldTests 20/20.
+- Shot (MatchedShot.Hold): PunchyMilestones/world/W-153r3-fallwalls/after/fall-121.png viewed: rock shoulders both sides of the sheet; a thin water slab still shows left of it (likely one of the 5). BENCH line added. Next: #365 c6 follow-up.

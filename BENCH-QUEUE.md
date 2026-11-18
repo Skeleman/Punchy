@@ -1144,3 +1144,6 @@ Compare water GPU ms on render/shore-foam against main at Medium, standing at th
 
 ## Request (2026-11-17, world, W-153 row 4 #301, branch world/river-lakes 8d1e9937): deep-lake water mesh cost
 Lake water now also covers the deep spots of lakes it used to leave dry (about 300 points on v3), so a few more water patches build. One check vs world/river-curtain: water patch build ms and water GPU ms looking over the lake at -2990,2734 from (-2900,300,2650), v3, High, uncapped, 300 frames. Report only.
+
+## Request (2026-11-17, world, W-153 row 3 tail #301, branch world/fall-walls 5a9f5f61): fall shoulder carve cost
+Carve now adds a shoulder term beside each fall lip (138 sheets on v3). One check vs origin/main: terrain chunk build ms and island bake ms on v3 near the fall at -3226,3102, High, uncapped, 300 frames. Report only.
