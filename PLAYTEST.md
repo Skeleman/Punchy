@@ -235,3 +235,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #549 beach glare: dock/shore/wharf/boardwalk lanterns are night-only pier lamps; noon sand reads pale.
 - 11-17 #551 (#550): pier, dock and stilt-house decks show planks again, not shingles.
 - 11-17 #552 R-42: shore foam is a thin soft band at the waterline, no white haze on gentle beaches.
+- 11-17 #487 R-25 (#302): volcano smoke plumes hold from far away, no pop-in on approach.
