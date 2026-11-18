@@ -257,6 +257,7 @@ namespace Punchy.Terrain
         public float Slope;        // degrees
         public float WaterDepth;   // metres below the local water surface (negative = above it)
         public float River;        // 0..1, 1 inside a river channel
+        public float PointBar;
         public float Rapids;
         public float Inland;
         public float Mouth, MouthStreak, Spray;

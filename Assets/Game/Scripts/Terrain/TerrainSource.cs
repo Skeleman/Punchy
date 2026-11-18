@@ -72,6 +72,7 @@ namespace Punchy.Terrain
         public float Height;
         public BiomeWeights Biomes;   // narrow (surface) blend
         public float River;           // 0..1 channel mask
+        public float PointBar;
         /// <summary>
         /// Metres below the nearest water surface (negative = above it), for surface rules. Smoothed at the edges
         /// of lake/river zones; use <see cref="WaterSurface"/> for the exact surface.
@@ -653,7 +654,7 @@ namespace Punchy.Terrain
             var river = default(RiverQuery);
             if (Rivers.IsCreated)
             {
-                river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
+                river = RiverAt(xz);
                 h = RiverSampling.Carve(river, RiverSettings, h, xz);
             }
             var carved = h;
@@ -675,6 +676,22 @@ namespace Punchy.Terrain
         /// (1.25 rise/m, no change) down to 0.5 (27 deg) on the track's centre, so the walk over the pass stays
         /// under ~30 deg. Uncapped off the track and on v1/v2.
         /// </summary>
+        RiverQuery RiverAt(float2 xz)
+        {
+            var q = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
+            if (q.Bar <= 0f)
+                return q;
+            // Not by a cave mouth: lowering the ground under its rim flips the mouth's snapped triangles.
+            var fade = 1f;
+            if (Caves.IsCreated)
+            {
+                ref var caves = ref Caves.Value.Caves;
+                for (int i = 0; i < caves.Length && fade > 0f; i++)
+                    fade = math.min(fade, math.smoothstep(24f, 40f, math.length(math.max(0f, math.max(caves[i].Min.xz - xz, xz - caves[i].Max.xz)))));
+            }
+            return fade >= 1f ? q : RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz), fade);
+        }
+
         float PassBankCap(float2 xz)
         {
             if (!V3Ground.IsCreated)
@@ -739,7 +756,7 @@ namespace Punchy.Terrain
             var carved = g.Height;
             if (Rivers.IsCreated)
             {
-                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
+                var river = RiverAt(xz);
                 notchRiver = river;
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
@@ -748,6 +765,7 @@ namespace Punchy.Terrain
                 g.River = RiverSampling.ChannelMask(river);
                 g.Mouth = MouthFan(ref Rivers.Value, xz, river, World.SeaLevel, out g.MouthStreak);
                 g.Spray = FallSpray(ref Rivers.Value, xz, river, g.Rapids);
+                g.PointBar = RiverSampling.BarMask(river);
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
                 var riverLevel = float.MinValue;
@@ -1326,6 +1344,7 @@ namespace Punchy.Terrain
                 Slope = math.degrees(math.acos(math.saturate(normal.y))),
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
+                PointBar = ground.PointBar,
                 Rapids = ground.Rapids,
                 Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
                 Mouth = ground.Mouth,
@@ -1399,6 +1418,7 @@ namespace Punchy.Terrain
                 Slope = 0f,
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
+                PointBar = ground.PointBar,
                 Rapids = ground.Rapids,
                 Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
                 Mouth = ground.Mouth,
