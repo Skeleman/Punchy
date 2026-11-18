@@ -51,7 +51,6 @@ namespace Punchy.Flora
             b.Tube(path, radii, sides, colour, FloraPart.Bark, cap: true);
             if (g.Lod == 0 && length > longest * 0.5f)
             {
-                // A side root from partway down, splaying out.
                 var from = path[rows / 2];
                 var dir = (g.Flat(g.R() * 6.28f) - Vector3.up * 1.2f).normalized;
                 var sideLength = length * g.Range(0.2f, 0.4f);

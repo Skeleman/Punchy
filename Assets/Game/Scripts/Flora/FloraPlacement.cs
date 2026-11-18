@@ -1228,6 +1228,9 @@ namespace Punchy.Flora
             }
             if (kind == (int)RiverSpot.LogNarrows)
                 return q.Width <= 10f && q.Distance < 2f ? 1f : 0f;
+            if (kind == (int)RiverSpot.Undercut)
+                return Dry(ground) && edge > -2f && edge < 4f && q.Cut > 0.45f
+                    ? math.lerp(0.4f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind)) : 0f;
             var reach = math.max(10f, q.Width * 1.5f);
             var up = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz - flow * reach);
             var down = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz + flow * reach);
@@ -1245,12 +1248,6 @@ namespace Punchy.Flora
                 return inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
             if (kind == (int)RiverSpot.GravelBar)
                 return edge > -1.2f && edge < 2.5f ? (inner ? math.max(bend, 0.3f) : 0.08f) : 0f;
-            if (kind == (int)RiverSpot.Undercut)
-            {
-                var lip = ground.Height - q.Water;
-                return !inner && Dry(ground) && edge > -0.5f && edge < 2.5f && lip > 0.4f && lip < 3f
-                    ? math.smoothstep(0.3f, 0.7f, bend) * ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind) : 0f;
-            }
             if (!late || edge < -1.5f || edge > 2f)
                 return 0f;
             var draw = ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind);
@@ -1284,27 +1281,34 @@ namespace Punchy.Flora
             var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
             var left = new float2(-flow.y, flow.x);
             var toWater = source.SampleHeight(xz + left * 2f) < source.SampleHeight(xz - left * 2f) ? left : -left;
-            var top = source.SampleHeight(xz);
             var edge = xz;
+            var top = 0f;
             var found = false;
-            for (var step = 0.25f; step <= 3f; step += 0.25f)
+            for (var step = -3f; step <= 3f && !found; step += 0.25f)
             {
-                var h = source.SampleHeight(xz + toWater * step);
-                if (h < top - 0.3f)
-                {
-                    found = true;
-                    break;
-                }
                 edge = xz + toWater * step;
-                top = math.max(top, h);
+                top = source.SampleHeight(edge);
+                found = top - source.SampleHeight(edge + toWater * 0.5f) > 0.45f
+                     && source.SampleHeight(edge - toWater * 0.5f) - top < 0.2f;
             }
             if (!found || source.SampleHeight(edge + toWater * 1.5f) > top - 0.6f)
                 return none;
             var model = rule.FirstModel + rng.NextInt(rule.Variants);
+            var yaw = FacingYaw(toWater) + rng.NextFloat(-0.2f, 0.2f);
+            var at = new float3(edge.x, top + 0.02f, edge.y);
+            if (rng.NextFloat() < 0.15f)
+            {
+                var foot = edge + toWater;
+                for (var k = 0; k < 8 && source.SampleHeight(foot) - source.SampleHeight(foot + toWater * 0.5f) > 0.25f; k++)
+                    foot += toWater * 0.5f;
+                at = new float3(foot.x, source.SampleHeight(foot) - 0.15f, foot.y);
+                yaw += rng.NextFloat(-1.2f, 1.2f);
+                scale *= 0.65f;
+            }
             return new FloraSystem.FloraInstance
             {
-                Position = new float3(edge.x, top + 0.02f, edge.y),
-                Yaw = FacingYaw(toWater) + rng.NextFloat(-0.2f, 0.2f),
+                Position = at,
+                Yaw = yaw,
                 Scale = scale,
                 Model = model,
                 Random = rng.NextFloat(),
