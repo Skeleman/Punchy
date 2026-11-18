@@ -324,11 +324,7 @@ namespace Punchy.Debugging
         /// <summary>W-153: how many places the water breaks each rule of WaterTruth (one count per kind, in WaterTruth.Names order).</summary>
         public static int[] WaterTruthCounts() => Source(out var s) ? WaterTruth.Measure(s).Counts : new int[WaterTruth.Kinds];
 
-        /// <summary>
-        /// W-153: seams between the loaded chunks' water meshes within radius chunks of x,z: { borders checked,
-        /// wet vertices compared, gaps over 5 cm, open ends, largest gap in mm }. See WaterTruth.Seams.
-        /// </summary>
-        /// <summary>W-153 row 6: drawn water sheets within radius chunks of x,z against the ground test. See WaterTruth.Sheet.</summary>
+        /// <summary>W-153 row 6: counts in WaterTruth.Sheet order.</summary>
         public static int[] WaterSheet(float x, float z, int radius)
         {
             var world = World.DefaultGameObjectInjectionWorld;
@@ -339,6 +335,7 @@ namespace Punchy.Debugging
             return query.TryGetSingleton<TerrainConfig>(out var config) ? WaterTruth.Sheet(s, streaming, config.ChunkSize, new float2(x, z), radius) : new int[8];
         }
 
+        /// <summary>W-153: { borders checked, wet vertices compared, gaps over 5 cm, open ends, largest gap in mm }.</summary>
         public static int[] WaterSeams(float x, float z, int radius)
         {
             var world = World.DefaultGameObjectInjectionWorld;
