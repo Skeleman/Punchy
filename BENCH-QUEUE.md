@@ -1160,3 +1160,6 @@ Scarp gully spacing and chimneys now depend on the biome stone, so ground height
 
 ## Request (2026-11-17, world, W-153 fall-121, branch world/fall-sliver f21933e1): curtain edge fade cost
 Waterfall curtains now fade their edge columns in the water shader (one smoothstep, a depth-pass clip) instead of skipping them. One check vs main: whole-frame GPU ms looking at fall 121 on v3, High, uncapped, 300 frames. Expect no change. Report only.
+
+## Note (2026-11-17, supervisor): re-pin after #569 (iron kit material)
+The kit fingerprint includes each part's material, so fixture and house hashes change (lanterns, braziers, brackets, hoops moved Trim -> Iron). No geometry moved.
