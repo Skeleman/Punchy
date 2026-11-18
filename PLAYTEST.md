@@ -259,3 +259,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-17 #573 W-163 row 1 (#330): planks, crates and timber show warped grain, grime bands and per-piece variation.
 - 11-17 #574 (#330): EditMode tests compile again after #573 (no game change).
 - 11-17 #575 W-153 (#301): waterfall curtains no longer show thin dark vertical lines (fall-121).
+- 11-17 #576 W-163 row 2 (#330): strangler-fig roots wrap swamp (Bogwood) trunks; braided roots on natural cave walls.
