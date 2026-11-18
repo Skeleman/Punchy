@@ -94,3 +94,9 @@ History before 11-13 (old session table, task table, shared-file queue, log): `g
 - When usage runs low, or before any long run that could be cut off, commit the work in progress to the lane branch
   (`WIP:` subject), push, and set the line to **resumable** with the exact next step. Nothing is left only on disk.
 - On resume, read your board line and your card before anything else.
+
+## Rule 35: comments (Zach 11-17)
+- Write no new comments, except one short line for a reason the code cannot show (a cap that stops a flipped
+  triangle, a bug workaround, a network or save format constraint).
+- When you edit a function, delete the comments in it that restate the code. Keep the reason lines.
+- No repo-wide comment-strip pass: it touches every lane's files and causes conflicts.
