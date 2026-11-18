@@ -140,3 +140,13 @@ Branch materials/wood-grain, commit fd145111.
 - Matched shots in D:/Unity/PunchyMilestones/W-163/before and /after (one session, clear noon). Mean luminance before -> after: pier close 125.7->124.9, house close 139.1->144.7, crate close 133.2->134.6, pier 20 m 160.7->159.3, house 20 m 157.0->154.1, crate 20 m 113.2->112.4. NaN 0. Viewed the close pair: the pier ramp shows lengthwise grime and grain; crate faces change little.
 - Tests: 2 new edit-mode tests (layers pinned; Flora/Cave/Creature compile with no errors). MaterialLibraryTests 9/9, full EditMode 49/49.
 - Cost: about 2 extra value-noise calls per wood pixel. Suggest a BENCH-QUEUE check; I did no timing.
+
+## W-163 row 2 (#330) - static strangler-fig roots (2026-11-17)
+
+Branch materials/strangler-roots, commit 791c9a5c. Our own code from the technique; nothing copied. No animation.
+- Trunks: FloraSpecies.Strangler (0-1). Bogwood is set to 0.7, so about 7 in 10 variants grow twisted strands around the trunk. They come from their own seed stream, so the tree's other draws stay put. There are none at LOD2; LOD1 skips the thin strands.
+- Triangles per Bogwood variant, LOD0/1/2, before -> after: v0 16040/1730/112 -> 17188/2006/112; v1 6872/1730/112 -> 7856/2006/112; v2 6872/1730/112 -> 8020/2006/112; v3 5735/1451/112, no roots. Net about +1000-1150 at LOD0, +276 at LOD1, 0 at LOD2. NaN 0 across all variants and LODs.
+- Caves: a new shared include, Materials/Roots.hlsl. The Cave.shader diff is 3 lines (the include, plus one call on natural walls only: no dressed stone, no tunnels). Patches follow noise, damp and moss, times bare. Strands run on world axes blended by the normal; a per-facet axis broke them into chevrons at triangle edges. The relief fades by on-screen size.
+- Shots are in D:/Unity/PunchyMilestones/W-163/roots-before and roots-after (tree close, tree 20 m, 2 cave walls). Final caves are in roots-after3. The cave shots use a probe torch light, because those caves are pitch dark. Viewed the tree-close and cave-rock pairs: pale twisted roots on the trunk, braided strands on the wall.
+- Tests: new StranglerRootsAreStableAndLeaveTheFarLevelAlone (deterministic, LOD2 unchanged, roots grow). Full EditMode 52/52. Cave shader compiles with only the existing PunchyAtmosphere warning.
+- BENCH request (via supervisor): Bogwood trunk geometry. LOD0 is +7-17% triangles per tree in poison-swamp forest views. Optionally also cave-wall pixel cost: up to 2x3 root columns per natural wall pixel in patches. I did no timing.
