@@ -259,3 +259,10 @@ Note: the card names world (REPORTS-world, world/farm-fields). The coordinator g
 - Shots: PunchyMilestones/sea-plots v104 and v103 before/after. In the far view the ground is unchanged; only sky and mist differ.
 - WorldTests 19/20. Fauna_Fingerprint re-pinned 9EA6387D -> 29237322, and it passes on the rerun.
 - 11-18 W-161 row 2 (#326 tail) elf-shelters: DONE, materials/elf-shelters 2a71af5c. Crystals.cs HazardShelter is never placed by towns (dome already Stone); elf groves place the shared kit shelter houses, so ElfGroveLayout now uses Elf{Ash,Sand,Snow,Storm}ShelterHouse copies (KitCulture Elf -> stone timber, as #585). No elf town sits in ash/snow/storm; pair taken at the FungalForest grove with a temporary OnlyIn hack (reverted): PunchyMilestones/elf-shelters/grove-{before,after}-{ash,snow}.png, no visible change there (wood only in the sand porch). WorldTests 20/20 after re-pin 29237322 -> 525F72BB.
+
+## W-182 row 1 castle wall kit (#254) - DONE, materials/castle-kit 835b0806
+
+- Parts `curtain wall`, `castle tower` (square, cheaper than round), `gatehouse` (arch), `portcullis` (static, raised 2 m so the passage stays walkable). One `UnitPart.Wear` field ages them all (moss from 0.3, missing merlons, breaches, rubble toward 1). Rule 33.
+- 12 blueprints in Assets/Game/Flora/Units: castle wall/corner/tower/gatehouse x plain/mossy/ruined, host StoneHall, doors at walkway level (6 m). No world placement.
+- Verts LOD0/1/2: wall 336/336/264, mossy 1191/1191/1119, ruined 3342/3342/3198; corner 1752/1752/1056, 3891/3891/3195, 7020/7020/6780; tower 1704/1704/864, 2781/2781/1941, 1359/1359/1263; gatehouse 2552/2552/1584, 4364/4364/3396, 5101/5101/4149. LOD1 = LOD0 as for every building part; ruined rubble is most of the count (corner ruined has 198 boxes).
+- Shots: PunchyMilestones/castle-kit (12 PNGs). Test EveryCastlePartGrowsCollidesAndWears; UnitLibraryTests 14/14 pass.
