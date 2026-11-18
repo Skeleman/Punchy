@@ -23,6 +23,10 @@ namespace Punchy.Terrain
         /// <summary>This style's wall relief: its stone's row of the material library.</summary>
         public MaterialLibrary.StoneRow Relief => MaterialLibrary.Stone[Mathf.Clamp((int)Stone, 0, MaterialLibrary.Stone.Length - 1)];
 
+        // W-166 row 2: a cave wall is cut in the scarps' country rock unless its stone is the theme (ice, crystal, ore).
+        public MaterialLibrary.StoneRow ReliefIn(StoneKind country) => Stone is StoneKind.Ice or StoneKind.Crystal or StoneKind.Ore
+            ? Relief : MaterialLibrary.Stone[Mathf.Clamp((int)country, 0, MaterialLibrary.Stone.Length - 1)];
+
         [Header("Shape")]
         [Tooltip("Passage width as a multiple of the landmark's radii (wide galleries > 1).")]
         [Range(0.5f, 2f)] public float Width = 1f;
