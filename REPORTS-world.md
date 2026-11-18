@@ -8694,3 +8694,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - 5 lake walls left: 1.5-3.5 m drops at lake fringes (coverage <0.13, -622,634 and 4 near 2838-3082,142-510); row 6 ground-test mesh covers these. No per-lake outlet re-level needed.
 - WorldTests 20/20; landmark pins unchanged, no landmark moved. Shots: PunchyMilestones/world/W-153r4-lakes (before: rock holes in lake at -2990,2734; after: clean; after lighting a bit dimmer).
 - BENCH line added (water mesh at a deep lake). Next: row 5.
+
+### W-153 rows 5-6 (#301) - row 5 no-op, row 6 log DONE, gate needs a call; world/river-lakes@50065032
+- Row 5: GrandFalls bakes nothing on v3 (log: lake not found; the W-29 site is v2's, the v3 lake shelf is off by default), so it has no fall profiles to move to on the default island. Suggest: drop row 5, or retire GrandFalls with v2.
+- Row 6 log: audited fresh v3 bakes print '[island] water truth 82,0,0,0,0,10,0,89,10,17,225,0,0' (WorldTests order). Verified in play.
+- Row 6 gate at 0 is out of reach this row: wall 89 = 56 river-by-fall, 20 pool, 8 river, 5 lake; step 225, bend 82. A ground-test water mesh won't change these (WaterTruth samples SampleGround, not the mesh). Fall walls go back to row 3 work. Baseline stays only-down.
+- No test change, no landmark move. Next per order: W-181 ledges, unless you want the fall walls first.

@@ -7,7 +7,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 
 | Card | Issue | Lane | Status | Branch@sha | Next step |
 |---|---|---|---|---|---|
-| W-153 | #301 | world | rows 1-2 #536, probe #537, notches #538, revert+design #539, rework rows 1-3 #541, row 3b curtain #543 merged | world/river-curtain; row 4 world/river-lakes@8d1e9937 | Row 4 DONE/verified 11-17 (lake walls 307->5); Now: row 5 |
+| W-153 | #301 | world | rows 1-2 #536, probe #537, notches #538, revert+design #539, rework rows 1-3 #541, row 3b curtain #543 merged | world/river-curtain; row 4 world/river-lakes@8d1e9937 | Rows 4 + 6-log DONE 11-17 @50065032; row 5 no-op on v3; wall->0 needs a call (see REPORTS) |
 | W-170 r1 | no issue | world | ready | world/log-bark b1c2ab17 | Supervisor: merge (bench 94 result first) |
 | W-175 | #415 | world | merged #516 (world part), fungi caps #521 | - | Cookhouse blueprint in human villages; fungi-cap brightness |
 | W-177 | #522 | world | merged #527 | - | Cave mushrooms: clusters from the flora Mushroom grower on Fungi/GlowFungi patches, wall-grown form, LOD by screen size; tests 19/19; BENCH requested; next for world: open |
