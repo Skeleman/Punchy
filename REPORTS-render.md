@@ -1058,3 +1058,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shaders (materials lane files): Water.shader lava block +2 lines and a reason comment (a curtain's height feeds the noise; its edge fade sets the crust, molten middle). Lava river fall curtains would share it. LandmarkEffects.hlsl: streak block removed.
 - Shots PunchyMilestones/seep-falls: slope-before/after, far-before/after, cave-before (#683)/cave-after (viewed slope and cave).
 - WorldTests 22/23: Setup_SpawnRainAndShot timed out (the known load flake). Cost: mesh rebuilt per 10 m seep cell move (up to 40 seeps, 4-17 height samples each) plus one draw; BENCH line added.
+
+## 11-19 render-2: W-142 needles, cap flakes, cave ceiling grit (#262 row 2) - PR #695
+- render/ambient-falls@80d3be7b. Leaves plume family gets per-species fall specs: tall conifers shed thin orange needles (0.16 m, 40% of tall trees), giant caps shed pale flakes from under the cap (glowing under glow caps, spread 0.6 of the cap). New partial LandmarkEffectSystem.CeilingFalls.cs: cave ceilings trickle pale grit (10-13 per spot, 30% of nodes within 40 m), hashed per cave node, lit as under rock.
+- Shader hooks (materials lane files): LandmarkEffects.hlsl quad width from Fall.x and under-rock drift damping; LandmarkPlume.shader leaf glow from Color.a.
+- Shots PunchyMilestones/ambient-falls: needles_before/after (against sky), capflakes_before/after (night), cavegrit_before/after (all viewed; all subtle by design).
+- WorldTests 23/23. Cost: needle and cap plumes reuse the Leaves table; ceiling grit up to ~13 particles per grit spot in caves. BENCH line added.
