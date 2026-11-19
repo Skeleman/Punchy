@@ -69,7 +69,7 @@ Shader "Punchy/Cave"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
-            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Atmosphere.hlsl"
             #include "Materials/Wood.hlsl"
@@ -479,6 +479,8 @@ Shader "Punchy/Cave"
                 PunchySurface ps = PunchySurfaceAt(p, n);
                 ps.caveAir = 0; // walls add their own cave's air per style (air, below)
                 ps.sunReach = openness;
+                // W-174: lifted off the skin, which lies on itself in the shadow map (Cull Off) and read half shadow everywhere.
+                ps.shadowPositionWS = p + n * 0.4;
                 ps.skyReach = lerp(_Darkness, 1, openness);
                 half3 light = SampleSH(n) * ps.skyReach;
                 // R-36: cloud shadow only where the sky is overhead; one read, shared with the terrain share below.
@@ -606,7 +608,8 @@ Shader "Punchy/Cave"
                     ground.positionCS = input.positionCS;
                     ground.normalWS = groundNormal;
                     ground.viewDirectionWS = view;
-                    ground.shadowCoord = TransformWorldToShadowCoord(p);
+                    // W-174: lifted off the skin as the walls are (ps), or it shades itself to half shadow everywhere.
+                    ground.shadowCoord = TransformWorldToShadowCoord(p + shape * 0.4);
                     ground.bakedGI = SampleSH(shape) * lerp(_Darkness, 1, openness) + PunchyGlowLight(p, shape);
                     ground.normalizedScreenSpaceUV = inputData.normalizedScreenSpaceUV;
                     ground.shadowMask = half4(1, 1, 1, 1);
