@@ -2,6 +2,37 @@
 
 Newest first.
 
+## Job 111 (R-35 r3 #333): cloud pick E, PASS: E costs nothing measurable (−0.32 to +0.10 ms GPU against base)
+
+render/cloud-e 25fbc044, built as bench-only eb93ff7 (one unused constant per program block in Sky, CloudsLowRes,
+SunkenTemple and Colossus, so the shader cache couldn't serve the broken compile again; see below). Arms: base; E off
+(`-skyoff 65536`, edge fade in fixed metres as before E); clouds off (`-skyoff 3`); and main 814a4da6 (the merge-base).
+1920x1080 uncapped, noon, 3 rounds rotated, 300 frames, at job 79's peak (-3460,2425, facing west). Laptop GTX 1060 Max-Q.
+Spec q151c.job. All four shaders compiled this time, and no game logged an unsupported shader.
+
+GPU ms, mean of 3 rounds (rounds with a frame over 5 s left out, which happened in every arm):
+
+| view | preset | base | E off (65536) | clouds off (3) | main | E vs fixed metres | cloud share |
+|---|---|---|---|---|---|---|---|
+| clear | Medium | 10.13 | 10.17 | 10.27 | 10.23 | −0.03 | −0.13 |
+| overcast | Medium | 10.73 | 10.63 | 10.60 | 10.85 | +0.10 | +0.13 |
+| cumulus (PartlyCloudy, 20° up) | Medium | 10.83 | 10.63 | 10.95 | 10.63 | +0.20 | −0.12 |
+| clear | Ultra | 14.87 | 14.70 | 14.85 | 14.80 | +0.17 | +0.02 |
+| overcast | Ultra | 14.90 | 15.00 | 15.10 | 14.93 | −0.10 | −0.20 |
+| cumulus | Ultra | 15.17 | 14.85 | 14.90 | 15.43 | +0.32 | +0.27 |
+
+("E vs fixed metres" = base minus the 65536 arm, so positive means E costs more.)
+- E: within ±0.32 ms of the fixed-metre fade in every view and preset, with no consistent sign. At fov 60, as expected, it's 0
+  within noise.
+- Cloud share (base minus clouds off): −0.20 to +0.27 ms, within noise. Job 79 found 0.0-0.4 ms at Medium and up to 0.8 at Ultra
+  at this peak, so it's small enough that this laptop can't separate it from noise.
+- Main vs base (#494's fades plus E): −0.27 to +0.12 ms, nothing measurable.
+
+**Build notes.** q151 and q151b both shipped the branch without the Sky and CloudsLowRes shaders, logging "Couldn't open include
+file 'LowResEffect.hlsl'" (and the same for Materials/*.hlsl in SunkenTemple and Colossus). q151b's log shows those passes
+"Local cache hits 1, compiled 0 variants": the compile results, errors included, had been cached by the build that hung on
+11-18. With rehashed sources they compiled clean, so this wasn't the branch's fault. Any other bench build of 25fbc044 on this
+laptop will hit the same cached error unless its sources are rehashed.
 ## Job 86 (R-28 r2, #312): cobble bevel parallax, FAIL at the Medium desert square (+0.83 ms GPU); paving and High within +0.07
 
 render/cobble-depth e098ea4d (B) vs main 14a8de92 (A), each with the local WaterTruth guard (bench-only 92a4630 / 6528244, so
