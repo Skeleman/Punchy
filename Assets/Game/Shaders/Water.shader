@@ -1217,7 +1217,9 @@ Shader "Punchy/Water"
                     // (World position wrapped every km, so the noise stays precise far out. The clock wraps too, every
                     // ~80 minutes or more, a jump nobody stands watching for.)
                     float2 home = p - floor(p / 1024) * 1024;
-                    float edge = 1.5 * (1 - saturate(thickness / 0.2));
+                    // A seep's curtain stands upright: height feeds the noise so it varies and runs down the ribbon, and it runs molten down the middle, crusting only at its rim (thin, it would otherwise sit inside one crust raft).
+                    home -= flowDir * input.positionWS.y * step(0.5, input.fall.y);
+                    float edge = input.fall.y > 0.5 ? 3 * (1 - saturate((input.fall.y - 0.55) / 0.45)) - 1.5 : 1.5 * (1 - saturate(thickness / 0.2));
                     half3 lavaColor;
                     [branch] if (_GoldLiquid > 0.5)
                     {
