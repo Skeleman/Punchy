@@ -75,6 +75,9 @@
 - Debris blocks: 377 on main, 4963 in the first pass, 1111 now. Landmarks 120 B32C5306, fingerprint 1AC019EC, walls 11 and dry fall feet 0 are all unchanged. WorldTests 22/22.
 - Shots in D:/Unity/PunchyMilestones/water/fall-flanks/{before,after}/. I viewed the tall-wide and small-wide pairs. At the tall fall, sandstone ledges now break the cut with no bands. At the small fall the change is subtle: a few stones near the lip.
 
-## banks/fall-ground (WIP)
-- Blocked: the render-tree editor (PID 288352) hung on exit after the W-153 tests and holds the lockfile. Code for the fix is written but not compiled. I need someone to close that editor, or an OK for a forced stop.
-- I waited 20 minutes and the editor was still hung. I pushed the uncompiled code as WIP commit 587ac208 on banks/fall-ground. The shot folder water/fall-ground is ready. Once the editor is freed I resume with a baseline probe and before-shots on the main code, then the after run.
+## banks/fall-ground (DONE, PR #668, e5302ff2)
+- Flank blocks use a face-aligned yaw and a rotated-box check on all 4 edges. Blocks >0.3 m clear: centre 146 -> 0, edge 473 -> 0, worst 21.9 m -> 0.29 m. The tall fall's top-left slab is gone.
+- Falls under 6 m get wet stones at the lip and foot, moved to the nearest shallow ground (fall 68 now has 2). Debris blocks 1111 -> 956 (cap 1500).
+- WorldTests 22/22 on base 03982fd5: landmarks 120 B32C5306, water truth wall 11, dry fall feet 0. Merge-tree onto main 77c5ed3c is clean; debris doesn't touch the fauna pin.
+- Shots before/after in PunchyMilestones/water/fall-ground (tall-wide, small-wide, flanks, contact sheets), all viewed. BENCH line queued.
+- Next row: the #663 walls (lip sides at falls 51, 63, 92 x2; feet at 85 and 133).
