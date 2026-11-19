@@ -110,3 +110,9 @@
 - A riverless lake of 1-2 cells under 1 m deep is now flagged as a Pond (kind bit 32). The terrain under it is dug into a smooth bowl about 1 m below its level (RiverSampling.PondBowl, at both carve sites). Only ponds under 0.3 m go dry; those were never drawn anyway.
 - Rebased on #691. Sheet steep / pits are unchanged at 66 / 16, since the rim is row 4's job. WaterTruth counts and falls 151 are unchanged. WorldTests 23/23.
 - Shots: PunchyMilestones/water/pits/before and /bowl (puddle-1988).
+
+## 11-19 W-154 row 3 (#303): toxic pools detail pass - PR #700, banks/toxic-pools@cf19bd58
+- No toxic geyser spawns in the current world, so swamp ponds (green glowing look) now count as toxic pools. They show a sickly yellow-green surface with a darker middle, pale bubble froth and less oil sheen, plus a banded pale crust rim (merging to one band at distance, rule 20). The bank dries and crusts pale (TerrainSource.ShoreWet is now the one shore-band helper).
+- New flora DeadReed and BleachedStick on swamp shores and the geyser ring. The fauna fingerprint is re-pinned to 01766C0A, since swamp flora picks move a little (landmarks unchanged).
+- WorldTests 23/23 (one earlier run lost to an FXC crash mid-compile), sparkleprobe NaN 0, Water shader shows only its two old warnings.
+- Shots: PunchyMilestones/water/toxic/before and /after (swamp-3m, swamp-20m).
