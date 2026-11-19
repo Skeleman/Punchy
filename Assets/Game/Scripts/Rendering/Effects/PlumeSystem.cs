@@ -16,7 +16,7 @@ namespace Punchy.Rendering.Effects
     /// Callers: LandmarkEffectSystem (steam: geysers, hot springs, mud pits; smoke: chimneys, fumaroles and other dark
     /// landmark plumes; spray: every waterfall's lip white water, landing churn, foam and mist, river, cave, grand and
     /// landmark falls; sparks: warm glowing embers over camp and village fires, forges, fumaroles and volcano vents;
-    /// leaves: falling from tall broadleaf crowns, a plume with a Drop; vent wisps also join steam and smoke).
+    /// leaves: falling from tall broadleaf and conifer crowns, giant caps and cave ceilings, a plume with a Drop; vent wisps also join steam and smoke).
     /// Still on their own path: FireSystem's smoke and embers (the fire quad shader), cold sparkles, toxic gas.
     /// </summary>
     public static class PlumeSystem
