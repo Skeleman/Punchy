@@ -47,3 +47,9 @@
 - Both keep 24 m clear of falls (fall pools) and off river islands. Spots are anchored to segments, so flora and spray agree; 40 of 44 spots placed in the probe. Code: FloraPlacement.Riffles.cs and FloraGenerator.Riffles.cs (new); RiverSpot gains Riffle and Splash. RiffleStone (density 4) and SplashBoulder (density 3) are in every land biome. FloraPlacement.cs is 6 lines shorter.
 - Fauna_Fingerprint repinned to 785BB213. WorldTests 20/21 before the repin (the fingerprint only), and Fauna_Fingerprint passes after it; MaterialLibraryTests 13/13.
 - Shots: D:/Unity/PunchyMilestones/river-details/stepping-stones/{before,after}: riffle-a and splash-a, plus riffle-b in after only (the before run timed out on it). I viewed after/splash-a: the boulder with its foam tail, and the riffle stones downstream.
+
+## #301 splash-round (PR #638): banks/splash-round@83557709
+- The pillar in splash-a was a RiverRock (Boulder standing family). Aquatic boulders now use a low, worn block (boxiness 0.1-0.25) in place of the tall standing slab.
+- Splash boulders are wider than tall (height 0.8 of width) and rounder, with a smaller side chunk further out.
+- Fauna_Fingerprint repinned to 377B279B. WorldTests: 21/22 before the repin, failing only on the fingerprint.
+- Shots: D:/Unity/PunchyMilestones/river-details/splash-round/{before,after}/splash-a.png. I viewed after: the pillar is now a low, round boulder.
