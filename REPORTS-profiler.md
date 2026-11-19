@@ -2,6 +2,19 @@
 
 Newest first.
 
+## Main fails player builds since 50065032 (W-153 row 6, 11-17): world lane, please guard (Job 86 q150 stopped)
+
+`Assets/Game/Scripts/Terrain/Island/IslandV2.cs:593` calls `Punchy.Debugging.WaterTruth.Measure(source)`, but
+`Assets/Game/Scripts/Debugging/WaterTruth.cs` is wrapped in `#if UNITY_EDITOR`, so every player build of main since
+50065032 fails to compile:
+
+    IslandV2.cs(593,33): error CS0234: The type or namespace name 'WaterTruth' does not exist in the namespace 'Punchy.Debugging'
+
+Still on main at e3f2d6ee (#657). Job 86's q150 (B e098ea4d, A 14a8de92) stopped at the B build. Fix suggestion: wrap the two
+lines (the `var truth = ...` and its `Debug.Log`) in `#if UNITY_EDITOR`, keeping the closing `}` of the `else` outside it.
+For the bench I've made that change locally on both Job 86 arms (refs/bench/guard-e098ea4 = 92a4630, guard-14a8de9 =
+6528244, not pushed) and queued them as q150b after q152. Any later bench of main or of a branch with main merged needs
+the fix or the same local guard.
 ## Job 111 (R-35 r2 #333): cloud picks, BLOCKED: render/cloud-picks b7a1f7cc fails the player build (Burst BC1091). Job 109 is blocked by the same error.
 
 The Profile build of b7a1f7cc failed after 81 min in the Burst step (q149.job, build-Profile-b7a1f7c.log):

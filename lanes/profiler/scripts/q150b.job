@@ -1,0 +1,23 @@
+# q150b: q150's builds failed: main since 50065032 (W-153 row 6, 11-17) calls Punchy.Debugging.WaterTruth from
+# IslandV2.cs:593, but WaterTruth.cs is #if UNITY_EDITOR, so every player build fails (CS0234). Each arm is a local
+# bench-only commit, the named commit plus that call wrapped in #if UNITY_EDITOR: 92a4630 = e098ea4 + guard, 6528244 =
+# 14a8de9 + guard (refs/bench/guard-<commit>, not pushed). Both arms get it, so the A/B diff is unchanged.
+# Job 86 rerun (R-28 r2, #312): cobble bevel parallax. render/cobble-depth e098ea4d (B: 6290b06e + main merged, #553
+# collar fix) vs main 14a8de92 (A); they differ only by R-28. Medium and High, noon, Clear, 3 rounds. Views: the desert
+# town square (-benchspot -342,560, yaw 0) and the paving the render lane found after town 73 moved (-benchspot 80,-352).
+# Whole-frame GPU (no pass split on this laptop). before() stops if the B build logged an FXC crash or compiled no terrain.
+Q=q150b; TITLE="job 86 cobble parallax rerun (guarded)"
+BUILDS="92a4630 6528244"
+VIEWS="desert paving"
+view() { case $1 in
+  desert) echo "-goto -342,560 -benchstops spot -benchspot -342,560,0 -benchhour 12 -benchweather Clear";;
+  paving) echo "-goto 80,-352 -benchstops spot -benchspot 80,-352,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-92a4630";; A) echo "Profile-6528244";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.1
+before() {
+  [ -n "${DRY:-}" ] && return
+  local f="$R/build-Profile-92a4630.log" n c; n=$(grep -ac "Suspected crash in FXC" "$f"); c=$(grep -ac 'Compiling shader "Punchy/Terrain Surface"' "$f")
+  echo "FXC crashes in the B build: $n; terrain shader compiled: $c"
+  [ "$n" = 0 ] || { echo "FXC crashed: not running the games"; exit 1; }
+}
