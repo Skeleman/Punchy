@@ -195,12 +195,21 @@ namespace Punchy.Flora
             }
         }
 
-        /// <summary>A thin round timber pole from At (its foot) to To (its top), Span.x across (a stall's posts, Z-30 grain).</summary>
+        /// <summary>A thin round timber pole from At (its foot) to To (its top), Span.x across (a stall's posts, Z-30 grain). Solid.</summary>
         static void Pole(Grower g, UnitFrame f, UnitPart p)
         {
             var r = f.Span(p).x * 0.5f;
+            Vector3 foot = f.At(p), top = f.To(p);
             g.B.Family = Timber(g);
-            g.B.Tube(new List<Vector3> { f.At(p), f.To(p) }, new List<float> { r, r }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            g.B.Tube(new List<Vector3> { foot, top }, new List<float> { r, r }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            SolidBox(g, (foot + top) * 0.5f, new Vector3(r * 2f, (top - foot).magnitude, r * 2f), Quaternion.FromToRotation(Vector3.up, top - foot));
+        }
+
+        // W-173: the collision is the art, as on the kit buildings (W-67).
+        static void SolidBox(Grower g, Vector3 centre, Vector3 size, Quaternion rotation)
+        {
+            if (g.Lod == 0)
+                g.Boxes.Add(new KitBox { Centre = centre, Half = size * 0.5f, Rotation = rotation, Reach = size.magnitude * 0.5f });
         }
 
         /// <summary>A heavy wooden post from At to To, Span.x across at the foot and Span.y at the top (a shed's corner posts).</summary>
@@ -212,11 +221,12 @@ namespace Punchy.Flora
             g.B.Wood = false;
         }
 
-        /// <summary>A timber counter: a box centred on At, Span in size.</summary>
+        /// <summary>A timber counter: a solid box centred on At, Span in size.</summary>
         static void Counter(Grower g, UnitFrame f, UnitPart p)
         {
             g.B.Family = Timber(g);
             g.B.Box(f.At(p), f.Span(p), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            SolidBox(g, f.At(p), f.Span(p), Quaternion.identity);
         }
 
         /// <summary>
@@ -435,10 +445,6 @@ namespace Punchy.Flora
                     g.Colliders.Add(new Vector4(apex.x * top / apex.y, apex.z * top / apex.y, radius * 0.95f * (1f - (top - 0.5f) / apex.y), top));
         }
 
-        /// <summary>
-        /// Guy ropes for a tent Span.x across and Span.y tall centred on At: three or four sagging cords from partway up the
-        /// shell out to wooden stakes leaning back from the pull, none across the +Z doorway. Dropped at the far level of detail.
-        /// </summary>
         static void GuyRopes(Grower g, UnitFrame f, UnitPart p)
         {
             if (g.Lod == 2)
