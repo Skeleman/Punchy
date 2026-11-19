@@ -441,19 +441,19 @@ namespace Punchy.Terrain
             var notch = 0f;
             if (fall)
             {
-                // Beside the sheet the step comes later, leans and pauses on a ledge, never before the lip, so the notch walls are not a straight cut.
-                var aside = math.smoothstep(3.5f, 6f, distance - math.max(width, baseWidth) * 0.5f);
+                // From just past the sheet's edge the step comes later in blocks, leans and pauses on ledges, never before the lip, so the flanks are not a straight cut.
+                var aside = math.smoothstep(2.5f, 4f, distance - math.max(width, baseWidth) * 0.5f);
                 if (aside > 0f)
                 {
                     var length = math.max(math.distance(a, b), 1f);
-                    var jag = aside * Wobble(xz, 1f / 9f, 41.7f) * 6f;
-                    var lean = aside * Wobble(xz, 1f / 14f, 7.1f) * 5f;
+                    var jag = aside * (Wobble(xz, 1f / 9f, 41.7f) * 3.5f + math.floor(Wobble(xz, 1f / 3f, 23.3f) * 3.99f) * 1f);
+                    var lean = aside * (1.2f + Wobble(xz, 1f / 14f, 7.1f) * 4f);
                     var s0 = 0.505f + jag / length;
                     var s1 = 0.55f + (jag + lean) / length;
                     var mid = math.lerp(s0, s1, math.lerp(0.35f, 0.6f, Wobble(xz, 1f / 11f, 3.3f)));
-                    var k = math.lerp(0.35f, 0.65f, Wobble(xz, 1f / 13f, 12.9f));
+                    var k = math.lerp(0.3f, 0.7f, Wobble(xz, 1f / 5f, 12.9f));
                     var stepped = k * math.smoothstep(s0, mid, t) + (1f - k) * math.smoothstep(mid + (s1 - s0) * 0.15f, s1, t);
-                    var ledge = aside * math.smoothstep(0.45f, 0.75f, Wobble(xz, 1f / 17f, 19.9f));
+                    var ledge = aside * math.smoothstep(0.3f, 0.6f, Wobble(xz, 1f / 6f, 19.9f));
                     tl = math.lerp(math.smoothstep(s0, s1, t), stepped, ledge);
                     level = profile.Bed(tl);
                     notch = (jag + lean) * aside;

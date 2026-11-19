@@ -153,7 +153,8 @@ namespace Punchy.Tests
         // Lake exits and left-lake river beds kept to the lowered lake (#617 follow-up): uphillGraph 10 -> 0, deep 10 -> 1
         // (rivers in an old lake bed meet the lowered lake's surface, not its floor).
         // Wall 36 -> 48: the -1750,-750 lake dropped 2.5 m to its dam-cut outlet and bared its old bed below the -2006,-1064 pond's ledge.
-        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 48, 1, 17, 170, 0, 0 };
+        // Wall 48 -> 49 (fall-flank): the blocky steps beside a sheet leave one more wall by a fall (7 now).
+        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 49, 1, 17, 170, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
