@@ -1238,3 +1238,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-18 banks: banks/fall-flanks@00c4fbd1: ScarpDebris places ledged blocks, stones and boulders at every fall (140 falls, at most about 30 per fall, with a SampleHeight face walk per block). Blocks went from 377 to 1111 in 278 draw groups. Check the scarp debris job time and the GPU/draw cost at a tall fall (-2690,674) against main.
 - #661 W-173: fauna fingerprint 1AC019EC -> 7ED8D1F1 (hall roof boxes, chimney feet); landmarks unchanged 120 B32C5306. No cost check needed.
 - 11-19 materials: #664 materials/river-audit@43e0e078: TerrainSurface micro-relief octaves now run on dark smooth ground (mud, peat, silt, dark ash, obsidian). Check frag cost in poison swamp and foggy marsh views vs 9d7eb6cf.
+- #665 W-173: fauna fingerprint 7ED8D1F1 -> 1F4C927C (kit quoins out past the wall face); landmarks unchanged 120 B32C5306. No cost check needed.

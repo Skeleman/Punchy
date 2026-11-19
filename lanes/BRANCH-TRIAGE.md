@@ -50,6 +50,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - render/fall-foot -> #662
 - world/walls-zero -> #663
 - materials/river-audit -> #664
+- world/kit-stonehouse -> #665
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
