@@ -21,7 +21,9 @@ namespace Punchy.Terrain
         /// <summary>Standing water in a built piece (troughs, basins): flat by design, not a family's include.</summary>
         Water = 11,
         /// <summary>Painted trim and accents (buoy floats, trim boards): a smooth coat, a little chipped (Materials/Paint.hlsl).</summary>
-        Paint = 12
+        Paint = 12,
+        /// <summary>Roof covers (W-173): shingles, pantiles, slate and slabs in lapped courses (Materials/Tile.hlsl).</summary>
+        Tile = 13
     }
 
     /// <summary>The kinds of wood (W-166): rows of MaterialLibrary.Wood, read by Shaders/Materials/Wood.hlsl.
@@ -78,6 +80,15 @@ namespace Punchy.Terrain
         Reed = 1,
         Heather = 2,
         Palm = 3
+    }
+
+    /// <summary>The kinds of roof cover (W-173): Library.hlsl's tile kind (plus 16 x the WoodKind for shingles), drawn by Materials/Tile.hlsl.</summary>
+    public enum RoofKind
+    {
+        WoodShingle = 0,
+        ClayTile = 1,
+        Slate = 2,
+        StoneSlab = 3
     }
 
     /// <summary>The kinds of plaster (W-173): Library.hlsl's plaster kind, drawn by Materials/Plaster.hlsl (PunchyPlasterKind).</summary>
@@ -249,6 +260,32 @@ namespace Punchy.Terrain
                 _ => PlasterKind.Lime
             }
         };
+
+        /// <summary>A roof cover's base colour before the biome tint: shingles take their wood's, clay fires orange, slate is blue-grey.</summary>
+        public static Vector3 RoofTint(RoofKind kind) => kind switch
+        {
+            RoofKind.ClayTile => new Vector3(0.78f, 0.42f, 0.28f),
+            RoofKind.Slate => new Vector3(0.36f, 0.39f, 0.44f),
+            RoofKind.StoneSlab => new Vector3(0.58f, 0.56f, 0.52f),
+            _ => Vector3.one
+        };
+
+        /// <summary>The roof a folk covers with, else the one its biome makes: clay in the dry, slate in the cold, slabs on volcanic stone.</summary>
+        public static RoofKind RoofFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.Dwarf => RoofKind.StoneSlab,
+            FolkCulture.Elf => RoofKind.WoodShingle,
+            _ => biome switch
+            {
+                BiomeFamily.Arid => RoofKind.ClayTile,
+                BiomeFamily.Cold => RoofKind.Slate,
+                BiomeFamily.Volcanic => RoofKind.StoneSlab,
+                _ => RoofKind.WoodShingle
+            }
+        };
+
+        /// <summary>The Library kind for a roof cover: the RoofKind, plus 16 x the WoodKind for shingles.</summary>
+        public static int RoofLibraryKind(RoofKind kind, int woodKind) => (int)kind + 16 * woodKind;
 
         public static uint WetLineSteps(in GroundSample ground, float seaLevel)
         {

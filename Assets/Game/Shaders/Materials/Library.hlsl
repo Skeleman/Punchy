@@ -4,7 +4,7 @@
 // W-166 row 4: one call into the material library for shaders that carry a family per vertex instead of their own
 // decode (Colossus.shader: colossi, the salt tower; later the items on the ground). The family numbers are
 // MaterialFamily's (MaterialLibrary.cs); the kind is the family's own row (WoodKind for wood; for stone 0 natural rock,
-// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide; for thatch the ThatchKind; for plaster the PlasterKind; for wood, plus 16 x the grain's axis when it isn't up). Each family's look comes from its include, so an upgrade there
+// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide; for thatch the ThatchKind; for plaster the PlasterKind; for tile the RoofKind plus 16 x the shingles' WoodKind; for wood, plus 16 x the grain's axis when it isn't up). Each family's look comes from its include, so an upgrade there
 // reaches these callers too (rule 33). Every family fades its detail by its own on-screen size (rules 20, 25).
 // Needs Sky.hlsl (the noise) first, and _PunchyCaveDetail / sampler_PunchyCaveDetail declared (stone reads them).
 // p, n and v are in the caller's pattern frame: for a body that moves, its own scaled object space, so the pattern
@@ -17,6 +17,7 @@
 #include "Assets/Game/Shaders/Materials/Brick.hlsl"
 #include "Assets/Game/Shaders/Materials/Ice.hlsl"
 #include "Assets/Game/Shaders/Materials/Bone.hlsl"
+#include "Assets/Game/Shaders/Materials/Tile.hlsl"
 
 #define PUNCHY_FAMILY_WOOD 1
 #define PUNCHY_FAMILY_BRICK 2
@@ -28,6 +29,7 @@
 #define PUNCHY_FAMILY_LEATHER 8
 #define PUNCHY_FAMILY_ICE 9
 #define PUNCHY_FAMILY_BONE 10
+#define PUNCHY_FAMILY_TILE 13
 
 /// The (across, along) plane a surface lies on: along is up the piece, across runs level round it, so bone's growth
 /// lines and wood's grain run up a leg or a trunk.
@@ -79,6 +81,9 @@ half3 PunchyLibraryAlbedo(int family, int kind, float3 p, inout half3 n, float3 
             break;
         case PUNCHY_FAMILY_BONE:
             result = PunchyBone(albedo, PunchyLibraryPlane(p, n), footprint);
+            break;
+        case PUNCHY_FAMILY_TILE:
+            result = PunchyRoofCover(albedo, p, n, footprint, r, kind % 16, kind / 16);
             break;
         default:
             break;
