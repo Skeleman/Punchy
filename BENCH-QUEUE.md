@@ -1226,3 +1226,6 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 
 ## Request (2026-11-18, supervisor, W-166 #336, main after #652): TerrainSurface triplanar bank slopes
 Compare a river bend with steep banks before and after #652: GPU ms. Slopes do up to 3x MicroDetail; flat ground should be unchanged.
+
+## Request (2026-11-18, supervisor, #262, main after #653): Water.shader caustic soften
+Shallow sunlit river at -1170,3570, before/after #653: GPU ms (one extra noise call per caustic pixel).

@@ -335,3 +335,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #641 W-153/#301: driftwood flood heaps on river bar heads and outer bends, about 60 m apart; Fauna_Fingerprint repinned 1AC019EC (banks, 11-18)
 - #651 W-181 r3 (#534): 33 climbable cliff kit shelves in natural caves, stand on them; world ledges feed the ledge-hang list (grade 2 in caves, grade 3 cliffs stay out of reach).
 - #652 W-166 (#336): steep river banks show even triplanar grain instead of stretched streaks.
+- #653 (#262): river caustics softer and warped, no paving-stone lines; strength follows the sun.
