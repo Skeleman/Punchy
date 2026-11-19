@@ -337,3 +337,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #652 W-166 (#336): steep river banks show even triplanar grain instead of stretched streaks.
 - #653 (#262): river caustics softer and warped, no paving-stone lines; strength follows the sun.
 - #654 W-166 (#336): darker, glossier wet band along river waterlines; mud patches back on steep banks up to 3 m.
+- #655 (#301): river water clears onto the bed at the bank with no seam; thin broken lapping crest in wind.
