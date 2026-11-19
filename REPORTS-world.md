@@ -8819,3 +8819,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Fixed (cheapest): extended pond/lake sheets hung up to 1.5 m over falling ground at their rim. Cells next to ground below the tuck drop stay dry; hangs 28-258 -> 0-4 per spot (5 spots). The 1.47 m seam reading at 1152,2357 is a tuck pair both chunks share, not a crack.
 - Left 2: perched ponds whose claim edge stands over dry ground (37 pool walls, e.g. 3.5 m at -2018,-1070); river mouth into the sea at -3978,990 (8.5 m river/sea step, 3.4 m over-bank, 3.6 m seam gap).
 - Truth 83,0,0,0,0,0,0,49,1,17,142,0,0 unchanged, WorldTests 22/22.
+
+## 11-18 river mouth into the sea (world/river-mouth@bf495391, from main 19f3b0ca)
+- Cause: the fall cell at -3951,1233 drains into a sea cell with no river width, so the dry-end test dropped its curtain, leaving a bare 8.5 m sheet. Steps into the sea now keep their curtain.
+- Truth: river-above-sea 2 -> 0, steps 142 -> 129, falls 138 -> 140, walls 49 unchanged. Landmarks 120 B32C5306, dry fall feet 0, fauna 377B279B, WorldTests 22/22.
+- Shots (viewed): PunchyMilestones/world/river-mouth/before|after mouth-ca/cb.png. The jagged sheet is now a curtain with foam. Next: the perched-pond walls, if cheap.
