@@ -8884,3 +8884,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 
 - World W-173 placement count (seed world, probe, 6 towns, 388 plots): Tent 24, Hut+MudHut 8 (7 goblin MudHuts, 1 hermit Hut), Stall 5, Inn 3, Smithy 3, Hall+StoneHall 3, Tower 2, Stable 1, OgreLodge 1, Forum 1, StoneHouse 0.
 - New order: Hut+MudHut (row 2, now), Inn, Hall+StoneHall, Tower, Stable, OgreLodge, Forum. Tent, Stall and Smithy are already library-part units from W-175, so they only get trim checks at the end.
+
+## W-173 kit-hut r2 DONE 11-19 (world/kit-row2@cbc382d4, PR #667)
+- Hut/MudHut now built by StructureKit.RoundHut; new kit parts RingWall + ConeRoof (lapped thatch tiers) for later round buildings.
+- WorldTests 22/22; fauna 1F4C927C, LandmarkHash 120 B32C5306, water truth unchanged: no repin.
+- Before/after at the same goblin-camp poses: PunchyMilestones/world/kit-hut.
+- Next: Inn (row 3); gully side row still open.
