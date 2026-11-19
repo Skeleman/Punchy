@@ -467,3 +467,9 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Skipped: the tuft carpet (render #487, waiting on BENCH 114); MaterialLibrary doesn't fit (C# building table).
 - Matched before/after shots (MatchedShot.Hold) at 3 m, 20 m and 1 m in PunchyMilestones/R-31-ground-grain.
 - BENCH-QUEUE line added; I didn't time anything.
+
+## 11-19 R-31 dirt specks - DONE, PR #696 (merge after 16:30 freeze)
+- W-166: no open rows on the BOARD, so I took the dirt specks.
+- Added a clod layer (25 cm lattice, dark and pale, sizes varied per cell) that fades by screen size and reads at about 20 m; shared Specks() helper.
+- Average tone holds (frame means within 0.4% at 20 m, equal at 3 m). Matched shots in PunchyMilestones/R-31-dirt-specks.
+- BENCH FYI line added.
