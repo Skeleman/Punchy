@@ -348,3 +348,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #663 world/walls-zero (#301): probe no longer counts waterfall upper-pool lips or sub-4 m bank rises as walls; walls 11 -> 7, test pinned at 7. No visual change.
 - 11-19 #664 materials/river-audit (W-166, #336): swamp/peat/silt/dark-ash banks show relief instead of flat; riverbeds tinted toward the biome ground (subtle under water).
 - 11-19 #665 world/kit-stonehouse (W-173, #399): StoneHouse from kit parts (gable roof, chimney, shutters, quoins); kit quoins now show on all kit houses. Not placed in the current world (Model Lab only).
+- 11-19 #666 render/flow-foam (#301): white wakes trail behind river rocks; riffles tear into broken white streaks along the flow; calm reaches stay clean.
