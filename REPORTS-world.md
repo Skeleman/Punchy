@@ -8908,3 +8908,10 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Wharf test reads only after a fresh LogWatch mark; 2 back-to-back runs in one session passed (21/22, the one fail was the fingerprint, now repinned).
 - Fauna fingerprint A9684863 -> 1E90DBCF (flora blob). LandmarkHash and water truth unchanged. Shots: PunchyMilestones/world/kit-surfaces.
 - Next: Inn/Smithy/Hall, then #669 library-kind wiring (Tile slot).
+
+## 11-19 W-173 kit-inn DONE (PR #680)
+- Hall built from a new StructureKit.Hall (plinth, step, timber body, posts, roof slabs, ridge, stepped gables, crossed gable beams) and drawn with culture surfaces. Inn now draws through DrawKitHouse. Smithy already used BuildUnit, so no change.
+- Crate comments trimmed (rule 35). WorldTests 22/22. Water truth and LandmarkHash B32C5306 unchanged.
+- Fauna fingerprint 1E90DBCF -> 156425C3 (flora boxes and perches move). Shots: PunchyMilestones/world/kit-inn.
+- Another session ran WorldTests in the Punchy-world editor again (~08:20, test-rain-deer shots) and left it in play mode. A ModelLab capture during that run hung the editor for about 25 min.
+- Next: #669 library-kind wiring (Tile slot), then lake-rim gully (-622,634).

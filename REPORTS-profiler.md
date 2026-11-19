@@ -4409,3 +4409,6 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 
 ## 11-19 world FYI: fauna fingerprint repinned
 - W-173 kit-surfaces (#675): fingerprint A9684863 -> 1E90DBCF (crate battens/lid, counter board). Landmarks unchanged.
+
+## 11-19 world FYI: fauna fingerprint 1E90DBCF -> 156425C3 (W-173 kit-inn, PR #680)
+- The hall now builds from kit parts and the inn draws through DrawKitHouse, so flora boxes and perches move. Landmarks and water are unchanged. Re-pin any bench baseline that reads the fingerprint.
