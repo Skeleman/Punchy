@@ -22,7 +22,6 @@ namespace Punchy.Terrain
         Water = 11,
         /// <summary>Painted trim and accents (buoy floats, trim boards): a smooth coat, a little chipped (Materials/Paint.hlsl).</summary>
         Paint = 12,
-        /// <summary>Roof covers (W-173): shingles, pantiles, slate and slabs in lapped courses (Materials/Tile.hlsl).</summary>
         Tile = 13
     }
 
@@ -73,7 +72,7 @@ namespace Punchy.Terrain
         Copper = 1
     }
 
-    /// <summary>The kinds of thatch (W-173): Library.hlsl's thatch kind, drawn by Materials/Thatch.hlsl (PunchyThatchKind).</summary>
+    // Values match PUNCHY_THATCH_* in Thatch.hlsl.
     public enum ThatchKind
     {
         Straw = 0,
@@ -82,7 +81,7 @@ namespace Punchy.Terrain
         Palm = 3
     }
 
-    /// <summary>The kinds of dressed framing timber (W-173): Library.hlsl's wood kind plus 64 x this, drawn by Wood.hlsl's PunchyTimberFrame.</summary>
+    // Values match PUNCHY_TIMBER_* in Wood.hlsl.
     public enum TimberKind
     {
         Rough = 0,
@@ -91,7 +90,7 @@ namespace Punchy.Terrain
         Tarred = 3
     }
 
-    /// <summary>The kinds of roof cover (W-173): Library.hlsl's tile kind (plus 16 x the WoodKind for shingles), drawn by Materials/Tile.hlsl.</summary>
+    // Values match PUNCHY_ROOF_* in Tile.hlsl.
     public enum RoofKind
     {
         WoodShingle = 0,
@@ -100,7 +99,7 @@ namespace Punchy.Terrain
         StoneSlab = 3
     }
 
-    /// <summary>The kinds of plaster (W-173): Library.hlsl's plaster kind, drawn by Materials/Plaster.hlsl (PunchyPlasterKind).</summary>
+    // Values match PUNCHY_PLASTER_* in Plaster.hlsl.
     public enum PlasterKind
     {
         Lime = 0,
@@ -225,7 +224,6 @@ namespace Punchy.Terrain
             _ => Vector3.one
         };
 
-        /// <summary>How a thatch kind tints a roof's straw colour (1 = as built), as StoneTint does rock.</summary>
         public static Vector3 ThatchTint(ThatchKind kind) => kind switch
         {
             ThatchKind.Reed => new Vector3(0.9f, 0.86f, 0.74f),
@@ -234,8 +232,6 @@ namespace Punchy.Terrain
             _ => Vector3.one
         };
 
-        /// <summary>The thatch a folk roofs with, else the one its biome grows: reed in the wet, heather in the cold,
-        /// palm in the dry.</summary>
         public static ThatchKind ThatchFor(FolkCulture culture, BiomeFamily biome) => culture switch
         {
             FolkCulture.MarshFolk => ThatchKind.Reed,
@@ -250,7 +246,6 @@ namespace Punchy.Terrain
             }
         };
 
-        /// <summary>How a plaster kind tints a wall's colour (1 = as built): daub's raw clay, adobe's warm mud.</summary>
         public static Vector3 PlasterTint(PlasterKind kind) => kind switch
         {
             PlasterKind.Daub => new Vector3(0.82f, 0.72f, 0.58f),
@@ -258,7 +253,6 @@ namespace Punchy.Terrain
             _ => Vector3.one
         };
 
-        /// <summary>The render a folk's walls take, else the one its biome makes: adobe in the dry, daub in the wet.</summary>
         public static PlasterKind PlasterFor(FolkCulture culture, BiomeFamily biome) => culture switch
         {
             FolkCulture.Goblin or FolkCulture.Ogre or FolkCulture.MarshFolk => PlasterKind.Daub,
@@ -270,7 +264,7 @@ namespace Punchy.Terrain
             }
         };
 
-        /// <summary>A roof cover's base colour before the biome tint: shingles take their wood's, clay fires orange, slate is blue-grey.</summary>
+        // Shingles keep their wood's colour.
         public static Vector3 RoofTint(RoofKind kind) => kind switch
         {
             RoofKind.ClayTile => new Vector3(0.78f, 0.42f, 0.28f),
@@ -279,7 +273,6 @@ namespace Punchy.Terrain
             _ => Vector3.one
         };
 
-        /// <summary>The roof a folk covers with, else the one its biome makes: clay in the dry, slate in the cold, slabs on volcanic stone.</summary>
         public static RoofKind RoofFor(FolkCulture culture, BiomeFamily biome) => culture switch
         {
             FolkCulture.Dwarf => RoofKind.StoneSlab,
@@ -293,10 +286,10 @@ namespace Punchy.Terrain
             }
         };
 
-        /// <summary>The Library kind for a roof cover: the RoofKind, plus 16 x the WoodKind for shingles.</summary>
+        // Packed as Library.hlsl's tile case unpacks it.
         public static int RoofLibraryKind(RoofKind kind, int woodKind) => (int)kind + 16 * woodKind;
 
-        /// <summary>How a timber kind tints its wood (1 = as grown): tar cooler (the shader darkens it), sawn a little paler.</summary>
+        // Tar is only cooled here; Wood.hlsl darkens it.
         public static Vector3 TimberTint(TimberKind kind) => kind switch
         {
             TimberKind.Sawn => new Vector3(1.06f, 1.04f, 1.0f),
@@ -304,7 +297,6 @@ namespace Punchy.Terrain
             _ => Vector3.one
         };
 
-        /// <summary>How a folk dresses its framing, else how its biome does: tarred against wet and salt, else hewn.</summary>
         public static TimberKind TimberFor(FolkCulture culture, BiomeFamily biome) => culture switch
         {
             FolkCulture.Goblin or FolkCulture.Ogre => TimberKind.Rough,
@@ -313,7 +305,7 @@ namespace Punchy.Terrain
             _ => biome == BiomeFamily.Wet ? TimberKind.Tarred : TimberKind.Hewn
         };
 
-        /// <summary>The Library wood kind for a framing piece: the WoodKind, 16 x the grain's axis (0 up, 1 x, 3 z), 64 x the TimberKind.</summary>
+        // Packed as Library.hlsl's wood case unpacks it; axis 0 up, 1 x, 3 z.
         public static int TimberLibraryKind(TimberKind kind, int woodKind, int axis) => woodKind + 16 * axis + 64 * (int)kind;
 
         public static uint WetLineSteps(in GroundSample ground, float seaLevel)
