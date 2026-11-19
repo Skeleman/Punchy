@@ -1223,3 +1223,6 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - materials/drift-grain: Wood.hlsl adds two value-noise calls per driftwood fragment (branch on grey>0.7); check flora cost at a river with logs.
 - 11-18 banks: banks/drift-heaps@23ed7db7: DriftHeap meshes (4-7 bent logs plus 2-4 sticks each) and a Heap RiverFit (per cell near a heap reach: 5 reach draws, 4 river queries and about 9 ground samples). Check flora chunk build time and flora frame cost near -1376,578, main vs branch.
 - 11-18 render: render/flow-ridges@f00d6265: Water.shader FlowFoam work now gated to rapids > 0.6 (should be cheaper), churn plumes only at gradient >= 0.08 and smaller. Check the water and effects pass at a rapid near -2388,-803, main vs branch.
+
+## Request (2026-11-18, supervisor, W-166 #336, main after #652): TerrainSurface triplanar bank slopes
+Compare a river bend with steep banks before and after #652: GPU ms. Slopes do up to 3x MicroDetail; flat ground should be unchanged.

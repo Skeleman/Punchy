@@ -350,3 +350,8 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 ## materials/river-banks (pushed)
 - Grassland river banks: the flat BeachSand band (up to 3 m above inland water) now splits into dark mud and grey stone patches tinted by the biome's stone (MaterialLibrary.StoneTint), with pebbles on the stone. BiomeData.BankShingle, called from DampBank. Grass is left alone.
 - Shots: PunchyMilestones/river-banks/pairs.jpg (top: -1170,3570; bottom: -997,3325). Still open: tall bend banks above 3 m stay beige; the slopes keep their stretched streaks (TerrainSurface relief); the white cell lines on the bed look like Water.shader caustics (read-only for me).
+
+## bank-slopes (2026-11-18) DONE
+- Branch materials/bank-slopes: TerrainSurface micro relief + grain now triplanar by vertex normal (TriplanarWeights shared with the cave grain); slopes get grain, not top-down streaks.
+- Shots: PunchyMilestones/bank-slopes/{before,after}, over-pair.jpg, bend-pair.jpg (time 11, Clear). Viewed bend pair: streaks gone.
+- BENCH-QUEUE: slopes now run up to 3x MicroDetail (planes under 2% weight skipped); flat ground unchanged in cost.

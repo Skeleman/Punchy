@@ -37,6 +37,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - render/flow-ridges -> #650
 - banks/drift-heaps -> #641
 - world/w181-r3 -> #651
+- materials/bank-slopes -> #652
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
