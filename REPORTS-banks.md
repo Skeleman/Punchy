@@ -92,3 +92,10 @@
 - On main 9356e483 the 3 named walls (95, 63, 133) are all steep water: 1.1-2.0 m surface drop per 4 m sample beside a bank. Wet-ing the low cell only turns each wall into a step of the same height.
 - Tried 3 fixes: pool floor following the blended water (95), no point bars on rapids, a water film to the channel edge. Best result was wall 4 -> 4, step 125 -> 130; the worst was wall 5, step 140. All reverted; nothing committed.
 - Root cause: reaches below falls 95 and 63, and the 133 sea mouth, drop about 25-50% (main already counts 1.0-1.2 m steps there). A real fix limits water gradient (cascade pools or spreading the drop), or the coordinator decides those count as fall steps.
+
+## banks/water-cascades row 3 (11-19): PR #687, verified
+- Water steeper than 0.2 m/m on a reach now steps down as registered falls between flat pools. Bake only (RiverProfile, RiverBaking).
+- A step is skipped in a lake, near the sea, right below a full fall, or right above one on a reach under 8 m. Without those skips, 4-5 fall feet went dry.
+- Falls 140 -> 151; steep 118 -> 69, pits 22 -> 19; tilt 17 -> 15, step 125 -> 108; walls 4 -> 4. Dry feet 0, landmark hash unchanged, WorldTests 23/23.
+- Shots: PunchyMilestones/water/cascades/before and /after (fall95-foot, fall63-rapids, fall133-foot).
+- Row 2 (pit fill) is next, as its own PR.
