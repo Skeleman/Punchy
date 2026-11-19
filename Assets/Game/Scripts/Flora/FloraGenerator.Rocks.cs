@@ -247,12 +247,14 @@ namespace Punchy.Flora
             var detail = g.Sides(3, 2, 1);
             var first = b.VertexCount;
             var yaw = g.R() * 360f;
+            // Water wears rocks round, and a standing slab in a stream reads as a pillar.
+            var worn = s.Aquatic;
 
             void Block(Vector3 centre, Vector3 radii, Quaternion rotation, float sink = 0.3f)
             {
                 var at = centre + Vector3.up * radii.y * (1f - sink);
                 var colour = Color.Lerp(g.Bark, g.Bark * 0.8f, g.R());
-                b.Blob(at, radii, rotation, detail, 0.14f, g.R() * 100f, colour, FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
+                b.Blob(at, radii, rotation, detail, 0.14f, g.R() * 100f, colour, FloraPart.Bark, 1f, worn ? g.Range(0.1f, 0.25f) : g.Range(0.35f, 0.6f), 0.55f);
                 g.AddCollider(at, radii * 0.92f, rotation);
             }
             Quaternion Turn(float tilt = 8f) => Quaternion.Euler(g.Range(-tilt, tilt), yaw + g.Range(-20f, 20f), g.Range(-tilt, tilt));
@@ -277,7 +279,10 @@ namespace Punchy.Flora
                     break;
                 }
                 case 3:   // standing
-                    Block(Vector3.zero, new Vector3(w * 0.5f, size * 0.95f, w * g.Range(0.35f, 0.55f)), Turn(12f), 0.2f);
+                    if (worn)
+                        Block(Vector3.zero, new Vector3(w * 0.75f, size * 0.6f, w * g.Range(0.55f, 0.75f)), Turn(12f), 0.25f);
+                    else
+                        Block(Vector3.zero, new Vector3(w * 0.5f, size * 0.95f, w * g.Range(0.35f, 0.55f)), Turn(12f), 0.2f);
                     break;
                 default:   // monstrous: a big mass split down the middle, chunks fallen from it
                 {

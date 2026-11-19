@@ -42,19 +42,20 @@ namespace Punchy.Flora
             var r = g.Range(g.S.Height);
             var top = g.Range(0.6f, 0.9f) * r;
             var yaw = g.R() * 360f;
-            // Tall enough under the water line to reach the bed of a 2 m deep rapid.
-            var radii = new Vector3(r * g.Range(1.1f, 1.3f), r * 1.6f, r * g.Range(0.9f, 1.05f));
+            // Wide rather than tall, so a boulder on a shallow bed never reads as a pillar; still reaches a 2 m deep bed.
+            var radii = new Vector3(r * g.Range(1.35f, 1.6f), 0f, r * g.Range(1.1f, 1.3f));
+            radii.y = Mathf.Max(radii.x, radii.z) * 0.8f;
             var turn = Quaternion.Euler(g.Range(-6f, 6f), yaw, g.Range(-6f, 6f));
             var at = new Vector3(0f, top - radii.y, 0f);
-            b.Blob(at, radii, turn, detail, 0.14f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
+            b.Blob(at, radii, turn, detail, 0.14f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, g.Range(0.1f, 0.25f), 0.55f);
             g.AddCollider(at, radii * 0.92f, turn);
             if (g.R() < 0.6f)
             {
-                var side = Quaternion.Euler(0f, yaw + g.Range(60f, 120f), 0f) * Vector3.right * r * g.Range(0.9f, 1.2f);
-                var small = new Vector3(r * 0.5f, r * 1.2f, r * 0.45f);
+                var side = Quaternion.Euler(0f, yaw + g.Range(60f, 120f), 0f) * Vector3.right * r * g.Range(1.4f, 1.8f);
+                var small = new Vector3(r * 0.65f, r * 0.55f, r * 0.55f);
                 var chunk = new Vector3(side.x, top * g.Range(0.2f, 0.5f) - small.y, side.z);
                 var tilt = Quaternion.Euler(g.Range(-12f, 12f), g.R() * 360f, g.Range(-12f, 12f));
-                b.Blob(chunk, small, tilt, detail, 0.14f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
+                b.Blob(chunk, small, tilt, detail, 0.14f, g.R() * 100f, Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, g.Range(0.1f, 0.25f), 0.55f);
                 g.AddCollider(chunk, small * 0.92f, tilt);
             }
             g.Height = top;
