@@ -476,7 +476,7 @@ namespace Punchy.Debugging
         /// over a bank (sheet above ground the test calls dry), gaps (test wet, no sheet over the ground), level off by
         /// over 25 cm (report only), worst over-bank height in mm, sheet edge points hanging over the ground, worst hang
         /// in mm, edge points hanging where the test is wet: a pool standing over lower ground with no rim (test only),
-        /// W-181: steep triangles (surface drop over SteepSlope away from falls), pits (steep triangles diving into the ground) }.
+        /// steep triangles away from falls, pits (steep triangles diving into the ground) }.
         /// </summary>
         public static int[] Sheet(TerrainSource s, TerrainStreamingSystem streaming, float size, float2 centre, int radius)
         {

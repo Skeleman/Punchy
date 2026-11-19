@@ -430,7 +430,7 @@ namespace Punchy.Terrain
         const float StillReach = 8f;
         /// <summary>Extended still water never gets deeper than this over its vertex (a real basin is claimed already).</summary>
         const float StillReachDepth = 1.5f;
-        /// <summary>W-111: how far below a neighbour's surface a dry vertex may lie and still get a tucked sheet edge.</summary>
+        /// <summary>How far below a neighbour's surface a dry vertex may lie and still join the sheet.</summary>
         const float TuckDrop = 1.5f;
 
         /// <summary>
@@ -589,56 +589,52 @@ namespace Punchy.Terrain
                 surface[i] = water[i].x;
                 flow[i] = water[i].yz;
             }
-            // Neighbours just across the chunk's edge count too (sampled here), or a sheet would stop short with a
-            // straight edge wherever a shore runs along a chunk border.
+            // Two rings past the chunk edge, so shores along a border don't stop short with a straight edge.
+            int pw = v + 4;
+            var wa = new NativeArray<float4>(pw * pw, Allocator.Temp);
+            for (int z = 0; z < pw; z++)
+            for (int x = 0; x < pw; x++)
+            {
+                int lx = x - 2, lz = z - 2;
+                wa[z * pw + x] = lx >= 0 && lz >= 0 && lx < v && lz < v ? water[lz * v + lx] : WaterAt(origin + new float2(lx, lz) * step);
+            }
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
             {
                 var i = z * v + x;
                 if (water[i].x > GroundSample.NoWater * 0.5f)
                     continue;
+                var p = (z + 2) * pw + x + 2;
                 var best = GroundSample.NoWater;
-                var edge = x == 0 || z == 0 || x == v - 1 || z == v - 1;
                 for (int dz = -1; dz <= 1; dz++)
                 for (int dx = -1; dx <= 1; dx++)
                 {
-                    var nx = x + dx;
-                    var nz = z + dz;
-                    var inside = nx >= 0 && nz >= 0 && nx < v && nz < v;
-                    if (!inside && !edge)
-                        continue;
-                    var n = inside ? water[nz * v + nx] : WaterAt(origin + new float2(nx, nz) * step);
+                    var n = wa[p + dz * pw + dx];
+                    if (n.x <= GroundSample.NoWater * 0.5f)
+                        n = PitFill(wa, p + dz * pw + dx, pw);
                     if (n.x > best && water[i].w >= n.x - 0.05f)
                     {
                         best = n.x;
                         flow[i] = n.yz;
                     }
                 }
-                // W-111: a dry vertex a little below a neighbour's surface (outside a pond's thin rim, which the mesh
-                // can't resolve) used to get nothing, so the quad between dropped and the sheet ended in a staircase
-                // of whole quads short of the shore. It now takes a surface tucked just under its own ground: the
-                // quad is drawn and the sheet meets the ground along a smooth line inside it. Not past TuckDrop (a
-                // cliff below a raised pool keeps its edge rather than a steep sloping sheet).
+                // A closed pit fills flat so the sheet ends at the ground; an open drop keeps the tuck so no edge hangs.
                 if (best <= GroundSample.NoWater * 0.5f)
                 {
-                    var top = GroundSample.NoWater;
-                    for (int dz = -1; dz <= 1; dz++)
-                    for (int dx = -1; dx <= 1; dx++)
+                    var pit = PitFill(wa, p, pw);
+                    if (pit.x > GroundSample.NoWater * 0.5f)
                     {
-                        var nx = x + dx;
-                        var nz = z + dz;
-                        var inside = nx >= 0 && nz >= 0 && nx < v && nz < v;
-                        if (!inside && !edge)
-                            continue;
-                        var n = inside ? water[nz * v + nx] : WaterAt(origin + new float2(nx, nz) * step);
-                        if (n.x > top && n.x > n.w + 0.02f && water[i].w >= n.x - TuckDrop)
+                        var closed = true;
+                        for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
                         {
-                            top = n.x;
-                            flow[i] = n.yz;
+                            var n = wa[p + dz * pw + dx];
+                            closed &= n.x > GroundSample.NoWater * 0.5f || n.w >= pit.x - 0.05f ||
+                                      PitFill(wa, p + dz * pw + dx, pw).x > GroundSample.NoWater * 0.5f;
                         }
+                        best = closed ? pit.x : water[i].w - 0.05f;
+                        flow[i] = pit.yz;
                     }
-                    if (top > GroundSample.NoWater * 0.5f)
-                        best = water[i].w - 0.05f;
                 }
                 // Under a bank the sheet is hidden in the ground, unless a cave runs through the bank: there it would
                 // hang in the cave's air as a flat face across the passage.
@@ -650,6 +646,7 @@ namespace Punchy.Terrain
                 }
                 surface[i] = best;
             }
+            wa.Dispose();
 
             // A quad is water if all corners have a surface and at least one corner is actually submerged.
             int quadCount = 0;
@@ -728,6 +725,27 @@ namespace Punchy.Terrain
             flow.Dispose();
             wetQuad.Dispose();
             return range;
+        }
+
+        /// <summary>Level a dry vertex below a neighbour's surface (within TuckDrop) would fill to, NoWater if none.</summary>
+        static float4 PitFill(NativeArray<float4> wa, int p, int pw)
+        {
+            var own = wa[p];
+            var pit = new float4(GroundSample.NoWater, 0f, 0f, own.w);
+            if (own.x > GroundSample.NoWater * 0.5f)
+                return pit;
+            for (int dz = -1; dz <= 1; dz++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                var n = wa[p + dz * pw + dx];
+                if (n.x <= GroundSample.NoWater * 0.5f)
+                    continue;
+                if (own.w >= n.x - 0.05f)
+                    return new float4(GroundSample.NoWater, 0f, 0f, own.w);
+                if (n.x > pit.x && n.x > n.w + 0.02f && own.w >= n.x - TuckDrop)
+                    pit = new float4(n.x, n.yz, own.w);
+            }
+            return pit;
         }
 
         /// <summary>A water triangle's surface rise (m) between corners above which it is split by level (SplitStep).</summary>

@@ -122,10 +122,7 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>
-        /// W-181 row 1 (#301): steep water (surface dropping over 0.3 m per metre away from falls) and pits (steep water
-        /// diving into the ground), counted on the built water mesh round the three places that had any. Counts may only fall.
-        /// </summary>
+        /// <summary>Steep water and pits (steep water diving into the ground) round the three places that had any may only fall.</summary>
         [UnityTest, Order(3)]
         public IEnumerator Water_SheetSlopes()
         {
@@ -144,7 +141,8 @@ namespace Punchy.Tests
 
         static readonly Vector2[] SheetSlopeSpots = { new(-2729, 546), new(-490, 546), new(-2018, -1070) };
         // Row 3 (cascade pools: water steeper than 0.2 m per metre steps down as registered falls, 140 -> 151): steep 118 -> 69, pits 22 -> 19.
-        static readonly Vector2Int SheetSlopeBaseline = new(69, 19);
+        // Row 4 (closed bank pits fill flat instead of tucking): steep 69 -> 66, pits 19 -> 16.
+        static readonly Vector2Int SheetSlopeBaseline = new(66, 16);
 
         static readonly string[] WaterTruthKinds =
         {
