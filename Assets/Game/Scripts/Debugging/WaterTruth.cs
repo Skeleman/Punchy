@@ -54,6 +54,9 @@ namespace Punchy.Debugging
 
         // Limits. Each is the size at which the defect shows from the bank, not a tuned pass mark.
         const float WetDepth = 0.05f;      // a sample counts as wet with this much water over the ground
+        public const int SheetCounts = 10;
+        const float SteepSlope = 0.3f;
+        static readonly float SteepNormalY = 1f / math.sqrt(1f + SteepSlope * SteepSlope);
         const float WallHeight = 1f;       // water standing this far above dry ground one sample away
         const float StepHeight = 1f;       // neighbouring surfaces this far apart away from a fall
         const float DeepOver = 2f;         // river water this much deeper than its channel was dug
@@ -472,12 +475,13 @@ namespace Punchy.Debugging
         /// W-153 row 6: the drawn water sheets of loaded chunks round a place against the ground test. Returns { points,
         /// over a bank (sheet above ground the test calls dry), gaps (test wet, no sheet over the ground), level off by
         /// over 25 cm (report only), worst over-bank height in mm, sheet edge points hanging over the ground, worst hang
-        /// in mm, edge points hanging where the test is wet: a pool standing over lower ground with no rim (test only) }.
+        /// in mm, edge points hanging where the test is wet: a pool standing over lower ground with no rim (test only),
+        /// W-181: steep triangles (surface drop over SteepSlope away from falls), pits (steep triangles diving into the ground) }.
         /// </summary>
         public static int[] Sheet(TerrainSource s, TerrainStreamingSystem streaming, float size, float2 centre, int radius)
         {
             const float lattice = 0.25f, cell = 0.5f;
-            var result = new int[8];
+            var result = new int[SheetCounts];
             var edges = new List<float3>();
             var points = new List<float2>();
             var drawn = new List<float>();
@@ -535,6 +539,13 @@ namespace Punchy.Debugging
                                      math.distance(((float3)gs[ts[t]]).xz, a.xz) < 0.01f && math.distance(((float3)gs[ts[t + 1]]).xz, b.xz) < 0.01f &&
                                      math.distance(((float3)gs[ts[t + 2]]).xz, c.xz) < 0.01f;
                         var under = shared ? new float3(gs[ts[t]].y, gs[ts[t + 1]].y, gs[ts[t + 2]].y) : new float3(float.NaN);
+                        if (math.abs(math.normalize(normal).y) < SteepNormalY && !(s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, origin + (a.xz + b.xz + c.xz) / 3f)))
+                        {
+                            result[8]++;
+                            var low = a.y <= b.y && a.y <= c.y ? new float2(a.y, under.x) : b.y <= c.y ? new float2(b.y, under.y) : new float2(c.y, under.z);
+                            if (low.x <= low.y + WetDepth)
+                                result[9]++;
+                        }
                         var n = math.max(1, (int)math.ceil(math.max(math.distance(a.xz, b.xz), math.max(math.distance(b.xz, c.xz), math.distance(c.xz, a.xz))) / lattice));
                         for (int i = 0; i <= n; i++)
                             for (int j = 0; i + j <= n; j++)

@@ -122,6 +122,29 @@ namespace Punchy.Tests
             yield return null;
         }
 
+        /// <summary>
+        /// W-181 row 1 (#301): steep water (surface dropping over 0.3 m per metre away from falls) and pits (steep water
+        /// diving into the ground), counted on the built water mesh round the three places that had any. Counts may only fall.
+        /// </summary>
+        [UnityTest, Order(3)]
+        public IEnumerator Water_SheetSlopes()
+        {
+            int steep = 0, pits = 0;
+            foreach (var spot in SheetSlopeSpots)
+            {
+                yield return TestSceneSetup.GoTo(spot.x, spot.y, 25f);
+                var counts = Game.Hook<int[]>("WaterSheet", spot.x, spot.y, 1);
+                steep += counts[8];
+                pits += counts[9];
+            }
+            LogWatch.Measure($"water sheet slopes: steep {steep}, pits {pits}");
+            Assert.LessOrEqual(steep, SheetSlopeBaseline.x, "more steep water than the baseline");
+            Assert.LessOrEqual(pits, SheetSlopeBaseline.y, "more water pits than the baseline");
+        }
+
+        static readonly Vector2[] SheetSlopeSpots = { new(-2729, 546), new(-490, 546), new(-2018, -1070) };
+        static readonly Vector2Int SheetSlopeBaseline = new(118, 22);
+
         static readonly string[] WaterTruthKinds =
         {
             "bend", "widthJump", "deadEnd", "source", "dryRun", "uphillGraph", "uphillSampled", "wall", "deep", "tilt", "step", "fallHead", "fallFoot"
