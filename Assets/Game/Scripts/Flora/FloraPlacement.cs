@@ -1197,7 +1197,7 @@ namespace Punchy.Flora
         /// same for every player). Slow water only (rapids under 0.3). The bend is the turn of the flow between a river
         /// width and a half upstream and downstream; the inner side is the side it turns towards.
         /// </summary>
-        static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind)
+        static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind, float cell)
         {
             if (kind == (int)RiverSpot.Riffle || kind == (int)RiverSpot.Splash)
                 return RapidsFit(source, xz, kind);
@@ -1266,11 +1266,9 @@ namespace Punchy.Flora
                 return math.lerp(0.5f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind));
             if (kind == (int)RiverSpot.Heap)
             {
-                if (ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind) < HeapOdds)
+                if (!HeapSpot(source, ref map, xz, cell, kind))
                     return 0f;
-                if (barHead && edge > -1f && edge < 2f)
-                    return 1f;
-                return !inner && edge > -1f && edge < 1.5f ? math.smoothstep(0.35f, 0.8f, bend) : 0f;
+                return barHead ? 1f : math.lerp(0.5f, 1f, math.smoothstep(0.2f, 0.6f, bend));
             }
             if (!late || edge < -1.5f || edge > 2f)
                 return 0f;
@@ -1280,8 +1278,62 @@ namespace Punchy.Flora
             return draw * (inner ? 0.12f : math.max(math.smoothstep(0.2f, 0.7f, bend), 0.2f));
         }
 
-        // ReachDraw spans 0.25-1, so about one reach in four keeps a heap.
-        const float HeapOdds = 0.8f;
+        // One outer-bank waterline cell per heap reach; a heap reach out-draws 2 reaches each way, so heaps sit about 60 m apart.
+        static bool HeapSpot(in TerrainSource source, ref RiverMapBlob map, float2 xz, float cell, int kind)
+        {
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            var near = map.Nearest[c.y * map.Resolution + c.x];
+            return HeapBank(source, ref map, xz, cell, kind, near.x) || near.y != near.x && HeapBank(source, ref map, xz, cell, kind, near.y);
+        }
+
+        static bool HeapBank(in TerrainSource source, ref RiverMapBlob map, float2 xz, float cell, int kind, int seg)
+        {
+            if (seg < 0 || map.Down[seg] < 0)
+                return false;
+            var h = BiomeSampling.Scramble(math.hash(new uint2((uint)seg, map.Seed ^ 0x5EA9u)));
+            var m = math.lerp(map.Point(seg), map.Point(map.Down[seg]), math.lerp(0.25f, 0.75f, (h & 1023u) / 1023f));
+            var near = map.Width[seg] * 0.5f + 12f;
+            if (math.distancesq(xz, m) > near * near)
+                return false;
+            var d = ReachDraw(map.Seed, (uint)seg, kind);
+            int up = seg, down = seg;
+            for (int i = 0; i < 2; i++)
+            {
+                up = up >= 0 ? map.Up[up] : -1;
+                down = down >= 0 ? map.Down[down] : -1;
+                if (up >= 0 && ReachDraw(map.Seed, (uint)up, kind) >= d || down >= 0 && ReachDraw(map.Seed, (uint)down, kind) > d)
+                    return false;
+            }
+            var q = RiverSampling.Query(ref map, source.RiverSettings, m);
+            if (!q.Found)
+                return false;
+            var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
+            var reach = math.max(10f, q.Width * 1.5f);
+            var a = math.normalizesafe(RiverSampling.Query(ref map, source.RiverSettings, m - flow * reach).Flow);
+            var b = math.normalizesafe(RiverSampling.Query(ref map, source.RiverSettings, m + flow * reach).Flow);
+            var left = new float2(-flow.y, flow.x);
+            var outer = a.x * b.y - a.y * b.x > 0f ? -left : left;
+            var toOuter = RiverSampling.Query(ref map, source.RiverSettings, m + outer).Distance > q.Distance ? q.Distance : -q.Distance;
+            var centre = m - outer * toOuter;
+            float wet = 0f, dry = q.Width * 0.5f + 8f;
+            if (Wet(source, centre + outer * dry))
+                return false;
+            for (int i = 0; i < 7; i++)
+            {
+                var t = (wet + dry) * 0.5f;
+                if (Wet(source, centre + outer * t))
+                    wet = t;
+                else
+                    dry = t;
+            }
+            return math.all((int2)math.floor(xz / cell) == (int2)math.floor((centre + outer * wet) / cell));
+        }
+
+        static bool Wet(in TerrainSource source, float2 xz)
+        {
+            var g = source.SampleGround(xz);
+            return g.HasWater && g.WaterSurface - g.Height > -0.3f;
+        }
 
         static int NearestSegment(ref RiverMapBlob map, float2 xz)
         {
@@ -2841,7 +2893,7 @@ namespace Punchy.Flora
                     }
                     // W-63 river dressing: only on its kind of river spot (asked only once the rest allows it).
                     if (r.RiverSpot != 0 && fw > 0f)
-                        fw *= RiverFit(source, xz, ground, r.RiverSpot);
+                        fw *= RiverFit(source, xz, ground, r.RiverSpot, cellSize);
                     if (r.PatchCoverage < 1f)
                     {
                         var pn = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;

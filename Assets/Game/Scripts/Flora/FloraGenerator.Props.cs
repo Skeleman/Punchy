@@ -179,10 +179,7 @@ namespace Punchy.Flora
             DriftLog(g, new Vector3(0f, r, 0f), 0f, 0f, len, r, true);
         }
 
-        /// <summary>
-        /// #301: a heap of 4-7 driftwood logs that a flood left on a bar head or an outer bend. Two long logs lie along
-        /// X (the flow), shorter ones lie across them in up to two more layers, and a few thin sticks poke out.
-        /// </summary>
+        // A flood heap on a bar head or outer bend.
         static void DriftHeap(Grower g)
         {
             var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
@@ -211,10 +208,6 @@ namespace Punchy.Flora
             g.TrunkRadius = 0f;
         }
 
-        /// <summary>
-        /// One weathered log, len long and r in radius, gently bent, with snapped branch stubs and (roots) a flare of
-        /// root stubs at its thick -X end; its middle at mid, pitched by pitch degrees about Z and turned by yaw about Y.
-        /// </summary>
         static void DriftLog(Grower g, Vector3 mid, float yaw, float pitch, float len, float r, bool roots)
         {
             var b = g.B;

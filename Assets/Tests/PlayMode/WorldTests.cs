@@ -71,7 +71,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint 377B279B", line);
+            StringAssert.Contains("fingerprint 1AC019EC", line);
             yield return null;
         }
 
