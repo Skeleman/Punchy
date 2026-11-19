@@ -8814,3 +8814,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 ## 11-18 #365 tail, mouth patch gaps (world/mouth21@cab37f47, from main b6969665)
 - Mouth 21 LOD0: a straight sliver of three rim corners hid the middle one from the terrain vertex; the face across it is now split there. Mouth 23 (new, LOD0+1): an inner snap past the rim sat at ground height off the straight rim; it stays rock now.
 - All 24 mouths: problems 3 -> 0, holes 0. WorldTests 22/22, truth unchanged.
+
+## 11-18 rivers, top 3 defects (world/river-defects@1c062ed6, from main)
+- Fixed (cheapest): extended pond/lake sheets hung up to 1.5 m over falling ground at their rim. Cells next to ground below the tuck drop stay dry; hangs 28-258 -> 0-4 per spot (5 spots). The 1.47 m seam reading at 1152,2357 is a tuck pair both chunks share, not a crack.
+- Left 2: perched ponds whose claim edge stands over dry ground (37 pool walls, e.g. 3.5 m at -2018,-1070); river mouth into the sea at -3978,990 (8.5 m river/sea step, 3.4 m over-bank, 3.6 m seam gap).
+- Truth 83,0,0,0,0,0,0,49,1,17,142,0,0 unchanged, WorldTests 22/22.

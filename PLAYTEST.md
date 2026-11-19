@@ -326,3 +326,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #642 world/cave-climb-2 (W-181, #534): roots, vines or a rope to climb out of cave shafts up to 30 m; 3 climbs in 2 caves.
 - 11-18 #643 W-174 (#365 tail): mouths 21 and 23 seams closed; all 24 cave mouths 0 holes, 0 problems.
 - 11-18 #644 W-166 (#336): wet waterfall cliffs damp and matte, steep-face glint and gloss cut to 0.3x.
+- 11-18 #645 W-172 (#365): pond/lake sheet rims no longer hang over falling ground (hangs 28-258 -> 0-4).
