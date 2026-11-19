@@ -356,3 +356,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #671 rivers (#301): no caustic grid on bright beds, no rainbow film at grazing angles, no cross-hatched rock wakes.
 - #672 W-173 (#399): market stalls are solid (can't walk through poles/counter) and have stacked crates.
 - #673 R-39 (#301): rocks in rapids trail thin downstream streaks instead of pale flakes.
+- #674 W-166 (#666, closed): wet river banks no longer have dark leopard spots.
