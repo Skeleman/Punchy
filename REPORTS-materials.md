@@ -473,3 +473,10 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Added a clod layer (25 cm lattice, dark and pale, sizes varied per cell) that fades by screen size and reads at about 20 m; shared Specks() helper.
 - Average tone holds (frame means within 0.4% at 20 m, equal at 3 m). Matched shots in PunchyMilestones/R-31-dirt-specks.
 - BENCH FYI line added.
+
+## 11-19 R-31 snow grain - DONE, PR #698
+- Snow ground: wind ripples (0.12 m) plus patchy sastrugi (1.3 m) as tone and a normal tilt, blue-grey hollows, a faint sun glitter; all faded by pxmR (rule 20), zero-mean.
+- Dirt clods from #696 no longer stamp dark discs on snow.
+- Matched shots at 3 m and 20 m in PunchyMilestones/R-31-snow-grain; means 173.9->173.6 (3 m), 180.3->180.6 (20 m).
+- The pale blue tundra slope near the camera has snow near 0, so it's unchanged (still has clods); full snow carries the new detail.
+- Hold the merge until after the 16:30 freeze. BENCH FYI added.
