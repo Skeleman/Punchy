@@ -233,11 +233,6 @@ namespace Punchy.Flora
                 b.Box(sign, new Vector3(0.9f, 0.55f, 0.06f), Quaternion.identity, AccentAt(g, 1), FloraPart.Bark);
         }
 
-        /// <summary>
-        /// A leader's hall, its door facing +Z: kit parts (StructureKit.Hall) on a stone plinth under a steep gable with
-        /// crossed beams at each end, a wide door up a step, lit windows (first accent) along both long walls and two
-        /// banners (second accent) flanking the door.
-        /// </summary>
         static void Hall(Grower g)
         {
             var s = g.S;

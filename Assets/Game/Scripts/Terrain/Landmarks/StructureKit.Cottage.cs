@@ -24,7 +24,6 @@ namespace Punchy.Terrain
             return parts;
         }
 
-        /// <summary>A long timber hall on a stone plinth, ridge along X, outer faces at x = ±<paramref name="half"/> and z = ±<paramref name="front"/>; the caller hangs the door.</summary>
         public static List<KitPart> Hall(CultureTrim t, float half, float front, float plinth, float wall, float ridge)
         {
             var parts = new List<KitPart>();

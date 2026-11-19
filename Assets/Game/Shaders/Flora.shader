@@ -42,6 +42,7 @@ Shader "Punchy/Flora"
             #include "Materials/Cloth.hlsl"
             #include "Materials/Metal.hlsl"
             #include "Materials/Plaster.hlsl"
+            #include "Materials/Tile.hlsl"
             #include "Materials/Brick.hlsl"
             #include "Materials/Ice.hlsl"
             #include "Materials/Paint.hlsl"
@@ -211,6 +212,7 @@ Shader "Punchy/Flora"
                 bool strata = part == 0 && frac(input.extra.x) > 0.06 && frac(input.extra.x) < 0.09;
                 // W-166 row 3: built families with their own include ride on the bark mark (FloraMeshBuilder.FamilyMark).
                 bool plaster = part == 0 && frac(input.extra.x) > 0.095 && frac(input.extra.x) < 0.105;
+                bool tile = part == 0 && frac(input.extra.x) > 0.0903 && frac(input.extra.x) < 0.0947;
                 bool brick = part == 0 && frac(input.extra.x) > 0.11 && frac(input.extra.x) < 0.12;
                 bool ice = part == 0 && frac(input.extra.x) > 0.125 && frac(input.extra.x) < 0.135;
                 // Built stone: cut at 0.142, rubble at 0.144 (FloraMeshBuilder.Rubble), both drawn by Materials/Stone.hlsl.
@@ -224,7 +226,9 @@ Shader "Punchy/Flora"
                 // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
                 bool detail = _PunchyFloraDetailOff < 0.5;
                 if (detail && plaster)
-                    albedo *= PunchyPlaster(input.positionWS, n, footprint, r);
+                    albedo *= PunchyPlasterKind(input.positionWS, n, footprint, r, (int)round((frac(input.extra.x) - 0.1) / 0.002));
+                else if (detail && tile)
+                    albedo = PunchyRoofCover(albedo, input.positionWS, n, footprint, r, 1 + (int)round((frac(input.extra.x) - 0.091) / 0.0015), 0);
                 else if (detail && brick)
                     albedo *= PunchyBrick(input.positionWS, n, v, footprint, r);
                 else if (detail && ice)
@@ -240,7 +244,7 @@ Shader "Punchy/Flora"
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
                 // W-166: wood draws through Materials/Wood.hlsl, its kind riding on the wood mark (FloraMeshBuilder.WoodKind).
                 if (detail && wood)
-                    albedo = look == 3 ? albedo * PunchyThatch(input.grainPos, facetOS, footprint)
+                    albedo = look == 3 ? albedo * PunchyThatchKind(input.grainPos, facetOS, footprint, woodKind)
                                        : PunchyWoodSurface(albedo, look, input.grainPos, input.grainAxis, facetOS, footprint, input.color.rgb, woodKind);
                 // Cloth: a linen weave (W-99).
                 // Hide (Cloth + 0.45, W-113): leather instead. Felt (Cloth + 0.48, a bedroll): matted wool.
@@ -271,11 +275,11 @@ Shader "Punchy/Flora"
                 bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
                 near *= bark ? 0.35 : 1;
                 // Paint and ice are smooth; plaster and brick keep a little of the rock's grit under their own look.
-                near *= (rope || paint || ice) ? 0 : (plaster || brick) ? 0.3 : 1;
+                near *= (rope || paint || ice) ? 0 : (plaster || brick || tile) ? 0.3 : 1;
                 // R-34 row 2: boulders and built stone (not timber, not living plants) draw their surface from the shared
                 // stone (Materials/Stone.hlsl) in place of the relief here; built stone's blocks are laid above (W-166).
                 // Plaster, brick, ice and paint have their own looks above, so they never take the stone's.
-                bool stone = part == 0 && !wood && !rope && !paint && !plaster && !brick && !ice && input.living < 0.5 && _PunchyCaveDetailReady > 0;
+                bool stone = part == 0 && !wood && !rope && !paint && !plaster && !tile && !brick && !ice && input.living < 0.5 && _PunchyCaveDetailReady > 0;
                 if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0 && !stone)
                 {
                     float3 q = input.positionWS * 0.9;
