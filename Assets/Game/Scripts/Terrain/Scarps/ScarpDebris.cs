@@ -97,12 +97,17 @@ namespace Punchy.Terrain
         void FallFlank(int index, int group)
         {
             var shape = FallShape.River(Source, Source.Rivers.Value.Falls[index], math.frac((index + 1000000) * 0.618f));
-            if (shape.UnderRock || shape.Drop < 1.5f)
+            if (shape.UnderRock)
                 return;
             var rng = new Unity.Mathematics.Random(math.hash(new uint2((uint)index, 0x666c6b73u)) | 1u);
             var o = shape.Out;
             var across = new float2(o.y, -o.x);
             float half = shape.Width * 0.5f, top = shape.Lip.y, pool = top - shape.Drop;
+            if (shape.Drop < 4f)
+            {
+                FallStones(shape, across, ref rng, group + 1);
+                return;
+            }
             float size = math.clamp(shape.Drop / 6f, 0.8f, 2.2f);
             int pieces = math.clamp((int)(shape.Drop / 3f), 2, 9);
             for (int sgn = -1; sgn <= 1; sgn += 2)
@@ -150,6 +155,24 @@ namespace Punchy.Terrain
         // PUNCHY_FALL_WET_REACH: outside it the spray leaves the rock dry, so only blocks near the foot look wet.
         const float SprayReach = 3f;
 
+        void FallStones(in FallShape shape, float2 across, ref Unity.Mathematics.Random rng, int group)
+        {
+            float half = shape.Width * 0.5f, size = math.clamp(shape.Drop / 3f, 0.4f, 1f);
+            for (int k = 0; k < 6; k++)
+            {
+                float4 r = rng.NextFloat4(), p = rng.NextFloat4();
+                bool lip = k < 2;
+                if (r.x > (lip ? 0.45f : 0.7f))
+                    continue;
+                float h = math.lerp(0.18f, 0.4f, r.y) * size;
+                var hs = new float3(h * (1f + 0.4f * p.x), h * (0.6f + 0.3f * p.y), h * (0.9f + 0.3f * p.z));
+                float d = half + 0.3f + hs.x + r.z * 1.6f;
+                float s = lip ? -0.4f - r.w * 1.8f : shape.Run + 0.3f + r.w * 2.5f;
+                var xz = shape.Lip.xz + across * (k % 2 == 0 ? d : -d) + shape.Out * s;
+                Put(xz, hs, p.w, p.xy * 0.4f, FlankTone(xz, shape.Out) * (0.9f + 0.15f * p.z), 0.6f, 0f, 0.4f, group, 1f);
+            }
+        }
+
         bool FlankBlock(in FallShape shape, float2 side, float d, float y, float3 hs, float4 r, float round, int group)
         {
             var o = shape.Out;
@@ -163,9 +186,20 @@ namespace Punchy.Terrain
                 }
             if (!(face > -3f) || y + hs.y < Source.SampleGround(column + o * (face + 1f)).WaterSurface)
                 return false;
-            var xz = column + o * (face - hs.z * 0.3f * r.z);
-            Keep(new float3(xz.x, y, xz.y), hs, r.z, r.yw * 0.3f, FlankTone(xz, o) * (0.92f + 0.12f * r.w), round, 0f, group, 1f);
-            return true;
+            var tilt = r.yw * 0.12f;
+            float under = y - hs.y - 0.12f * (hs.x + hs.z) - 0.3f;
+            float yaw = math.atan2(o.x, o.y) / (2f * math.PI) + (r.z - 0.5f) * 0.08f;
+            var across = side / math.max(math.length(side), 1e-4f);
+            for (float sink = 0.5f + 0.3f * r.z; sink <= 1.5f; sink += 0.25f)
+            {
+                var xz = column + o * (face - hs.z * sink);
+                if (Source.SampleHeight(xz) < under || Source.SampleHeight(xz + o * hs.z * 0.5f) < under
+                    || Source.SampleHeight(xz + across * hs.x * 0.5f) < under || Source.SampleHeight(xz - across * hs.x * 0.5f) < under)
+                    continue;
+                Keep(new float3(xz.x, y, xz.y), hs, yaw, tilt, FlankTone(xz, o) * (0.92f + 0.12f * r.w), round, 0f, group, 1f);
+                return true;
+            }
+            return false;
         }
 
         float3 FlankTone(float2 xz, float2 o)
