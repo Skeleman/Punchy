@@ -125,9 +125,22 @@ Shader "Punchy/Landmark Plume"
                     half3 leafLit = tone * PunchyEffectLight(e, input.positionWS, n, leafSun.color * sunLit, SampleSH(half3(0, 1, 0))) + tone * e.color.a;
                     return half4(PunchyAtmosphere(leafLit, input.positionWS), leafAlpha);
                 }
-                float soft = saturate(1 - dot(input.uv, input.uv));
-                float wisp = PunchyValueNoise(input.uv * 2.0 + input.positionWS.xz * 0.15 + input.positionWS.y * 0.1) * 0.6 + 0.4;
-                half alpha = soft * soft * wisp * input.alpha;
+                float2 q = input.uv;
+                half alpha;
+                // Vent wisps tear on noise that climbs through them, so they read as rising streaks, not balls.
+                if (e.fall.y > 0)
+                {
+                    float tear = PunchyValueNoise(float2(q.x * 1.6, q.y * 1.1 - _PunchyClock * 0.7) + input.positionWS.xz * 0.4 + input.age * 17.0) * 0.65
+                        + PunchyValueNoise(float2(q.x * 6.0, q.y * 3.0 - _PunchyClock * 1.3) + input.age * 5.0) * 0.35;
+                    float body = (1 - q.x * q.x) * (1 - q.x * q.x) * smoothstep(-1, -0.3, q.y) * smoothstep(1, 0.1, q.y);
+                    alpha = body * smoothstep(0.15 + 0.3 * input.age, 0.85 + 0.15 * input.age, tear) * input.alpha;
+                }
+                else
+                {
+                    float soft = saturate(1 - dot(q, q));
+                    float wisp = PunchyValueNoise(q * 2.0 + input.positionWS.xz * 0.15 + input.positionWS.y * 0.1) * 0.6 + 0.4;
+                    alpha = soft * soft * wisp * input.alpha;
+                }
 
                 float2 screenUV = input.screen.xy / input.screen.w;
                 float sceneDepth = LinearEyeDepth(SampleSceneDepth(screenUV), _ZBufferParams);
