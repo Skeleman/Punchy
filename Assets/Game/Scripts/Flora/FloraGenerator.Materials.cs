@@ -38,6 +38,21 @@ namespace Punchy.Flora
             _ => MaterialLibrary.WoodFor(species.KitCulture)
         };
 
+        // The biome isn't known when a species is grown, so each variant stands for one (temperate twice as often).
+        static void SurfaceKinds(FloraMeshBuilder b, FolkCulture culture, int seed)
+        {
+            var biome = ((((uint)seed * 0x9E3779B1u) >> 16) % 5u) switch
+            {
+                0u => BiomeFamily.Arid,
+                1u => BiomeFamily.Cold,
+                2u => BiomeFamily.Wet,
+                _ => BiomeFamily.Temperate
+            };
+            b.ThatchKind = MaterialLibrary.ThatchFor(culture, biome);
+            b.PlasterKind = MaterialLibrary.PlasterFor(culture, biome);
+            b.RoofKind = MaterialLibrary.RoofFor(culture, biome);
+        }
+
         /// <summary>
         /// W-166's material test: grows a species' nearest LOD and counts its bark vertices per MaterialFamily (index by
         /// the enum). Editor and test use only: it builds the whole model on the calling thread.
@@ -48,7 +63,7 @@ namespace Punchy.Flora
             var counts = new int[16];
             var builder = model.Pending != null && model.Pending.Length > 0 ? model.Pending[0] : null;
             if (builder != null)
-                for (int f = 0; f < counts.Length && f <= (int)MaterialFamily.Paint; f++)
+                for (int f = 0; f < counts.Length && f <= (int)MaterialFamily.Tile; f++)
                     counts[f] = builder.BarkVerticesOf((MaterialFamily)f);
             return counts;
         }

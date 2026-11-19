@@ -96,6 +96,9 @@ namespace Punchy.Flora
         /// <summary>Phase B (#336): the kind of metal (MaterialLibrary.Metal) metal built next is: it rides on the part as
         /// Metal + kind * 0.1 (under the 0.5 the part rounds by), which Flora.shader decodes. Cleared with the builder.</summary>
         public Punchy.Terrain.MetalKind MetalKind;
+        public Punchy.Terrain.ThatchKind ThatchKind;
+        public Punchy.Terrain.PlasterKind PlasterKind;
+        public Punchy.Terrain.RoofKind RoofKind;
         readonly int[] barkFamilies = new int[16];
         /// <summary>Bark vertices built per Punchy.Terrain.MaterialFamily since the last Clear (W-166's material test).</summary>
         public int BarkVerticesOf(Punchy.Terrain.MaterialFamily family) => barkFamilies[(int)family];
@@ -162,7 +165,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Metal ? Mathf.Clamp((int)MetalKind, 0, 4) * 0.1f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) + (Family == Punchy.Terrain.MaterialFamily.None ? Mathf.Clamp((int)BarkKind, 0, 3) * 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Metal ? Mathf.Clamp((int)MetalKind, 0, 4) * 0.1f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp(Surface == 3 ? (int)ThatchKind : (int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) + KindMark(Family) + (Family == Punchy.Terrain.MaterialFamily.None ? Mathf.Clamp((int)BarkKind, 0, 3) * 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -172,6 +175,7 @@ namespace Punchy.Flora
         /// glowing seams (over 0.15), clear of rock strata (0.08); 0 for families drawn the default way.</summary>
         public static float FamilyMark(Punchy.Terrain.MaterialFamily family) => family switch
         {
+            Punchy.Terrain.MaterialFamily.Tile => 0.091f,
             Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
             Punchy.Terrain.MaterialFamily.Brick => 0.115f,
             Punchy.Terrain.MaterialFamily.Ice => 0.13f,
@@ -180,6 +184,13 @@ namespace Punchy.Flora
             Punchy.Terrain.MaterialFamily.Cloth => 0.053f,
             // Painted trim and accents (buoy floats): a smooth chipped coat, never the stone surface.
             Punchy.Terrain.MaterialFamily.Paint => 0.041f,
+            _ => 0f
+        };
+
+        float KindMark(Punchy.Terrain.MaterialFamily family) => family switch
+        {
+            Punchy.Terrain.MaterialFamily.Plaster => Mathf.Clamp((int)PlasterKind, 0, 2) * 0.002f,
+            Punchy.Terrain.MaterialFamily.Tile => Mathf.Clamp((int)RoofKind - 1, 0, 2) * 0.0015f,
             _ => 0f
         };
 

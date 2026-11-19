@@ -313,15 +313,12 @@ namespace Punchy.Flora
                 g.DoorBoxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
         }
 
+        static Color Tinted(Color c, Vector3 tint) => new Color(c.r * tint.x, c.g * tint.y, c.b * tint.z, c.a);
+
         static bool Crated(in Punchy.Terrain.KitPart p) =>
             p.Material == Punchy.Terrain.KitMaterial.Wood && p.Piece == Punchy.Terrain.KitPiece.Trim &&
             Mathf.Min(p.Size.x, Mathf.Min(p.Size.y, p.Size.z)) > 0.8f * Mathf.Max(p.Size.x, Mathf.Max(p.Size.y, p.Size.z));
 
-        /// <summary>
-        /// Draws one structure-kit part in its trim colour (a little per-part jitter), its folk's wall or roof look,
-        /// lit window glass when <paramref name="lit"/>, and contact bands where it meets other parts. Shared by
-        /// KitStructure and the town houses (W-128). False for a moss cap (drawn as a sheet: no box, no collision).
-        /// </summary>
         static bool DrawKitPart(Grower g, List<Punchy.Terrain.KitPart> parts, int i, in Punchy.Terrain.CultureTrim trim,
                                 (Punchy.Terrain.KitSurface Wall, Punchy.Terrain.KitSurface Roof) looks, bool ruined, bool lit, uint seed, List<float> contacts)
         {
@@ -352,21 +349,35 @@ namespace Punchy.Flora
                        Crated(p) ? Punchy.Terrain.KitSurface.Planks : Punchy.Terrain.KitSurface.Plain;
             // Stone timber (elves) drops the plank/shingle wood mark: their roof courses are slate.
             b.Surface = b.TimberFamily != Punchy.Terrain.MaterialFamily.Wood && look is Punchy.Terrain.KitSurface.Planks or Punchy.Terrain.KitSurface.Shingles ? 0 : (int)look;
+            var tiled = !ruined && p.Material == Punchy.Terrain.KitMaterial.Roof && b.TimberFamily == Punchy.Terrain.MaterialFamily.Wood &&
+                        (look == Punchy.Terrain.KitSurface.Shingles && b.RoofKind != Punchy.Terrain.RoofKind.WoodShingle ||
+                         look == Punchy.Terrain.KitSurface.Plain && b.RoofKind == Punchy.Terrain.RoofKind.StoneSlab);
+            if (tiled)
+            {
+                var t = Punchy.Terrain.MaterialLibrary.RoofTint(b.RoofKind);
+                c = Color.Lerp(new Color(t.x, t.y, t.z, c.a), c, 0.25f) * Mathf.Lerp(0.94f, 1.08f, jitter);
+                b.Surface = 0;
+            }
+            else if (b.Surface == (int)Punchy.Terrain.KitSurface.Thatch)
+                c = Tinted(c, Punchy.Terrain.MaterialLibrary.ThatchTint(b.ThatchKind));
             // W-166: each part states its family; a ruin's bare walls are old stone, not plaster.
             // W-166 row 3: standing stone chimneys are laid in brick (Materials/Brick.hlsl); rune and trim stacks keep their own.
             // A boat's painted strakes are timber under the paint (its hull reads as wood); a buoy's float is painted.
-            b.Family = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
+            b.Family = tiled ? Punchy.Terrain.MaterialFamily.Tile
+                     : ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
                      : p.Afloat && p.Material == Punchy.Terrain.KitMaterial.Trim ? Punchy.Terrain.MaterialFamily.Wood
                      : p.Piece == Punchy.Terrain.KitPiece.Trim && p.Material == Punchy.Terrain.KitMaterial.Roof && Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look) == Punchy.Terrain.MaterialFamily.Plaster ? Punchy.Terrain.MaterialFamily.Paint
                      : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
                      // Copper trim (rod fins, straps, marsh paint) is a painted copper coat: Metal has no bark mark and fell back to stone.
                      : p.Material == Punchy.Terrain.KitMaterial.Copper ? Punchy.Terrain.MaterialFamily.Paint
                      : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look, b.TimberFamily);
+            if (b.Family == Punchy.Terrain.MaterialFamily.Plaster && p.Material == Punchy.Terrain.KitMaterial.Wall)
+                c = Tinted(c, Punchy.Terrain.MaterialLibrary.PlasterTint(b.PlasterKind));
             b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
             b.Unfounded = p.Afloat;
             if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                 RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
-            else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
+            else if (g.Lod == 0 && !tiled && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
                 RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
             else if (lit)
             {
