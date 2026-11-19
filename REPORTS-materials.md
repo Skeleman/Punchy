@@ -396,3 +396,14 @@ Plan once the editor is back: shoot the list in D:/Unity/PunchyMilestones/river-
 3. The beige bed and bank sand ignores the biome (BiomeData.RiverBed constants): a tan band along the banks and bed in Ashlands and the swamps (code risk 1 confirmed). Fixing it means editing BiomeData, so it needs an ask.
 Also: the FoggyMarsh mid pose is blocked by a canopy (to reshoot), and the marsh water has dense white streak flecks (Water.shader, for the water owner).
 Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing that cracks caused read 1. The crop-pair (river-audit/crop-pair.jpg) shows the same web, so it is the caustics. No commit.
+
+## 11-19 materials/river-audit row 1: swamp mud banks (d5865896)
+- Cause: TerrainSurface scaled all micro relief and grain by vertex bump, so mud (0.25-0.4) read flat. Fix: dark, low-bump, grass-free ground gets a 0.75 detail floor (one line block, TerrainSurface only).
+- Verified: ShaderHasError False; poison_mid/close show clod relief on the mud slope and bank. marsh_close is mostly water, so it shows little. Crop-pair: PunchyMilestones/river-audit/crop-pair-banks.jpg.
+- Side effect: also applies to peat, silt, dark ash sand, obsidian (all dark and smooth). Bright sand, snow and salt are unchanged.
+- BENCH-QUEUE: TerrainSurface micro octaves now run on mud/peat ground (poison swamp, foggy marsh views), check frag cost vs 9d7eb6cf.
+
+## 11-19 materials/river-audit row 2: per-biome RiverBed colours
+- BiomeData.RiverBed: sand, bend sand and silt keep their brightness but take 60% of the biome ground's hue (new BedTone helper). Gravel was already biome-tinted. Colour values only.
+- Verified: compiles clean; Ashlands bed goes greyer, poison swamp bed purple-grey. Subtle in shots because the water tint and caustics dominate. Crop-pair: PunchyMilestones/river-audit/crop-pair-bed.jpg. Can raise to 0.8 if wanted.
+- BENCH-QUEUE: none (a few float ops per surface sample at mesh build).
