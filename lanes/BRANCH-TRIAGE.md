@@ -90,6 +90,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - render/262-tail -> #703
 - materials/shared-glint -> #704
 - banks/lava-far -> #706
+- world/w172-r7-tail -> #705
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
