@@ -45,11 +45,13 @@ namespace Punchy.Ambience
             {
                 ambientFrom = palette;
                 AmbientTables(palette);
+                SeepTables(palette);
                 leavesAt = new float3(float.MaxValue);
                 ventCellAt = new int2(int.MinValue);
             }
             FallingLeaves(eye);
             Vents(source, palette, eye);
+            Seeps(source, eye);
             RiverSpray(source, eye);
             RiverMist(source, eye);
             RiverLeaves(source, palette, eye);
@@ -217,6 +219,7 @@ namespace Punchy.Ambience
             ClearRiverSpray();
             ClearRiverMist();
             ClearRiverLeaves();
+            ClearSeeps();
             leavesAt = new float3(float.MaxValue);
             ventCellAt = new int2(int.MinValue);
         }

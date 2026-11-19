@@ -144,6 +144,38 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         g.age = 2 + r;
         return g;
     }
+    // W-142 seep: a positive drop with a run (outDir, m across per m down); age 8..9 carries the cooling to the fragment.
+    if (e.drop > 0 && any(e.outDir != 0))
+    {
+        float dLife = e.shape.w;
+        float dPhase = _PunchyClock / dLife + r;
+        float dCycle = floor(dPhase);
+        float dAge = frac(dPhase);
+        float d1 = EffectHash(dCycle * 0.618 + r * 13.1), d2 = EffectHash(dCycle * 0.377 + r * 7.9);
+        float hang = 0.45;
+        float slide = saturate((dAge - hang) / (1 - hang));
+        float down = e.drop * slide * slide;
+        float2 run = e.outDir;
+        float2 side = normalize(abs(run.x) + abs(run.y) > 0.01 ? float2(-run.y, run.x) : float2(0, 1));
+        float3 path = normalize(float3(run.x, -1, run.y));
+        float3 dAt = e.position + float3(side.x, 0, side.y) * (d1 - 0.5) * e.shape.y + float3(run.x, -1, run.y) * down;
+        float swell = dAge < hang ? lerp(0.35, 1.0, dAge / hang) : lerp(1.0, 0.6, slide);
+        float dSize = e.shape.z * swell * lerp(0.8, 1.2, d2);
+        float stretch = 1 + 2.5 * slide;
+        float dAlpha = e.timing.z * smoothstep(0, 0.1, dAge) * (1 - smoothstep(0.92, 1, dAge)) * step(k, e.timing.w - 1);
+        float dReach = max(e.drop, e.shape.y) * _PunchyPlumeReach;
+        dAlpha *= 1 - smoothstep(dReach * 0.8, dReach, distance(dAt, GetCameraPositionWS()));
+        float3 toCam = normalize(GetCameraPositionWS() - dAt);
+        float3 dRight = cross(path, toCam);
+        dRight = length(dRight) > 1e-3 ? normalize(dRight) : UNITY_MATRIX_V[0].xyz;
+        float2 dCorner = EffectCorner[vertex];
+        PlumeVertex d;
+        d.positionWS = dAt + (dRight * dCorner.x + path * dCorner.y * stretch) * dSize * step(0.001, dAlpha);
+        d.uv = dCorner;
+        d.alpha = dAlpha;
+        d.age = 8 + slide * 0.99;
+        return d;
+    }
     if (e.drop > 0)
     {
         float leafLife = e.shape.w;

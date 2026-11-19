@@ -36,7 +36,7 @@ Shader "Punchy/Landmark Plume"
                 float alpha : TEXCOORD2;
                 float4 screen : TEXCOORD3;
                 nointerpolation uint emitter : TEXCOORD4;
-                nointerpolation float age : TEXCOORD5;   // negative: a bubble, above 1.5: a leaf, above 3.5: river churn (see BuildPlume)
+                nointerpolation float age : TEXCOORD5;   // negative: a bubble, above 1.5: a leaf, above 3.5: river churn, above 7.5: a seep's bead (see BuildPlume)
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
@@ -79,6 +79,21 @@ Shader "Punchy/Landmark Plume"
                     if (a >= 0.6)
                         bubbleLit = lerp(e.color.rgb * 0.3, bubbleLit * 1.2, crest / max(crest + trough, 1e-3));
                     return half4(PunchyAtmosphere(bubbleLit, input.positionWS), bubbleAlpha);
+                }
+                // A seep's bead hugs its rock: a short depth fade, not the puffs' metre.
+                if (input.age > 7.5)
+                {
+                    float cool = input.age - 8;
+                    float rr = dot(input.uv, input.uv);
+                    float core = 1 - smoothstep(0.0, 0.35, rr);
+                    float rim = 1 - smoothstep(0.2, 1.0, rr);
+                    float2 beadUV = input.screen.xy / input.screen.w;
+                    float beadDepth = LinearEyeDepth(SampleSceneDepth(beadUV), _ZBufferParams);
+                    half beadAlpha = rim * input.alpha * saturate((beadDepth - input.positionCS.w) / 0.08);
+                    clip(beadAlpha - 0.002);
+                    half3 hot = lerp(e.color.rgb, half3(1, 0.85, 0.45), core * (1 - cool));
+                    half3 beadColor = hot * e.color.a * lerp(1.0, 0.35, cool);
+                    return half4(PunchyAtmosphere(beadColor, input.positionWS), beadAlpha);
                 }
                 if (input.age > 3.5)
                 {
