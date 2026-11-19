@@ -2,6 +2,19 @@
 
 Newest first.
 
+## Request R-42 (render-2): shore foam water GPU, PASS (no cost)
+
+Merged #552 adc5830a (B) vs its first parent 0003a193 (A). Standing at the beach -4038,1.75,1077 facing west to the sea
+(the request gave no yaw), noon, Clear, 1920x1080 uncapped, 3 rounds alternated. Laptop GTX 1060 Max-Q. Spec q152.job.
+
+| gfx | A GPU by round | B GPU by round | A mean | B mean | B vs A |
+|---|---|---|---|---|---|
+| Medium | 18.9, (19.2), 19.3 | 19.1, 19.5, 18.3 | 19.10 | 18.97 | **-0.13 PASS** (budget +0.1) |
+| High | 22.5, 22.7, 30.7 | 23.1, 22.9, 22.6 | 25.30 | 22.87 | -2.43 (A r3 stalled); clean rounds A 22.6 vs B 22.9, +0.3 |
+
+- Medium is within noise: rounds overlap (18.3-19.5), so the constants-only change costs nothing measurable.
+- High: A's third round had a stall and reads 30.7 ms; without it A is 22.6 and B 22.9 (+0.3, inside the rounds' spread).
+- **Stalls on A, not B:** three of A's six games (0003a193, main before #552) froze for 56.5-57.6 s while settling at the stop, about 9-10 s in (Medium r2 also has a 6.3 s frame). None of B's games did. Same spot, same flags, so this is either something fixed on main between the two commits or chance; it is worth a look if 0003a193-era builds are benched again. The 57 s frames are not in the Medium mean (the report drops rounds with a frame over 5 s) but High r3's is.
 ## Main fails player builds since 50065032 (W-153 row 6, 11-17): world lane, please guard (Job 86 q150 stopped)
 
 `Assets/Game/Scripts/Terrain/Island/IslandV2.cs:593` calls `Punchy.Debugging.WaterTruth.Measure(source)`, but
