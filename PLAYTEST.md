@@ -321,3 +321,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #636 #301: stepping-stone rows across narrow riffles, splash boulders with foam tails in rapids. Fauna pin 785BB213.
 - #637 W-166 (#336): driftwood shows coarse rings and long splits along the grain.
 - 11-18 #638 banks/splash-round (#301): the pillar rock in the rapids is now a low worn block; splash boulders are rounder.
+- 11-18 #639 world/fall-flank (#301): waterfall flank steps start 2.5-4 m from the sheet; the first ~2.5 m is still a straight cut (partial).
