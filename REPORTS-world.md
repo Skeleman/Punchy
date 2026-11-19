@@ -8834,3 +8834,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - New CliffKitLedgeFeedSystem feeds baked cliff and cave lips within 6 m of a player into ClimbLedges and only changes its own slots. Live check: at a cave shelf the list held 2 grade-2 lips (depth 2.0); on a cliff top it held 2 grade-3 lips (cliff faces stay out of reach for humans by grade). A full hang was not tested in play.
 - WorldTests 22/22, water truth unchanged, no overlap with main e1d0db06 (#641). Expect Fauna_Fingerprint 1AC019EC after a rebase.
 - Shots (viewed): PunchyMilestones/world/cave-shelves/r3-ca|cb.png show two slabs on a cave wall. Ready for PR.
+
+## 11-18 W-181 r4 cave shelves look + hang test (world/w181-r4@3e070c83)
+- Shelves take the wall's own ground, tint and rock at their spot, with a chipped irregular lip, a taper and a darker underside; box collision kept, placement unchanged. r3 summary comments dropped (rule 35).
+- Full hang in play passes: jump from the cave floor, hang on a shelf lip, shimmy to the next lip, mantle, stand on top. No hang fix needed. The earlier failure was the editor's saved body being Crow (a flier, shared prefs; -body Human didn't override it), so I set Human at runtime only and left the pref as found.
+- WorldTests 22/22 (Fauna_Fingerprint 1AC019EC), landmarks 120 B32C5306, water truth unchanged.
+- Shots: PunchyMilestones/world/cave-shelves/r3-ca|cb.png (before) and r4-ca|cb.png (after, same pose). Ready for PR.
