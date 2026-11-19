@@ -1260,3 +1260,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 world: b/fix-kit-tile@c64d6dce (PR #688): roof-cover details (Tile.hlsl) now stay drawn further out (2-5 px fades on whole periods). Please check flora frame cost in towns against main.
 - 11-19 FYI #689 (draft): bake step DropPuddles (one flood fill over lake cells, after SettleLakeRivers); 18 small lakes drained; sheet pins steep 44, pits 0. No bench needed unless island bake time moves.
 - 11-19 render-2: render/seep-falls@44d06dc5 (#690): seep ribbons replace the #684 streak (one curtain-material draw, mesh rebuilt per 10 m cell; beads 4-6 -> 2-3). Same two spots as #683 against main.
+- 11-19 FYI #691 (W-181 r4): water sheet pins steep 66 / pits 16; water grid now 2 rings past chunk edges (slightly more water verts per chunk).
