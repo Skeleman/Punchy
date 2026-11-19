@@ -453,3 +453,10 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - The fine per-pixel dot pattern up close is also in the before shot, so it is not from this change.
 - BENCH-QUEUE: PLATED trunk ALU, near only (2 extra cell lookups plus about 7 noise taps). Compare against main on a pine-forest close view.
 - Note: an FXC crash under low RAM left Flora flat blue. Fixed by force-reimporting Flora.shader.
+
+## 11-19 W-181 row 4 - DONE, PR #691 (materials/w181-flat-edge)
+- BuildWater: dry vertices in closed bank pits fill flat at the neighbour level (PitFill), so the sheet ends at the ground. Open drops keep the tuck, so nothing hangs (#581). Two-ring padded grid at chunk borders.
+- On top of row 3: steep 69 -> 66, pits 19 -> 16 (all at -2018,-1070). Gaps and hangs stay 0. Over-bank at -2018 up about 113 (flat water now shows in closed pits). Baseline re-pinned (66,16).
+- Rule 35: Water_SheetSlopes summary and WaterTruth Sheet line trimmed to one reason line each.
+- WorldTests 23/23. Shots in PunchyMilestones/water-flat-edge (subtle at shot scale).
+- Note: an earlier bad push to this branch (a221f0de, it reverted #686-#688) was force-overwritten before any PR opened; the PR diff is 3 files.
