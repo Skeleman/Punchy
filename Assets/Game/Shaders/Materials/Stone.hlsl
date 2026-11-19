@@ -42,7 +42,7 @@ half PunchyStoneRidge(half b, half fade) { half r = 1 - abs(b * 2 - 1); return l
 // The stone's surface at p: changes albedo and n, and gives the crevice amount (0 on edges, 1 deep down) for the
 // lighting below. wet from PunchyStoneWetness; rainWet is the wetness the caller's own wet darkening already applies.
 // speckScale (0..1) scales the pale mineral specks: the library passes less on very dark rock (the salt tower's
-// basalt), where a fixed pale speck reads as a star; the form below without it keeps every other caller at 1.
+// basalt), where a fixed pale speck reads as a star; the form below without it scales by the albedo the same way.
 void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout half3 albedo, inout half3 n, out half crevice,
                         half speckScale)
 {
@@ -71,9 +71,12 @@ void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout
     half lum = dot(albedo, half3(0.3, 0.59, 0.11));
     albedo = lerp(albedo, albedo * half3(0.45, 0.36, 0.28), crevice * 0.85);
     albedo = lerp(albedo, lum * half3(1.35, 1.25, 1.05), edge * 0.55);
-    float3 cell = floor(p * 30);
-    half speck = step(0.965, frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453)) * PunchyStoneFade(0.07, footprint);
-    albedo = lerp(albedo, half3(0.86, 0.84, 0.78), speck * 0.6 * speckScale * (1 - crevice));
+    // A soft round speck jittered inside its cell: a hard step on the cell read as square flecks cut through the voxels.
+    float3 cp = p * 30;
+    float hs = frac(sin(dot(floor(cp), float3(12.9898, 78.233, 37.719))) * 43758.5453);
+    float3 at = 0.25 + 0.5 * frac(hs * float3(71.3, 157.1, 293.7));
+    half speck = step(0.965, hs) * (1 - smoothstep(0.06, 0.2, length(frac(cp) - at))) * PunchyStoneFade(0.07, footprint);
+    albedo = lerp(albedo, half3(0.86, 0.84, 0.78), speck * 0.45 * speckScale * (1 - crevice));
     albedo *= 1 - 0.35 * saturate(-n.y) * f1;
     // Forced wetness (debug) on dry ground: the darkening rain would have brought (the caller's own covers real wet).
     albedo *= lerp(1, 0.62, saturate(wet - rainWet));
@@ -81,7 +84,13 @@ void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout
 
 void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout half3 albedo, inout half3 n, out half crevice)
 {
-    PunchyStoneSurface(p, footprint, wet, rainWet, albedo, n, crevice, 1);
+    PunchyStoneSurface(p, footprint, wet, rainWet, albedo, n, crevice, smoothstep(0.1, 0.3, dot(albedo, half3(0.3, 0.59, 0.11))));
+}
+
+// Spray-wet cliffs read damp and dark, not streaked: steep faces keep a third of the glint, flat rims all of it.
+half PunchyStoneSteepDamp(half3 n)
+{
+    return 1 - 0.7 * smoothstep(0.3, 0.8, 1 - abs(n.y));
 }
 
 // The wet stone's two specular lobes from one light (times the light's colour and shadow): a broad one on the relief's
@@ -92,7 +101,7 @@ half PunchyStoneSpec(half3 n, half3 n0, half3 v, half3 l, half crevice, half wet
     half3 h = SafeNormalize(l + v);
     half3 bent = normalize(n + (n - n0) * 0.8);
     half broad = pow(saturate(dot(n, h)), 12) * 0.22;
-    half sharp = pow(saturate(dot(bent, h)), 90) * 1.1;
+    half sharp = pow(saturate(dot(bent, h)), 90) * 1.1 * PunchyStoneSteepDamp(n0);
     return (broad + sharp) * saturate(dot(n, l) * 4) * (1 - 0.8 * crevice) * wet;
 }
 
@@ -100,7 +109,7 @@ half PunchyStoneSpec(half3 n, half3 n0, half3 v, half3 l, half crevice, half wet
 // direction). Nothing when dry.
 half PunchyStoneFresnel(half3 n, half3 v, half crevice, half wet)
 {
-    return (0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5)) * 0.5 * (1 - 0.8 * crevice) * wet;
+    return (0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5)) * 0.5 * (1 - 0.8 * crevice) * wet * PunchyStoneSteepDamp(n);
 }
 
 // W-166 row 3: built stone (MaterialFamily.Stone), the one look for cut and rubble stone laid on top of the surface
@@ -171,7 +180,9 @@ float PunchyStoneRubble(float2 uv, float seed, out float2 toMiddle, out float2 c
 /// the doming); rubble picks the packed look over the cut courses; r is the piece's own random (0..1).
 half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, half r)
 {
-    half fade = PunchyStoneFade(rubble ? 0.22 : 0.34, footprint);
+    half period = rubble ? 0.22 : 0.34;
+    half fade = smoothstep(1.5, 4, period / max(footprint, 1e-5));
+    half fine = PunchyStoneFade(period, footprint);
     if (fade <= 0)
         return 1;
     float seed = r * 53;
@@ -179,6 +190,9 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
     float3 t, bt;
     PunchyStoneFrame(p + r * 41, n, uv, t, bt);
     half mortar = rubble ? 0.011 : 0.006;   // half a joint's width (m)
+    // Joints thinner than a pixel draw a pixel wide, as dark as the share of it they cover.
+    half drawn = max(mortar, footprint * 0.3);
+    half cover = sqrt(mortar / drawn);
     half joint, h;
     float edge;
     half2 lean;
@@ -186,7 +200,7 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
     {
         float2 toMiddle, cell;
         edge = PunchyStoneRubble(uv, seed, toMiddle, cell);
-        joint = 1 - smoothstep(mortar - footprint * 0.5, mortar + footprint * 0.5, edge);
+        joint = 1 - smoothstep(drawn - footprint * 0.5, drawn + footprint * 0.5, edge);
         h = PunchyStoneHash(cell + seed + 5.3);
         // Domed: the face leans away from each stone's middle, most near its edge.
         lean = -toMiddle / 0.17 * 0.5 * (1 - joint);
@@ -196,14 +210,14 @@ half3 PunchyStoneBlocks(float3 p, inout half3 n, float footprint, bool rubble, h
         float2 side, cell;
         float2 d = PunchyStoneCourse(uv, seed, side, cell);
         edge = min(d.x, d.y);
-        joint = 1 - smoothstep(mortar - footprint * 0.5, mortar + footprint * 0.5, edge);
+        joint = 1 - smoothstep(drawn - footprint * 0.5, drawn + footprint * 0.5, edge);
         h = PunchyStoneHash(cell + seed + 5.3);
         // The softened arrises lean their light into the joints; each block's face pitched a touch its own way.
         lean = (1 - smoothstep(mortar, mortar + 0.025, d)) * step(mortar, d) * side * 0.45
              + (float2(h, PunchyStoneHash(cell + seed + 9.1)) - 0.5) * 0.08;
     }
-    joint *= fade;
-    lean *= fade;
+    joint *= fade * cover;
+    lean *= fine;
     n = normalize(n + t * lean.x + bt * lean.y);
     // Each stone its own shade (rubble more, gathered from many beds), a little warmer or cooler.
     half3 tint = rubble ? lerp(half3(0.72, 0.74, 0.79), half3(1.2, 1.16, 1.08), h) : lerp(half3(0.84, 0.85, 0.88), half3(1.12, 1.1, 1.05), h);

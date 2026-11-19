@@ -45,7 +45,8 @@ namespace Punchy.Terrain
         Fence,
         /// <summary>Where a road leaves the settlement, beside it: no building, just the Gate anchor's spot (signposts
         /// stand only at forks, F-43).</summary>
-        Gate
+        Gate,
+        Field
     }
 
     /// <summary>One kind of building a settlement puts on its plots.</summary>

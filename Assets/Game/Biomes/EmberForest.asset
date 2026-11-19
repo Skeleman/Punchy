@@ -32,8 +32,9 @@ MonoBehaviour:
   TerraceSteps: 0
   WindDirection: 140
   Rainfall: 0.02
+  Stone: 9
   WaterMurk: 0
-  WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
+  WaterColor: {r: 0.2, g: 0.18, b: 0.13, a: 1}
   WaterGlow: 0
   WaterLava: 0
   Weather:
@@ -113,6 +114,10 @@ MonoBehaviour:
   ClearingAmount: 0.5
   ClearingSize: 120
   Flora:
+  - Species: {fileID: 11400000, guid: fcde927f0de144f6977fff160e2b0c18, type: 2}
+    Density: 4
+  - Species: {fileID: 11400000, guid: 4a533897587d4dc0b015686ff9274a55, type: 2}
+    Density: 3
   - Species: {fileID: 11400000, guid: aad56dff21ec19a43af656405f69f626, type: 2}
     Density: 0.45
   - Species: {fileID: 11400000, guid: e7e357f1fdf09a64386ed1b403a9b2e1, type: 2}

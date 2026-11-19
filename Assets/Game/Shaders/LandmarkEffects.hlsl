@@ -40,6 +40,7 @@ half3 PunchyEffectLight(LandmarkEmitter e, float3 p, half3 n, half3 sun, half3 s
     return lerp(light, dot(light, half3(0.3, 0.5, 0.2)) * half3(0.82, 0.95, 1.12), 0.6) + half3(0.02, 0.03, 0.04);
 }
 uint _MaxParticles;
+float _PunchyPlumeReach; // metres of reach per metre of plume (LandmarkEffectSystem.PlumeGonePixels, rule 20)
 float4 _WaterfallGrid;   // columns, rows, the first emitter of the draw
 float2 _PunchyWindDirection;
 half _PunchyWind;
@@ -68,7 +69,9 @@ struct PlumeVertex
 };
 
 /// A puff: rises (fast, then slowing) to the emitter's height, spreading out, growing and drifting downwind.
-/// Puffs born outside an eruption stay hidden, so a geyser spouts and then falls quiet.
+/// Puffs born outside an eruption stay hidden, so a geyser spouts and then falls quiet. A plume with a flow (outDir) is
+/// river churn: foam streaks flat on the water along the flow, every fourth a small fleck hopping up, age 4+ and 6+. A plume with a drop is a falling
+/// leaf: a flat flake that flutters down from a new spot in the crown each cycle, its age 2 + its hash.
 PlumeVertex BuildPlume(uint vertex, uint instance)
 {
     uint index = instance / _MaxParticles;
@@ -103,6 +106,140 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         b.age = -max(bubbleAge, 0.001);
         return b;
     }
+    // A negative drop is a leaf afloat: it rides the flow (outDir, m/s) as its surface falls fall.w, or circles an eddy of signed radius fall.y.
+    if (e.drop < 0)
+    {
+        float fLife = e.shape.w;
+        float fPhase = _PunchyClock / fLife + r;
+        float fCycle = floor(fPhase);
+        float fAge = frac(fPhase);
+        float f1 = EffectHash(fCycle * 0.618 + r * 13.1), f2 = EffectHash(fCycle * 0.377 + r * 7.9), f3 = EffectHash(fCycle * 0.211 + r * 3.7);
+        float ft = fAge * fLife;
+        float2 fSpot;
+        if (e.fall.y != 0)
+        {
+            float ring = abs(e.fall.y) * lerp(0.3, 1.0, sqrt(f2)) * (1 + 0.15 * sin(ft * 0.3 + r * 6.2832));
+            float turn = f1 * 6.2832 + sign(e.fall.y) * ft * 0.22 / max(ring, 0.3);
+            fSpot = float2(cos(turn), sin(turn)) * ring;
+        }
+        else
+        {
+            float2 fFlow = normalize(e.outDir);
+            float2 fAcross = float2(-fFlow.y, fFlow.x);
+            fSpot = fAcross * ((f2 - 0.5) * 2 * e.shape.y + sin(ft * 0.7 + r * 6.2832) * 0.15) + e.outDir * ft;
+        }
+        float3 floatAt = e.position + float3(fSpot.x, 0.03 + 0.015 * sin(ft * 1.9 + r * 4.0) - e.fall.w * fAge, fSpot.y);
+        float yaw = f1 * 6.2832 + ft * (f3 < e.fall.z ? lerp(1.2, 2.6, f2) : 0.12) * (f1 < 0.5 ? -1 : 1);
+        float bob = 0.12 * sin(ft * 1.7 + r * 5.0);
+        float3 floatN = float3(sin(bob) * cos(yaw), cos(bob), sin(bob) * sin(yaw));
+        float3 floatRight = normalize(cross(floatN, float3(cos(yaw), 0, sin(yaw))));
+        float3 floatUp = cross(floatRight, floatN);
+        float floatAlpha = e.timing.z * smoothstep(0, 0.08, fAge) * (1 - smoothstep(0.88, 1, fAge)) * step(k, e.timing.w - 1);
+        floatAlpha *= 1 - smoothstep(0.8, 1, distance(floatAt, GetCameraPositionWS()) / max(e.shape.z * _PunchyPlumeReach, 1e-3));
+        float2 floatCorner = EffectCorner[vertex];
+        PlumeVertex g;
+        g.positionWS = floatAt + (floatRight * floatCorner.x * 0.6 + floatUp * floatCorner.y) * e.shape.z * lerp(0.8, 1.25, f3) * step(0.001, floatAlpha);
+        g.uv = floatCorner;
+        g.alpha = floatAlpha;
+        g.age = 2 + r;
+        return g;
+    }
+    // W-142 seep: a positive drop with a run (outDir, m across per m down); age 8..9 carries the cooling to the fragment.
+    if (e.drop > 0 && any(e.outDir != 0))
+    {
+        float dLife = e.shape.w;
+        float dPhase = _PunchyClock / dLife + r;
+        float dCycle = floor(dPhase);
+        float dAge = frac(dPhase);
+        float d1 = EffectHash(dCycle * 0.618 + r * 13.1), d2 = EffectHash(dCycle * 0.377 + r * 7.9);
+        float hang = 0.45;
+        float slide = saturate((dAge - hang) / (1 - hang));
+        float down = e.drop * slide * slide;
+        float2 run = e.outDir;
+        float2 side = normalize(abs(run.x) + abs(run.y) > 0.01 ? float2(-run.y, run.x) : float2(0, 1));
+        float3 path = normalize(float3(run.x, -1, run.y));
+        float3 dAt = e.position + float3(side.x, 0, side.y) * (d1 - 0.5) * e.shape.y + float3(run.x, -1, run.y) * down;
+        float swell = dAge < hang ? lerp(0.35, 1.0, dAge / hang) : lerp(1.0, 0.6, slide);
+        float dSize = e.shape.z * swell * lerp(0.8, 1.2, d2);
+        float stretch = 1 + 2.5 * slide;
+        float dAlpha = e.timing.z * smoothstep(0, 0.1, dAge) * (1 - smoothstep(0.92, 1, dAge)) * step(k, e.timing.w - 1);
+        float dReach = max(e.drop, e.shape.y) * _PunchyPlumeReach;
+        dAlpha *= 1 - smoothstep(dReach * 0.8, dReach, distance(dAt, GetCameraPositionWS()));
+        float3 toCam = normalize(GetCameraPositionWS() - dAt);
+        float3 dRight = cross(path, toCam);
+        dRight = length(dRight) > 1e-3 ? normalize(dRight) : UNITY_MATRIX_V[0].xyz;
+        float2 dCorner = EffectCorner[vertex];
+        PlumeVertex d;
+        d.positionWS = dAt + (dRight * dCorner.x + path * dCorner.y * stretch) * dSize * step(0.001, dAlpha);
+        d.uv = dCorner;
+        d.alpha = dAlpha;
+        d.age = 8 + slide * 0.99;
+        return d;
+    }
+    if (e.drop > 0)
+    {
+        float leafLife = e.shape.w;
+        float leafPhase = _PunchyClock / leafLife + r;
+        float leafCycle = floor(leafPhase);
+        float leafAge = frac(leafPhase);
+        float l1 = EffectHash(leafCycle * 0.618 + r * 13.1), l2 = EffectHash(leafCycle * 0.377 + r * 7.9), l3 = EffectHash(leafCycle * 0.211 + r * 3.7);
+        float2 leafSpot = float2(cos(l1 * 6.2832), sin(l1 * 6.2832)) * e.shape.y * sqrt(l2);
+        float t = leafAge * leafLife;
+        float sway = sin(t * (1.6 + l3) + r * 6.2832);
+        float2 swayDir = float2(cos(l2 * 6.2832 + 1.3), sin(l2 * 6.2832 + 1.3));
+        float2 leafDrift = (_PunchyWindDirection * (0.2 + _PunchyWind) * t * 0.35 + swayDir * sway * 0.45) * (1 - 0.85 * e.underRock);
+        float start = e.shape.x * l3;
+        float3 leafAt = e.position + float3(leafSpot.x + leafDrift.x, start - (start + e.drop) * leafAge + abs(sway) * 0.12, leafSpot.y + leafDrift.y);
+        float spin = t * (2.0 + 3.0 * l1) + r * 6.2832;
+        float tilt = sin(t * (2.3 + l2) + r * 4.0) * 1.2;
+        float3 leafN = float3(sin(tilt) * cos(spin), cos(tilt), sin(tilt) * sin(spin));
+        float3 leafRight = normalize(cross(leafN, abs(leafN.y) < 0.95 ? float3(0, 1, 0) : float3(cos(spin), 0, sin(spin))));
+        float3 leafUp = cross(leafRight, leafN);
+        float leafAlpha = e.timing.z * smoothstep(0, 0.06, leafAge) * (1 - smoothstep(0.9, 1, leafAge)) * step(k, e.timing.w - 1);
+        leafAlpha *= 1 - smoothstep(0.8, 1, distance(leafAt, GetCameraPositionWS()) / max(e.shape.z * _PunchyPlumeReach, 1e-3));
+        float2 leafCorner = EffectCorner[vertex];
+        PlumeVertex f;
+        f.positionWS = leafAt + (leafRight * leafCorner.x * (e.fall.x > 0 ? e.fall.x : 0.6) + leafUp * leafCorner.y) * e.shape.z * lerp(0.8, 1.25, l3) * step(0.001, leafAlpha);
+        f.uv = leafCorner;
+        f.alpha = leafAlpha;
+        f.age = 2 + r;
+        return f;
+    }
+    if (any(e.outDir != 0))
+    {
+        float cLife = e.shape.w;
+        float cPhase = _PunchyClock / cLife + r;
+        float cCycle = floor(cPhase);
+        float cAge = frac(cPhase);
+        float c1 = EffectHash(cCycle * 0.618 + r * 13.1), c2 = EffectHash(cCycle * 0.377 + r * 7.9);
+        float2 flow = normalize(e.outDir);
+        float2 across = float2(-flow.y, flow.x);
+        bool fleck = (k & 3u) == 0;
+        float2 spot = (flow * (c1 - 0.5) * 2.0 + across * (c2 - 0.5)) * e.shape.y + flow * length(e.outDir) * cAge * cLife;
+        float3 cAt = e.position + float3(spot.x, fleck ? 0.1 + e.shape.x * 4 * cAge * (1 - cAge) : 0.12, spot.y);
+        float cAlpha = e.timing.z * smoothstep(0, 0.15, cAge) * (1 - smoothstep(0.6, 1, cAge)) * step(k, e.timing.w - 1);
+        float3 cRight = UNITY_MATRIX_V[0].xyz, cUp = UNITY_MATRIX_V[1].xyz;
+        float cSize = e.shape.z * 0.3 * lerp(0.6, 1.2, c1);
+        float cStretch = 1;
+        if (!fleck)
+        {
+            cStretch = lerp(1.0, 1.5, c2);
+            cRight = float3(flow.x, 0, flow.y) * cStretch;
+            cUp = float3(across.x, 0, across.y);
+            cSize = e.shape.z * lerp(0.5, 0.9, c1) * (0.6 + 0.6 * cAge);
+        }
+        float cDist = distance(cAt, GetCameraPositionWS());
+        // W-159 row 4: each clump fades by its own size on screen (rule 20), not the whole emitter's spread.
+        float cReach = 2 * cSize * cStretch * _PunchyPlumeReach;
+        cAlpha *= (1 - smoothstep(cReach * 0.8, cReach, cDist)) * smoothstep(3, 10, cDist);
+        float2 cCorner = EffectCorner[vertex];
+        PlumeVertex c;
+        c.positionWS = cAt + (cRight * cCorner.x + cUp * cCorner.y) * cSize * step(0.001, cAlpha);
+        c.uv = cCorner;
+        c.alpha = cAlpha;
+        c.age = (fleck ? 6 : 4) + cAge * 0.99;
+        return c;
+    }
     float life = e.shape.w;
     float age = frac(_PunchyClock / life + r);
     float born = _PunchyClock - age * life;
@@ -115,7 +252,10 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
 
     float size = e.shape.z * (0.35 + 1.1 * age) * lerp(0.7, 1.3, EffectHash(r * 4.7));
     float alpha = e.timing.z * Eruption(e, born) * smoothstep(0, 0.12, age) * (1 - smoothstep(0.55, 1, age)) * step(k, e.timing.w - 1);
-    alpha *= 1 - smoothstep(600, 750, distance(centre, GetCameraPositionWS()));
+    // Fades out by the plume's own size on screen (rule 20), not at a fixed distance.
+    float plumeReach = max(max(e.shape.x, e.shape.y), e.shape.z) * _PunchyPlumeReach;
+    float camDist = distance(centre, GetCameraPositionWS());
+    alpha *= (1 - smoothstep(plumeReach * 0.8, plumeReach, camDist)) * smoothstep(size, size * 3, camDist);
 
     float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
     float2 corner = EffectCorner[vertex];

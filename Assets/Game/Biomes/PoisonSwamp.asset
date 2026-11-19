@@ -34,8 +34,9 @@ MonoBehaviour:
   TerraceSteps: 0
   WindDirection: 60
   Rainfall: 0.9
+  Stone: 8
   WaterMurk: 0.9
-  WaterColor: {r: 0.32, g: 0.55, b: 0.18, a: 1}
+  WaterColor: {r: 0.22, g: 0.25, b: 0.13, a: 1}
   WaterGlow: 0.35
   WaterLava: 0
   Weather:
@@ -115,6 +116,10 @@ MonoBehaviour:
   ClearingAmount: 0.3
   ClearingSize: 140
   Flora:
+  - Species: {fileID: 11400000, guid: fcde927f0de144f6977fff160e2b0c18, type: 2}
+    Density: 4
+  - Species: {fileID: 11400000, guid: 4a533897587d4dc0b015686ff9274a55, type: 2}
+    Density: 3
   - Species: {fileID: 11400000, guid: e8772a9d62ea3cb4faae30254ce1f08f, type: 2}
     Density: 1.2
   - Species: {fileID: 11400000, guid: a9cbbae6f97c066488f4202fc7884908, type: 2}
@@ -133,8 +138,22 @@ MonoBehaviour:
     Density: 3
   - Species: {fileID: 11400000, guid: 3c7b27ddec5340fcac441c3db29dfda5, type: 2}
     Density: 10
-  - Species: {fileID: 11400000, guid: 04db633efce24b6fb47ce0be40bd4f25, type: 2}
+  - Species: {fileID: 11400000, guid: 25af58feb2da4ea0b1abc7001e6045c8, type: 2}
     Density: 1
+  - Species: {fileID: 11400000, guid: 4cb9ffbd1b3e4a84a1262ed06c75180a, type: 2}
+    Density: 20
+  - Species: {fileID: 11400000, guid: 61c354ba10c8440b9ce034affd2f8689, type: 2}
+    Density: 10
+  - Species: {fileID: 11400000, guid: f4e0030e8f294bda89925c7b7f4735cc, type: 2}
+    Density: 25
+  - Species: {fileID: 11400000, guid: 7f9ea1c46076428aa1f4b509a75940ae, type: 2}
+    Density: 30
+  - Species: {fileID: 11400000, guid: fdf9a9b1d8f6491c9449b90d4fd43496, type: 2}
+    Density: 80
+  - Species: {fileID: 11400000, guid: 2aaebf32521a403bae551042363ddf91, type: 2}
+    Density: 14
+  - Species: {fileID: 11400000, guid: 3a218a5ae66043faaa41725ea427c58f, type: 2}
+    Density: 8
   Habitability: 0
   Cultures: 0
   Landmarks:

@@ -411,7 +411,7 @@ namespace Punchy.Settings
             => view.PixelsPerMetre > 0f ? Reach(size, pixels / math.max(view.Detail, 0.1f), view.PixelsPerMetre) : Reach(size, pixels, PixelsPerMetreAt(ReferenceFov));
 
         /// <summary>What a flora model is, for its rule (refactor 3.5c, from FloraModel.Static and the form).</summary>
-        public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure }
+        public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure, Field }
 
         /// <summary>
         /// Flora by class (refactor 3.5c / 3.3), the size being the bounding sphere's diameter times the plant's scale.
@@ -519,6 +519,8 @@ namespace Punchy.Settings
                 case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.
                 case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f, SharpShadow = float.MaxValue };
+                // Field rows are dense, so full rows only within about one field width.
+                case FloraClass.Field: return new Rule { Geometry = new Thresholds(1150f, 200f, 0f), Shadow = 14f, SharpShadow = 400f, WideShadow = Huge.WideShadow };
                 // Built things hold their reduced mesh far out: their outline is what shows.
                 default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f, SharpShadow = 400f, WideShadow = Huge.WideShadow };
             }

@@ -55,6 +55,18 @@ namespace Punchy.Terrain
         public float Length, MaxDrop, LayerSpan;
         public BlobArray<ScarpNode> Nodes;
         public BlobArray<ScarpLayer> Layers;
+        /// <summary>Shaped after settlement plots are levelled (a river notch's bank, W-153), not with the other scarps.</summary>
+        public bool Late;
+        /// <summary>The stone the scarp is cut through (StoneKind, W-166), from the biome at the middle of its face.
+        /// ScarpBake.Stone folds its row into Crack, Push and Setback; the rest is paint, kept as offsets so a
+        /// zeroed scarp paints as plain rock: the tone's tint less one, how much stronger the beds' light and dark
+        /// and the joints' grime read (0 as plain), and how much smoother the face is.</summary>
+        public byte Stone;
+        public float3 Tint;
+        public float Beds, Joints, Polish;
+        /// <summary>Shape offsets from the stone, 0 as plain (W-166 row 2b): how much wider apart its gullies run
+        /// (rib spacing, less one), and how much likelier a chimney is in each cell along the rim (jaggedness).</summary>
+        public float Gully, Chimneys;
     }
 
     public struct ScarpSetBlob
@@ -85,14 +97,14 @@ namespace Punchy.Terrain
         static bool Inside(float4 bounds, float2 xz) => math.all(xz >= bounds.xy) && math.all(xz <= bounds.zw);
 
         /// <summary>The ground with every scarp cut into it.</summary>
-        public static float Shape(ref ScarpSetBlob set, float2 xz, float h)
+        public static float Shape(ref ScarpSetBlob set, float2 xz, float h, bool late = false)
         {
             if (!Inside(set.Bounds, xz))
                 return h;
             for (int i = 0; i < set.Scarps.Length; i++)
             {
                 ref var sc = ref set.Scarps[i];
-                if (Inside(sc.Bounds, xz))
+                if (sc.Late == late && Inside(sc.Bounds, xz))
                     h = Shape(ref sc, xz, h);
             }
             return h;
@@ -253,14 +265,14 @@ namespace Punchy.Terrain
         public static float2 Slots(ref Scarp sc, in ScarpAt at, float3 cracks, float u, float bed)
         {
             float seed = sc.Seed % 977u * 1.37f;
-            float gully = math.abs(noise.snoise(new float2((at.S + 0.14f * u) / 22f, seed)));
+            float gully = math.abs(noise.snoise(new float2((at.S + 0.14f * u) / (22f * (1f + sc.Gully)), seed)));
             float joint = math.abs(noise.snoise(new float2((at.S - 0.08f * u) / 13f, seed + 31f + 7.3f * bed)));
             float open = math.lerp(0.4f, 0.12f, math.saturate(u / math.max(at.RimY - at.FootY, 1f)));
             float jointed = math.saturate(0.6f + 1.4f * math.sin(at.S * 0.07f + bed * 2.4f + seed));
             // Chimneys: about one cell in three along the rim has one, at its own place, width and slant.
             float scale = Scale(ref sc), cell = 16f * scale, c = math.floor(at.S / cell);
             float chimney = 0f;
-            if (Rand(sc.Seed, 7001, c, 0) > 0.65f)
+            if (Rand(sc.Seed, 7001, c, 0) > math.clamp(0.65f - sc.Chimneys, 0.3f, 0.95f))
             {
                 float mid = (c + 0.2f + 0.6f * Rand(sc.Seed, 7001, c, 1)) * cell;
                 float half = (0.5f + 1.1f * Rand(sc.Seed, 7001, c, 2)) * scale;

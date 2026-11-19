@@ -321,6 +321,37 @@ namespace Punchy.Debugging
             return new[] { turns.Count, turns[turns.Count - 1], turns[(int)(turns.Count * 0.99f)] };
         }
 
+        /// <summary>W-153: how many places the water breaks each rule of WaterTruth (one count per kind, in WaterTruth.Names order).</summary>
+        public static int[] WaterTruthCounts() => Source(out var s) ? WaterTruth.Measure(s).Counts : new int[WaterTruth.Kinds];
+
+        public static int DryFallFeet() => Source(out var s) ? WaterTruth.DryFallFeet(s) : -1;
+
+        /// <summary>W-153 row 6: counts in WaterTruth.Sheet order.</summary>
+        public static int[] WaterSheet(float x, float z, int radius)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var streaming = world?.GetExistingSystemManaged<TerrainStreamingSystem>();
+            if (streaming == null || !Source(out var s))
+                return new int[WaterTruth.SheetCounts];
+            using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
+            return query.TryGetSingleton<TerrainConfig>(out var config) ? WaterTruth.Sheet(s, streaming, config.ChunkSize, new float2(x, z), radius) : new int[WaterTruth.SheetCounts];
+        }
+
+        /// <summary>W-153: { borders checked, wet vertices compared, gaps over 5 cm, open ends, largest gap in mm }.</summary>
+        public static int[] WaterSeams(float x, float z, int radius)
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            var streaming = world?.GetExistingSystemManaged<TerrainStreamingSystem>();
+            if (streaming == null || !Source(out var s))
+                return new int[5];
+            using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<TerrainConfig>());
+            return query.TryGetSingleton<TerrainConfig>(out var config) ? WaterTruth.Seams(s, streaming, config.ChunkSize, new float2(x, z), radius) : new int[5];
+        }
+
+        /// <summary>W-153: the last WaterTruth run as text: counts, places and the worst few of each kind.</summary>
+        public static string WaterTruthReport(int worst) =>
+            WaterTruth.Last != null ? WaterTruth.Report(WaterTruth.Last, worst) : "not measured";
+
         /// <summary>Fireflies and butterflies per 100 m² over the critter tiles within radius of the player, and the tile count.</summary>
         public static Vector3 CritterDensity(float radius)
         {

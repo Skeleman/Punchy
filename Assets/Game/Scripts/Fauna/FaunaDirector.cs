@@ -302,6 +302,8 @@ namespace Punchy.Fauna
             WatchHouses(source);   // (A-105 -households: on a client too)
             WatchFarFolk(source);  // (A-109 row 2: the towns' far figures, on every machine)
             ServeTownExceptions(); // (A-110 row 6: the host sends the towns' dead, a joined client applies them)
+            ServeDungeonExceptions(); // (#24 phase 2 row 3: the same for dungeon residents)
+            ServeThefts();         // (A-134 row 3: the host or solo game judges takes, every client hears thefts)
             if (simWorld == null)
                 return;
             // A-83 (#62): the rest writes the simulation world (its clock, spawns and despawns), so it runs in
@@ -364,7 +366,8 @@ namespace Punchy.Fauna
                 using (ResidentsMarker.Auto())
                 {
                     SpawnResidents(source);
-                    SendMembersIn();       // (A-110 row 4: a member whose day takes it indoors goes in at its door)
+                    StepOwnersOut();       // (A-134 row 4: one at home who saw a theft steps out at its door)
+                    SendMembersIn();      // (A-110 row 4: a member whose day takes it indoors goes in at its door)
                     MembersLegs();         // (A-110 row 5: far members only follow their day, on low-rate legs)
                     SpawnMembers(source);  // (A-110 row 3: each town household member as itself)
                     SpawnCaveDwellers(source);
@@ -651,7 +654,7 @@ namespace Punchy.Fauna
             }
             else
                 e = em.CreateEntity(typeof(CreatureState), typeof(CreatureBody), typeof(CreatureMind));
-            Init(e, speciesIndex, position, yaw);
+            Init(e, speciesIndex, OffHole(position), yaw);
             ApplyBuild(em, e, true);
             return e;
         }
@@ -662,6 +665,14 @@ namespace Punchy.Fauna
         /// </summary>
         void Enqueue(int speciesIndex, float3 position, SpawnTier tier, System.Action<Entity> then = null, float yaw = float.NaN)
         {
+            // (A-135, #405: never on ground the hole mask removed, such as a goblin over a temple's entrance cut. Dropped,
+            // not moved: a dungeon resident's Pending stays set, so it isn't asked for again this session.)
+            if (built && CreatureMotion.OnHole(lastSource, position))
+            {
+                if (holeRejects++ < 3)
+                    Debug.Log($"[fauna] spawn on removed ground at ({position.x:F1}, {position.y:F1}, {position.z:F1}) ({tier}) left out");
+                return;
+            }
             pendingSpawns.Enqueue(new PendingSpawn { Species = speciesIndex, Position = position, Yaw = yaw, Tier = tier, Then = then });
             pendingTiers[(int)tier]++;
             switch (tier)
@@ -674,6 +685,30 @@ namespace Punchy.Fauna
                 case SpawnTier.Dungeon: dungeonCount++; break;
                 default: wildCount++; break;
             }
+        }
+
+        /// <summary>A-135: spawns left out for standing on removed ground (GroundHoles), this session.</summary>
+        public int HoleRejects => holeRejects;
+        int holeRejects;
+
+        /// <summary>
+        /// A-135: a point moved off ground the hole mask removed (cave mouth, temple entrance, scarp strip) to the nearest
+        /// clear ground within 16 m, for a spawn whose caller needs the creature made; unchanged when it's clear or nothing
+        /// clear is near.
+        /// </summary>
+        float3 OffHole(float3 at)
+        {
+            if (!built || !CreatureMotion.OnHole(lastSource, at))
+                return at;
+            for (var r = 1f; r <= 16f; r += 1f)
+                for (int k = 0; k < 12; k++)
+                {
+                    var a = k * (math.PI / 6f);
+                    var xz = at.xz + new float2(math.cos(a), math.sin(a)) * r;
+                    if (!GroundHoles.Removed(lastSource, xz))
+                        return new float3(xz.x, lastSource.SampleHeight(xz), xz.y);
+                }
+            return at;
         }
 
         /// <summary>

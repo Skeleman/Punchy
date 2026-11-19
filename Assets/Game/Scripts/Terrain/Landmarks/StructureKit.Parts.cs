@@ -12,22 +12,29 @@ namespace Punchy.Terrain
     /// </summary>
     public static partial class StructureKit
     {
+        /// <summary>Wrought iron's colour (KitMaterial.Iron): a dark blued grey, the same in every folk's trim.</summary>
+        internal static readonly Color IronColour = new Color(0.20f, 0.20f, 0.22f);
+
+        /// <summary>Colour's materials not listed in its switch (StructureKit.cs is past its size limit): Iron, else the wall.</summary>
+        static Color ColourOther(in CultureTrim t, KitMaterial m) => m == KitMaterial.Iron ? IronColour : t.Wall;
+
         /// <summary>The lantern head's glass at scale 1 (m): the size most hung lanterns already used.</summary>
-        static readonly Vector3 LanternGlass = new Vector3(0.24f, 0.32f, 0.24f);
+        internal static readonly Vector3 LanternGlass = new Vector3(0.24f, 0.32f, 0.24f);
 
         /// <summary>One piece of a part, placed in the part's frame.</summary>
         static void Put(List<KitPart> parts, KitPiece piece, KitMaterial m, Vector3 centre, Vector3 size, Quaternion rotation, bool solid) =>
             parts.Add(new KitPart { Piece = piece, Material = m, Centre = centre, Size = size, Rotation = rotation, Solid = solid });
 
-        /// <summary>
-        /// A wooden crate: a cube of <paramref name="size"/> centred on <paramref name="centre"/> and a lid band across
-        /// its top, the band turning with the crate.
-        /// </summary>
-        static void Crate(List<KitPart> parts, Vector3 centre, float size, float yaw, bool solid, float pitch = 0f)
+        internal static void Crate(List<KitPart> parts, Vector3 centre, float size, float yaw, bool solid, float pitch = 0f)
         {
             var q = Quaternion.Euler(pitch, yaw, 0f);
-            Put(parts, KitPiece.Trim, KitMaterial.Wood, centre, new Vector3(size, size, size), q, solid);
-            Put(parts, KitPiece.Trim, KitMaterial.Trim, centre + q * new Vector3(0f, size * 0.5f + 0.01f, 0f), new Vector3(size * 0.9f, 0.03f, 0.1f), q, false);
+            Put(parts, KitPiece.Trim, KitMaterial.Wood, centre + q * new Vector3(0f, -0.055f * size, 0f), new Vector3(size * 0.94f, size * 0.89f, size * 0.94f), q, solid);
+            Put(parts, KitPiece.Trim, KitMaterial.Wood, centre + q * new Vector3(0f, 0.445f * size, 0f), new Vector3(size, size * 0.11f, size), q, false);
+            for (var k = 0; k < 4; k++)
+            {
+                var corner = new Vector3((k & 1) == 0 ? -0.46f : 0.46f, -0.055f, (k & 2) == 0 ? -0.46f : 0.46f) * size;
+                Put(parts, KitPiece.Trim, KitMaterial.Wood, centre + q * corner, new Vector3(size * 0.1f, size * 0.89f, size * 0.1f), q, false);
+            }
         }
 
         /// <summary>
@@ -42,17 +49,17 @@ namespace Punchy.Terrain
         }
 
         /// <summary>
-        /// A hung lantern's head: a cap set at 45 degrees, the glass (<paramref name="glass"/>: Lamp, or Flame for one
-        /// turned low) centred on <paramref name="centre"/> and a drip tray under it. The site supplies what it hangs from.
+        /// A hung lantern's head: an iron cap set at 45 degrees, the glass (<paramref name="glass"/>: Lamp, or Flame for one
+        /// turned low) centred on <paramref name="centre"/> and an iron drip tray under it. The site supplies what it hangs from.
         /// </summary>
-        static void LanternHead(List<KitPart> parts, Vector3 centre, float yaw, KitMaterial glass = KitMaterial.Lamp, float scale = 1f, float roll = 0f)
+        internal static void LanternHead(List<KitPart> parts, Vector3 centre, float yaw, KitMaterial glass = KitMaterial.Lamp, float scale = 1f, float roll = 0f)
         {
             var q = Quaternion.Euler(0f, yaw, roll);
             var g = LanternGlass * scale;
-            Put(parts, KitPiece.Trim, KitMaterial.Trim, centre + q * new Vector3(0f, g.y * 0.5f + 0.04f * scale, 0f), new Vector3(g.x + 0.05f, 0.055f, g.z + 0.05f),
+            Put(parts, KitPiece.Trim, KitMaterial.Iron, centre + q * new Vector3(0f, g.y * 0.5f + 0.04f * scale, 0f), new Vector3(g.x + 0.05f, 0.055f, g.z + 0.05f),
                 q * Quaternion.Euler(0f, 45f, 0f), false);
             Put(parts, KitPiece.Window, glass, centre, g, q, false);
-            Put(parts, KitPiece.Trim, KitMaterial.Trim, centre - q * new Vector3(0f, g.y * 0.5f + 0.02f * scale, 0f), new Vector3(g.x + 0.03f, 0.04f, g.z + 0.03f), q, false);
+            Put(parts, KitPiece.Trim, KitMaterial.Iron, centre - q * new Vector3(0f, g.y * 0.5f + 0.02f * scale, 0f), new Vector3(g.x + 0.03f, 0.04f, g.z + 0.03f), q, false);
         }
     }
 }

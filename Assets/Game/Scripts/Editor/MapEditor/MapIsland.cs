@@ -81,6 +81,9 @@ namespace Punchy.EditorTools
             try
             {
                 var types = IslandV2System.LandmarkTypes(palette);
+                // M-07 r2b: the editor paints offsets over the unedited island, so it keys and bakes without the edits
+                // file (play mode bakes with it; switching between them costs one re-bake each way).
+                PaintedEdits.Suppress = true;
                 string key = IslandCache.Key(ref source, palette, types, version, out string reason);
                 // BuildSource laid out v1's places; the island replaces them, so free them first.
                 // (Free clears every island blob field and leaves the inputs: Biomes, BiomeCells, Heightmap.)
@@ -99,6 +102,7 @@ namespace Punchy.EditorTools
             }
             finally
             {
+                PaintedEdits.Suppress = false;
                 EditorUtility.ClearProgressBar();
             }
             error = null;

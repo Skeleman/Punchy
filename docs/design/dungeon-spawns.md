@@ -54,6 +54,9 @@ Sockets are written by the set pieces only (TempleSockets, CaveSockets); the spa
 | Temple chests | host lays out 1-3 items from the socket seed | `OpenChestRpc` / `ChestOpenedRpc` |
 
 Behaviours built: Drink at NearWater and Guard at NearChest (DungeonPostSystem, Burst, nudges brain modes).
+r5 adds, in that order after chest and water: Roost (bat at a Ceiling socket hangs there whenever its brain
+goes to roost), Patrol (walker on Passage/Doorway walks to the nearest passage socket 4-20 m off and back), Sleep
+(walker, not ghost, at Dark naps 40 s at the socket, up 30 s). Posts are built from the seed, so nothing new is sent.
 DungeonState gives quests each dungeon's name, entrance, creatures left, Cleared and marked chest.
 
 ## 4. Gap: dungeon creatures are not part of the one population (A-110)

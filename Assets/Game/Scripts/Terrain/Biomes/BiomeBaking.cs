@@ -91,6 +91,8 @@ namespace Punchy.Terrain
                     TerraceSteps = b.TerraceSteps,
                     Wind = new float2(math.sin(wind), math.cos(wind)),
                     Rainfall = b.Rainfall,
+                    Stone = (byte)b.Stone,
+                    Family = (byte)b.Family,
                     Water = new float4(b.WaterColor.linear.r, b.WaterColor.linear.g, b.WaterColor.linear.b, b.WaterMurk),
                     WaterGlow = b.WaterGlow,
                     WaterLava = b.WaterLava,
@@ -156,6 +158,7 @@ namespace Punchy.Terrain
                     Pebbles = s.Pebbles,
                     Strata = s.Strata,
                     Paving = s.Paving,
+                    Cracks = s.Cracks,
                     Snow = s.SnowDepth,
                     Porosity = s.Porosity
                 },

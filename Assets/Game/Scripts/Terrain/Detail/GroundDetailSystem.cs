@@ -429,8 +429,9 @@ namespace Punchy.Terrain
                 var ground = Source.SampleGround(xz);
                 var normal = Source.SampleNormal(xz, 1f);
                 var surface = Source.SampleSurface(xz, ground, normal);
-                // Nothing grows over a cave entrance, nor right at its edge (a blade there would hang over the opening).
-                var bare = Source.MouthCut(xz, ground.Height) < 0.15f;
+                // Nothing grows over a cave entrance or a temple's entrance cut, nor right at its edge (a blade there would
+                // hang over the opening; W-174 one hole mask).
+                var bare = GroundHoles.Edge(Source, xz, ground.Height) < 0.15f;
                 // W-155: nor on a scarp's stepped strip (the skin's, not the grid's) or within a cell of it, where
                 // heights interpolated across the step would leave blades and stones floating off the face.
                 // Past that margin blades and stones thin in over a ragged band rather than starting at a line (row 2b).

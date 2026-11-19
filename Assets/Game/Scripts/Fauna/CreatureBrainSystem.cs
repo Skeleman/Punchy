@@ -172,6 +172,12 @@ namespace Punchy.Fauna
         /// <summary>A-121: empty stand-ins for FireSpots in a world without the list (a job can't carry unmade ones).</summary>
         NativeArray<FireSpot> noFires;
         NativeParallelMultiHashMap<int2, int> noFireCells;
+        /// <summary>A-134: an empty stand-in for HouseDoors before the households are built.</summary>
+        NativeHashSet<int> noHouseDoors;
+        /// <summary>P-37 r3 row 2: an empty stand-in for WalkInWalls before its system has made it.</summary>
+        WalkInWalls noWalkIn;
+        /// <summary>How many walk-in boxes the footprints were baked with (a change: bake again, walk-ins included).</summary>
+        int footprintWalkInBoxes;
         /// <summary>A-70: settlements and landmarks are baked once a player is within this (m) of their edge: past the
         /// brain LOD's range, so a creature that thinks every frame near a player always finds its walls baked.</summary>
         const float FootprintRange = 200f;
@@ -195,6 +201,8 @@ namespace Punchy.Fauna
             spreadTicks = new NativeArray<long>(Unity.Jobs.LowLevel.Unsafe.JobsUtility.ThreadIndexCount * 3, Allocator.Persistent);
             noFires = new NativeArray<FireSpot>(0, Allocator.Persistent);
             noFireCells = new NativeParallelMultiHashMap<int2, int>(1, Allocator.Persistent);
+            noHouseDoors = new NativeHashSet<int>(1, Allocator.Persistent);
+            noWalkIn = WalkInWalls.Empty(Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -219,6 +227,9 @@ namespace Punchy.Fauna
                 noFires.Dispose();
             if (noFireCells.IsCreated)
                 noFireCells.Dispose();
+            if (noHouseDoors.IsCreated)
+                noHouseDoors.Dispose();
+            noWalkIn.Dispose();
         }
 
         /// <summary>A-70 row 2: adds the last brain job's spread over the workers to Spread, and clears it for this one.</summary>
@@ -254,10 +265,13 @@ namespace Punchy.Fauna
         BuildingFootprints FootprintsFor(ref SystemState state, in TerrainSource terrain, BlobAssetReference<FloraBlob> flora, bool hasFlora,
                                       NativeArray<float3> players)
         {
+            // P-37 r3 row 2: walk-in houses' walls (empty until WalkInWallsSystem has the flora models, or on a world without them).
+            var walkIn = SystemAPI.TryGetSingleton<WalkInWalls>(out var w) && w.Boxes.IsCreated && w.Models.IsCreated && w.OpenDoors.IsCreated ? w : noWalkIn;
             // (Off, the brain still gets the containers: a job can't carry unmade ones.)
             if (!hasFlora || BuildingFootprints.Off.Data != 0)
-                return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = false };
-            if (terrain.Settlements != footprintTownBlob || terrain.Landmarks != footprintLandmarkBlob || flora != footprintFloraBlob)
+                return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = false, WalkIn = walkIn };
+            if (terrain.Settlements != footprintTownBlob || terrain.Landmarks != footprintLandmarkBlob || flora != footprintFloraBlob ||
+                walkIn.Boxes.Length != footprintWalkInBoxes)
             {
                 // (A re-bake or a new flora table: what was placed is stale. Rare, so waiting on the brain here is fine.)
                 state.Dependency.Complete();
@@ -269,6 +283,7 @@ namespace Punchy.Fauna
                 footprintTownBlob = terrain.Settlements;
                 footprintLandmarkBlob = terrain.Landmarks;
                 footprintFloraBlob = flora;
+                footprintWalkInBoxes = walkIn.Boxes.Length;
             }
             var towns = new NativeList<int>(Allocator.TempJob);
             var landmarks = new NativeList<int>(Allocator.TempJob);
@@ -317,14 +332,15 @@ namespace Punchy.Fauna
                     LandmarkInstances = landmarks.AsArray(),
                     Plots = footprintPlots,
                     Landmarks = footprintLandmarks,
-                    Props = footprintProps
+                    Props = footprintProps,
+                    WalkIn = walkIn
                 }.Schedule(state.Dependency);
             }
             towns.Dispose(state.Dependency);
             landmarks.Dispose(state.Dependency);
             BuildingFootprints.Stats.Data.x = footprintTowns.Count;
             BuildingFootprints.Stats.Data.y = footprintLandmarkSet.Count;
-            return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = true };
+            return new BuildingFootprints { Plots = footprintPlots, Landmarks = footprintLandmarks, Props = footprintProps, On = true, WalkIn = walkIn };
         }
 
         [BurstCompile]
@@ -417,6 +433,7 @@ namespace Punchy.Fauna
                 Footprints = footprints,
                 Fires = SystemAPI.TryGetSingleton<FireSpots>(out var fires) && fires.Spots.IsCreated && fires.Cells.IsCreated
                     ? fires : new FireSpots { Spots = noFires, Cells = noFireCells, On = false },
+                HouseDoors = SystemAPI.TryGetSingleton<HouseDoors>(out var houseDoors) && houseDoors.Anchors.IsCreated ? houseDoors.Anchors : noHouseDoors,
                 ColossusColumns = colossi.Columns,
                 ColossusCircles = colossi.Circles,
                 ColossusRanges = colossi.Ranges,
@@ -513,6 +530,9 @@ namespace Punchy.Fauna
             public BuildingFootprints Footprints;
             /// <summary>A-121: the fires walkers keep out of (FireSpotSystem's list, by 16 m cell).</summary>
             public FireSpots Fires;
+            /// <summary>A-134 row 1: the Door anchors that are households' own (FaunaDirector's HouseDoors): FindDoor
+            /// keeps a folk with no house out of them.</summary>
+            [ReadOnly] public NativeHashSet<int> HouseDoors;
             /// <summary>A-77: the colossi's columns, each colossus's circle (xy centre, z reach) and its run of columns
             /// (ColossusCollision.Snapshot, a frame old): Steer bends a ground walker's way round them.</summary>
             [ReadOnly] public NativeArray<ColossusCylinder> ColossusColumns;

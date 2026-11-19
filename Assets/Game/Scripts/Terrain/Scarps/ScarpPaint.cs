@@ -91,7 +91,11 @@ namespace Punchy.Terrain
             float drift = 0.5f + 0.5f * noise.snoise(new float2(at.S / 70f, seed + 3f + layer));
             float lum = Lum(b.Ground);
             b.RockBase = math.lerp(b.Ground, new float3(lum, lum, lum) * new float3(1.04f, 1f, 0.94f), 0.35f);
-            float bright = math.lerp(0.86f, 1.14f, math.smoothstep(0.3f, 0.7f, b.Hard)) * (0.94f + 0.12f * drift);
+            // W-166: the stone the scarp is cut through tints the rock (pale limestone, dark basalt), and blocky,
+            // bedded stone shows its hard and soft beds more strongly than smooth stone.
+            b.RockBase *= 1f + sc.Tint;
+            float bright = (1f + (1f + sc.Beds) * (math.lerp(0.86f, 1.14f, math.smoothstep(0.3f, 0.7f, b.Hard)) - 1f))
+                           * (0.94f + 0.12f * drift);
             var tint = 1f + 0.07f * (b.Pick - 0.5f) * new float3(1f, 0.1f, -1f);
             b.Tone = b.RockBase * bright * tint;
             return b;
@@ -121,7 +125,7 @@ namespace Punchy.Terrain
             // Slots (gullies, joints) and overhang undersides are a little darker: the light already shades them,
             // so this only adds the grime that collects there.
             var slot = ScarpSet.Slots(ref sc, at, cracks, u, bed);
-            float shade = math.saturate(0.8f * slot.x + 0.6f * hard * slot.y);
+            float shade = math.saturate(0.8f * slot.x + 0.6f * (1f + sc.Joints) * hard * slot.y);
             float under = math.smoothstep(-0.05f, -0.5f, normal.y);
             albedo *= 1f - 0.22f * shade - 0.15f * under;
 
@@ -164,7 +168,7 @@ namespace Punchy.Terrain
 
             var painted = surface;
             painted.Albedo = albedo;
-            painted.Smoothness = surface.Smoothness + 0.05f * streaks;
+            painted.Smoothness = surface.Smoothness + 0.05f * streaks + sc.Polish;
             painted.Grass = math.max(surface.Grass, ledge);
             painted.Strata = 0f;
             // The paint fades in from the seams, except the turf cap, which runs right to the rim, and the toe, which

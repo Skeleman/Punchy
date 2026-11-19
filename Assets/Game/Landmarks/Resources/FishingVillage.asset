@@ -137,6 +137,46 @@ MonoBehaviour:
     Angle: 0
     Clearance: 0
     Trodden: 0
+  - Species: {fileID: 11400000, guid: cdbf3b6fcef344998056d8f359a73bf0, type: 2}
+    Density: 5
+    Ring: {x: 0.28, y: 0.28}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 140
+    Clearance: 3
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: cdbf3b6fcef344998056d8f359a73bf0, type: 2}
+    Density: 5
+    Ring: {x: 0.28, y: 0.28}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: -150
+    Clearance: 3
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: e8bd80d4bfd2437ebf4247bff915f3e6, type: 2}
+    Density: 5
+    Ring: {x: 0.45, y: 0.45}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: 105
+    Clearance: 3
+    Trodden: 0
+  - Species: {fileID: 11400000, guid: e8bd80d4bfd2437ebf4247bff915f3e6, type: 2}
+    Density: 5
+    Ring: {x: 0.45, y: 0.45}
+    Scale: {x: 1, y: 1}
+    Centrepiece: 0
+    FaceCentre: 1
+    Count: 1
+    Angle: -115
+    Clearance: 3
+    Trodden: 0
   Fixtures:
   - Species: {fileID: 11400000, guid: 2f1649c1b2614c74cbad9750bd741a6d, type: 2}
     Spot: 2

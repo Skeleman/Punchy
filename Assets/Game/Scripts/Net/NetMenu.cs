@@ -390,6 +390,18 @@ namespace Punchy.Net
                 wasInGame = true;
                 GameBootstrap.JoiningSince = -1f;
                 lostAt = -1f;
+                ConnectionLogSystem.VersionRefused = false;
+                return;
+            }
+            // A host on another build drops the join at once (P-35 r3 row 4: ghost and RPC changes make old builds
+            // incompatible): say that, not "couldn't reach" after the timeout.
+            if (!wasInGame && ConnectionLogSystem.VersionRefused)
+            {
+                ConnectionLogSystem.VersionRefused = false;
+                Notify("Can't join: the host runs a different version of the game. Both need the same build.", 10f);
+                GameBootstrap.JoiningSince = -1f;
+                RelaySessions.Forget();
+                GameBootstrap.PlaySolo();
                 return;
             }
             // A join that never gets through (wrong address, host not running, blocked) gives up rather than

@@ -13,7 +13,7 @@ namespace Punchy.Flora
         delegate void PartBuild(Grower g, UnitFrame f, UnitPart p);
 
         /// <summary>The part library: id to builder. Units name parts by these ids.</summary>
-        static readonly Dictionary<string, PartBuild> PartLibrary = new Dictionary<string, PartBuild>
+        static readonly Dictionary<string, PartBuild> PartLibrary = WithBuildParts(new Dictionary<string, PartBuild>
         {
             ["pole"] = Pole,
             ["post"] = Post,
@@ -25,11 +25,21 @@ namespace Punchy.Flora
             ["chimney stack"] = ChimneyStack,
             ["anvil"] = Anvil,
             ["hide tent"] = HideTent,
+            ["guy ropes"] = GuyRopes,
             ["door mat"] = DoorMatPart,
             ["fire ring"] = FireRing,
             ["log tepee"] = LogTepee,
             ["embers"] = Embers,
-        };
+            ["unit"] = NestedUnit,
+        });
+
+        /// <summary>Adds the row 5 building parts (FloraGenerator.Parts.Build) to the library.</summary>
+        static Dictionary<string, PartBuild> WithBuildParts(Dictionary<string, PartBuild> library)
+        {
+            AddBuildParts(library);
+            AddCastleParts(library);
+            return library;
+        }
 
         /// <summary>Every part library id (for the unit tests: each unit's parts must exist).</summary>
         public static IReadOnlyCollection<string> PartIds => PartLibrary.Keys;
@@ -46,47 +56,181 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// Draws a unit: grows its frame from the species (height from Height, width from Spread), then each part in
-        /// order. Each part starts from the form's own family (FormFamily) and names its own materials.
+        /// The parts drawn round the unit's origin rather than at their At (each is one round thing: a tent, a fire). Their
+        /// At moves them afterwards (Place), so a unit can stand a fire pit off-centre.
+        /// </summary>
+        static readonly HashSet<string> CentredParts = new HashSet<string> { "hide tent", "guy ropes", "fire ring", "log tepee", "embers", "unit" };
+
+        /// <summary>
+        /// Draws a unit: grows its frame from the species (height from Height, width from Spread or WidthOfHeight) or takes
+        /// its fixed Size, then each part in order. Each part starts from the form's own family (FormFamily) and names its
+        /// own materials; with PartStreams it draws from its own random stream. The frame sets the unit's bounds unless a
+        /// part is marked to (UnitPart.Bounds).
         /// </summary>
         static void BuildUnit(Grower g, UnitDef unit)
         {
             var b = g.B;
             var height = g.Range(g.S.Height);
-            var frame = new UnitFrame(height * g.S.Spread, height, unit.DepthOfWidth);
-            g.Height = height;
+            var frame = unit.Size.y > 0f ? UnitFrame.Sized(unit.Size)
+                      : new UnitFrame(height * (unit.WidthOfHeight > 0f ? unit.WidthOfHeight : g.S.Spread), height, unit.DepthOfWidth);
+            g.Height = frame.Height;
             g.Width = Mathf.Max(frame.Width, frame.Depth) * 1.3f;
             g.TrunkRadius = 0f;
-            foreach (var part in unit.Parts)
+            DrawParts(g, unit, frame, 0u, unit.PartStreams);
+        }
+
+        /// <summary>
+        /// Draws a unit's parts in order in a frame, each placed by Place. With streams, each part draws from its own
+        /// stream, salted for a nested unit (0 at the top, so coded units draw exactly as before).
+        /// </summary>
+        static void DrawParts(Grower g, UnitDef unit, UnitFrame frame, uint salt, bool streams, float wear = 0f)
+        {
+            var b = g.B;
+            foreach (var shared in unit.Parts)
             {
+                var part = shared;
+                part.Wear = Mathf.Max(part.Wear, wear);
                 b.Family = b.BaseFamily;
-                PartLibrary[part.Part](g, frame, part);
+                var mark = new PartMark(g);
+                if (streams)
+                    g.UsePartStream((int)Hash((uint)g.Seed ^ salt, StableHash(part.Part), (uint)part.Seed));
+                if (part.Part != null && PartLibrary.TryGetValue(part.Part, out var build))
+                    build(g, frame, part);
+                g.UseSharedStream();
+                Place(g, mark, frame, part);
             }
             b.Family = b.BaseFamily;
         }
 
-        /// <summary>A thin round timber pole from At (its foot) to To (its top), radius SpanMetres.x (a stall's posts, Z-30 grain).</summary>
-        static void Pole(Grower g, UnitFrame f, UnitPart p)
+        /// <summary>How deep nested units go (a unit that nests itself stops here).</summary>
+        const int MaxNesting = 4;
+        [System.ThreadStatic] static int nesting;
+
+        /// <summary>
+        /// W-175 row 6: a whole unit as one part (UnitPart.Unit, looked up in UnitLibrary). Its parts draw about the origin
+        /// in a frame Span in size, or the unit's own Size, or this unit's frame; Place then stands it at At, turned and
+        /// mirrored. A nested unit always uses part streams, salted by its id and the part's Seed, and ages at least to the part's Wear.
+        /// </summary>
+        static void NestedUnit(Grower g, UnitFrame f, UnitPart p)
         {
-            var r = f.Span(p).x;
-            g.B.Family = Timber(g);
-            g.B.Tube(new List<Vector3> { f.At(p), f.To(p) }, new List<float> { r, r }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            var unit = UnitLibrary.Find(p.Unit);
+            if (unit?.Parts == null || nesting >= MaxNesting)
+                return;
+            var span = f.Span(p);
+            var frame = span.y > 0f ? UnitFrame.Sized(span) : unit.Size.y > 0f ? UnitFrame.Sized(unit.Size) : f;
+            nesting++;
+            try
+            {
+                DrawParts(g, unit, frame, Hash(StableHash(p.Unit), (uint)p.Seed, 0x6E57u), true, p.Wear);
+            }
+            finally
+            {
+                nesting--;
+            }
         }
 
-        /// <summary>A heavy wooden post from At to To, radius Span.x at the foot and Span.y at the top (a shed's corner posts).</summary>
+        /// <summary>What a grower held before a part was drawn, so Place can move just that part's share.</summary>
+        readonly struct PartMark
+        {
+            public readonly int Vertices, Indices, Colliders, Boxes, Perches, Chimneys, Windows;
+
+            public PartMark(Grower g)
+            {
+                Vertices = g.B.VertexCount;
+                Indices = g.B.IndexCount;
+                Colliders = g.Colliders.Count;
+                Boxes = g.Boxes.Count;
+                Perches = g.Perches.Count;
+                Chimneys = g.Chimneys.Count;
+                Windows = g.Windows.Count;
+            }
+        }
+
+        /// <summary>
+        /// W-175 row 4: moves the part just drawn into place: a centred part to its At, then mirrored (x) and turned (Yaw)
+        /// about At, with its colliders, perches, chimney tops and windows. A part with none of these is left untouched
+        /// (not a single bit moves: the coded units' looks are pinned).
+        /// </summary>
+        static void Place(Grower g, in PartMark mark, UnitFrame f, in UnitPart p)
+        {
+            var at = f.At(p);
+            var offset = CentredParts.Contains(p.Part) ? at : Vector3.zero;
+            // (Exact zeros: Vector3 == is approximate.)
+            if (offset.x == 0f && offset.y == 0f && offset.z == 0f && !p.Mirror && p.Yaw == 0f)
+                return;
+            var turn = Quaternion.Euler(0f, p.Yaw, 0f);
+            var mirror = p.Mirror ? new Vector3(-1f, 1f, 1f) : Vector3.one;
+            Vector3 Move(Vector3 q) => at + turn * Vector3.Scale(q + offset - at, mirror);
+            Vector3 Turn(Vector3 n) => turn * Vector3.Scale(n, mirror);
+            g.B.Transform(mark.Vertices, Move, Turn);
+            if (p.Mirror)
+                g.B.FlipWinding(mark.Indices);
+            for (int k = mark.Colliders; k < g.Colliders.Count; k++)
+            {
+                var c = g.Colliders[k];
+                var centre = Move(new Vector3(c.x, 0f, c.y));
+                g.Colliders[k] = new Vector4(centre.x, centre.z, c.z, c.w + offset.y);
+            }
+            for (int k = mark.Boxes; k < g.Boxes.Count; k++)
+            {
+                var box = g.Boxes[k];
+                box.Centre = Move(box.Centre);
+                // A box is symmetric, so a mirror only turns it: its x axis's own direction doesn't matter, its yaw does.
+                var r = (Quaternion)box.Rotation;
+                if (p.Mirror)
+                    r = new Quaternion(r.x, -r.y, -r.z, r.w);
+                box.Rotation = turn * r;
+                g.Boxes[k] = box;
+            }
+            for (int k = mark.Perches; k < g.Perches.Count; k++)
+                g.Perches[k] = Move(g.Perches[k]);
+            for (int k = mark.Chimneys; k < g.Chimneys.Count; k++)
+                g.Chimneys[k] = Move(g.Chimneys[k]);
+            for (int k = mark.Windows; k < g.Windows.Count; k++)
+            {
+                var w = g.Windows[k];
+                var place = Move(new Vector3(w.x, w.y, w.z));
+                var facing = Turn(new Vector3(Mathf.Cos(w.w), 0f, Mathf.Sin(w.w)));
+                g.Windows[k] = new Vector4(place.x, place.y, place.z, Mathf.Atan2(facing.z, facing.x));
+            }
+        }
+
+        static void Pole(Grower g, UnitFrame f, UnitPart p)
+        {
+            var r = f.Span(p).x * 0.5f;
+            Vector3 foot = f.At(p), top = f.To(p);
+            g.B.Family = Timber(g);
+            g.B.Tube(new List<Vector3> { foot, top }, new List<float> { r, r }, g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+            SolidBox(g, (foot + top) * 0.5f, new Vector3(r * 2f, (top - foot).magnitude, r * 2f), Quaternion.FromToRotation(Vector3.up, top - foot));
+        }
+
+        // W-173: the collision is the art, as on the kit buildings (W-67).
+        static void SolidBox(Grower g, Vector3 centre, Vector3 size, Quaternion rotation)
+        {
+            if (g.Lod == 0)
+                g.Boxes.Add(new KitBox { Centre = centre, Half = size * 0.5f, Rotation = rotation, Reach = size.magnitude * 0.5f });
+        }
+
+        /// <summary>A heavy wooden post from At to To, Span.x across at the foot and Span.y at the top (a shed's corner posts).</summary>
         static void Post(Grower g, UnitFrame f, UnitPart p)
         {
-            var span = f.Span(p);
+            var span = f.Span(p) * 0.5f;
             g.B.Wood = true;
             g.B.Tube(new List<Vector3> { f.At(p), f.To(p) }, new List<float> { span.x, span.y }, g.Sides(6, 4, 3), g.Bark, FloraPart.Bark);
             g.B.Wood = false;
         }
 
-        /// <summary>A timber counter: a box centred on At, Span in size.</summary>
         static void Counter(Grower g, UnitFrame f, UnitPart p)
         {
+            var span = f.Span(p);
             g.B.Family = Timber(g);
-            g.B.Box(f.At(p), f.Span(p), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            if (g.B.TimberFamily == Punchy.Terrain.MaterialFamily.Wood)
+                g.B.Surface = (int)Punchy.Terrain.KitSurface.Planks;
+            g.B.Box(f.At(p), span, Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            // An overhanging top board gives the counter an edge that reads from the street.
+            g.B.Box(f.At(p) + Vector3.up * (span.y * 0.5f + 0.025f), new Vector3(span.x + 0.08f, 0.05f, span.z + 0.08f), Quaternion.identity, g.Bark * 0.7f, FloraPart.Bark);
+            g.B.Surface = 0;
+            SolidBox(g, f.At(p), span, Quaternion.identity);
         }
 
         /// <summary>
@@ -131,13 +275,15 @@ namespace Punchy.Flora
 
         /// <summary>
         /// A four-sided pyramid roof with a rounded eave (RoofTube), its eave at At's height, its apex at To (a perch), its
-        /// rim reaching past the larger of Span.x and Span.z (half width, half depth). In the species' foliage colour; the
-        /// roofing is the form's own family.
+        /// rim reaching past the larger of Span.x and Span.z (the width and depth it covers). In the species' foliage colour;
+        /// the roofing is the form's own family, or plaster (the smithy's) on a form with none (a timber stall's blueprint).
         /// </summary>
         static void PyramidRoof(Grower g, UnitFrame f, UnitPart p)
         {
             var b = g.B;
-            Vector3 eave = f.At(p), apex = f.To(p), span = f.Span(p);
+            if (b.BaseFamily == Family.None)
+                b.Family = Family.Plaster;
+            Vector3 eave = f.At(p), apex = f.To(p), span = f.Span(p) * 0.5f;
             var roof = b.VertexCount;
             RoofTube(b, eave.y - 0.2f, Mathf.Max(span.x, span.z) * 1.414f * 1.15f, 4, g.FoliageColor(), FloraPart.Bark, apex.y, 0.05f, 0f, 0f);
             RotateFrom(b, roof, Quaternion.Euler(0f, 45f, 0f));
@@ -201,19 +347,23 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// A hide tent's shell, the full height of the frame and its width across (a goblin's or an ogre's tent): poles
-        /// leaning in to cross under the apex, hide panels sagging between them (the +Z one left open as the doorway), and
-        /// stepped ring colliders that follow the slope. Poles and panels share their feet, so they are one part. Sets the
-        /// unit's bounds.
+        /// A hide tent's shell, Span.y tall and Span.x across, centred on At (a goblin's or an ogre's tent): poles leaning
+        /// in to cross under the apex, hide panels sagging between them (the +Z one left open as the doorway), and stepped
+        /// ring colliders that follow the slope. Poles and panels share their feet, so they are one part. With Bounds, sets
+        /// the unit's width and trunk from its own.
         /// </summary>
         static void HideTent(Grower g, UnitFrame f, UnitPart u)
         {
             var s = g.S;
             var b = g.B;
-            var height = f.Height;
-            var radius = f.Width * 0.5f;
-            g.Width = radius * 2.2f;
-            g.TrunkRadius = radius * 0.85f;
+            var span = f.Span(u);
+            var height = span.y;
+            var radius = span.x * 0.5f;
+            if (u.Bounds)
+            {
+                g.Width = radius * 2.2f;
+                g.TrunkRadius = radius * 0.85f;
+            }
 
             // Poles lean in to meet near the top, then poke out past it, a little crooked.
             var poles = Mathf.Max(3, g.Count(s.Branches));
@@ -299,22 +449,73 @@ namespace Punchy.Flora
                     g.Colliders.Add(new Vector4(apex.x * top / apex.y, apex.z * top / apex.y, radius * 0.95f * (1f - (top - 0.5f) / apex.y), top));
         }
 
-        /// <summary>A door mat (DoorMat) before a door facing +Z at At.z, Span.x the door's width; on about half the variants.</summary>
-        static void DoorMatPart(Grower g, UnitFrame f, UnitPart p) => DoorMat(g, f.At(p).z, f.Span(p).x);
+        static void GuyRopes(Grower g, UnitFrame f, UnitPart p)
+        {
+            if (g.Lod == 2)
+                return;
+            var b = g.B;
+            var span = f.Span(p);
+            var radius = span.x * 0.5f;
+            var apexY = span.y * 0.88f;
+            // Its own stream, so the shell and everything drawn after it keep their draws.
+            var rng = new System.Random((int)(((uint)g.S.Seed * 0x9E3779B9u ^ (uint)g.Variant * 0x85EBCA6Bu ^ 0x6E7u) & 0x7FFFFFFF));
+            float R(float lo, float hi) => lo + (float)rng.NextDouble() * (hi - lo);
+            var ropes = rng.NextDouble() < 0.5 ? 3 : 4;
+            var cord = Color.Lerp(g.Bark, new Color(0.62f, 0.54f, 0.4f), 0.55f);
+            var turn = R(0f, 360f / ropes);
+            for (int k = 0; k < ropes; k++)
+            {
+                var a = (turn + k * 360f / ropes + R(-12f, 12f)) % 360f;
+                if (Mathf.Abs(Mathf.DeltaAngle(a, 0f)) < 35f)
+                    a += 70f;
+                var dir = Quaternion.Euler(0f, a, 0f) * Vector3.forward;
+                var t = R(0.4f, 0.55f);
+                var tie = dir * radius * (1f - t) * 0.97f + Vector3.up * apexY * t;
+                var stake = dir * radius * R(1.5f, 1.8f);
+                var sag = Vector3.Lerp(tie, stake, 0.5f) + Vector3.down * radius * 0.03f;
+                b.Family = Family.Cloth;
+                b.Tube(new List<Vector3> { tie, sag, stake + Vector3.up * 0.18f }, new List<float> { 0.015f, 0.015f, 0.015f }, 3, cord, FloraPart.Bark);
+                b.Family = Timber(g);
+                b.Wood = true;
+                b.Tube(new List<Vector3> { stake - dir * 0.04f + Vector3.down * 0.1f, stake + dir * 0.06f + Vector3.up * 0.24f },
+                       new List<float> { 0.03f, 0.025f }, 4, g.Bark * 0.8f, FloraPart.Bark);
+                b.Wood = false;
+            }
+            b.Family = b.BaseFamily;
+        }
 
         /// <summary>
-        /// A fire ring of radius Span.y (a fire pit's): a sunken ash bed ringed by rough stones of varied size, each turned
-        /// its own way, and its collider. Sets the unit's bounds.
+        /// A door mat (DoorMat) before a door at At facing +Z (Yaw turns it), Span.x the door's width; on about half the
+        /// variants.
+        /// </summary>
+        static void DoorMatPart(Grower g, UnitFrame f, UnitPart p)
+        {
+            var at = f.At(p);
+            var first = g.B.VertexCount;
+            g.B.Family = Family.Cloth;   // W-166: a woven mat, whatever the building is
+            DoorMat(g, at.z, f.Span(p).x);
+            // (DoorMat draws at x = 0 on the ground; move it along only if At says so, so a centred mat keeps its bits.)
+            if (at.x != 0f || at.y != 0f)
+                g.B.Transform(first, q => q + new Vector3(at.x, at.y, 0f), n => n);
+        }
+
+        /// <summary>
+        /// A fire ring Span.x across, centred on At (a fire pit's): a sunken ash bed ringed by rough stones of varied size,
+        /// each turned its own way, and its collider. With Bounds, sets the unit's bounds from its own.
         /// </summary>
         static void FireRing(Grower g, UnitFrame f, UnitPart u)
         {
             var s = g.S;
             var b = g.B;
-            var radius = f.Span(u).y;
+            var radius = f.Span(u).x * 0.5f;
             var stones = Mathf.Max(6, g.Count(s.Branches));
-            g.Height = radius * 0.8f;
-            g.Width = radius * 2.4f;
-            g.TrunkRadius = 0f;
+            b.Family = Family.Stone;   // W-166: the ring and its ash bed are stone, whatever the unit is
+            if (u.Bounds)
+            {
+                g.Height = radius * 0.8f;
+                g.Width = radius * 2.4f;
+                g.TrunkRadius = 0f;
+            }
             // The ash bed, a little below the stones' feet.
             b.Blob(Vector3.up * 0.01f, new Vector3(radius * 0.9f, 0.04f, radius * 0.9f), Quaternion.identity, 1, 0.2f, g.R() * 50f,
                    new Color(0.09f, 0.085f, 0.08f), FloraPart.Bark);
@@ -333,11 +534,11 @@ namespace Punchy.Flora
             g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
         }
 
-        /// <summary>Three or four charred logs leaning together over a fire of radius Span.y, blackening towards the burning ends.</summary>
+        /// <summary>Three or four charred logs leaning together over a fire Span.x across, centred on At.</summary>
         static void LogTepee(Grower g, UnitFrame f, UnitPart p)
         {
             var b = g.B;
-            var radius = f.Span(p).y;
+            var radius = f.Span(p).x * 0.5f;
             var logs = g.R() < 0.5f ? 3 : 4;
             var lean = g.R() * 6.28f;
             var top = Vector3.up * radius * 0.55f;
@@ -352,13 +553,13 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// Embers glowing in the ash of a fire of radius Span.y and on its logs' charred ends, in the first accent colour
-        /// (the flames are a landmark Flame effect drawn by FireSystem). Dropped at the far level of detail.
+        /// Embers glowing in the ash of a fire Span.x across centred on At, in the first accent colour (the flames are a
+        /// landmark Flame effect drawn by FireSystem). Dropped at the far level of detail.
         /// </summary>
         static void Embers(Grower g, UnitFrame f, UnitPart p)
         {
             var b = g.B;
-            var radius = f.Span(p).y;
+            var radius = f.Span(p).x * 0.5f;
             if (g.Lod < 2)
             {
                 var ember = AccentAt(g, 0);

@@ -41,7 +41,7 @@ namespace Punchy.Terrain
         /// those taken: about one sample per 16 m for small plants, every second tree.</summary>
         static readonly int3 WorldStride = new int3(24, 8, 2);
         const float LavaReach = 30f;
-        static readonly float3 LavaLight = new float3(1.6f, 0.6f, 0.12f);
+        static readonly float3 LavaLight = new float3(1.6f, 0.43f, 0.04f);
         /// <summary>R-10 row 4: how far past a settlement's radius its cells are looked at (m), how far each lit house or
         /// street light's share of the town glow spreads (m, two texels), and how much each kind adds.</summary>
         const float TownMargin = 30f, TownReach = 36f, TownWindowLight = 1f, TownFixtureLight = 0.8f;

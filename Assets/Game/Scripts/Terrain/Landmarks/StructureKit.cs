@@ -44,7 +44,12 @@ namespace Punchy.Terrain
         Dirt,
         /// <summary>W-138: a lantern turned low (a tunnel's wall lantern): glass drawn as a window pane like Lamp, but a
         /// deeper amber, so a small flame reads as flame light rather than a white box in a dark-adapted cave.</summary>
-        Flame
+        Flame,
+        /// <summary>#550: a hung fish (drying racks, stalls): FloraGenerator.HungFish draws a real fish species in the
+        /// part's box, head down; the colour here is only its silver fallback.</summary>
+        Fish,
+        /// <summary>Wrought iron fittings (lantern caps, brackets, hoops, braziers): drawn as Iron metal.</summary>
+        Iron
     }
 
     /// <summary>
@@ -364,6 +369,7 @@ namespace Punchy.Terrain
             KitMaterial.Stone => Color.Lerp(t.Wall, t.Trim, 0.5f) * 0.85f,
             KitMaterial.Lamp => LampLight,
             KitMaterial.Flame => FlameLight,
+            KitMaterial.Fish => new Color(0.66f, 0.7f, 0.72f),
             KitMaterial.Net => new Color(0.70f, 0.66f, 0.55f),
             KitMaterial.Rune => new Color(0.55f, 0.95f, 1f),
             KitMaterial.Ice => Color.Lerp(t.Wall, t.Trim, 0.25f),
@@ -371,7 +377,7 @@ namespace Punchy.Terrain
             KitMaterial.Sand => new Color(0.84f, 0.73f, 0.52f),
             KitMaterial.Ash => new Color(0.36f, 0.34f, 0.33f),
             KitMaterial.Dirt => Color.Lerp(new Color(0.52f, 0.41f, 0.29f), t.Wall, 0.15f),
-            _ => t.Wall
+            _ => ColourOther(t, m)
         };
 
         // ------------------------------------------------------------------------------------------- coast (#36)
@@ -629,7 +635,7 @@ namespace Punchy.Terrain
             var porchEnd = depth * 0.5f + 0.8f + 2.2f;
             var walk = StiltWalkMin + (Scramble(seed ^ 0x3A1C5u) & 0xFF) / 255f * StiltWalkSpread;
             Platform(parts, new Vector3(doorX, 0f, porchEnd + walk * 0.5f), 0f, 1.6f, walk, stilts, true);
-            Stair(parts, new Vector3(doorX, 0f, porchEnd + walk + steps * 0.15f + 0.5f), 180f, stilts, 1.3f);
+            Stair(parts, new Vector3(doorX, 0f, porchEnd + walk + steps * 0.15f + 0.5f), 180f, stilts, 1.3f, KitMaterial.Wood);
             // W-147: a rope ladder off the deck's seaward (back) edge, down into the water (no draws).
             var backX = doorX + ((Scramble(seed ^ 0x3ADDu) & 0xFF) / 255f - 0.5f) * width * 0.6f;
             var backZ = -(depth + 1.6f) * 0.5f - 0.12f;
@@ -1428,21 +1434,8 @@ namespace Punchy.Terrain
                     break;
                 }
                 case CoastDetail.FishRack:
-                {
-                    // A drying rack: an A-frame each end, three rails, fish hung in rows.
-                    var w = 2f + R();
-                    foreach (var side in new[] { -0.5f, 0.5f })
-                        foreach (var lean in new[] { -12f, 12f })
-                            Add(parts, KitPiece.Column, KitMaterial.Wood, at + Turn(yaw, new Vector3(side * w, 0.75f, 0f)), new Vector3(0.1f, 1.6f, 0.1f), yaw, false, lean);
-                    for (int r = 0; r < 2; r++)
-                    {
-                        var h = 0.9f + r * 0.5f;
-                        Add(parts, KitPiece.Beam, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, h, 0f)), new Vector3(w + 0.2f, 0.06f, 0.06f), yaw, false);
-                        for (int f = 0, fish = 4 + rng.Next(4); f < fish; f++)
-                            Add(parts, KitPiece.Trim, KitMaterial.Stone, at + Turn(yaw, new Vector3((f + 0.5f) / fish * w - w * 0.5f, h - 0.22f, 0f)), new Vector3(0.1f, 0.38f, 0.04f), yaw, false, 0f, (R() - 0.5f) * 10f);
-                    }
+                    FishRack(parts, at, yaw, rng);   // StructureKit.Fish.cs
                     break;
-                }
                 case CoastDetail.CrabPots:
                     // A stack of slatted pots, a buoy or two on top.
                     for (int k = 0, pots = 2 + rng.Next(4); k < pots; k++)
@@ -1825,7 +1818,7 @@ namespace Punchy.Terrain
                     var h = 1.5f + R() * 0.3f;
                     Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.7f, h, 0.35f), 0f, true);
                     Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, h + 0.05f, 0f), new Vector3(0.8f, 0.1f, 0.45f), 0f, false);
-                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, h - 0.15f, 0.3f), new Vector3(0.05f, 0.05f, 0.3f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Iron, new Vector3(0f, h - 0.15f, 0.3f), new Vector3(0.05f, 0.05f, 0.3f), 0f, false);
                     Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h - 0.32f, 0.42f), new Vector3(0.2f, 0.28f, 0.2f), 0f, false);
                     break;
                 }
@@ -1834,9 +1827,9 @@ namespace Punchy.Terrain
                     for (int k = 0; k < 3; k++)
                     {
                         var a = k * 120f + R() * 10f;
-                        Add(parts, KitPiece.Column, KitMaterial.Trim, Turn(a, new Vector3(0f, 0.5f, 0.28f)), new Vector3(0.06f, 1.05f, 0.06f), a, false, -14f);
+                        Add(parts, KitPiece.Column, KitMaterial.Iron, Turn(a, new Vector3(0f, 0.5f, 0.28f)), new Vector3(0.06f, 1.05f, 0.06f), a, false, -14f);
                     }
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 1.02f, 0f), new Vector3(0.8f, 0.22f, 0.8f), R() * 90f, true);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 1.02f, 0f), new Vector3(0.8f, 0.22f, 0.8f), R() * 90f, true);
                     Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, 1.16f, 0f), new Vector3(0.62f, 0.14f, 0.62f), R() * 90f, false);
                     for (int k = 0, n = 2 + rng.Next(2); k < n; k++)
                         Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3((R() - 0.5f) * 0.3f, 1.24f, (R() - 0.5f) * 0.3f), new Vector3(0.08f, 0.08f, 0.5f), R() * 180f, false, (R() - 0.5f) * 30f);
@@ -1845,13 +1838,13 @@ namespace Punchy.Terrain
                 case FixtureStyle.Candelabra:
                 {
                     var h = 1.9f + R() * 0.3f;
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.06f, 0f), new Vector3(0.5f, 0.12f, 0.5f), 45f, false);
-                    Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.08f, h, 0.08f), 0f, true);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 0.06f, 0f), new Vector3(0.5f, 0.12f, 0.5f), 45f, false);
+                    Add(parts, KitPiece.Column, KitMaterial.Iron, new Vector3(0f, h * 0.5f, 0f), new Vector3(0.08f, h, 0.08f), 0f, true);
                     var arms = 3 + rng.Next(3);
                     for (int k = 0; k < arms; k++)
                     {
                         var a = k * 360f / arms + R() * 8f;
-                        Add(parts, KitPiece.Beam, KitMaterial.Trim, Turn(a, new Vector3(0f, h - 0.1f, 0.2f)), new Vector3(0.04f, 0.04f, 0.4f), a, false);
+                        Add(parts, KitPiece.Beam, KitMaterial.Iron, Turn(a, new Vector3(0f, h - 0.1f, 0.2f)), new Vector3(0.04f, 0.04f, 0.4f), a, false);
                         Add(parts, KitPiece.Window, KitMaterial.Lamp, Turn(a, new Vector3(0f, h + 0.02f, 0.38f)), new Vector3(0.07f, 0.2f, 0.07f), a, false);
                     }
                     Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, h + 0.12f, 0f), new Vector3(0.08f, 0.24f, 0.08f), 0f, false);
@@ -1886,10 +1879,10 @@ namespace Punchy.Terrain
                     // lantern hung off it: a cap, the glass and a drip tray.
                     var armOut = WallLanternAt.z;
                     var first = parts.Count;
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.12f, -0.06f), new Vector3(0.14f, 0.34f, 0.2f), 0f, false);
-                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, 0.3f, armOut * 0.5f - 0.04f), new Vector3(0.035f, 0.035f, armOut + 0.1f), 0f, false);
-                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, 0.15f, 0.1f), new Vector3(0.03f, 0.03f, 0.28f), 0f, false, -38f);
-                    Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, 0.25f, armOut), new Vector3(0.02f, 0.08f, 0.02f), 0f, false);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 0.12f, -0.06f), new Vector3(0.14f, 0.34f, 0.2f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Iron, new Vector3(0f, 0.3f, armOut * 0.5f - 0.04f), new Vector3(0.035f, 0.035f, armOut + 0.1f), 0f, false);
+                    Add(parts, KitPiece.Beam, KitMaterial.Iron, new Vector3(0f, 0.15f, 0.1f), new Vector3(0.03f, 0.03f, 0.28f), 0f, false, -38f);
+                    Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, 0.25f, armOut), new Vector3(0.02f, 0.08f, 0.02f), 0f, false);
                     LanternHead(parts, new Vector3(0f, WallLanternAt.y, armOut), R() * 10f, KitMaterial.Flame, 0.7f);
                     // It hangs on a wall, off the ground: keep the foundation skirt from carrying its foot to the floor.
                     for (int k = first; k < parts.Count; k++)
@@ -1961,7 +1954,7 @@ namespace Punchy.Terrain
             }
             // The fire: an iron bowl of glowing coals and split logs on a stone plinth.
             Add(parts, KitPiece.Column, KitMaterial.Stone, new Vector3(0f, BeaconDeck + 0.25f, 0f), new Vector3(0.7f, 0.5f, 0.7f), 0f, true);
-            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(0f, BeaconDeck + 0.6f, 0f), new Vector3(1.3f, 0.24f, 1.3f), 45f, false);
+            Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(0f, BeaconDeck + 0.6f, 0f), new Vector3(1.3f, 0.24f, 1.3f), 45f, false);
             Add(parts, KitPiece.Window, KitMaterial.Lamp, new Vector3(0f, BeaconDeck + 0.72f, 0f), new Vector3(1.04f, 0.12f, 1.04f), 45f, false);
             for (int k = 0; k < 4; k++)
                 Add(parts, KitPiece.Trim, KitMaterial.Wood, new Vector3((R() - 0.5f) * 0.4f, BeaconDeck + 0.82f, (R() - 0.5f) * 0.4f), new Vector3(0.1f, 0.1f, 0.7f), k * 45f + R() * 30f, false, (R() - 0.5f) * 24f);
@@ -2605,7 +2598,7 @@ namespace Punchy.Terrain
                     {
                         var longX = k % 2 == 0;
                         var size = new Vector3(longX ? 0.75f : 0.4f, 0.41f, longX ? 0.4f : 0.75f);
-                        Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(cx - Mathf.Sign(cx) * (size.x * 0.5f - 0.06f), (k + 0.5f) * 0.45f, cz - Mathf.Sign(cz) * (size.z * 0.5f - 0.06f)), size, 0f, false);
+                        Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(cx - Mathf.Sign(cx) * (size.x * 0.5f - Thick * 0.5f - 0.06f), (k + 0.5f) * 0.45f, cz - Mathf.Sign(cz) * (size.z * 0.5f - Thick * 0.5f - 0.06f)), size, 0f, false);
                     }
                 }
 
@@ -2654,7 +2647,7 @@ namespace Punchy.Terrain
             if (storeys >= 2 && R() < t.StairChance)
             {
                 var steps = Mathf.Max(2, Mathf.CeilToInt(h / 0.28f));
-                Stair(parts, new Vector3(width * 0.5f + 0.55f, 0f, -depth * 0.35f), 0f, h, 1f);
+                Stair(parts, new Vector3(width * 0.5f + 0.55f, 0f, -depth * 0.35f), 0f, h, 1f, t.Quoins ? KitMaterial.Stone : KitMaterial.Wood);   // masonry cultures build stone stairs
                 // The landing's centre (Stair: steps * 0.15 + 0.5 past its middle), as a distance along the +X wall
                 // (yaw 90 turns +X along a wall to -Z).
                 UpperDoor(parts, depth * 0.35f - steps * 0.15f - 0.5f, width * 0.5f, 90f, h, ruined);
@@ -2711,19 +2704,6 @@ namespace Punchy.Terrain
             if (rails)
                 foreach (var side in new[] { -1f, 1f })
                     Add(parts, KitPiece.Rail, KitMaterial.Wood, at + Turn(yaw, new Vector3(side * width * 0.45f, deckHeight + 0.95f, 0f)), new Vector3(0.1f, 0.1f, length), yaw, false);
-        }
-
-        /// <summary>A straight outside stair along +Z rising <paramref name="rise"/>, its treads solid blocks to the ground.</summary>
-        public static void Stair(List<KitPart> parts, Vector3 at, float yaw, float rise, float width)
-        {
-            var steps = Mathf.Max(2, Mathf.CeilToInt(rise / 0.28f));
-            var run = 0.3f;
-            for (int k = 0; k < steps; k++)
-            {
-                var y = (k + 1) * rise / steps;
-                Add(parts, KitPiece.Stair, KitMaterial.Stone, at + Turn(yaw, new Vector3(0f, y * 0.5f, (k - steps * 0.5f) * run)), new Vector3(width, y, run), yaw, false);
-            }
-            Add(parts, KitPiece.Platform, KitMaterial.Wood, at + Turn(yaw, new Vector3(0f, rise - 0.08f, steps * 0.5f * run + 0.5f)), new Vector3(width, 0.16f, 1f), yaw, false);
         }
 
         /// <summary>A balcony: a slab on brackets in front of a wall, posts and a top rail.</summary>
@@ -2816,9 +2796,9 @@ namespace Punchy.Terrain
                             var w = depth * (1f - (k + 0.5f) / steps);
                             Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(side * (width * 0.5f - Thick * 0.5f), top + (k + 0.5f) * rise / steps, 0f), new Vector3(Thick, rise / steps + 0.01f, w), 0f, false);
                         }
-                    // A chimney through one slope.
-                    var cx = (rng.NextDouble() < 0.5 ? -1f : 1f) * width * 0.3f;
-                    Add(parts, KitPiece.Chimney, KitMaterial.Stone, new Vector3(cx, top + rise * 0.75f + 0.6f, -depth * 0.15f), new Vector3(0.7f, rise * 1.5f + 1.2f, 0.7f), 0f, false);
+                    // A chimney through one slope, its foot just under the roof (W-173: from the wall top it hung down into the room).
+                    var cx = (rng.NextDouble() < 0.5 ? -1f : 1f) * width * 0.3f; float head = top + rise * 1.5f + 1.2f, foot = top + rise + slab * (1f - 0.5f / Mathf.Cos(pitch)) - (depth * 0.15f + 0.35f) * Mathf.Tan(pitch) - 0.05f;
+                    Add(parts, KitPiece.Chimney, KitMaterial.Stone, new Vector3(cx, (foot + head) * 0.5f, -depth * 0.15f), new Vector3(0.7f, head - foot, 0.7f), 0f, false);
                     break;
                 }
             }
@@ -2969,7 +2949,7 @@ namespace Punchy.Terrain
             for (int k = 0; k < 2; k++)
                 Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(-half * (0.42f + k * 0.17f), 0.3f + 0.42f, front + 0.45f + (float)rng.NextDouble() * 0.2f),
                     new Vector3(0.6f, 0.84f, 0.6f), (float)rng.NextDouble() * 90f, false);
-            Add(parts, KitPiece.Trim, KitMaterial.Trim, new Vector3(-half * 0.42f, 0.3f + 0.6f, front + 0.5f), new Vector3(0.64f, 0.06f, 0.64f), 20f, false);   // a hoop
+            Add(parts, KitPiece.Trim, KitMaterial.Iron, new Vector3(-half * 0.42f, 0.3f + 0.6f, front + 0.5f), new Vector3(0.64f, 0.06f, 0.64f), 20f, false);   // a hoop
             Add(parts, KitPiece.Platform, KitMaterial.Wood, new Vector3(half * 0.45f, 0.3f + 0.45f, front + 0.4f), new Vector3(1.6f, 0.08f, 0.42f), 0f, false);
             foreach (var e in new[] { -0.7f, 0.7f })
                 Add(parts, KitPiece.Column, KitMaterial.Wood, new Vector3(half * 0.45f + e, 0.3f + 0.21f, front + 0.4f), new Vector3(0.08f, 0.42f, 0.36f), 0f, false);
@@ -3134,7 +3114,7 @@ namespace Punchy.Terrain
             {
                 MarshPlanks(parts, seed, t, new Vector3(0f, 0f, 2.8f), 180f, length, 0.82f);
                 var end = 2.8f - length - 0.65f - Mathf.CeilToInt(0.82f / 0.28f) * 0.15f;
-                Stair(parts, new Vector3(0f, 0f, end), 0f, 0.82f, 1.4f);
+                Stair(parts, new Vector3(0f, 0f, end), 0f, 0.82f, 1.4f, KitMaterial.Wood);
                 Totem(parts, rng, new Vector3(1.25f, 0f, 2.8f - length + 0.4f), 180f, 3.2f + R() * 0.4f, paint);
                 if (theme == 2)
                     Totem(parts, rng, new Vector3(-1.25f, 0f, 2.8f - length + 0.4f), 180f, 3f + R() * 0.4f, paint);
