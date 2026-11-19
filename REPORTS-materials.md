@@ -432,3 +432,8 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Tint hook (MaterialLibrary.cs): enum TimberKind {Rough, Hewn, Sawn, Tarred}, TimberTint(kind), TimberFor(FolkCulture, BiomeFamily) (goblin/ogre rough, fish/sea folk tarred, dwarf/elf sawn; wet tarred; else hewn), TimberLibraryKind(kind, woodKind, axis).
 - Verified by probe swatch (grain along x): house-surfaces/timber-swatch.jpg. Compile clean (Cave/Colossus/Creature/Flora). Card W-173 surfaces done: rows 1-4 = a613477f, 79e3909c, e6375d42, de3ab49d on materials/house-surfaces.
 - BENCH-QUEUE: none until wired.
+
+## 11-19 bank-spots (#666) - DONE, materials/bank-spots 775751c3 + d61255d2
+- Cause: TerrainSurface micro relief slope (summed 0.21/0.7/3 m value-noise octaves tilting away from the sun), not #664 mudLike or the bank blend (octaves-off and relief-off both clear it; colour, grain, cracks, shingle, shore, wide shadow do not).
+- Fix: relief 0.45 -> 0.2 and tilt soft-capped (rsqrt(1+16|t|^2)). Pair: PunchyMilestones/bank-spots/pair.png (same pose, viewed: leopard spots gone).
+- No BENCH line (same ALU). Note: shared scratchpad cycle.sh was overwritten by another agent; one of my runs drove the Punchy-render editor (stop/refresh/play, read-only probes) and left it in play mode.
