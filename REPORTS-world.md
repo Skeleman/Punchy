@@ -8948,3 +8948,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 ## 11-19 tundra-roofs: cold-town roofs checked in clear weather (no code change)
 - Both cold-biome towns, (-1966,651) and (-3276,1577), shot with weather forced clear after the goto: world/town-roofs/tundra-t5-clear.png and tundra-t3-clear.png.
 - Halls carry dark slate roofs and houses snow-capped ones; the only warm colour is the market stall awnings. No clay or thatch, so no fix needed.
+
+### W-174 r6 tail (#405) - PR #702 (14:xx 11-19)
+- Cause: the Cull Off cave skin shadowed itself (attenuation about 0.45 everywhere). Fix: shadow receivers lifted 0.4 m off the skin.
+- Left: the c22 mouth ring is still about +10/255 lighter than the shadowed terrain beside it; not SSAO, not reflections.
+- Shots at 20 m: PunchyMilestones/world/mouth-snow c22-a/c10-a/c0-b (+ -after). Shader only, no WorldTests run.
