@@ -1217,8 +1217,9 @@ Shader "Punchy/Water"
                     // Sunlit shallows get a moving caustic web on the bed, fading out by about 1 m deep (#262).
                     [branch] if (bedLight > 0.01 && _PunchyWaterDetail > 0.5)
                     {
-                        float2 bedUV = bedXZ * 2.8;
-                        bedUV += 0.3 * sin(bedUV.yx * 1.7 + t * 0.7);
+                        float2 bedUV = bedXZ * 2.2;
+                        // Two warps bend the cells out of a paving-stone grid.
+                        bedUV += 0.55 * sin(bedUV.yx * float2(1.3, 1.1) + t * float2(0.5, 0.4)) + 0.25 * sin(bedUV * 3.7 - t * 0.8);
                         float2 cell = floor(bedUV);
                         float2 f = bedUV - cell;
                         float f1 = 8, f2 = 8;
@@ -1232,10 +1233,12 @@ Shader "Punchy/Water"
                                 f2 = dd < f1 ? f1 : min(f2, dd);
                                 f1 = min(f1, dd);
                             }
-                        // Cell borders (F2 - F1) trace the web; at least two pixels wide, gone once a cell is under ~4 px (rule 20).
-                        float cellPixel = bedPixel * 2.8;
-                        half web = (1 - smoothstep(0.0, 0.07 + cellPixel * 2, sqrt(f2) - sqrt(f1))) * (1 - smoothstep(0.12, 0.25, cellPixel));
-                        caustic = (behind + 0.12) * (web * bedLight * bedSquash * 1.3) * min(light.color, 1.5);
+                        float cellPixel = bedPixel * 2.2;
+                        half web = 1 - smoothstep(0.0, 0.16 + cellPixel * 2, sqrt(f2) - sqrt(f1));
+                        // Squared falloff gives a thin core with a soft glow; patches break the web up; strength eases off in strong sun.
+                        web *= web * (1 - smoothstep(0.12, 0.25, cellPixel)) * smoothstep(0.2, 0.8, PunchyValueNoise(bedUV * 0.45 + t * 0.15));
+                        half sun = dot(light.color, half3(0.2126, 0.7152, 0.0722));
+                        caustic = (behind + 0.04) * (web * bedLight * bedSquash * 0.8) * light.color / (1 + sun);
                     }
                     // Added after the blend: the web is focused sunlight, so the surface tint must not wash it out.
                     color = lerp(behind, color, alpha) + caustic;
