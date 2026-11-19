@@ -387,3 +387,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #702 W-174 r6 (#405): cave skin no longer self-shadows (walls and mouth floor were half shadow); tundra town roofs checked OK.
 - 11-19 #703 W-142 tail (#262): leaves sift down cave roots and grassy shafts; 3-20 wisps per vent landmark (towns/camps no longer vents).
 - 11-19 #704 rule 33 (#325 tail): snow glitter and frost glints share Materials/Glint.hlsl; no look change.
+- 11-19 #706 W-154 tail (#303): lava far form, glowing cracks on dark crust at 200-400 m; also fixes all lava drawing as open melt since #699.
