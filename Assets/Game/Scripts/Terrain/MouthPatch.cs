@@ -86,9 +86,9 @@ namespace Punchy.Terrain
             var normal = source.SampleNormal(xz, normalEpsilon);
             var vertex = new TerrainVertex { Position = new float3(xz.x, h, xz.y), Normal = normal };
             var surface = source.SampleSurface(xz, ground, normal);
+            var shoreWet = source.ShoreWet(xz, ground, h, ref surface);
             vertex.SetSurface(surface);
-            if (ground.HasWater)
-                vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
+            vertex.Extra.w = (half)shoreWet;
             vertex.Morph = new float4(1e6f, 2e6f, surface.Bump, 100f);
             vertex.Strata.z = (half)BuildChunkMeshJob.HollowDepth(source, xz, h);
             vertex.Soak.y = vertex.Strata.z;

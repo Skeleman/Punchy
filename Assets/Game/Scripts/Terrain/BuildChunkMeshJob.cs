@@ -217,10 +217,9 @@ namespace Punchy.Terrain
                     surface.Albedo *= shade[z * v + x];
                 if (Clay)
                     surface = ScarpClay.Surface();
+                var shoreWet = Source.ShoreWet(world, ground, h, ref surface);
                 vertex.SetSurface(surface);
-                // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
-                if (ground.HasWater)
-                    vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
+                vertex.Extra.w = (half)shoreWet;
                 // W-155: the vertices in a scarp's strip carry the level run-on of the rim or the foot, so the cut
                 // edges land on both.
                 if (strip < 100f)

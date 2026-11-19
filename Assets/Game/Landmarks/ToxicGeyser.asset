@@ -33,7 +33,25 @@ MonoBehaviour:
   Ground: {fileID: 11400000, guid: e0ef13f07960ba64893e0993f4724dd2, type: 2}
   GroundRadius: 0.75
   ClearRadius: 0.8
-  Props: []
+  Props:
+  - Species: {fileID: 11400000, guid: 2aaebf32521a403bae551042363ddf91, type: 2}
+    Density: 9
+    Ring: {x: 0.13, y: 0.27}
+    Scale: {x: 0.8, y: 1.2}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 0
+  - Species: {fileID: 11400000, guid: 3a218a5ae66043faaa41725ea427c58f, type: 2}
+    Density: 3
+    Ring: {x: 0.14, y: 0.3}
+    Scale: {x: 0.8, y: 1.2}
+    Centrepiece: 0
+    FaceCentre: 0
+    Count: 0
+    Angle: 0
+    Clearance: 0
   Effects:
   - Kind: 0
     Offset: {x: 0, y: 0}
