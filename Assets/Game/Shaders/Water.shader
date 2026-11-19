@@ -402,11 +402,11 @@ Shader "Punchy/Water"
                 float2 f = float2(dot(q, dir), dot(q, float2(-dir.y, dir.x)));
                 float2 q0 = f - float2(drift * phase0, 0);
                 float2 q1 = f - float2(drift * phase1, 0) + 4.7;
-                float2 k = float2(lerp(2.6, 0.55, speed), 1);
+                float2 k = float2(lerp(2.6, 0.3, speed), 1);
                 float n0 = PunchyValueNoise(q0 * k * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q0 * k * float2(0.45, 1.8) + 2.9) * 0.45
-                    - PunchyValueNoise(q0 * 9.0 + 1.3) * 0.22;
+                    - PunchyValueNoise(q0 * 9.0 + 1.3) * (0.22 - 0.14 * speed);
                 float n1 = PunchyValueNoise(q1 * k * float2(1.1, 4.4)) * 0.55 + PunchyValueNoise(q1 * k * float2(0.45, 1.8) + 2.9) * 0.45
-                    - PunchyValueNoise(q1 * 9.0 + 1.3) * 0.22;
+                    - PunchyValueNoise(q1 * 9.0 + 1.3) * (0.22 - 0.14 * speed);
                 float s = (n0 * w0 + n1 * (1 - w0)) + 0.11 - 0.14 * (1 - speed);
                 // Cross-fading flattens the contrast mid-way; stretch it back out.
                 return saturate((s - 0.5) * (1.7 + 0.9 * (1 - abs(2 * w0 - 1))) + 0.5);
@@ -664,6 +664,7 @@ Shader "Punchy/Water"
                 float4 flowLines = 0;
                 half carried = 0;
                 half tear = 0;
+                half wakeGrain = 0.5;
                 // W-159 row 4: only breaking water carries white; merely fast water shows glinting ridges instead.
                 half breaking = smoothstep(0.7, 0.95, rapids);
                 bool foamy = rapids > 0.6 && flowAmount > 0.02;
@@ -705,16 +706,19 @@ Shader "Punchy/Water"
                         float2 streakAcross = float2(-flowDir.y, flowDir.x);
                         float streakSum = 0;
                         float streakNorm = 0;
+                        float wakeSum = 0;
                         [unroll] for (int k = 0; k < 4; k++)
                         {
                             float2 c = float2(k & 1, k >> 1);
                             float wk = lerp(1 - streakBlend.x, streakBlend.x, c.x) * lerp(1 - streakBlend.y, streakBlend.y, c.y);
                             float2 q = p - (streakBase + c) * StreakCell;
-                            float2 streakUV = float2(dot(q, flowDir) * 0.45 - t * _FlowSpeed * 1.5, dot(q, streakAcross) * 2.2);
+                            float2 streakUV = float2(dot(q, flowDir) * 0.2 - t * _FlowSpeed * 0.7, dot(q, streakAcross) * 2.4);
                             streakSum += (PunchyValueNoise(streakUV) * 0.75 + PunchyValueNoise(streakUV * 2.7 + 5.3) * 0.25 - 0.5) * wk;
                             streakNorm += wk * wk;
+                            wakeSum += (PunchyValueNoise(float2(dot(q, flowDir) * 0.16 - t * _FlowSpeed * 0.6, dot(q, streakAcross) * 3.2) + 11.7) - 0.5) * wk;
                         }
                         tear = 0.5 + streakSum * rsqrt(streakNorm);
+                        wakeGrain = 0.5 + wakeSum * rsqrt(streakNorm);
                     }
                     flowingSlope *= (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
                 }
@@ -1136,24 +1140,29 @@ Shader "Punchy/Water"
                     whiteWater = max(whiteWater, standWhite * (1 - caveRun) * distanceFade);
                 }
                 half rushing = flowAmount * smoothstep(0.2, 0.45, rapids) * (1 - steep) * (1 - viscous) * (1 - lava) * (1 - caveRun);
-                float2 flowAcross = float2(-flowDir.y, flowDir.x);
                 half riffle = smoothstep(0.4, 0.65, rapids) * (1 - breaking) * smoothstep(0.62, 0.8, tear) * rushing * distanceFade * 0.55;
                 half rockWake = 0;
                 // Something standing at the surface a little upstream (a rock, a stepping stone) is found in the depth buffer, so wakes need no rock list.
                 [branch] if (rushing * smoothstep(4, 12, pixelsPerMetre) > 0.01)
                 {
-                    float3 wakeAcross = float3(flowAcross.x, 0, flowAcross.y);
+                    float wakeDist = 6;
                     [unroll] for (int tap = 0; tap < 4; tap++)
                     {
-                        float d = 0.6 + 1.0 * tap + 0.15 * tap * tap;
-                        float3 upstream = input.positionWS - float3(flowDir.x, 0, flowDir.y) * d + wakeAcross * d * 0.32 * (tap % 2 == 0 ? 1 : -1);
+                        float d = 0.5 + 1.1 * tap + 0.25 * tap * tap;
+                        float3 upstream = input.positionWS - float3(flowDir.x, 0, flowDir.y) * d;
                         float4 us = ComputeScreenPos(TransformWorldToHClip(upstream));
                         float2 uuv = us.xy / max(us.w, 1e-3);
                         float gap = us.w - LinearEyeDepth(SampleSceneDepth(saturate(uuv)), _ZBufferParams);
                         half standing = step(-0.03, gap) * (1 - smoothstep(0.8, 1.2, gap)) * step(0.01, us.w) * step(abs(uuv.x - 0.5), 0.5) * step(abs(uuv.y - 0.5), 0.5);
-                        rockWake = max(rockWake, standing * (1 - d / 6));
+                        wakeDist = standing > 0 ? min(wakeDist, d) : wakeDist;
                     }
-                    rockWake *= smoothstep(0.3, 0.6, tear) * smoothstep(0.15, 0.4, thickness) * rushing * smoothstep(4, 12, pixelsPerMetre);
+                    // Thin lines along the contours of a stretched noise, narrowing and torn apart further from the rock; widened where a line would fall under a pixel.
+                    half far = saturate(wakeDist / 6);
+                    half ridge = 1 - abs(wakeGrain - 0.5) * 2;
+                    half lineLo = lerp(0.6, 0.82, smoothstep(10, 40, pixelsPerMetre)) + 0.1 * far;
+                    half lines = smoothstep(lineLo, lineLo + 0.1, ridge);
+                    half torn = smoothstep(0.15 + 0.5 * far, 0.35 + 0.5 * far, tear);
+                    rockWake = lines * torn * (1 - far) * smoothstep(0.15, 0.4, thickness) * rushing * smoothstep(4, 12, pixelsPerMetre);
                 }
                 whiteWater = max(whiteWater, max(riffle, rockWake * 0.8));
                 half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.12 * breaking), 0.85) * (1 - steep),
