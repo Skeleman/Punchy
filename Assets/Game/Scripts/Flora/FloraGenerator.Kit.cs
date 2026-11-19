@@ -313,16 +313,15 @@ namespace Punchy.Flora
                 g.DoorBoxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
         }
 
-        /// <summary>
-        /// Draws one structure-kit part in its trim colour (a little per-part jitter), its folk's wall or roof look,
-        /// lit window glass when <paramref name="lit"/>, and contact bands where it meets other parts. Shared by
-        /// KitStructure and the inn (W-128). False for a moss cap (drawn as a sheet: no box, no collision).
-        /// </summary>
-        // A near-cube of wood trim is a crate body (StructureKit.Crate): boarded, not bare timber.
         static bool Crated(in Punchy.Terrain.KitPart p) =>
             p.Material == Punchy.Terrain.KitMaterial.Wood && p.Piece == Punchy.Terrain.KitPiece.Trim &&
             Mathf.Min(p.Size.x, Mathf.Min(p.Size.y, p.Size.z)) > 0.8f * Mathf.Max(p.Size.x, Mathf.Max(p.Size.y, p.Size.z));
 
+        /// <summary>
+        /// Draws one structure-kit part in its trim colour (a little per-part jitter), its folk's wall or roof look,
+        /// lit window glass when <paramref name="lit"/>, and contact bands where it meets other parts. Shared by
+        /// KitStructure and the town houses (W-128). False for a moss cap (drawn as a sheet: no box, no collision).
+        /// </summary>
         static bool DrawKitPart(Grower g, List<Punchy.Terrain.KitPart> parts, int i, in Punchy.Terrain.CultureTrim trim,
                                 (Punchy.Terrain.KitSurface Wall, Punchy.Terrain.KitSurface Roof) looks, bool ruined, bool lit, uint seed, List<float> contacts)
         {

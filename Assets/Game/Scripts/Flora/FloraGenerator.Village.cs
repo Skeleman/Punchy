@@ -214,8 +214,7 @@ namespace Punchy.Flora
             const float porch = 2.4f;
             g.Width = half * 2.8f;
             g.TrunkRadius = half * 0.9f;
-            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
-            // off it, F-36); the roof itself is stood on through its support grid.
+            // Creatures still stop at a circle up to the eaves; the player skips it for the kit boxes.
             g.Colliders.Add(new Vector4(0f, 0f, half * 0.9f, wall));
 
             // W-128: the walls, roof, porch and sign are kit pieces in the folk's trim and looks (StructureKit.Inn), on the
@@ -224,35 +223,8 @@ namespace Punchy.Flora
             var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
             var parts = Punchy.Terrain.StructureKit.Inn(seed, trim, half, front, wall, porch, out var sign);
             var looks = Punchy.Terrain.StructureKit.Surfaces(s.KitCulture, seed);
-            var contacts = new List<float>();
-            var first = b.VertexCount;
-            var top = 0f;
-            var perch = Vector3.zero;
-            for (int i = 0; i < parts.Count; i++)
-            {
-                var p = parts[i];
-                var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail || p.Piece == Punchy.Terrain.KitPiece.Beam ||
-                            (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
-                if (small && g.Lod >= 2)
-                    continue;
-                var lit = p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
-                if (!DrawKitPart(g, parts, i, trim, looks, false, lit, seed, contacts))
-                    continue;
-                var high = p.Centre.y + p.Size.y * 0.5f;
-                top = Mathf.Max(top, high);
-                if (p.Piece == Punchy.Terrain.KitPiece.Chimney)
-                {
-                    g.Chimneys.Add(p.Centre + Vector3.up * (p.Size.y * 0.5f + 0.1f));
-                    g.Perches.Add(p.Centre + Vector3.up * (p.Size.y * 0.5f));
-                }
-                else if (p.Piece != Punchy.Terrain.KitPiece.Column && high > perch.y)
-                    perch = new Vector3(p.Centre.x, high, p.Centre.z);
-            }
-            if (perch.y > 1f)
-                g.Perches.Add(perch);
-            b.DarkenBelow(first, 0.5f, 0.82f);   // darker footing
-            b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
-            g.Height = Mathf.Max(height, top);
+            g.Height = height;
+            DrawKitHouse(g, parts, trim, looks, seed);
 
             // The door the folk use (hinged, with its frame and step), in the middle bay of the front.
             Doorway(g, front + 0.02f, 1.25f, Mathf.Min(wall * 0.42f, HumanDoor));
@@ -262,10 +234,9 @@ namespace Punchy.Flora
         }
 
         /// <summary>
-        /// A leader's hall, its door facing +Z: a long timber hall on a stone plinth, corner and wall posts, a steep
-        /// gabled roof with its ridge along X and crossed beams at each gable, a wide door up two steps, lit windows (first
-        /// accent) along the front and back, and two banners (second accent) flanking the door. Collision covers its
-        /// length.
+        /// A leader's hall, its door facing +Z: kit parts (StructureKit.Hall) on a stone plinth under a steep gable with
+        /// crossed beams at each end, a wide door up a step, lit windows (first accent) along both long walls and two
+        /// banners (second accent) flanking the door.
         /// </summary>
         static void Hall(Grower g)
         {
@@ -276,61 +247,27 @@ namespace Punchy.Flora
             var front = half * 0.55f;                 // half its depth (along Z)
             var plinth = 0.6f;
             var wall = plinth + height * 0.38f;
+            var ridge = height;
             g.Height = height;
             g.Width = half * 2.4f;
             g.TrunkRadius = front;
             var timber = g.Bark * 0.5f;
             var stone = Stone(g) * g.Range(0.9f, 1.1f);
 
-            // Stone plinth, then timber walls with posts.
-            var first = b.VertexCount;
-            b.Family = Punchy.Terrain.MaterialFamily.Stone;   // W-166: the plinth and steps are stone
-            b.Box(new Vector3(0f, plinth * 0.5f - 0.15f, 0f), new Vector3(half * 2f + 0.4f, plinth + 0.3f, front * 2f + 0.4f), Quaternion.identity, stone, FloraPart.Bark);
-            b.Wood = true;   // timber walls, posts and the wall plate (Z-30)
-            b.Box(new Vector3(0f, (plinth + wall) * 0.5f, 0f), new Vector3(half * 2f, wall - plinth, front * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
-            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.4f));
-            if (g.Lod < 2)
-            {
-                var posts = Mathf.Max(2, Mathf.RoundToInt(half / 1.6f));
-                for (int k = 0; k <= posts; k++)
-                {
-                    var x = Mathf.Lerp(-half, half, k / (float)posts);
-                    foreach (var z in new[] { -1f, 1f })
-                        b.Box(new Vector3(x, (plinth + wall) * 0.5f, z * (front + 0.06f)), new Vector3(0.28f, wall - plinth, 0.2f), Quaternion.identity, timber, FloraPart.Bark);
-                }
-                b.Box(new Vector3(0f, wall - 0.12f, 0f), new Vector3(half * 2f + 0.12f, 0.25f, front * 2f + 0.12f), Quaternion.identity, timber, FloraPart.Bark);
-            }
-            b.Wood = false;
-
-            // Steep gabled roof along X, overhanging; gable ends filled; crossed beams rising past the ridge at each end.
-            var roof = g.FoliageColor();
-            var ridge = height;
-            foreach (var z in new[] { -1f, 1f })
-                b.Beam(new Vector3(0f, EaveStart(wall, front, 0.9f, ridge + 0.1f, 0.22f), z * (front + 0.9f)), new Vector3(0f, ridge + 0.1f, 0f), half * 2f + 1.2f, 0.22f, roof, FloraPart.Bark);
-            // A rounded ridge tile along the top (Z-41: a soft bevel, not a hard point).
-            b.Tube(new List<Vector3> { new Vector3(-half - 0.6f, ridge + 0.14f, 0f), new Vector3(half + 0.6f, ridge + 0.14f, 0f) },
-                   new List<float> { 0.18f, 0.18f }, g.Sides(6, 4, 3), roof * 0.92f, FloraPart.Bark, cap: true);
+            var seed = (uint)(g.R() * 16777215f) ^ ((uint)g.Variant << 24) ^ (uint)s.Seed * 0x9E3779B9u;
+            var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
+            trim.Wood = g.Bark;
+            trim.Trim = timber;
+            trim.RoofColour = g.FoliageColor();
+            // Colour(Stone) is Lerp(Wall, Trim, 0.5) * 0.85: solve Wall so the plinth comes out the old stone.
+            trim.Wall = stone * (2f / 0.85f) - timber;
+            trim.Wall.a = 1f;
+            var parts = Punchy.Terrain.StructureKit.Hall(trim, half, front, plinth, wall, ridge);
+            DrawKitHouse(g, parts, trim, Punchy.Terrain.StructureKit.Surfaces(s.KitCulture, seed), seed);
             foreach (var x in new[] { -1f, 1f })
-            {
-                var v0 = b.Vertex(new Vector3(x * half, wall, -front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
-                var v1 = b.Vertex(new Vector3(x * half, wall, front), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
-                var v2 = b.Vertex(new Vector3(x * half, ridge, 0f), Vector3.right * x, g.Bark, FloraPart.Bark, 0.9f);
-                b.Triangle(v0, v1, v2);
-                b.Wood = true;
-                if (g.Lod < 2)
-                    foreach (var z in new[] { -1f, 1f })
-                        b.Beam(new Vector3(x * (half + 0.6f), wall + (ridge - wall) * 0.55f, z * front * 0.55f), new Vector3(x * (half + 0.6f), ridge + 1.1f, -z * 0.5f),
-                               0.22f, 0.18f, timber, FloraPart.Bark);
-                    b.Wood = false;
-                g.Perches.Add(new Vector3(x * half * 0.9f, ridge + 0.33f, 0f));
                 g.Perches.Add(new Vector3(x * (half + 0.6f), ridge + 1.19f, 0.5f));
-            }
 
-            // A wide door up two steps, windows along both long walls, banners either side of the door.
             Door(g, new Vector3(0f, plinth - 0.05f, front + 0.04f), Quaternion.identity, 1.8f, Mathf.Min(wall - plinth - 0.4f, HumanDoor * 1.15f));
-            b.Family = Punchy.Terrain.MaterialFamily.Stone;
-            b.Box(new Vector3(0f, plinth * 0.29f, front + 0.75f), new Vector3(3.2f, plinth * 0.75f, 0.8f), Quaternion.identity, stone, FloraPart.Bark);
-            b.Family = b.BaseFamily;
             var light = AccentAt(g, 0);
             if (g.Lod < 2)
             {
@@ -362,17 +299,7 @@ namespace Punchy.Flora
                 }
             }
 
-            // W-173 (#399): the player walks on boxes that follow the plinth, walls and roof slopes; the cylinders' flat tops at the eaves sat inside the roof. Creatures keep the cylinders.
-            g.Boxes.Add(Solid(new Vector3(0f, plinth * 0.5f - 0.15f, 0f), new Vector3(half * 2f + 0.4f, plinth + 0.3f, front * 2f + 0.4f), Quaternion.identity));
-            g.Boxes.Add(Solid(new Vector3(0f, (plinth + wall) * 0.5f, 0f), new Vector3(half * 2f, wall - plinth, front * 2f), Quaternion.identity));
-            g.Boxes.Add(Solid(new Vector3(0f, wall + (ridge - wall) * 0.25f, 0f), new Vector3(half * 2f, (ridge - wall) * 0.5f, front), Quaternion.identity));
-            foreach (var z in new[] { -1f, 1f })
-            {
-                var eave = new Vector3(0f, EaveStart(wall, front, 0.9f, ridge + 0.1f, 0.22f), z * (front + 0.9f));
-                var along = new Vector3(0f, ridge + 0.1f, 0f) - eave;
-                var turn = Quaternion.LookRotation(along.normalized, Vector3.up);
-                g.Boxes.Add(Solid(eave + along * 0.5f - turn * Vector3.up * 0.14f, new Vector3(half * 2f + 1.2f, 0.5f, along.magnitude), turn));
-            }
+            // Creatures still stop at a row of circles; the player skips them for the kit boxes.
             var count = Mathf.Max(2, Mathf.CeilToInt(half / front));
             for (int k = 0; k < count; k++)
                 g.Colliders.Add(new Vector4(Mathf.Lerp(-half + front * 0.9f, half - front * 0.9f, count == 1 ? 0.5f : k / (count - 1f)), 0f, front * 1.05f, wall));
