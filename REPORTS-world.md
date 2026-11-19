@@ -8824,3 +8824,7 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Cause: the fall cell at -3951,1233 drains into a sea cell with no river width, so the dry-end test dropped its curtain, leaving a bare 8.5 m sheet. Steps into the sea now keep their curtain.
 - Truth: river-above-sea 2 -> 0, steps 142 -> 129, falls 138 -> 140, walls 49 unchanged. Landmarks 120 B32C5306, dry fall feet 0, fauna 377B279B, WorldTests 22/22.
 - Shots (viewed): PunchyMilestones/world/river-mouth/before|after mouth-ca/cb.png. The jagged sheet is now a curtain with foam. Next: the perched-pond walls, if cheap.
+
+## 11-18 perched-pond walls: parked (over the hour)
+- 36 of the 37 pool walls are lake bays (TerrainSource bay pocket rule). Each point decides on its own (depth limit, a 3-sample line to the nearest lake cell), so deeper ground next to a wet point can stay dry: at -2018,-1070 the depth limit is 2.7 m with dry ground at 2.8-3.5 m; at 1154,2358 and -494,1234 the line test fails on one sample and passes on the next.
+- The real fix is a baked, flood-filled bay mask (connected pockets, all wet or all dry), about 2-3 h plus a cache-key change. Card it if wanted. The 15.7 m one at -1994,3006 is a landmark pool 0.1 m deep at a cliff lip. Moving on to W-181 r3.
