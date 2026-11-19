@@ -94,6 +94,7 @@ Shader "Punchy/Cave"
             #include "Glow.hlsl"
             #include "WideShadow.hlsl"
             #include "Surface.hlsl"
+            #include "SeepStreaks.hlsl"
             // Shared tiling detail (CaveSystem makes it once): rg a fine normal, b a height, a a sparkle.
             TEXTURE2D(_PunchyCaveDetail);
             SAMPLER(sampler_PunchyCaveDetail);
@@ -365,6 +366,10 @@ Shader "Punchy/Cave"
                 float streak = smoothstep(0.7, 0.8, PunchyValueNoise(float2((p.x - p.z) * 2.3, p.y * 0.16 + 5)))
                              * smoothstep(0.45, 0.6, dampMask) * wall;
                 float damp = max(smoothstep(0.58, 0.7, dampMask) * saturate(shape.y * 0.8 + 0.5), streak * 0.8) * bare;
+                half seepMoss;
+                half3 seepMossColor;
+                damp = max(damp, PunchySeepWet(p, seepMoss, seepMossColor) * (1 - terrain));
+                rock = lerp(rock, seepMossColor, seepMoss * (1 - terrain));
                 if (dressed > -0.5 && dressed < 0.5)
                 {
                     rock *= lerp(1, 0.6, damp);
