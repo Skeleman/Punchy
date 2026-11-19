@@ -1113,13 +1113,16 @@ Shader "Punchy/Water"
                     whiteWater = max(whiteWater, standWhite * (1 - caveRun) * distanceFade);
                 }
                 half rushing = flowAmount * smoothstep(0.2, 0.45, rapids) * (1 - steep) * (1 - viscous) * (1 - lava) * (1 - caveRun);
-                half tear = PunchyValueNoise(p * 2.3 - flowDir * t * riverSpeed * 1.4) * 0.6 + length(flowingSlope) * 0.4;
-                half riffle = smoothstep(0.4, 0.65, rapids) * (1 - breaking) * smoothstep(0.6, 0.85, tear) * rushing * distanceFade * 0.6;
+                float2 flowAcross = float2(-flowDir.y, flowDir.x);
+                // Stretched along the current so broken water reads as torn streaks, not glitter.
+                float2 streakUV = float2(dot(p, flowDir) * 0.45 - t * riverSpeed * 0.6, dot(p, flowAcross) * 2.2);
+                half tear = PunchyValueNoise(streakUV) * 0.75 + PunchyValueNoise(streakUV * 2.7 + 5.3) * 0.25;
+                half riffle = smoothstep(0.4, 0.65, rapids) * (1 - breaking) * smoothstep(0.62, 0.8, tear) * rushing * distanceFade * 0.55;
                 half rockWake = 0;
                 // Something standing at the surface a little upstream (a rock, a stepping stone) is found in the depth buffer, so wakes need no rock list.
                 [branch] if (rushing * smoothstep(4, 12, pixelsPerMetre) > 0.01)
                 {
-                    float3 wakeAcross = float3(-flowDir.y, 0, flowDir.x);
+                    float3 wakeAcross = float3(flowAcross.x, 0, flowAcross.y);
                     [unroll] for (int tap = 0; tap < 4; tap++)
                     {
                         float d = 0.6 + 1.0 * tap + 0.15 * tap * tap;
@@ -1130,7 +1133,7 @@ Shader "Punchy/Water"
                         half standing = step(-0.03, gap) * (1 - smoothstep(0.8, 1.2, gap)) * step(0.01, us.w) * step(abs(uuv.x - 0.5), 0.5) * step(abs(uuv.y - 0.5), 0.5);
                         rockWake = max(rockWake, standing * (1 - d / 6));
                     }
-                    rockWake *= smoothstep(0.45, 0.75, tear) * smoothstep(0.15, 0.4, thickness) * rushing * smoothstep(4, 12, pixelsPerMetre);
+                    rockWake *= smoothstep(0.3, 0.6, tear) * smoothstep(0.15, 0.4, thickness) * rushing * smoothstep(4, 12, pixelsPerMetre);
                 }
                 whiteWater = max(whiteWater, max(riffle, rockWake * 0.8));
                 half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.12 * breaking), 0.85) * (1 - steep),
