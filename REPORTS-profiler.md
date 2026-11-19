@@ -4448,3 +4448,6 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 
 ## 11-19 world FYI: water truth walls 4 -> 3 (W-173 lake gully, PR #685)
 - The bay mask keeps the lake-rim gully's water at (-622,634). Landmarks and fauna are unchanged. Re-pin any bench baseline that reads WaterTruthCounts.
+
+## 11-19 world FYI: PR #685 rebased on #687
+- After both merge, WaterTruthCounts reads walls 3, tilt 15, step 108 (the rest unchanged). Landmarks and fauna are unchanged.

@@ -8934,3 +8934,7 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Fix: courses, units and seams fade on their whole period at 2-5 px. Tile.hlsl only.
 - Shots: world/kit-tile/hall0-5m-fixed.png, hall0-15m-fixed.png (before: door9-roof-play.png, sonoran-roof-5m.png).
 - Open: the roof kind comes from a hashed biome per variant, so desert towns get slate roofs (Hall v1/v3). Not changed.
+
+## 11-19 lake-gully rebased on main (PR #685, world/lake-gully@faa7ce83)
+- Rebased over #687 cascade pools. Water truth on main is now {83,0,0,0,0,0,0,3,0,15,108,0,0}: walls 3 from the gully, tilt 15 and step 108 from #687. WorldTests 22/23; the one failure is Setup_SpawnRainAndShot hitting its 180 s timeout as the first test after the editor start (shot setup only, no water).
+- Gully still fills: at (-622,634) the ground is 54.6 under water at 56.2, and 102 of 169 probe points within 12 m are wet at one level.
