@@ -286,6 +286,48 @@ namespace Punchy.Terrain
             }
         };
 
+        // #682: a kit species' variants cycle through the biomes (every stride-th variant, so a shore kit keeps its trade
+        // in variant % FishTrades) and a town takes the variant of its own biome.
+        public const int SurfaceSlots = 5;
+
+        public static int SurfaceStride(bool shoreKit) => shoreKit ? StructureKit.FishTrades : 1;
+
+        static BiomeFamily SlotBiome(int slot) => slot switch
+        {
+            1 => BiomeFamily.Arid,
+            2 => BiomeFamily.Cold,
+            3 => BiomeFamily.Wet,
+            4 => BiomeFamily.Volcanic,
+            _ => BiomeFamily.Temperate
+        };
+
+        static int BiomeSlot(BiomeFamily biome) => biome switch
+        {
+            BiomeFamily.Arid => 1,
+            BiomeFamily.Cold => 2,
+            BiomeFamily.Wet => 3,
+            BiomeFamily.Volcanic => 4,
+            _ => 0
+        };
+
+        public static BiomeFamily SurfaceBiome(int variant, int stride) => SlotBiome(variant / stride % SurfaceSlots);
+
+        // A species with too few variants gives a volcanic town the desert look, then any town the temperate one.
+        public static int SurfaceVariant(int variant, int variants, int stride, BiomeFamily biome)
+        {
+            var slot = BiomeSlot(biome);
+            for (int tries = 0; tries < 3; tries++)
+            {
+                var v = variant + (slot - variant / stride % SurfaceSlots) * stride;
+                if (v >= variants)
+                    v -= SurfaceSlots * stride;
+                if (v >= 0 && v < variants)
+                    return v;
+                slot = slot == 4 ? 1 : 0;
+            }
+            return variant;
+        }
+
         // Packed as Library.hlsl's tile case unpacks it.
         public static int RoofLibraryKind(RoofKind kind, int woodKind) => (int)kind + 16 * woodKind;
 

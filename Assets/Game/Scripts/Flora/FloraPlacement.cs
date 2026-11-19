@@ -2540,7 +2540,7 @@ namespace Punchy.Flora
                             // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller); bridge
                             // spans and fence lengths at their own size, so they meet end to end.
                             Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
-                            Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
+                            Model = TownSurfaceModel(source, buildingRule, towns.Settlements[plot.Settlement].Centre, buildingRule.FirstModel + rng.NextInt(buildingRule.Variants)),
                             Random = rng.NextFloat(),
                             Snow = bridge || footprint ? 0f : source.SampleBiomeSnow(plot.Centre),   // #82: built plots too
                             Ground = bridge || footprint ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
@@ -2684,7 +2684,7 @@ namespace Punchy.Flora
                                     Position = at,
                                     Yaw = placedYaw,
                                     Scale = placedScale,
-                                    Model = placedModel,
+                                    Model = TownSurfaceModel(source, placedRule, set.Instances[landmark.Instance].Position, placedModel),
                                     Random = rng.NextFloat(),
                                     Snow = footprint ? 0f : floatDepth > 0f ? -floatDepth : source.SampleBiomeSnow(spot),   // #82: stalls on a snowy square; item 20, floats
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
