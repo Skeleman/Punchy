@@ -1204,7 +1204,7 @@ Shader "Punchy/Water"
                     float bentEye = LinearEyeDepth(SampleSceneDepth(bentUV), _ZBufferParams);
                     bentUV = bentEye > surfaceEye ? bentUV : screenUV;
                     half3 behind = SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(bentUV), 0).rgb;
-                    half bedLight = (1 - smoothstep(0.15, 1.0, bedDepth)) * bedFlat * shadow * saturate(light.direction.y * 3) * (1 - murk) * (1 - lava) * (1 - steep) * (1 - underRock) * refractionTier;
+                    half bedLight = smoothstep(0.03, 0.12, bedDepth) * (1 - smoothstep(0.15, 1.0, bedDepth)) * bedFlat * shadow * saturate(light.direction.y * 3) * (1 - murk) * (1 - lava) * (1 - steep) * (1 - underRock) * refractionTier;
                     // Sunlit shallows get a moving caustic web on the bed, fading out by about 1 m deep (#262).
                     [branch] if (bedLight > 0.01 && _PunchyWaterDetail > 0.5)
                     {
