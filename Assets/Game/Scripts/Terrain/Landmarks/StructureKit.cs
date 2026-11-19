@@ -2598,7 +2598,7 @@ namespace Punchy.Terrain
                     {
                         var longX = k % 2 == 0;
                         var size = new Vector3(longX ? 0.75f : 0.4f, 0.41f, longX ? 0.4f : 0.75f);
-                        Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(cx - Mathf.Sign(cx) * (size.x * 0.5f - 0.06f), (k + 0.5f) * 0.45f, cz - Mathf.Sign(cz) * (size.z * 0.5f - 0.06f)), size, 0f, false);
+                        Add(parts, KitPiece.Column, KitMaterial.Trim, new Vector3(cx - Mathf.Sign(cx) * (size.x * 0.5f - Thick * 0.5f - 0.06f), (k + 0.5f) * 0.45f, cz - Mathf.Sign(cz) * (size.z * 0.5f - Thick * 0.5f - 0.06f)), size, 0f, false);
                     }
                 }
 

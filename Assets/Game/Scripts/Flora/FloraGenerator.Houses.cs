@@ -136,7 +136,7 @@ namespace Punchy.Flora
                     inside = new Vector3((half - 0.15f) * 2f, height * 0.55f, (half - 0.15f) * 2f);
                     break;
                 case FloraForm.StoneHouse:
-                    inside = new Vector3((half - 0.3f) * 2f, height * 0.65f, (half - 0.3f) * 2f);
+                    inside = new Vector3((half - 0.4f) * 2f, height * 0.65f, (half - 0.4f) * 2f);
                     break;
                 case FloraForm.Tower:
                     inside = new Vector3((half - 0.3f) * 2f, height * 0.62f, (half - 0.3f) * 2f);
