@@ -754,10 +754,11 @@ Shader "Punchy/Water"
                 // R-21 row 4: round every fall the water tilts with its dip, its turbulence above the lip and the
                 // rings spreading from its foot, and whitens where it is churned (the short waves fade out by the
                 // pixels a metre covers, rule 20).
+                float fallAerated;
                 {
                     float fallWaterChurn;
                     float2 fallWaterSlope;
-                    PunchyFallWater(float3(input.restXZ.x, input.positionWS.y, input.restXZ.y), t, smoothstep(3, 9, pixelsPerMetre), fallWaterChurn, fallWaterSlope);
+                    PunchyFallWater(float3(input.restXZ.x, input.positionWS.y, input.restXZ.y), t, smoothstep(3, 9, pixelsPerMetre), fallWaterChurn, fallWaterSlope, fallAerated);
                     wakeSlope += fallWaterSlope;
                     wakeFoam = max(wakeFoam, (half)(fallWaterChurn * 0.7));
                 }
@@ -1090,8 +1091,9 @@ Shader "Punchy/Water"
                 foam *= lerp(rimBreak.y, 1, seaShore);
                 // Lapping line (#301): a thin broken crest that runs up and draws back in phase with the shore lift, only where wind waves reach in.
                 half lapPhase = sin(t * 0.7 + PunchyValueNoise(p * 0.23 + 9.3) * 6.2831853) * 0.5 + 0.5;
-                half lapLine = exp(-abs(thickness - (0.03 + 0.09 * lapPhase)) / 0.025) * smoothstep(0.45, 0.7, foamNoise) * lerp(0.4, 1, lapPhase)
-                             * saturate(0.4 + _PunchyWind) * (1 - seaShore) * (1 - inDeep) * (1 - steep) * (1 - viscous) * (1 - _PunchyUnderground) * 0.9;
+                half lapEdge = PunchyShoreEdge(p, thickness - (0.05 + 0.15 * lapPhase), pixelsPerMetre);
+                half lapLine = lapEdge * (1 - lapEdge) * 4 * smoothstep(0.3, 0.6, foamNoise) * lerp(0.6, 1, lapPhase)
+                             * saturate(0.7 + _PunchyWind) * (1 - seaShore) * (1 - inDeep) * (1 - steep) * (1 - viscous) * (1 - _PunchyUnderground);
                 foam = max(foam, lapLine);
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, broken into
                 // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
@@ -1148,6 +1150,10 @@ Shader "Punchy/Water"
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * sunFacing + lanternLit);
                 // W-159 row 4: foam stays the brightest thing in shade and overcast, lit by the whole sky.
                 foamLit = max(foamLit, _FoamColor.rgb * dot(ambient, half3(0.2126, 0.7152, 0.0722)) * 1.8);
+                half aerNoise = PunchyValueNoise(input.restXZ * 0.7 + float2(t * 0.3, -t * 0.2)) * 0.65 + PunchyValueNoise(input.restXZ * 2.1 - t * 0.5) * 0.35;
+                half aerated = saturate(((half)fallAerated - aerNoise * (1 - (half)fallAerated)) * 2) * (1 - steep) * (1 - viscous) * (1 - lava);
+                color = lerp(color, foamLit, aerated * 0.25 * (1 + 0.5 * (half)fallAerated));
+                alpha = max(alpha, aerated * 0.5 * (1 + 0.5 * (half)fallAerated));
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
