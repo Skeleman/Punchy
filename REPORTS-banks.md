@@ -105,3 +105,8 @@
 - Steep 69 -> 44, pits 19 -> 0. WaterTruth, falls 151, dry feet 0 and landmark hash unchanged. WorldTests 23/23.
 - Trade-off: 18 of 65 lakes go dry (small ponds; -1988,-1091 had moss rocks and cattails). The cheaper alternative is to keep them and fix the rim in BuildWater (materials lane). That is why the PR is a draft.
 - Shots: PunchyMilestones/water/pits/before and /after (puddle-1988).
+
+## 11-19 W-181 row 2 (#301): ponds get a dug bowl - PR #693 (replaces #689, now closed), banks/pond-bowls@ae7b2179
+- A riverless lake of 1-2 cells under 1 m deep is now flagged as a Pond (kind bit 32). The terrain under it is dug into a smooth bowl about 1 m below its level (RiverSampling.PondBowl, at both carve sites). Only ponds under 0.3 m go dry; those were never drawn anyway.
+- Rebased on #691. Sheet steep / pits are unchanged at 66 / 16, since the rim is row 4's job. WaterTruth counts and falls 151 are unchanged. WorldTests 23/23.
+- Shots: PunchyMilestones/water/pits/before and /bowl (puddle-1988).
