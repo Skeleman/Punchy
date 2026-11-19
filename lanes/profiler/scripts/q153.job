@@ -1,0 +1,15 @@
+# Request 11-17 (world, W-153 row 4 #301): deep-lake water mesh cost. world/river-lakes 8d1e9937 (B; the branch tip
+# 50065032 is the commit that breaks player builds, so the card's commit is used) vs world/river-curtain 7a9af48e (A).
+# High, 1920x1080 uncapped, noon, Clear, 3 rounds. View: from (-2900,2650) toward the lake at -2990,2734 (yaw 313; the
+# card's y 300 is taken as the floor under that point). Record whole-frame GPU and the streaming stats (water patch build).
+Q=q153; TITLE="deep lake water"
+BUILDS="8d1e993 7a9af48"
+VIEWS="lake"
+view() { echo "-goto -2900,2650 -benchstops spot -benchspot -2900,300,2650,313 -benchhour 12 -benchweather Clear"; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-8d1e993";; A) echo "Profile-7a9af48";; esac; }
+ROUNDS=3; GFX="High"; REF=A; BAR=0.5
+after() {
+  [ -n "${DRY:-}" ] && return
+  for f in "$L"/q-$Q-*.log; do echo "== $(basename $f): $(grep -aho 'water[a-z ]*[0-9]\+ / [0-9]\+ / [0-9]\+ / [0-9]\+ / [0-9]\+' $f | head -4 | tr '\n' ';') $(grep -aho '[0-9]* water patch[^|;]*' $f | tail -1 | cut -c1-120)"; done
+}

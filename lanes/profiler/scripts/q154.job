@@ -1,0 +1,26 @@
+# Request 11-17 (world, W-153 row 3 tail #301): fall shoulder carve cost. world/fall-walls 5a9f5f61 (merged into main)
+# vs its first parent 8b97c7cd. Both carry 50065032's broken WaterTruth call, so each arm is a local bench-only commit
+# with it wrapped in #if UNITY_EDITOR: 6bb5f7c = 5a9f5f6 + guard, d832b0f = 8b97c7c + guard (refs/bench/guard-<commit>,
+# not pushed). High, noon, Clear, 3 rounds. View: 60 m south of the fall at -3226,3102 facing north (the card gives no
+# stand spot). Island bake: before() runs one -freshisland start per arm and prints its [start] ledger. Chunk build: the
+# streaming stats line ("chunks start / apply") from each game.
+Q=q154; TITLE="fall shoulders"
+BUILDS="6bb5f7c d832b0f"
+VIEWS="fall"
+view() { echo "-goto -3226,3042 -benchstops spot -benchspot -3226,3042,0 -benchhour 12 -benchweather Clear"; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-6bb5f7c";; A) echo "Profile-d832b0f";; esac; }
+ROUNDS=3; GFX="High"; REF=A; BAR=0.5
+before() {
+  [ -n "${DRY:-}" ] && return
+  local a o
+  for a in B A; do o=$(arm $a)
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-fresh-$a ${o#Profile-} s100 1 -gfx High -fpscap 0 -freshisland $(view fall)
+    check "$R/q-$Q-fresh-$a-cs100-1.log"
+    echo "fresh $a: $(grep -ah '\[start\]' "$R/q-$Q-fresh-$a-cs100-1.log" | tr '\n' ' ' | cut -c1-500)"
+  done
+}
+after() {
+  [ -n "${DRY:-}" ] && return
+  for f in "$L"/q-$Q-*.log; do echo "== $(basename $f): $(grep -aho 'chunks start [0-9]* / [0-9]* / [0-9]* / [0-9]* / [0-9]*\|chunks apply [0-9]* / [0-9]* / [0-9]* / [0-9]* / [0-9]*' $f | head -2 | tr '\n' ';')"; done
+}
