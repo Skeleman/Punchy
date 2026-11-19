@@ -81,6 +81,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - materials/r31-ground-grain -> #694
 - render/ambient-falls -> #695
 - materials/r31-dirt-specks -> #696
+- release/v0.17.0 -> #697
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
