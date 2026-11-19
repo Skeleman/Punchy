@@ -1064,3 +1064,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shader hooks (materials lane files): LandmarkEffects.hlsl quad width from Fall.x and under-rock drift damping; LandmarkPlume.shader leaf glow from Color.a.
 - Shots PunchyMilestones/ambient-falls: needles_before/after (against sky), capflakes_before/after (night), cavegrit_before/after (all viewed; all subtle by design).
 - WorldTests 23/23. Cost: needle and cap plumes reuse the Leaves table; ceiling grit up to ~13 particles per grit spot in caves. BENCH line added.
+
+## 11-19 render-2: W-142 water seeps (#262 row 3) - PR #699
+- render/water-seeps@1c5ffefc. Seeps in wet non-vent biomes run water: faces above rivers/lakes (water within 7 m downhill, 60%), mossy scarps in rainy biomes (up to 25%), non-lava cave walls and pools. New partial LandmarkEffectSystem.WaterSeeps.cs; the shared #690 ribbon with the local water look, slowed to a thin film. Beads/lights stay lava-only.
+- Shader hooks (materials lane files): new SeepStreaks.hlsl (wet streak, foot damp patch, moss clumps faded by fwidth); TerrainSurface.shader include + seep/sheen/realWet/albedo lines; Cave.shader include + damp and moss lines.
+- Shots PunchyMilestones/water-seeps: s2-before/after-3m and -20m (river bank), c1-before/after-3m and -20m (cave wall; 20 m barely shows, subtle by design). All viewed; ignore s1-*.
+- WorldTests 23/23. Cost: up to 8-seep loop per terrain/cave pixel inside the seep rect; sort per 10 m cell rebuild. BENCH line added. Freeze: merge after 16:30.
