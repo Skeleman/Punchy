@@ -63,6 +63,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - world/kit-surfaces -> #675
 - banks/fall-walls -> #676
 - materials/moss-sheet -> #677
+- b/fix-lake-flow-tie -> #678
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
