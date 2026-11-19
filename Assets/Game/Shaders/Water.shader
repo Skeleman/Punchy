@@ -951,13 +951,17 @@ Shader "Punchy/Water"
                 shadow *= 1 - _PunchyUnderground;
                 ambient *= lerp(1, 0.06, _PunchyUnderground);
 
-                // Glowing (toxic) water swirls between its colour and a shifted hue in slow-moving patches, a few metres
-                // across so a small pool shows both, and never wholly the shifted hue (a toxic pool read as one flat
-                // purple, G-27).
+                // W-154 row 3: toxic pools (green glowing liquid) drift between greenish and sickly yellow in slow patches,
+                // darker over the deep middle; other glowing water keeps its hue swirl (G-27).
+                half toxic = 0;
                 [branch] if (glow > 0 && lava < 1)
                 {
+                    toxic = smoothstep(1.05, 1.25, input.look.g / max(max(input.look.r, input.look.b), 1e-3)) * saturate(glow * 3) * (1 - lava);
                     half swirl = smoothstep(0.35, 0.65, PunchyValueNoise(p * 0.3 + float2(t * 0.05, -t * 0.065)) * 0.7 + PunchyValueNoise(p * 1.05) * 0.3);
-                    input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * 0.6 * saturate(glow * 3) * (1 - lava));
+                    half toxicDeep = smoothstep(0.3, 1.3, depth) * toxic;
+                    half3 sickly = lerp(half3(0.13, 0.16, 0.02), half3(0.2, 0.19, 0.03), swirl);
+                    input.look.rgb = lerp(input.look.rgb, input.look.rbg, swirl * 0.6 * saturate(glow * 3) * (1 - lava) * (1 - toxic));
+                    input.look.rgb = lerp(input.look.rgb, sickly * lerp(1, 0.3, toxicDeep), toxic * 0.85);
                 }
                 half3 shallowColor = lerp(_ShallowColor.rgb, input.look.rgb, saturate(murk * 1.5));
                 half3 deepColor = lerp(_DeepColor.rgb, input.look.rgb * 0.2, saturate(murk * 1.5));
@@ -1027,6 +1031,8 @@ Shader "Punchy/Water"
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
                 color += input.look.rgb * glow * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
+                // A toxic bubble's dome catches the light as pale froth before it pops.
+                color += (input.look.rgb * 1.6 + 0.05) * (ambient + light.color * shadow * 0.5) * bubbles.z * toxic * 1.5;
                 // The first half metre stays clear so the bed shows through (#631).
                 half clearShallow = lerp(0.35, 1, smoothstep(0.1, 0.6, thickness));
                 half bodyAlpha = 1 - exp(-thickness * _Opacity * clearShallow * (1 + murk * 12));
@@ -1040,7 +1046,7 @@ Shader "Punchy/Water"
                     float film = PunchyValueNoise(p * 0.12 + t * 0.01) * 2 + facing * 1.5;
                     half3 sheen = 0.5 + 0.5 * cos(6.28 * (film + float3(0, 0.33, 0.67)));
                     // Faded at grazing angles, where the hue cycled fast along stretched normals into rainbow streaks.
-                    color += (sheen - 0.5) * (0.04 + 0.12 * fresnel) * smoothstep(0.1, 0.4, facing) * viscous * reflection;
+                    color += (sheen - 0.5) * (0.04 + 0.12 * fresnel) * smoothstep(0.1, 0.4, facing) * viscous * reflection * (1 - 0.7 * toxic);
                     color += light.color * bubbles.z * 0.03 * viscous;
                     half scum = smoothstep(0.58, 0.72, PunchyValueNoise(p * 0.11 + float2(t * 0.015, t * 0.008)) * 0.75 +
                                                       PunchyValueNoise(p * 0.6) * 0.25);
@@ -1210,6 +1216,22 @@ Shader "Punchy/Water"
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 
+                // W-154 row 3: a toxic pool's edge crusts over in pale yellow and white mineral bands; the bands merge
+                // into one pale rim once a band is under a few pixels (rule 20).
+                half crust = 0;
+                [branch] if (toxic > 0)
+                {
+                    half crustEdge = 0.34 + (PunchyValueNoise(p * 0.7 + 3.1) - 0.5) * 0.16 + (PunchyValueNoise(p * 2.9) - 0.5) * 0.06;
+                    crust = (1 - smoothstep(crustEdge - 0.03, crustEdge + 0.02, depth)) * toxic * (1 - steep);
+                    half rings = frac(depth / crustEdge * 3 + PunchyValueNoise(p * 1.3 + 7.7) * 0.5);
+                    half ringSharp = saturate((pixelsPerMetre * crustEdge / 3 - 2) / 4);
+                    half pale = lerp(0.5, smoothstep(0.35, 0.6, rings), ringSharp);
+                    half3 crustColor = lerp(half3(0.62, 0.55, 0.22), half3(0.85, 0.84, 0.72), pale) * (0.9 + 0.2 * PunchyValueNoise(p * 4.3));
+                    half3 crustLit = crustColor * (ambient + light.color * shadow * saturate(light.direction.y) * 0.9 + lanternLit);
+                    color = lerp(color, crustLit, crust);
+                    alpha = max(alpha, crust);
+                }
+
                 // Lava glows past white-point (for bloom) and nothing on it reflects or ripples; the crust closes up
                 // where it cools against the rock at the edges.
                 if (lava > 0)
@@ -1245,7 +1267,7 @@ Shader "Punchy/Water"
                     alpha = lerp(alpha, 1, lava);
                 }
                 [branch] if (frontFace && input.fall.y < 0.5)
-                    alpha *= lerp(PunchyShoreEdge(p, thickness, pixelsPerMetre), 1, lava);
+                    alpha *= lerp(PunchyShoreEdge(p, thickness, pixelsPerMetre), 1, max(lava, crust));
 
                 if (_PunchyWaterProbe > 0.5)
                     return _PunchyWaterProbe < 1.5 ? half4(foam, foam, foam, 1) : _PunchyWaterProbe > 3.5 ? half4(foamParts * 2, 1) : _PunchyWaterProbe < 2.5 ? half4(saturate(thickness), frac(thickness * 4), 0, 1) : half4(alpha, alpha, alpha, 1);

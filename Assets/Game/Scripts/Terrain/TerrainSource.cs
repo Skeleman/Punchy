@@ -271,6 +271,23 @@ namespace Punchy.Terrain
             return look;
         }
 
+        // Shore band as a negative skirt drop: wet just above water, but a toxic pool's bank crusts pale and dry (W-154).
+        public float ShoreWet(float2 xz, in GroundSample ground, float h, ref SurfaceProps surface)
+        {
+            if (!ground.HasWater)
+                return 0f;
+            var above = h - ground.WaterSurface;
+            var wet = 1f - math.smoothstep(0.1f, 1.4f, above);
+            if (above > 1f || ground.CaveWater)
+                return -wet;
+            var look = WaterLook(xz, ground.Biomes, out var glow);
+            var toxic = math.smoothstep(1.05f, 1.25f, look.y / math.max(math.max(look.x, look.z), 1e-3f)) * math.saturate(glow.x * 3f) * (1f - math.saturate(glow.y));
+            var crust = toxic * (1f - math.smoothstep(0.3f, 0.9f, above));
+            surface.Albedo = math.lerp(surface.Albedo, new float3(0.62f, 0.58f, 0.36f), crust * 0.8f);
+            surface.Grass *= 1f - crust;
+            return -wet * (1f - 0.85f * crust);
+        }
+
         public float4 WaterLook(in BiomeWeights biomes, out float2 glow)
         {
             glow = 0f;
