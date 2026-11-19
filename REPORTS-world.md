@@ -8810,3 +8810,7 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Rule 35: the added summaries are gone; only the two reason lines you kept, plus one for the cap.
 - Cap: shafts taller than about 30 m get no climb and no strands (skipped, no rest pin). That leaves 3 climbs in 2 caves: 17.3, 18.2 and 30.0 m; the 66.6 m one is gone, so there is no climb66 shot.
 - Hash 120 B32C5306, dry 0, fingerprint 377B279B, truth 83,0,0,0,0,0,0,49,1,17,142,0,0, WorldTests 22/22. Supersedes world/cave-climb.
+
+## 11-18 #365 tail, mouth patch gaps (world/mouth21@cab37f47, from main b6969665)
+- Mouth 21 LOD0: a straight sliver of three rim corners hid the middle one from the terrain vertex; the face across it is now split there. Mouth 23 (new, LOD0+1): an inner snap past the rim sat at ground height off the straight rim; it stays rock now.
+- All 24 mouths: problems 3 -> 0, holes 0. WorldTests 22/22, truth unchanged.
