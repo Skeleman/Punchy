@@ -481,3 +481,7 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Water.shader caustic web: two domain warps bend the cells, borders have a thin core with a soft glow (squared falloff), low-frequency patches break the web up, and contrast is lower; strength follows light / (1 + sun luminance), so it eases off in strong sun and fades in weak sun.
 - Shots, same pose before/after: D:/Unity/PunchyMilestones/caustic-soften/{riffle,bank}-pair.jpg (bank -1170,3570 hour 11 Clear; riffle -2427.6,-904.3). Bank pair viewed: the paving-stone lines are now a faint warped shimmer.
 - Riffle without caustics, normal view: D:/Unity/PunchyMilestones/flow-ridges/riffle-before.png (same pose, taken before #647).
+
+## Shore blend (#262, #301) - render/shore-blend 26fc86a6
+- Water.shader, water side only: the fresnel/sky share of alpha ramps from 0.15 to 1 over the first 0.8 m of thickness, so the edge clears onto the bed; a faint broken dark contact line (bedDepth 0.01-0.15 m, -30% at most, refraction tier); a thin broken lapping crest (thickness 0.03-0.12 m) moving with the shore-lift wave phase, scaled by wind, off on the sea, steep, viscous and underground water.
+- Shots, same pose before/after: D:/Unity/PunchyMilestones/shore-blend/{bank,riffle}-pair.jpg, crop bank-crop.jpg (bank viewed). The shallows are visibly clearer (the bed and fish show through). The lap line and contact line are too small to see from about 15 m (thickness passes 0.25 m within a few pixels of that bank).

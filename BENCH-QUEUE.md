@@ -1232,3 +1232,4 @@ Shallow sunlit river at -1170,3570, before/after #653: GPU ms (one extra noise c
 
 ## Request (2026-11-18, supervisor, W-166 #336, main after #654): wet margin + BankMud
 River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 noise per bank vertex).
+- 11-18 render: render/shore-blend@26fc86a6: Water.shader adds one PunchyValueNoise per water fragment (lap phase) plus a few ALU ops; no new depth reads. Check the water pass at a river bank near -1170,3570, main vs branch.
