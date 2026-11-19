@@ -2,6 +2,26 @@
 
 Newest first.
 
+## Job 86 (R-28 r2, #312): cobble bevel parallax, FAIL at the Medium desert square (+0.83 ms GPU); paving and High within +0.07
+
+render/cobble-depth e098ea4d (B) vs main 14a8de92 (A), each with the local WaterTruth guard (bench-only 92a4630 / 6528244, so
+the A/B diff is only R-28). Both builds compiled the terrain shader with no FXC crash. 1920x1080 uncapped, noon, Clear,
+3 rounds alternated, 300 frames. Laptop GTX 1060 Max-Q: whole-frame GPU only (no terrain pass split). Spec q150b.job.
+
+| view | gfx | A GPU by round | B GPU by round | A | B | B vs A |
+|---|---|---|---|---|---|---|
+| desert square -342,560 | Medium | 14.0, 14.0, 14.1 | 14.9, 14.8, 14.9 | 14.03 | 14.87 | **+0.83 FAIL** |
+| paving 80,-352 | Medium | 13.2, 13.1, 13.1 | 13.1, 13.0, 13.5 | 13.13 | 13.20 | +0.07 |
+| desert square | High | 20.7, 20.3, 20.0 | 20.2, 20.6, 20.4 | 20.33 | 20.40 | +0.07 |
+| paving | High | 18.5, 18.5, 18.9 | 18.6, 18.6, 18.9 | 18.63 | 18.70 | +0.07 |
+
+- The Medium desert cost isn't noise: every B round is 0.7-0.9 ms over every A round. At that view B's CPU frame time is also
+  up, 21.6 -> 25.4 ms, and its median frame 16.2 -> 16.9 ms.
+- The bar is +0.1 ms terrain GPU at Medium. The paving view is at the bar (+0.07 whole-frame); the desert square is 8x over.
+- High (3 steps) shows no cost at either view, though Medium (2 steps) does. I don't know why; one guess is that High's
+  frame is bound by something else at the desert square, which hides the terrain cost. A Medium run with the terrain pass
+  isolated (on a PC with pass timing) would settle it.
+- Not measured: terrain mesh memory (the logs have no mesh-size line).
 ## Request W-153 row 3 tail (world, #301): fall shoulder carve, no measurable cost
 
 world/fall-walls 5a9f5f61 (B) vs origin/main 8b97c7c3 (A). Both arms carry the local WaterTruth guard (bench-only commits
