@@ -186,17 +186,20 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         float2 spot = (flow * (c1 - 0.5) * 2.0 + across * (c2 - 0.5)) * e.shape.y + flow * length(e.outDir) * cAge * cLife;
         float3 cAt = e.position + float3(spot.x, fleck ? 0.1 + e.shape.x * 4 * cAge * (1 - cAge) : 0.12, spot.y);
         float cAlpha = e.timing.z * smoothstep(0, 0.15, cAge) * (1 - smoothstep(0.6, 1, cAge)) * step(k, e.timing.w - 1);
-        float cDist = distance(cAt, GetCameraPositionWS());
-        float cReach = max(e.shape.y, e.shape.z) * _PunchyPlumeReach;
-        cAlpha *= (1 - smoothstep(cReach * 0.8, cReach, cDist)) * smoothstep(3, 10, cDist);
         float3 cRight = UNITY_MATRIX_V[0].xyz, cUp = UNITY_MATRIX_V[1].xyz;
         float cSize = e.shape.z * 0.3 * lerp(0.6, 1.2, c1);
+        float cStretch = 1;
         if (!fleck)
         {
-            cRight = float3(flow.x, 0, flow.y) * lerp(3.0, 5.5, c2);
+            cStretch = lerp(1.0, 1.5, c2);
+            cRight = float3(flow.x, 0, flow.y) * cStretch;
             cUp = float3(across.x, 0, across.y);
             cSize = e.shape.z * lerp(0.5, 0.9, c1) * (0.6 + 0.6 * cAge);
         }
+        float cDist = distance(cAt, GetCameraPositionWS());
+        // W-159 row 4: each clump fades by its own size on screen (rule 20), not the whole emitter's spread.
+        float cReach = 2 * cSize * cStretch * _PunchyPlumeReach;
+        cAlpha *= (1 - smoothstep(cReach * 0.8, cReach, cDist)) * smoothstep(3, 10, cDist);
         float2 cCorner = EffectCorner[vertex];
         PlumeVertex c;
         c.positionWS = cAt + (cRight * cCorner.x + cUp * cCorner.y) * cSize * step(0.001, cAlpha);

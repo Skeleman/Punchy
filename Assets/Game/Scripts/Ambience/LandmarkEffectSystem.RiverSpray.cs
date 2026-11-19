@@ -10,6 +10,8 @@ namespace Punchy.Ambience
     public partial class LandmarkEffectSystem
     {
         const float RapidGradient = 0.03f;
+        // W-159 row 4: churn clumps only on strong rapids; splash wakes keep RapidGradient.
+        const float ChurnGradient = 0.08f;
         const float RiverSprayMaxRange = 260f;
         const int RapidSpotsPerSegment = 3;
 
@@ -58,14 +60,18 @@ namespace Punchy.Ambience
                 if (gradient >= RapidGradient)
                 {
                     var strength = math.saturate((gradient - RapidGradient) / (RapidGradient * 2f));
+                    var churn = math.saturate((gradient - ChurnGradient) / ChurnGradient);
                     for (int k = 0; k < RapidSpotsPerSegment; k++)
                     {
                         h = Scramble(h + (uint)k);
+                        if (gradient < ChurnGradient)
+                            continue;
                         var t = (k + 0.2f + 0.6f * (h & 0xFF) / 255f) / RapidSpotsPerSegment;
                         var side = new float2(b.y - a.y, a.x - b.x) / length * width * 0.3f * (((h >> 8) & 0xFF) / 127.5f - 1f);
                         var xz = math.lerp(a, b, t) + side;
                         var size = width * 0.6f;
-                        if (math.distance(xz, at) > math.min(Policy.ExtraReach(size, gone), range))
+                        var clump = (0.35f + 0.25f * churn) * 3.3f;
+                        if (math.distance(xz, at) - size * 0.3f > math.min(Policy.ExtraReach(clump, gone), range))
                             continue;
                         var ground = source.SampleGround(xz);
                         if (!ground.HasWater || ground.WaterSurface < ground.Height + 0.1f)
@@ -76,9 +82,9 @@ namespace Punchy.Ambience
                             Position = new float3(xz.x, ground.WaterSurface - 0.05f, xz.y),
                             Seed = ((h >> 20) & 0xFFF) / 4096f,
                             Color = new float4(0.93f, 0.95f, 0.97f, 0f),
-                            Shape = new float4(0.3f + 0.4f * strength, size * 0.3f, 0.35f + 0.25f * strength, 1.6f + 0.8f * v),
-                            Timing = new float4(0f, 0.25f, 0.3f + 0.25f * strength, 24 + (int)(24f * strength)),
-                            Out = (b - a) / length * (1f + 2f * strength)
+                            Shape = new float4(0.3f + 0.4f * churn, size * 0.3f, 0.35f + 0.25f * churn, 1.6f + 0.8f * v),
+                            Timing = new float4(0f, 0.25f, 0.3f + 0.25f * churn, 24 + (int)(24f * churn)),
+                            Out = (b - a) / length * (1f + 2f * churn)
                         });
                         rapids++;
                     }
