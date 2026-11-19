@@ -625,7 +625,7 @@ Shader "Punchy/Terrain Surface"
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5);   // grain in the colour too (faded in micro)
                 // R-31: bare ground is speckled and grassy ground streaked, so the two differ by more than colour; every
                 // pattern fades from 4 to 2 pixels of its own size (DetailPolicy.ScreenSize) to the same average tone.
-                half bare = detailMask * (1 - rockFace) * (1 - input.extra.y);
+                half bare = detailMask * (1 - rockFace) * (1 - input.extra.y) * (1 - saturate(input.extra.z * 4));
                 half grainFine = saturate(pxmR / 37 * 0.5 - 1), grainCoarse = saturate(pxmR / 15 * 0.5 - 1), grainClod = saturate(pxmR / 4 * 0.5 - 1);
                 [branch] if (bare * grainClod > 0.001)
                 {
@@ -646,6 +646,35 @@ Shader "Punchy/Terrain Surface"
                     float2 sp = p + (float2(PunchyValueNoise(p * 1.7), PunchyValueNoise(p * 1.7 + 5.3)) - 0.5) * 0.35;   // bent, not combed
                     half strokes = BladeStrokes(sp, 0.45, float2(0.03, 0.1)) * strokeFine + BladeStrokes(sp + 3.1, -0.9, float2(0.06, 0.18)) * strokeCoarse;
                     albedo *= 1 + strokes * 0.45 * grassy * half3(1.1, 1, 0.7);
+                }
+                half snowy = smoothstep(0.08, 0.4, input.extra.z) * (input.extra.w <= 0.01) * (1 - rockFace) * triW.y;
+                half rippleOn = saturate(pxmR * 0.12 * 0.5 - 1), sastrugiOn = saturate(pxmR * 1.3 * 0.5 - 1), glitterOn = saturate(pxmR * 0.083 * 0.5 - 1);
+                half glitter = 0;
+                [branch] if (snowy * sastrugiOn > 0.001)
+                {
+                    float2 across = float2(0.8, 0.6);
+                    float2 wp = float2(dot(p, across), dot(p, float2(-0.6, 0.8)));
+                    float bend = PunchyValueNoise(wp * float2(0.12, 0.35)) * 4 + PunchyValueNoise(wp * float2(0.5, 1.4) + 7.7) * 0.6;
+                    float u = wp.x / 1.3 + bend;
+                    half saw = frac(u), sawAhead = frac(u + 0.03);
+                    half crest = smoothstep(0, 0.15, saw) * (1 - saw), crestAhead = smoothstep(0, 0.15, sawAhead) * (1 - sawAhead);
+                    half patchy = smoothstep(0.3, 0.6, PunchyValueNoise(wp * float2(0.2, 0.08) + 3.1));
+                    half sas = (crest - 0.44) * sastrugiOn * patchy * 1.4;
+                    float v = wp.x / 0.12 + bend * 3 + PunchyValueNoise(wp * float2(2, 6)) * 2;
+                    half rip = sin(v * 6.2832) * rippleOn;
+                    half slope = (crestAhead - crest) / 0.039 * 0.1 * sastrugiOn * patchy + cos(v * 6.2832) * 0.26 * rippleOn;
+                    half hollow = saturate(PunchyValueNoise(p * 0.18) * 1.6 - 0.3) - 0.5 - sas * 0.6;
+                    albedo *= 1 + ((rip * 0.04 + sas * 0.12) + hollow * half3(-0.12, -0.07, 0.04)) * snowy;
+                    normalWS = normalize(normalWS - float3(across.x, 0, across.y) * slope * snowy);
+                    inputData.normalWS = normalWS;
+                    [branch] if (glitterOn > 0.001)
+                    {
+                        float2 gp = p * 12, gc = floor(gp);
+                        half3 gh = half3(Grain(gc + 1.7), Grain(gc + 4.1), Grain(gc + 8.3));
+                        half dotOn = 1 - smoothstep(0.08, 0.2, length(gp - gc - 0.5 - gh.xy * 0.5));
+                        float3 facet = normalize(normalWS + float3(gh.x, 0, gh.z) * 1.6);
+                        glitter = pow(saturate(dot(facet, normalize(inputData.viewDirectionWS + lit.sun.direction))), 120) * dotOn * glitterOn * snowy;
+                    }
                 }
                 // W-166: stony river beds (RiverBed's rough bump under water) lie in cobbles with a few big stones.
                 half bedStony = smoothstep(0.55, 0.85, input.bump) * (-input.extra.w > 0.999) * (1 - rockFace) * (1 - saturate(input.extra.y * 2));
@@ -792,6 +821,7 @@ Shader "Punchy/Terrain Surface"
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
+                color.rgb += lit.sun.color * lit.sun.shadowAttenuation * glitter * 1.5;   // snow glitter rides the real sun
                 [branch] if (stoneOn * stoneWet > 0.01)
                 {
                     Light stoneSun = GetMainLight(inputData.shadowCoord);
