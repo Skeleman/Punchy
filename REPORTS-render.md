@@ -1052,3 +1052,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - render/seep-streak@16e34e80. Particle 0 of each seep plume is a thin tapered glowing streak from the lip down the drop, so the trickle reads from about 20 m; beads take particles 1+. Seeps.cs summaries cut to reason lines (rule 35).
 - Shots PunchyMilestones/seep-streak: slope-before (the #683 shot) / slope-after at 4 m, far-before / far-after at 20 m (viewed).
 - WorldTests 23/23. Cost: one more quad per seep; BENCH line folded into the #683 run.
+
+## 11-19 render-2: W-142 seeps as mini falls (#262) - PR #690
+- render/seep-falls@44d06dc5. New partial LandmarkEffectSystem.SeepFalls.cs: each seep is a 0.3-1 m lava ribbon from the lip to the foot, in FallCurtain.Vertex, drawn with the curtains' Water material. Rows by screen size, fading over the last quarter of the reach. Cave seeps end in a small glow pool. Beads 2-3 per seep; the #684 streak is removed.
+- Shaders (materials lane files): Water.shader lava block +2 lines and a reason comment (a curtain's height feeds the noise; its edge fade sets the crust, molten middle). Lava river fall curtains would share it. LandmarkEffects.hlsl: streak block removed.
+- Shots PunchyMilestones/seep-falls: slope-before/after, far-before/after, cave-before (#683)/cave-after (viewed slope and cave).
+- WorldTests 22/23: Setup_SpawnRainAndShot timed out (the known load flake). Cost: mesh rebuilt per 10 m seep cell move (up to 40 seeps, 4-17 height samples each) plus one draw; BENCH line added.
