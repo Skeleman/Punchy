@@ -67,6 +67,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - world/kit-inn -> #680
 - b/fix-player-build-watertruth -> #679
 - materials/water-pits -> #681
+- render/lava-seep -> #683
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
