@@ -437,3 +437,6 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Cause: TerrainSurface micro relief slope (summed 0.21/0.7/3 m value-noise octaves tilting away from the sun), not #664 mudLike or the bank blend (octaves-off and relief-off both clear it; colour, grain, cracks, shingle, shore, wide shadow do not).
 - Fix: relief 0.45 -> 0.2 and tilt soft-capped (rsqrt(1+16|t|^2)). Pair: PunchyMilestones/bank-spots/pair.png (same pose, viewed: leopard spots gone).
 - No BENCH line (same ALU). Note: shared scratchpad cycle.sh was overwritten by another agent; one of my runs drove the Punchy-render editor (stop/refresh/play, read-only probes) and left it in play mode.
+
+## materials: moss sheet (PR #677)
+- DONE: moss on wet river/bank rocks is a textured mat (Materials/Moss.hlsl, shared with part-13 moss sheets), screen-size fades (rule 20). Shader files only. Before/after: PunchyMilestones/moss-sheet/. Related #336. No BENCH line (a few noise evals on mossy rock pixels only).
