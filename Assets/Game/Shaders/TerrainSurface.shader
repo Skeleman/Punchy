@@ -623,6 +623,9 @@ Shader "Punchy/Terrain Surface"
 
                 SurfaceData surface = (SurfaceData)0;
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5);   // grain in the colour too (faded in micro)
+                // Glacier ice (smooth, blue, snowless) carries rime instead of the dirt grain.
+                half frost = smoothstep(0.4, 0.55, input.surface.a) * smoothstep(0.1, 0.2, input.surface.b - input.surface.r) * (1 - smoothstep(0.35, 0.5, input.bump))
+                           * (1 - saturate(input.extra.z * 4)) * (input.extra.w <= 0.01) * (1 - rockFace);
                 // R-31: bare ground is speckled and grassy ground streaked, so the two differ by more than colour; every
                 // pattern fades from 4 to 2 pixels of its own size (DetailPolicy.ScreenSize) to the same average tone.
                 half bare = detailMask * (1 - rockFace) * (1 - input.extra.y);
@@ -637,7 +640,21 @@ Shader "Punchy/Terrain Surface"
                         half2 fine = Specks(g, 15, 11.3, 0.38), clod = Specks(g, 4, 2.9, 0.22);
                         grain += (Grain(g * 37) * 0.6 * grainFine + (fine.y * 0.4 + fine.x * 0.6) * grainCoarse + clod.x * 1.4 * grainClod) * triW[gi];
                     }
-                    albedo *= 1 + grain * 0.5 * bare;
+                    albedo *= 1 + grain * 0.5 * bare * (1 - frost);
+                }
+                half frostGlint = 0;
+                half rimeFine = saturate(pxmR / 60 * 0.5 - 1), rimeMid = saturate(pxmR / 16 * 0.5 - 1), rimeCoarse = saturate(pxmR * 0.03 * 0.5 - 1), rimePatch = saturate(pxmR * 0.8 * 0.5 - 1);
+                [branch] if (frost * rimePatch > 0.001)
+                {
+                    float2 rp = p + (float2(PunchyValueNoise(p * 2.3), PunchyValueNoise(p * 2.3 + 4.1)) - 0.5) * 0.3;   // warped, so the crystals don't line up
+                    half crystal = max(Specks(rp, 14, 8.1, 0.4).x, 0) - 0.02;   // bright only, less its mean cover
+                    half rime = (PunchyValueNoise(p * 60) - 0.5) * 0.4 * rimeFine + (PunchyValueNoise(p * 16 + 3.3) - 0.5) * 0.25 * rimeMid + crystal * 0.5 * rimeCoarse + (PunchyValueNoise(p * 1.3 + 2.9) - 0.5) * 0.25 * rimePatch;
+                    albedo *= 1 + rime * frost;
+                    float2 gq = p * 12, gc = floor(gq);
+                    half3 facet = normalize(normalWS + half3(Grain(gc + 3.1), Grain(gc + 5.3), Grain(gc + 7.7)) * 1.2);
+                    half glintDot = 1 - smoothstep(0.06, 0.14, length(gq - gc - 0.5));
+                    frostGlint = (Grain(gc + 1.3) > 0.46) * glintDot * pow(saturate(dot(facet, normalize(inputData.viewDirectionWS + lit.sun.direction))), 120)
+                               * frost * saturate(pxmR * 0.05 * 0.5 - 1);
                 }
                 half grassy = input.extra.y * (input.extra.w <= 0.01) * (1 - rockFace) * triW.y;
                 half strokeFine = saturate(pxmR * 0.03 * 0.5 - 1), strokeCoarse = saturate(pxmR * 0.07 * 0.5 - 1);
@@ -822,6 +839,7 @@ Shader "Punchy/Terrain Surface"
                     color.rgb = lerp(color.rgb, film, puddle);
                 }
 
+                color.rgb += lit.sun.color * lit.sun.shadowAttenuation * frostGlint * 1.5;
                 // Cloud shadows and, past the real shadows, the wide cached ones of the huge things (R-5): dim the share
                 // of the light that comes straight from the sun. The wide shadow takes the darker of itself and the real
                 // shadow where they overlap, so it never doubles (Surface.hlsl).
