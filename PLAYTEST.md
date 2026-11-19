@@ -365,3 +365,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #679 player builds fixed: the WaterTruth call in IslandV2 is now editor-only (builds broke at 50065032)
 - 11-19 #681 W-181 row 1: water pit/steep counts pinned (steep 118, pits 22 at 3 spots), measure only (#301)
 - 11-19 #683 W-142 row 1: lava seeps on vent-biome rock and lava-tube walls (glowing beads, nearest light the rock) (#262)
+- 11-19 #682 W-173 kit roofs and walls take their kinds from MaterialLibrary by culture and biome; clay tile, slate and slab roofs (#669)
