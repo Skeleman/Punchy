@@ -1250,3 +1250,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 FYI #680 (W-173 Inn/Hall kit): fauna fingerprint 1E90DBCF -> 156425C3; landmarks and water pins unchanged.
 - 11-19 NOTE #679 merged (9afb8b3f): player builds were broken on main from 50065032 (W-153 r6) until #679, so any arm in that range needs the guard. Job 89 after-build uploaded: Profile-9f792c3.zip on bench-builds = 9f792c3 + the #679 fix, marker .bench2-9f792c3, island re-baked. Pick a before-build that also carries the fix.
 - 11-19 FYI #681 (W-181 r1): new test pin Water_SheetSlopes steep 118 / pits 22; WaterTruthBaseline unchanged; WorldTests 23.
+- 11-19 world #682 (W-173 kit-tile): Flora.shader gains a tile branch (PunchyRoofCover) and kind-aware plaster and thatch calls. Please compare village Flora cost before and after when convenient.

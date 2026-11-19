@@ -8915,3 +8915,10 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Fauna fingerprint 1E90DBCF -> 156425C3 (flora boxes and perches move). Shots: PunchyMilestones/world/kit-inn.
 - Another session ran WorldTests in the Punchy-world editor again (~08:20, test-rain-deer shots) and left it in play mode. A ModelLab capture during that run hung the editor for about 25 min.
 - Next: #669 library-kind wiring (Tile slot), then lake-rim gully (-622,634).
+
+
+## 11-19 W-173 kit-tile DONE (PR #682)
+- Kit thatch, plaster and roof kinds now come from MaterialLibrary: culture plus a biome drawn per variant, because the biome isn't known when a species is grown. ClayTile, Slate and StoneSlab roofs draw as the Tile family in Flora.shader. Plank and shingle roofs both take tile when the kind isn't wood. Timber kind is left for later (the wood slot already has 8 kinds).
+- Only kit buildings show the change: StormShelterHouse (Human) and the dwarf shelter houses. Rule 35 trims done (DrawKitPart and Hall summaries).
+- WorldTests 21/22 (Village_CreatureDensity 52, flaky). Water, LandmarkHash and fauna fingerprint unchanged. Shots: PunchyMilestones/world/kit-tile.
+- Next: lake-rim gully (-622,634).
