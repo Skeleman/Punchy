@@ -181,7 +181,8 @@ namespace Punchy.Tests
         // Wall 7 -> 4 (fall-walls): lip shoulders follow the carved edge and foot bowls close before the water's edge; step 129 -> 125.
         // Deep 1 -> 0 (lake-flow tie): a river at its lake's own level now takes the lake, so the last deep point goes.
         // Tilt 17 -> 15, step 125 -> 108 (W-181 row 3 cascade pools): steep reaches step down as short falls between flat pools.
-        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 4, 0, 15, 108, 0, 0 };
+        // Wall 4 -> 3 (W-173 lake-rim gully): dropped bay cells reflood to their level.
+        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 3, 0, 15, 108, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
