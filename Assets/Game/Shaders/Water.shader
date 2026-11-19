@@ -1112,6 +1112,27 @@ Shader "Punchy/Water"
                     half standWhite = standCrest * smoothstep(0.45, 0.8, carried) * smoothstep(0.6, 0.9, rapids);
                     whiteWater = max(whiteWater, standWhite * (1 - caveRun) * distanceFade);
                 }
+                half rushing = flowAmount * smoothstep(0.2, 0.45, rapids) * (1 - steep) * (1 - viscous) * (1 - lava) * (1 - caveRun);
+                half tear = PunchyValueNoise(p * 2.3 - flowDir * t * riverSpeed * 1.4) * 0.6 + length(flowingSlope) * 0.4;
+                half riffle = smoothstep(0.4, 0.65, rapids) * (1 - breaking) * smoothstep(0.6, 0.85, tear) * rushing * distanceFade * 0.6;
+                half rockWake = 0;
+                // Something standing at the surface a little upstream (a rock, a stepping stone) is found in the depth buffer, so wakes need no rock list.
+                [branch] if (rushing * smoothstep(4, 12, pixelsPerMetre) > 0.01)
+                {
+                    float3 wakeAcross = float3(-flowDir.y, 0, flowDir.x);
+                    [unroll] for (int tap = 0; tap < 4; tap++)
+                    {
+                        float d = 0.6 + 1.0 * tap + 0.15 * tap * tap;
+                        float3 upstream = input.positionWS - float3(flowDir.x, 0, flowDir.y) * d + wakeAcross * d * 0.32 * (tap % 2 == 0 ? 1 : -1);
+                        float4 us = ComputeScreenPos(TransformWorldToHClip(upstream));
+                        float2 uuv = us.xy / max(us.w, 1e-3);
+                        float gap = us.w - LinearEyeDepth(SampleSceneDepth(saturate(uuv)), _ZBufferParams);
+                        half standing = step(-0.03, gap) * (1 - smoothstep(0.8, 1.2, gap)) * step(0.01, us.w) * step(abs(uuv.x - 0.5), 0.5) * step(abs(uuv.y - 0.5), 0.5);
+                        rockWake = max(rockWake, standing * (1 - d / 6));
+                    }
+                    rockWake *= smoothstep(0.45, 0.75, tear) * smoothstep(0.15, 0.4, thickness) * rushing * smoothstep(4, 12, pixelsPerMetre);
+                }
+                whiteWater = max(whiteWater, max(riffle, rockWake * 0.8));
                 half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.12 * breaking), 0.85) * (1 - steep),
                                         flowAmount * smoothstep(0.55, 0.9, flowLines.w) * smoothstep(0.6, 0.8, PunchyValueNoise(p * 3.3)) * smoothstep(0.6, 0.85, rapids) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
                                         // (Fewer in white water, where they scratched thin lines over the carried foam.)
