@@ -385,3 +385,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #699 W-142 row 3 (#262): water seeps (thin trickle ribbons on river, lake, scarp and cave faces) with wet rock and shared moss sheet.
 - 11-19 #701 R-31 (#325): rime frost on snowless glacier ice (mottle, crystals, sun glints; no dirt grain).
 - 11-19 #702 W-174 r6 (#405): cave skin no longer self-shadows (walls and mouth floor were half shadow); tundra town roofs checked OK.
+- 11-19 #703 W-142 tail (#262): leaves sift down cave roots and grassy shafts; 3-20 wisps per vent landmark (towns/camps no longer vents).

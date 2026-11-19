@@ -87,6 +87,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - render/water-seeps -> #699
 - materials/r31-frost -> #701
 - world/mouth-snow-tint -> #702
+- render/262-tail -> #703
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
