@@ -2,6 +2,19 @@
 
 Newest first.
 
+## Request W-153 row 3 tail (world, #301): fall shoulder carve, no measurable cost
+
+world/fall-walls 5a9f5f61 (B) vs origin/main 8b97c7c3 (A). Both arms carry the local WaterTruth guard (bench-only commits
+6bb5f7c / d832b0f). High, 1920x1080 uncapped, noon, Clear, 3 rounds alternated, at -3226,3042 near the fall at -3226,3102.
+Laptop GTX 1060 Max-Q. Spec q154.job.
+
+- Island bake (one fresh `-freshisland` start per arm): A 48.7 s, B 48.2 s. World ready at 76.3 s / 77.5 s.
+- Terrain chunk build (world-ready line; main ms sum / worst frame / worker ms in flight, 864 items):
+  - chunks start: A 9-11 / 3 / 17.9-18.9 k; B 10-19 / 3-11 / 17.9-18.8 k (fresh: A 18.9 k, B 20.5 k).
+  - chunks apply: A 52-59 / 24-31; B 57-63 / 30-39.
+  - B's round 2 was its slowest run on every measure; the other two B rounds match A.
+- GPU at the fall: A 18.23 ms (18.1, 18.4, 18.2), B 18.4 ms (one clean round; the other two each had one frame over 5 s,
+  which also happened in other jobs tonight). +0.17 ms, inside the High bar.
 ## Request W-153 row 4 (world, #301): deep-lake water, B +0.6 ms GPU against one clean A round; patch build unchanged
 
 world/river-lakes 8d1e9937 (B; the tip 50065032 breaks player builds) vs world/river-curtain 7a9af48e (A). High, 1920x1080

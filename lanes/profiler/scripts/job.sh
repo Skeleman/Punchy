@@ -25,7 +25,7 @@ if [ -n "${DRY:-}" ]; then
 fi
 mkdir "$R/.lock" 2>/dev/null || { echo "lock held: $(cat $R/.lock/job)"; exit 2; }
 echo $$ > "$R/.lock/pid"; echo "$Q $TITLE (since $(date +%T))" > "$R/.lock/job"
-trap 'rm -rf "$R/.lock"; git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT
+trap 'rm -rf "$R/.lock"; [ -n "${DRY:-}" ] || git -C "$P" checkout -q $HOME_BRANCH 2>/dev/null' EXIT   # a DRY check must not switch the build tree (it broke two builds 11-18/19)
 for c in $BUILDS; do
   o=$(eval echo "\${OUT_$c:-Profile-$c}")
   [ -n "${DRY:-}" ] || [ -f "$P/Builds/$o/.bench2-$c" ] || "$S/shelf.sh" get $c "$P" $o || true   # the main PC's shelf first
