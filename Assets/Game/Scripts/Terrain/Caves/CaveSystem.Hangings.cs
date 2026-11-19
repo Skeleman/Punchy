@@ -66,8 +66,10 @@ namespace Punchy.Terrain
         World hangingWorld;
         EntityQuery creatureQuery;
 
+        static bool Pinned(in CaveHanging t) => t.Kind == CaveHangingKind.Rope || math.any(t.End != 0f);
+
         static float3 HangingCentre(in CaveHanging t) =>
-            t.Kind == CaveHangingKind.Rope ? (t.Anchor + t.End) * 0.5f : t.Anchor - new float3(0f, t.Length * 0.5f, 0f);
+            Pinned(t) ? (t.Anchor + t.End) * 0.5f : t.Anchor - new float3(0f, t.Length * 0.5f, 0f);
 
         void DrawHangings(float3 camPos)
         {
@@ -169,9 +171,9 @@ namespace Punchy.Terrain
                     s.Sway = 0.04f;
                     s.SwayRate = 0.5f;
                     s.Damping = 0.95f;
-                    s.PinEnd = true;
                     break;
             }
+            s.PinEnd = Pinned(t);
             return s;
         }
 
