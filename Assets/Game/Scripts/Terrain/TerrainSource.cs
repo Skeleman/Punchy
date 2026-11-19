@@ -655,7 +655,7 @@ namespace Punchy.Terrain
             if (Rivers.IsCreated)
             {
                 river = RiverAt(xz);
-                h = RiverSampling.Carve(river, RiverSettings, h, xz);
+                h = RiverSampling.PondBowl(ref Rivers.Value, xz, RiverSampling.Carve(river, RiverSettings, h, xz));
             }
             var carved = h;
             if (Landmarks.IsCreated)
@@ -760,7 +760,7 @@ namespace Punchy.Terrain
                 notchRiver = river;
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
-                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height, xz);
+                    g.Height = RiverSampling.PondBowl(ref Rivers.Value, xz, RiverSampling.Carve(river, RiverSettings, g.Height, xz));
                 carved = g.Height;
                 g.River = RiverSampling.ChannelMask(river);
                 g.Mouth = MouthFan(ref Rivers.Value, xz, river, World.SeaLevel, out g.MouthStreak);

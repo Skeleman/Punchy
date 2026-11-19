@@ -14,6 +14,7 @@ namespace Punchy.Terrain
         Lake = 4,
         Source = 8,
         Mouth = 16,
+        Pond = 32,
     }
 
     /// <summary>

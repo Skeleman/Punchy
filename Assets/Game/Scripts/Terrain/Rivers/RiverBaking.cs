@@ -175,6 +175,8 @@ namespace Punchy.Terrain
                     RiverProfiles.FillPits(settings, source.World.SeaLevel, down, order, lakes, width, bed, water);
                     SettleLakeRivers(settings, source.World.SeaLevel, down, order, lakes, lakeLevel, width, bed, water);
                 }
+                var ponds = new NativeArray<bool>(count, Allocator.Temp);
+                ShapePuddles(resolution, elevation, width, lakes, bed, water, ponds);
 
                 var builder = new BlobBuilder(Allocator.Temp);
                 ref var root = ref builder.ConstructRoot<RiverMapBlob>();
@@ -193,6 +195,10 @@ namespace Punchy.Terrain
                 Copy(ref builder, ref root.Points, points);
                 builder.Construct(ref root.BankLow, bankLows);
                 var kinds = RiverProfiles.Kinds(settings, source.World.SeaLevel, down, width, lakes, bed, water, bankLows, points);
+                for (int c = 0; c < count; c++)
+                    if (ponds[c])
+                        kinds[c] |= (byte)RiverProfileKind.Pond;
+                ponds.Dispose();
                 builder.Construct(ref root.Kind, kinds);
                 // Each cell's highest lake level within two cells (for bays the cell grid misses).
                 // W-103: rows in parallel over managed copies (each cell is independent, so the result is identical).
@@ -362,6 +368,69 @@ namespace Punchy.Terrain
             stack.Dispose();
             cells.Dispose();
         }
+
+        // A riverless lake of a cell or two stands barely over its ground, so its sheet dives into it (W-181 row 2): it gets a dug bowl.
+        static void ShapePuddles(int resolution, NativeArray<float> elevation, NativeArray<float> width, NativeArray<float> lakes,
+                                 NativeArray<float> bed, NativeArray<float> water, NativeArray<bool> ponds)
+        {
+            var count = lakes.Length;
+            var seen = new NativeArray<bool>(count, Allocator.Temp);
+            var stack = new NativeList<int>(16, Allocator.Temp);
+            var cells = new NativeList<int>(16, Allocator.Temp);
+            for (int start = 0; start < count; start++)
+            {
+                if (seen[start] || lakes[start] <= 0f)
+                    continue;
+                cells.Clear();
+                stack.Clear();
+                stack.Add(start);
+                seen[start] = true;
+                var keep = false;
+                var deep = 0f;
+                while (stack.Length > 0)
+                {
+                    var c = stack[stack.Length - 1];
+                    stack.RemoveAt(stack.Length - 1);
+                    cells.Add(c);
+                    keep |= width[c] > 0f || lakes[c] >= PuddleDepth;
+                    deep = math.max(deep, lakes[c]);
+                    int x = c % resolution, z = c / resolution;
+                    for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, nz = z + dz;
+                        if (nx < 0 || nz < 0 || nx >= resolution || nz >= resolution)
+                            continue;
+                        var n = nz * resolution + nx;
+                        if (!seen[n] && lakes[n] > 0f)
+                        {
+                            seen[n] = true;
+                            stack.Add(n);
+                        }
+                    }
+                }
+                if (keep || cells.Length > PuddleCells)
+                    continue;
+                foreach (var c in cells)
+                {
+                    if (deep >= PuddleBowl)
+                    {
+                        ponds[c] = true;
+                        continue;
+                    }
+                    lakes[c] = 0f;
+                    bed[c] = math.min(bed[c], elevation[c]);
+                    water[c] = math.min(water[c], bed[c]);
+                }
+            }
+            seen.Dispose();
+            stack.Dispose();
+            cells.Dispose();
+        }
+
+        const int PuddleCells = 2;
+        const float PuddleDepth = 1f;
+        const float PuddleBowl = 0.3f;
 
         /// <summary>
         /// W-35b: after LowerBreachedLakes, the rivers that ran into a lowered lake still had beds and water shaped for the

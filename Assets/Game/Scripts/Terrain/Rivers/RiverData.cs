@@ -680,6 +680,32 @@ namespace Punchy.Terrain
             return math.lerp(b, a, h) - k * h * (1f - h);
         }
 
+        public const float PondDepth = 1f;
+
+        /// <summary>W-181 row 2: ground under a pond cell (RiverProfileKind.Pond) dug to a bowl about PondDepth under its level.</summary>
+        public static float PondBowl(ref RiverMapBlob map, float2 xz, float height)
+        {
+            if (map.Kind.Length == 0)
+                return height;
+            var uv = (xz - map.Origin) / map.CellSize - 0.5f;
+            var i0 = math.clamp((int2)math.floor(uv), 0, map.Resolution - 2);
+            var f = math.saturate(uv - i0);
+            var i = i0.y * map.Resolution + i0.x;
+            var w = new float4((1f - f.x) * (1f - f.y), f.x * (1f - f.y), (1f - f.x) * f.y, f.x * f.y);
+            var idx = new int4(i, i + 1, i + map.Resolution, i + map.Resolution + 1);
+            float weight = 0f, level = 0f;
+            for (int k = 0; k < 4; k++)
+                if ((map.Kind[idx[k]] & (byte)RiverProfileKind.Pond) != 0)
+                {
+                    weight += w[k];
+                    level += w[k] * map.LakeLevel[idx[k]];
+                }
+            if (weight <= 0f)
+                return height;
+            var s = math.smoothstep(0.25f, 0.75f, weight);
+            return math.min(height, math.lerp(height, level / weight - PondDepth, s));
+        }
+
         public static float ChannelMask(in RiverQuery q) =>
             q.Found ? 1f - math.smoothstep(q.Width * 0.5f, q.Width * 0.5f + 2f, q.Distance) : 0f;
 
