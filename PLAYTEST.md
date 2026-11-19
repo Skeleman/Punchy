@@ -359,3 +359,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #674 W-166 (#301): wet river banks no longer have dark leopard spots.
 - #675 W-173 (#399): crates have planks, corner battens and lids; stall counters are planked.
 - #676 W-153 (#301): three waterfall lips/feet no longer leave dry walls beside the water.
+- #677 materials moss sheet (#336): shared Moss.hlsl, mottled torn-edge moss on wet river/bank rocks and moss sheets.
