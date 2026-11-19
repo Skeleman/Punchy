@@ -1239,3 +1239,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - #661 W-173: fauna fingerprint 1AC019EC -> 7ED8D1F1 (hall roof boxes, chimney feet); landmarks unchanged 120 B32C5306. No cost check needed.
 - 11-19 materials: #664 materials/river-audit@43e0e078: TerrainSurface micro-relief octaves now run on dark smooth ground (mud, peat, silt, dark ash, obsidian). Check frag cost in poison swamp and foggy marsh views vs 9d7eb6cf.
 - #665 W-173: fauna fingerprint 7ED8D1F1 -> 1F4C927C (kit quoins out past the wall face); landmarks unchanged 120 B32C5306. No cost check needed.
+- 11-19 render-2: render/flow-foam@aa759b55: 4 extra scene-depth taps (with clip transforms) plus 2 PunchyValueNoise per fragment of rushing river water (rapids >= 0.2, near view only). Check GPU water pass at the rocks pose (cam -2622.4,238.9,726.9 looking -2607.7,231.9,738.9) main vs branch.
