@@ -2796,9 +2796,9 @@ namespace Punchy.Terrain
                             var w = depth * (1f - (k + 0.5f) / steps);
                             Add(parts, KitPiece.Wall, KitMaterial.Wall, new Vector3(side * (width * 0.5f - Thick * 0.5f), top + (k + 0.5f) * rise / steps, 0f), new Vector3(Thick, rise / steps + 0.01f, w), 0f, false);
                         }
-                    // A chimney through one slope.
-                    var cx = (rng.NextDouble() < 0.5 ? -1f : 1f) * width * 0.3f;
-                    Add(parts, KitPiece.Chimney, KitMaterial.Stone, new Vector3(cx, top + rise * 0.75f + 0.6f, -depth * 0.15f), new Vector3(0.7f, rise * 1.5f + 1.2f, 0.7f), 0f, false);
+                    // A chimney through one slope, its foot just under the roof (W-173: from the wall top it hung down into the room).
+                    var cx = (rng.NextDouble() < 0.5 ? -1f : 1f) * width * 0.3f; float head = top + rise * 1.5f + 1.2f, foot = top + rise + slab * (1f - 0.5f / Mathf.Cos(pitch)) - (depth * 0.15f + 0.35f) * Mathf.Tan(pitch) - 0.05f;
+                    Add(parts, KitPiece.Chimney, KitMaterial.Stone, new Vector3(cx, (foot + head) * 0.5f, -depth * 0.15f), new Vector3(0.7f, head - foot, 0.7f), 0f, false);
                     break;
                 }
             }
