@@ -454,7 +454,9 @@ Shader "Punchy/Terrain Surface"
                 // clods carry on to about 300 m and a 3 m swell to about 1.4 km at Detail 1; detailFade (the old fixed
                 // range, W-101: 110 m at Detail 1) still bounds the sand grains below.
                 float detailFar = _PunchyTerrainDetailFar > 0 ? _PunchyTerrainDetailFar : 70;
-                half detailMask = input.bump * (input.extra.w <= 0.01);
+                // Dark smooth bare ground (bank mud, silt, peat) has too little bump to carry any relief, so it reads flat.
+                half mudLike = (1 - smoothstep(0.45, 0.6, input.bump)) * (1 - smoothstep(0.24, 0.34, dot(input.surface.rgb, half3(0.3, 0.5, 0.2)))) * (1 - input.extra.y);
+                half detailMask = max(input.bump, 0.75 * mudLike) * (input.extra.w <= 0.01);
                 half detailFade = (1 - smoothstep(detailFar * 0.36, detailFar, distance)) * detailMask;
                 float3 octaves = MicroFades(distance, detailFar) * detailMask;
                 // R-19 (#281): steep faces, over about 45 degrees by the mesh's own normal (so fine relief can't speckle
