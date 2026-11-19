@@ -663,6 +663,7 @@ Shader "Punchy/Water"
                 float2 flowingSlope = 0;
                 float4 flowLines = 0;
                 half carried = 0;
+                half tear = 0;
                 // W-159 row 4: only breaking water carries white; merely fast water shows glinting ridges instead.
                 half breaking = smoothstep(0.7, 0.95, rapids);
                 bool foamy = rapids > 0.6 && flowAmount > 0.02;
@@ -694,6 +695,26 @@ Shader "Punchy/Water"
                             [branch] if (foamy)
                                 carried += FlowFoam(q * 1.8, flowDir, flowAmount * 1.8 * riverSpeed * 1.6, flowAmount, t) * w;
                         }
+                    }
+                    // Torn streaks for riffles and rock wakes, read about 6 m cells and blended keeping their contrast, so turns in the flow never shear them into slabs or cross-hatching.
+                    [branch] if (rapids > 0.2)
+                    {
+                        const float StreakCell = 6;
+                        float2 streakBase = floor(p / StreakCell);
+                        float2 streakBlend = smoothstep(0, 1, p / StreakCell - streakBase);
+                        float2 streakAcross = float2(-flowDir.y, flowDir.x);
+                        float streakSum = 0;
+                        float streakNorm = 0;
+                        [unroll] for (int k = 0; k < 4; k++)
+                        {
+                            float2 c = float2(k & 1, k >> 1);
+                            float wk = lerp(1 - streakBlend.x, streakBlend.x, c.x) * lerp(1 - streakBlend.y, streakBlend.y, c.y);
+                            float2 q = p - (streakBase + c) * StreakCell;
+                            float2 streakUV = float2(dot(q, flowDir) * 0.45 - t * _FlowSpeed * 1.5, dot(q, streakAcross) * 2.2);
+                            streakSum += (PunchyValueNoise(streakUV) * 0.75 + PunchyValueNoise(streakUV * 2.7 + 5.3) * 0.25 - 0.5) * wk;
+                            streakNorm += wk * wk;
+                        }
+                        tear = 0.5 + streakSum * rsqrt(streakNorm);
                     }
                     flowingSlope *= (1 + 1.3 * rapids) * (1 + 0.5 * saturate(riverSpeed));
                 }
@@ -1116,9 +1137,6 @@ Shader "Punchy/Water"
                 }
                 half rushing = flowAmount * smoothstep(0.2, 0.45, rapids) * (1 - steep) * (1 - viscous) * (1 - lava) * (1 - caveRun);
                 float2 flowAcross = float2(-flowDir.y, flowDir.x);
-                // Stretched along the current so broken water reads as torn streaks, not glitter.
-                float2 streakUV = float2(dot(p, flowDir) * 0.45 - t * riverSpeed * 0.6, dot(p, flowAcross) * 2.2);
-                half tear = PunchyValueNoise(streakUV) * 0.75 + PunchyValueNoise(streakUV * 2.7 + 5.3) * 0.25;
                 half riffle = smoothstep(0.4, 0.65, rapids) * (1 - breaking) * smoothstep(0.62, 0.8, tear) * rushing * distanceFade * 0.55;
                 half rockWake = 0;
                 // Something standing at the surface a little upstream (a rock, a stepping stone) is found in the depth buffer, so wakes need no rock list.
