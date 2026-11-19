@@ -1248,3 +1248,5 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 render-2: render/wake-streaks@a15d6f9a (#673, merged): one extra noise per streak cell (4 cells) where rapids > 0.2; depth taps still 4; FlowFoam constants only. Check GPU water pass at the rocks pose (cam -2622.4,238.9,726.9 looking -2607.7,231.9,738.9) main vs #671.
 - FYI #678: water truth pin deep 1 -> 0 (lake-flow tie in TerrainSource); landmarks and fauna fingerprints unchanged.
 - 11-19 FYI #680 (W-173 Inn/Hall kit): fauna fingerprint 1E90DBCF -> 156425C3; landmarks and water pins unchanged.
+- 11-19 NOTE #679 merged (9afb8b3f): player builds were broken on main from 50065032 (W-153 r6) until #679, so any arm in that range needs the guard. Job 89 after-build uploaded: Profile-9f792c3.zip on bench-builds = 9f792c3 + the #679 fix, marker .bench2-9f792c3, island re-baked. Pick a before-build that also carries the fix.
+- 11-19 FYI #681 (W-181 r1): new test pin Water_SheetSlopes steep 118 / pits 22; WaterTruthBaseline unchanged; WorldTests 23.
