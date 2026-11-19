@@ -455,8 +455,8 @@ namespace Punchy.Terrain
 
             int a = math.max(1, (int)math.ceil(StillReach / step));
             int w = v + 2 * a;
-            // x: still-water level (NoWater where dry, flowing or a landmark pool), y: ground (+inf blocks a pool).
-            var apron = new NativeArray<float2>(w * w, Allocator.Temp);
+            // x: still-water level (NoWater where dry, flowing or a landmark pool), y: ground (+inf blocks a pool), z: any water surface.
+            var apron = new NativeArray<float3>(w * w, Allocator.Temp);
             for (int z = 0; z < w; z++)
             for (int x = 0; x < w; x++)
             {
@@ -480,8 +480,8 @@ namespace Punchy.Terrain
                     }
                 }
                 var still = s.x > GroundSample.NoWater * 0.5f && math.lengthsq(s.yz) < 1e-6f;
-                apron[z * w + x] = pool ? new float2(GroundSample.NoWater, float.MaxValue)
-                                        : new float2(still ? s.x : GroundSample.NoWater, s.w);
+                apron[z * w + x] = pool ? new float3(GroundSample.NoWater, float.MaxValue, GroundSample.NoWater)
+                                        : new float3(still ? s.x : GroundSample.NoWater, s.w, s.x);
                 if (still)
                     maxStill = math.max(maxStill, s.x);
             }
@@ -541,6 +541,14 @@ namespace Punchy.Terrain
                 {
                     var at = origin + new float2(x, z) * step;
                     if (CaveSampling.NearColumn(ref Source.Caves.Value, at) && Source.CaveDistance(new float3(at.x, sheet, at.y)) < 0.5f)
+                        sheet = GroundSample.NoWater;
+                }
+                // A neighbour too far below the level for BuildWater to tuck the edge down to would leave the sheet's edge hanging over it.
+                for (int dz = -1; dz <= 1 && sheet > GroundSample.NoWater * 0.5f; dz++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    var c = apron[(z + a + dz) * w + x + a + dx];
+                    if (c.y < sheet - TuckDrop && c.z < sheet - TuckDrop)
                         sheet = GroundSample.NoWater;
                 }
                 if (sheet > GroundSample.NoWater * 0.5f)
