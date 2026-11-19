@@ -1042,3 +1042,8 @@ with main d95e7ff1); compiles, no suite run yet.
 - TerrainSource ~808 `level > water` -> `level >= water - 0.01f`; gully flow now 0, streaks gone (shots PunchyMilestones/lake-flow-tie, viewed).
 - WorldTests 22/22. Water truth deep 1 -> 0 re-pinned; landmarks 120 B32C5306 and fauna unchanged.
 - Note: the editor dirtied Water.mat (adds _GoldLiquid/_LatticeField/_UnderRock defaults); left out of the PR.
+
+## 11-19 render-2: W-142 (#262) row 1, lava seeps: PR #683 (render/lava-seep@5615ad01)
+- New partial LandmarkEffectSystem.Seeps.cs: hashed spots (no world/bake files). Steep vent-biome rock plus lava-tube walls (main has no lava pools, so the cave seeps run along tube nodes). Beads go through the Sparks family (new seep branch in BuildPlume, age 8..9). The 6 nearest spots ask for a Fire glow (40 had taken all 16 slots). Range is by screen size, capped at the 40 nearest. SeepKind is ready for a water trickle.
+- Shots PunchyMilestones/lava-seep: cave-before/after, slope-before/after (viewed). Before shots taken with the seeps switched off at runtime.
+- WorldTests 21/22: Village_CreatureDensity 52 (known flaky), passed alone. No fingerprint change. BENCH line added.
