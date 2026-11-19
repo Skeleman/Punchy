@@ -113,6 +113,8 @@ namespace Punchy.Terrain
         public float Rainfall;
         /// <summary>The bare rock under the biome (StoneKind, W-166): what its scarps and river notches are cut through.</summary>
         public byte Stone;
+        /// <summary>The biome's BiomeFamily: what its towns' roofs, plaster and thatch are made of.</summary>
+        public byte Family;
         /// <summary>Water look: rgb colour (linear), a murk 0..1; plus glow.</summary>
         public float4 Water;
         public float WaterGlow;

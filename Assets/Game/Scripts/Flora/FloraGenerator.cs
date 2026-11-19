@@ -283,7 +283,7 @@ namespace Punchy.Flora
                 builder.Family = builder.BaseFamily;
                 builder.TimberFamily = species.KitCulture == Punchy.Terrain.FolkCulture.Elf ? Punchy.Terrain.MaterialFamily.Stone : Punchy.Terrain.MaterialFamily.Wood;
                 builder.WoodKind = WoodKindFor(species);
-                SurfaceKinds(builder, species.KitCulture, seed);
+                SurfaceKinds(builder, species, variant);
                 var g = new Grower(species, variant, lod, seed, builder);
                 if (unit != null) BuildUnit(g, unit);
                 else switch (species.Form)

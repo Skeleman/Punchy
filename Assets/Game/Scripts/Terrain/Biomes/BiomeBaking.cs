@@ -92,6 +92,7 @@ namespace Punchy.Terrain
                     Wind = new float2(math.sin(wind), math.cos(wind)),
                     Rainfall = b.Rainfall,
                     Stone = (byte)b.Stone,
+                    Family = (byte)b.Family,
                     Water = new float4(b.WaterColor.linear.r, b.WaterColor.linear.g, b.WaterColor.linear.b, b.WaterMurk),
                     WaterGlow = b.WaterGlow,
                     WaterLava = b.WaterLava,
