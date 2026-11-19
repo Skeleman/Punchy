@@ -95,7 +95,7 @@ Land later: player/p46 fb9bc62c (P-46 row 2, temple sockets out of walls + pin) 
 | world/river-profiles | W-153 #301 | world | WIP. |
 | folk/a111-row1-parked | A-111 r1 | folk | Parked; only if A-110 slips. |
 | world/log-bark | W-170 r1 | world | Clean; confirm verified. |
-| world/ambient-details | W-142 | world | Job 69 FAIL at lava cave: fix seeps first. |
+| world/ambient-details | W-142 | world | Job 69 FAIL at lava cave: fix seeps first. 11-19: lava seeps superseded by render-2 render/lava-seep (LandmarkEffectSystem); salvage cave trickles/rootlets/fissure vents later, drop its seeps. |
 | world/cave-trickles | W-141 | world | Job 68 FAIL: cheaper version. |
 | world/far-lite | W-132 | world | Check overlap with R-22/R-23. |
 | world/cave-climbs | W-144 | world | Folded into W-162 row 3 (11-17): routes rebuilt on the shared grade source; hangings reuse W-178. Don't land. |
