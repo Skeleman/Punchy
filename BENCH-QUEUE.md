@@ -1279,3 +1279,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 FYI #700 (W-154 toxic pools): Water frag gets a toxic branch (absolute tint, 3 value-noise taps for the crust bands) only on green glowing water, plus 2 sparse swamp shore flora species. Fold a swamp pond view into a later water bench; no new job needed.
 - 11-19 FYI #701 (R-31 frost): TerrainSurface frag adds a branch on glacier-ice ground only: 4 value-noise taps, 1 Specks, 1 pow glint per pixel. Nothing elsewhere.
 - 11-19 FYI #704 (shared glint): refactor only, same math per pixel; no cost change expected.
+- 11-19 FYI #706 (W-154 lava far form): lava pixels below 30 px/m get 1-2 extra 9-cell LavaCells plus a few noise reads; water vertices (chunk, pool, fine sheet) grow by 4 bytes. Fold an Ashlands volcano view into a later water bench.

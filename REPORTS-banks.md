@@ -116,3 +116,9 @@
 - New flora DeadReed and BleachedStick on swamp shores and the geyser ring. The fauna fingerprint is re-pinned to 01766C0A, since swamp flora picks move a little (landmarks unchanged).
 - WorldTests 23/23 (one earlier run lost to an FXC crash mid-compile), sparkleprobe NaN 0, Water shader shows only its two old warnings.
 - Shots: PunchyMilestones/water/toxic/before and /after (swamp-3m, swamp-20m).
+
+## 11-19 W-154 tail (#303): lava coarse normals and far form - PR #706, banks/lava-far@8796cdeb
+- Fixed a #262 regression: water meshes without TEXCOORD5 read the seep-curtain flag as set on lava, so all lava rendered as open melt. Chunk, pool and fine-sheet water vertices now carry an explicit zero TC5 (+4 B per vertex).
+- 3 m: crust rafts and the rim get coarse normals (raft bevels, per-plate tilt, lumps) plus a soft specular, so they catch the light.
+- 80 m and beyond: large crust plates with glowing cracks held about 1.5 px wide, fading in by screen size with a plate-size crossfade, so no pop. 200/400 m reads as glowing cracks on dark crust, not an orange sheet.
+- WorldTests 23/23, sparkleprobe NaN 0 (3 m and 80 m). Shots: PunchyMilestones/water/lava/before, fixed, after4 (3/20/80/200/400 m).
