@@ -350,3 +350,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #665 world/kit-stonehouse (W-173, #399): StoneHouse from kit parts (gable roof, chimney, shutters, quoins); kit quoins now show on all kit houses. Not placed in the current world (Model Lab only).
 - 11-19 #666 render/flow-foam (#301): white wakes trail behind river rocks; riffles tear into broken white streaks along the flow; calm reaches stay clean.
 - 11-19 #667 world/kit-row2 (W-173, #399): goblin MudHuts and hermit Hut rebuilt from kit parts, faceted round walls, 3-tier lapped thatch cones, porch.
+- #669 W-173 (#399): house surface materials (thatch, plaster, roof tile, timber) in the library; not wired into houses yet.
