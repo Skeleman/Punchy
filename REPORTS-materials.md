@@ -414,3 +414,15 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - World wiring: Flora.shader look 3 still calls PunchyThatch; swap to PunchyThatchKind with a kind on the mark when the kit is ready (Flora/StructureKit untouched).
 - Verified: ShaderHasError False, no script errors; probe swatch through Colossus library path (near and 14 m rows): PunchyMilestones/house-surfaces/thatch-swatch.jpg.
 - BENCH-QUEUE: none until wired (straw path unchanged; other kinds cost about the same noise count).
+
+## 11-19 materials/house-surfaces row 2: plaster kinds (79e3909c, W-173 #399)
+- Entries (Materials/Plaster.hlsl): PUNCHY_PLASTER_LIME 0 / DAUB 1 / ADOBE 2; PunchyDaub, PunchyAdobe, PunchyPlasterKind(p, n, footprint, r, kind). Library family Plaster (5) now takes kind = PlasterKind (0 = old look).
+- Tint hook (MaterialLibrary.cs): enum PlasterKind {Lime, Daub, Adobe}, PlasterTint(kind), PlasterFor(FolkCulture, BiomeFamily) (goblin/ogre/marsh daub; arid/volcanic adobe; wet daub; else lime).
+- Wiring: Flora look PunchyPlaster call is unchanged; world swaps to PunchyPlasterKind or the Library path. Verified by probe swatch (no hut draws through the library): house-surfaces/plaster-swatch.jpg, near 2.8 m and far 14 m. Compile clean (Cave/Colossus/Creature/Flora).
+- BENCH-QUEUE: none until wired.
+
+## 11-19 materials/house-surfaces row 3: roof covers (e6375d42, W-173 #399)
+- New family Tile = 13 (MaterialFamily.Tile, PUNCHY_FAMILY_TILE). Entries (new Materials/Tile.hlsl): PUNCHY_ROOF_SHINGLE 0 / PANTILE 1 / SLATE 2 / SLAB 3; PunchyRoofCover(albedo, p, n, footprint, r, kind, woodKind) returns the colour; PunchyRoofLichen. Library kind = RoofKind + 16 x WoodKind (shingles use Wood.hlsl's PunchyWoodShingles).
+- Tint hook (MaterialLibrary.cs): enum RoofKind {WoodShingle, ClayTile, Slate, StoneSlab}, RoofTint(kind) (base colour), RoofFor(FolkCulture, BiomeFamily) (dwarf slab, elf shingle; arid clay, cold slate, volcanic slab; else shingle), RoofLibraryKind(kind, woodKind).
+- Wiring: Flora's family channel (FloraMeshBuilder's per-family value) has no Tile slot yet; world adds it or calls PunchyRoofCover direct. Verified by probe swatch at 35 deg tilt: house-surfaces/roof-swatch.jpg. Compile clean.
+- BENCH-QUEUE: none until wired.
