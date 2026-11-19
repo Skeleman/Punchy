@@ -445,3 +445,11 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - WaterTruth.Sheet counts steep water (surface drop >0.3 m/m, away from falls) and pits (steep triangles diving into the ground) on the built mesh.
 - Water_SheetSlopes pins steep 118 / pits 22 at -2729,546, -490,546 and -2018,-1070 (only 3 of 9 sampled spots had any). WaterTruthBaseline untouched. WorldTests 23/23.
 - No BENCH line (debug probe only). Next: W-182 bark plates, then row 4.
+
+## 11-19 W-182 bark plates (#304) - DONE, PR #686 (materials/bark-plates, 7c39c833)
+- Bark.hlsl only. PLATED: 21-26 plates round, 0.24 tall, cells warped by wrapped noise (new PunchyBarkNoise), so edges are ragged.
+- Fissures are wide and continuous, with variable width; depth 0.38, scaled by age. Faces are weathered grey-tan with orange rims and flakes. A near-only scale layer fades by screen size (rule 20).
+- Shots: PunchyMilestones/bark-plates/ before|after -close/-mid plus after-vs-ref.jpg. Checked the close shot next to bark-ref.jpg: small, irregular, taller-than-wide plates read right.
+- The fine per-pixel dot pattern up close is also in the before shot, so it is not from this change.
+- BENCH-QUEUE: PLATED trunk ALU, near only (2 extra cell lookups plus about 7 noise taps). Compare against main on a pine-forest close view.
+- Note: an FXC crash under low RAM left Flora flat blue. Fixed by force-reimporting Flora.shader.
