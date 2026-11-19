@@ -30,13 +30,32 @@ namespace Punchy.Fauna
         /// How big a creature is for the detail rules (refactor 3.7, Settings.DetailPolicy), rendering and simulation
         /// alike: its largest extent (body length or girth, by its scale), and for the huge at least what its SeenFrom
         /// implies (seen from that far as a deer is from VisibleFrom: tall, thin or winged bodies whose length
-        /// undersells them).
+        /// undersells them). A-119: a rider and its mount are one size, the pair's (CreatureState.Pair), so neither
+        /// loses detail, thinks slower or is let go before the other.
         /// </summary>
         public static float ApparentSize(in CreatureState s, ref CreatureBlob b)
+            => math.max(OwnSize(s.Scale, ref b), s.Pair.Size);
+
+        /// <summary>ApparentSize on its own, ridden or not.</summary>
+        public static float OwnSize(float scale, ref CreatureBlob b)
         {
-            var size = math.max(b.BodyLength, 2f * math.max(b.RearRadius, b.FrontRadius)) * math.max(s.Scale, 0.01f);
+            var size = math.max(b.BodyLength, 2f * math.max(b.RearRadius, b.FrontRadius)) * math.max(scale, 0.01f);
             return math.max(size, DeerLength * b.SeenFrom / VisibleFrom);
         }
+
+        /// <summary>A-119: where its distance is measured from for the detail rules: the mount's position for both of a
+        /// riding pair (so they cross every threshold together), else its own.</summary>
+        public static float3 SeenAt(in CreatureState s) => s.Pair.Size > 0f ? s.Pair.At : s.Position;
+
+        /// <summary>A-119: how far off it is drawn and kept about (its SeenFrom, or its pair's when that's further).</summary>
+        public static float SeenFrom(in CreatureState s, ref CreatureBlob b) => math.max(b.SeenFrom, s.Pair.Reach);
+
+        /// <summary>A-119: how fast it moves for the detail rules (a rider sits still: its mount's speed).</summary>
+        public static float SeenSpeed(in CreatureState s) => s.Pair.Size > 0f ? s.Pair.Speed : s.Speed;
+
+        /// <summary>A-119: how tall a body stands (m): legs, then an upright body's trunk or a beast's girth, by its scale.</summary>
+        public static float Height(ref CreatureBlob b, float scale)
+            => (b.StandHeight + (b.Upright ? b.BodyLength : 2f * math.max(b.RearRadius, b.FrontRadius) * b.BodyFlatten)) * math.max(scale, 0.01f);
 
         /// <summary>
         /// Whether a flying bird is beating its wings rather than gliding: always for small birds; soaring birds flap
@@ -284,10 +303,20 @@ namespace Punchy.Fauna
         public static float Ground(in TerrainSource terrain, float2 xz, float y)
         {
             var surface = terrain.SampleHeight(xz);
+            // (Only a cave mouth has a carved floor under its hole. A temple entrance or scarp strip (GroundHoles) has none
+            // here: Solid stops a creature at its edge as a lip, and spawns keep off it (OnHole).)
             if (!terrain.Caves.IsCreated || !CaveSampling.NearColumn(ref terrain.Caves.Value, xz) || terrain.MouthCut(xz, surface) >= 0f)
                 return surface;
             return terrain.FloorUnder(new float3(xz.x, math.max(y, surface - 2f), xz.y), out _);
         }
+
+        /// <summary>
+        /// A-135 (#405): whether a point is on ground the hole mask removed (a cave mouth, a temple entrance or a scarp
+        /// strip, GroundHoles.Removed) at about surface height, so nothing is there to stand on. Well below the surface (in
+        /// a cave or a temple) isn't on it.
+        /// </summary>
+        public static bool OnHole(in TerrainSource terrain, float3 at) =>
+            at.y > terrain.SampleHeight(at.xz) - 1f && GroundHoles.Removed(terrain, at.xz);
 
         /// <summary>
         /// Whether a land animal's body at xz (feet at feetY, facing forward) would be in a solid the player is kept out of:
@@ -340,7 +369,15 @@ namespace Punchy.Fauna
                 sink = rockSink;
             // (The lip of an entrance: a shallow scoop is walked into, a pit isn't stepped off.)
             var surface = terrain.SampleHeight(nose);
-            if (!hit && terrain.MouthCut(nose, surface) < 0f && noseGround < feetY - math.max(0.5f, height))
+            var mouth = terrain.MouthCut(nose, surface) < 0f;
+            if (!hit && mouth && noseGround < feetY - math.max(0.5f, height))
+            {
+                hit = true;
+                kind = SolidKind.Lip;
+            }
+            // (A-135: a temple entrance or scarp strip has no floor under its hole, so from surface height it is a drop,
+            // never walked onto. Down inside the temple it is the roof's business, not the feet's.)
+            else if (!hit && !mouth && feetY > surface - 1f && GroundHoles.Removed(terrain, nose))
             {
                 hit = true;
                 kind = SolidKind.Lip;

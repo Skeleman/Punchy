@@ -563,6 +563,18 @@ namespace Punchy.Fauna
             readonly List<Vector3> verts = new List<Vector3>();
             readonly List<Vector3> normals = new List<Vector3>();
             readonly List<Color> colors = new List<Color>();
+            // W-166 r4 (#336): part colours a builder names as a material family; their faces carry uv3 = (family, kind)
+            // and Colossus.shader draws them through the material library. Other colours keep the flat vertex colour
+            // (uv3 0), and a builder that names none writes no uv3 at all.
+            List<(Color key, Vector2 family)> named;
+            readonly List<Vector2> families = new List<Vector2>();
+
+            /// <summary>Faces made with exactly <paramref name="part"/> (as passed to a part, before the per-face tint) are
+            /// <paramref name="family"/> of <paramref name="kind"/> in the material library. Name colours before adding parts.</summary>
+            public void Family(Color part, MaterialFamily family, int kind = 0)
+            {
+                (named ??= new List<(Color, Vector2)>()).Add((part, new Vector2((int)family, kind)));
+            }
 
             void Tri(Vector3 a, Vector3 c, Vector3 b, Color color)
             {
@@ -580,6 +592,13 @@ namespace Punchy.Fauna
                 verts.Add(a); verts.Add(b); verts.Add(c);
                 normals.Add(n); normals.Add(n); normals.Add(n);
                 colors.Add(tint); colors.Add(tint); colors.Add(tint);
+                if (named != null)
+                {
+                    var family = Vector2.zero;
+                    foreach (var (key, f) in named)
+                        if (key == color) { family = f; break; }
+                    families.Add(family); families.Add(family); families.Add(family);
+                }
             }
 
             public void Ellipsoid(Vector3 centre, Vector3 radii, Quaternion rotation, Color color, int lon = 10, int lat = 6)
@@ -675,6 +694,8 @@ namespace Punchy.Fauna
                 mesh.SetVertices(verts);
                 mesh.SetNormals(normals);
                 mesh.SetColors(colors);
+                if (named != null)
+                    mesh.SetUVs(3, families);
                 var tris = new int[verts.Count];
                 for (int i = 0; i < tris.Length; i++) tris[i] = i;
                 mesh.SetTriangles(tris, 0);

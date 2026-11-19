@@ -492,6 +492,8 @@ namespace Punchy.Flora
             // Puffballs (a very short stem share): round balls on a stub. Giants (over 2 m): domed or bell caps on
             // stems that flare into roots and bend, the smaller ones gathered close round the biggest.
             var puff = s.TrunkFraction < 0.12f;
+            // W-177: wall-grown clusters spread over the wall (the model's XY plane at Z 0), not over the ground.
+            var wall = s.WallGrown && !puff && height <= 2f;
             var count = g.Count(s.Branches);
             for (int i = 0; i < count; i++)
             {
@@ -499,6 +501,8 @@ namespace Punchy.Flora
                 var offset = i == 0 ? Vector3.zero : g.Flat(g.R() * 6.28f) * height * s.Spread * g.Range(giant ? 0.18f : 0.25f, giant ? 0.45f : 0.7f);
                 var h = height * (i == 0 ? 1f : g.Range(giant ? 0.25f : 0.4f, giant ? 0.65f : 0.85f));
                 var lean = g.Flat(g.R() * 6.28f) * g.Range(0f, giant ? 0.18f : 0.25f) + (i > 0 ? offset.normalized * 0.15f : Vector3.zero);
+                if (wall)
+                    offset = new Vector3(offset.x, offset.z, 0f);
                 var capRadius = h * s.Spread * g.Range(0.35f, 0.55f);
                 var capHeight = capRadius * (giant ? g.Range(0.55f, 0.95f) : g.Range(0.4f, 0.65f));
                 if (puff)
@@ -511,6 +515,12 @@ namespace Punchy.Flora
                 var seed = g.R() * 100f;
                 var top = offset + lean * h + Vector3.up * h;
                 var tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean).normalized);
+                // Wall-grown: out from the wall, then up, the cap only a little tipped away from the rock.
+                if (wall)
+                {
+                    top = offset + Vector3.forward * h * 0.5f + Vector3.up * h * 0.6f + lean * h * 0.3f;
+                    tilt = Quaternion.FromToRotation(Vector3.up, (Vector3.up + lean * 0.6f + Vector3.forward * 0.2f).normalized);
+                }
 
                 // A giant mushroom's main stem stops walkers like a trunk.
                 if (i == 0 && h > 2f)
@@ -541,6 +551,9 @@ namespace Punchy.Flora
                                    new List<float> { stemRadius * 0.55f, stemRadius * 0.35f, stemRadius * 0.12f }, g.Sides(5, 4, 3), g.Bark * 0.85f, FloraPart.Bark);
                         }
                 }
+                else if (wall)
+                    b.Tube(new List<Vector3> { offset + Vector3.back * 0.02f, offset + Vector3.forward * h * 0.32f + Vector3.up * h * 0.12f, top },
+                           new List<float> { stemRadius * 1.4f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
                 else
                     b.Tube(new List<Vector3> { offset + Vector3.down * 0.02f, offset + lean * h * 0.45f + Vector3.up * h * 0.55f, top },
                            new List<float> { stemRadius * 1.25f, stemRadius, stemRadius * 0.9f }, g.Sides(7, 5, 3), g.Bark, FloraPart.Bark);
@@ -641,7 +654,7 @@ namespace Punchy.Flora
         {
             FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower or FloraForm.Stall or FloraForm.Inn or
             FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or
-            FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or FloraForm.Pen or FloraForm.Garden or
+            FloraForm.Columns or FloraForm.Lodge or FloraForm.Palisade or FloraForm.Pen or FloraForm.Garden or FloraForm.Field or
             FloraForm.Signpost or FloraForm.Bench or FloraForm.Stump or FloraForm.Ruin or FloraForm.RailFence or FloraForm.HazardShelter or FloraForm.KitBuilding or FloraForm.KitRuin or
             FloraForm.Stable or FloraForm.HitchRail => true,
             _ => false

@@ -295,7 +295,14 @@ namespace Punchy.Terrain
                 ref var inst = ref set.Instances[hit.Instance];
                 ref var type = ref set.Types[hit.Type];
                 var mask = Mask(hit.Distance);
-                h = math.lerp(h, inst.BaseHeight, type.Flatten * mask);
+                // W-174 (#406): levelling uses the shared ground-edit profile, so the flat's rim wanders (no perfect
+                // disc) and a deep cut gets a broken bank with talus at its toe. The outer reach stays the footprint.
+                if (type.Flatten > 0f)
+                {
+                    var edge = GroundEdits.EdgeNoise(xz, 1f / math.max(hit.Radius * 0.45f, 6f), inst.Seed);
+                    var level = type.Flatten * GroundEdits.Band(hit.Distance, 0.5f, 0.8f, 1f, edge);
+                    h = GroundEdits.Apply(xz, h, inst.BaseHeight, level, 0.35f);
+                }
                 h += type.Height * inst.Scale * Profile(ref type, hit.Local, hit.Radius) * mask;
                 if (type.Roughness > 0f)
                     h += type.Roughness * inst.Scale * mask * (noise.snoise(hit.Local * 0.11f + inst.Seed) * 0.7f + noise.snoise(hit.Local * 0.31f - inst.Seed) * 0.3f);
@@ -342,7 +349,11 @@ namespace Punchy.Terrain
                     if (dp > r * 1.5f)
                         continue;
                     var level = PoolLevel(ref inst, ref type, ref pool, hit.Radius);
-                    h = math.max(h, math.lerp(level + 0.25f, h, math.smoothstep(r * 1.15f, r * 1.5f, dp)));
+                    // W-174 r3 (#406): the lip fades by the shared ground-edit band: full out to r * 1.15 at least (as
+                    // before, so the water stays held), then out to r * 1.5 from a start that wanders, so the lip is not
+                    // a perfect circle.
+                    var lip = GroundEdits.Band(dp, r * 1.15f, r * 1.3f, r * 1.5f, GroundEdits.EdgeNoise(xz, 1f / 6f, p * 3.1f + 2.3f));
+                    h = math.max(h, math.lerp(h, level + 0.25f, lip));
                     // The bank rises gently out of the water (0.6 m per metre), so the shore line falls across the terrain
                     // grid smoothly instead of a near-vertical step between two vertices (ragged shards of water).
                     var bowl = level - 0.1f - pool.Depth * math.smoothstep(r, r * 0.35f, dp) + math.max(dp - r, 0f) * 0.6f;

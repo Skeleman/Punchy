@@ -102,8 +102,9 @@ FloraVertex FloraTransform(FloraAttributes input)
             float3 v = _PunchyDoorOpen[i].xyz - float3(hingeWS.x, plant.position.y, hingeWS.z);
             float side = dot(v.xz, acrossWS.xz), ahead = dot(v.xz, outWS.xz);
             if (side > -1.0 && side < 3.0 && ahead > -0.5 && ahead < 15.0 && abs(v.y) < 2.5)
-                open = max(open, _PunchyDoorOpen[i].w);
+                open = _PunchyDoorOpen[i].w < 0 ? -1e4 : max(open, _PunchyDoorOpen[i].w); // w < 0: held shut (P-37 r3 walk-in doors)
         }
+        open = max(open, 0);
         float phi = open * 1.65;
         float3 rel = positionOS - hingeOS;
         float u = dot(rel, across), d = dot(rel, outwards);
@@ -290,36 +291,16 @@ float4 FloraMossData(FloraAttributes input)
     return float4(abs(input.data.y - 13) < 0.5 ? input.color.a : 2, input.positionOS);
 }
 
-float FloraMossHash(float3 p)
-{
-    p = frac(p * 0.3183099 + 0.1);
-    p *= 17.0;
-    return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-
-float FloraMossNoise(float3 p)
-{
-    float3 i = floor(p);
-    float3 f = frac(p);
-    f = f * f * (3 - 2 * f);
-    return lerp(lerp(lerp(FloraMossHash(i), FloraMossHash(i + float3(1, 0, 0)), f.x),
-                     lerp(FloraMossHash(i + float3(0, 1, 0)), FloraMossHash(i + float3(1, 1, 0)), f.x), f.y),
-                lerp(lerp(FloraMossHash(i + float3(0, 0, 1)), FloraMossHash(i + float3(1, 0, 1)), f.x),
-                     lerp(FloraMossHash(i + float3(0, 1, 1)), FloraMossHash(i + float3(1, 1, 1)), f.x), f.y), f.z);
-}
-
-// Clumps (coarse noise) and a frayed fringe (fine noise): the thinner the cover, the more of the sheet is cut away.
-half FloraMossClump(float3 p)
-{
-    return FloraMossNoise(p * 9) * 0.6 + FloraMossNoise(p * 31 + 3.1) * 0.4;
-}
+#include "Assets/Game/Shaders/Materials/Moss.hlsl"
+#define FloraMossNoise PunchyMossNoise
+#define FloraMossClump PunchyMossClump
 
 void FloraMossClip(float4 moss)
 {
     if (moss.x > 1.5)
         return;
     // W-101 (#80): a fine ragged hem on top of the clumps, so the rim frays into tufts instead of a smooth cut.
-    clip(moss.x * 1.4 + FloraMossClump(moss.yzw) + (FloraMossNoise(moss.yzw * 70 + 1.3) - 0.5) * 0.4 - 1.0);
+    clip(PunchyMossHem(moss.yzw, moss.x));
 }
 
 #endif

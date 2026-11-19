@@ -22,7 +22,7 @@ namespace Punchy.Items
         {
             if (meshes[item] != null)
                 return meshes[item];
-            var mesh = Build(ItemTable.Items[item].Name).ToMesh();
+            var mesh = Build(ItemTable.Items[item].Name).ToMesh(ItemTable.Items[item]);
             mesh.name = "Item " + ItemTable.Items[item].Name;
             mesh.hideFlags = HideFlags.DontSave;
             return meshes[item] = mesh;
@@ -122,7 +122,7 @@ namespace Punchy.Items
         static Kit Build(string name)
         {
             var k = new Kit();
-            switch (name)
+            switch (ItemTable.MeshName(name))
             {
                 case "Stick": k.Tube(0, new Vector3(0f, 0.04f, -0.3f), new Vector3(0.03f, 0.05f, 0f), 0.028f, 0.024f); k.Tube(0, new Vector3(0.03f, 0.05f, 0f), new Vector3(-0.01f, 0.04f, 0.3f), 0.024f, 0.016f); k.Tube(0, new Vector3(0.03f, 0.05f, 0f), new Vector3(0.14f, 0.05f, 0.1f), 0.015f, 0.007f); break;
                 case "Stone": k.Blob(0, new Vector3(0f, 0.08f, 0f), new Vector3(0.14f, 0.09f, 0.11f), 11u); break;
@@ -409,6 +409,32 @@ namespace Punchy.Items
                 for (int i = 0; i < mesh.subMeshCount; i++)
                     mesh.SetTriangles(parts[i], i);
                 mesh.RecalculateBounds();
+                return mesh;
+            }
+
+            /// <summary>W-166 r4 (#336): the mesh with what each part is made of, for the material library's shader
+            /// (Colossus.shader): the part's colour in its vertex colours (linear, as a material colour would be) and
+            /// uv3 = (family, kind). Each triangle has its own three vertices, so a part's indices are its vertices. The
+            /// colour is baked rather than set by a property block: a block takes the draw off the SRP batcher, and on
+            /// Colossus.shader (no Forward+ variant) an unbatched draw gets no sun.</summary>
+            public Mesh ToMesh(in ItemDef def)
+            {
+                var mesh = ToMesh();
+                var colours = new Color[points.Count];
+                var family = new Vector2[points.Count];
+                for (int part = 0; part < parts.Length; part++)
+                {
+                    var f = part == 0 ? new Vector2((int)def.Family, def.Kind) : new Vector2((int)def.AccentFamily, def.AccentKind);
+                    var c = (part == 0 ? def.Colour : def.Accent).linear;
+                    c.a = 1f;   // (alpha below 1 would glow where _VertexGlow is on)
+                    foreach (var v in parts[part])
+                    {
+                        family[v] = f;
+                        colours[v] = c;
+                    }
+                }
+                mesh.SetColors(colours);
+                mesh.SetUVs(3, family);
                 return mesh;
             }
 

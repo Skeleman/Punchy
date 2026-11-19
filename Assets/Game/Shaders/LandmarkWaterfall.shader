@@ -19,7 +19,8 @@ Shader "Punchy/Landmark Waterfall"
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Glow.hlsl"
             #include "LandmarkEffects.hlsl"
 
@@ -107,6 +108,12 @@ Shader "Punchy/Landmark Waterfall"
                 alpha = max(alpha, e.timing.z * edges * footBand * lerp(0.9, 0.85 + 0.15 * churn, near));
                 // Under rock the top frays out of the notch rather than starting on a straight edge.
                 alpha *= lerp(1, smoothstep(0, 0.12, uv.y + (streak - 0.5) * 0.1), e.underRock);
+                // (Seen edge-on, the open sheet's solid core shows as a bright blade.)
+                float facing = abs(dot(normalize(input.normalWS), normalize(GetCameraPositionWS() - input.positionWS)));
+                alpha *= lerp(1, smoothstep(0.05, 0.3, facing), open);
+                // (Where the ground stands above the measured pool, the sheet ends in it along hard triangle edges.)
+                float gap = LinearEyeDepth(SampleSceneDepth(input.positionCS.xy / _ScaledScreenParams.xy), _ZBufferParams) - LinearEyeDepth(input.positionWS, UNITY_MATRIX_V);
+                alpha *= lerp(1, saturate(gap / 0.6), open);
                 clip(alpha - 0.01);
 
                 float3 n = normalize(front ? input.normalWS : -input.normalWS);

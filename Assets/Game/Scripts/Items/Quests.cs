@@ -31,6 +31,8 @@ namespace Punchy.Items
         /// <summary>"clear" (P-17): the species to drive off, and how far round the board (m).</summary>
         public string creature;
         public float radius = 25f;
+        /// <summary>"dungeon" (P-49): "cave" or "ruin" (a cave's ruin room), the kind of chest that holds the item.</summary>
+        public string kind;
         public string reward = "Coin";
         public int rewardCount = 5;
     }
@@ -88,6 +90,7 @@ namespace Punchy.Items
             if (g >= 0 && g + 1 < args.Length)
                 giveArg = args[g + 1];
             QuestSaveArgs(args);
+            DungeonQuestArgs(args);
             LoadQuests("start");
         }
 
@@ -99,6 +102,7 @@ namespace Punchy.Items
                 var file = JsonUtility.FromJson<QuestFile>(System.IO.File.ReadAllText(QuestPath));
                 quests = file?.quests ?? System.Array.Empty<QuestDef>();
                 Debug.Log($"Quests: {quests.Length} quests loaded ({why}): " + string.Join(" | ", System.Array.ConvertAll(quests, q => $"{q.id} [{q.type}] \"{q.text}\"")));
+                CheckQuestItems();
             }
             catch (System.Exception e)
             {
@@ -117,8 +121,12 @@ namespace Punchy.Items
         {
             var q = quests[boards[board].Offers[slot] % quests.Length];
             var place = $"the notice board in {boards[board].Town}";
-            // ({dest}: the other town of a deliver or visit quest.)
-            return (q.text ?? "").Replace("{dest}", boards[DestBoard(board, slot)].Town).Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place).Replace("{creature}", q.creature ?? "");
+            // ({dest}: the other town of a deliver or visit quest. {dungeon}, {where}: a dungeon quest's cave or ruin room
+            // and where it is from the town.)
+            var text = q.text ?? "";
+            if (IsDungeon(q))
+                text = text.Replace("{dungeon}", DungeonWord(q)).Replace("{where}", QuestWhere(board, slot));
+            return text.Replace("{dest}", boards[DestBoard(board, slot)].Town).Replace("{item}", q.item).Replace("{count}", q.count.ToString()).Replace("{town}", boards[board].Town).Replace("{place}", place).Replace("{creature}", q.creature ?? "");
         }
 
         /// <summary>Called from Update: reloading, the boards, the Use key at a board, the tests.</summary>
@@ -135,6 +143,8 @@ namespace Punchy.Items
             if (!boardsBuilt)
                 BuildBoards(terrain);
             UpdateQuestSave();
+            if (quests.Length > 0 && boards.Count > 0)
+                UpdateDungeonQuests();
             if (quests.Length == 0 || boards.Count == 0 || !TryPlayer(out var player))
                 return;
             // (The board faced within 2.5 m, by the one Use rule: UseTarget. One with nothing left only shows a note,
@@ -190,8 +200,9 @@ namespace Punchy.Items
                     turnIn = true;
                     return s;
                 }
+            // (A dungeon quest with no chest of its kind on this island isn't offered.)
             for (int s = 0; s < boards[board].Posted; s++)
-                if (!myQuests.ContainsKey((board, s)))
+                if (!myQuests.ContainsKey((board, s)) && (!IsDungeon(Def(board, s)) || QuestChest(board, s) != NoChest))
                     return s;
             return -1;
         }
@@ -203,13 +214,11 @@ namespace Punchy.Items
             var q = Def(board, slot);
             if (q.type == "visit")
                 return visited.Contains((board, slot));
-            var id = ItemId(q.item);
-            if (id < 0)
+            // (A dungeon quest's item counts once its chest has been opened: taken from there, not found elsewhere.)
+            if (IsDungeon(q) && !DungeonChestOpen(board, slot))
                 return false;
-            var have = 0;
-            foreach (var s in slots)
-                if (s.item == id) have += s.count;
-            return have >= math.max(q.count, 1);
+            // (P-49 r3: only items that fit the quest count: another quest's quest-only item never does.)
+            return ItemId(q.item) >= 0 && CountHeld(q.id, q.item, slots) >= math.max(q.count, 1);
         }
 
         void BuildBoards(in TerrainSource terrain)
@@ -353,12 +362,12 @@ namespace Punchy.Items
             var id = ItemId(q.item);
             var need = math.max(q.count, 1);
             for (int i = 0; i < slots.Length && need > 0; i++)
-                if (slots[i].item == id)
+                if (slots[i].Row == id)
                 {
-                    var n = math.min(need, slots[i].count);
-                    slots[i].count -= n;
+                    var n = math.min(need, (int)slots[i].Count);
+                    slots[i].Count -= (ushort)n;
                     need -= n;
-                    if (slots[i].count <= 0) slots[i] = (255, 0);
+                    if (slots[i].Count == 0) slots[i] = default;
                 }
             Debug.Log($"Quests: handed in {q.count} {q.item} at board {board} ({boards[board].Town}); inventory: {DescribeInventory()}");
             if (Joined)
@@ -395,6 +404,8 @@ namespace Punchy.Items
                 Spawn((byte)ItemId(q.item), 1, new float3(xz.x, y, xz.y));
                 Debug.Log($"Quests: hid the {q.item} for {q.id} at ({xz.x:F0}, {xz.y:F0})");
             }
+            if (state == 1 && IsDungeon(q))
+                PlaceQuestItem(player, board, slot, who);
             if (state == 1 && q.type == "deliver" && ItemId(q.item) >= 0)
                 Carry(player, (byte)ItemId(q.item), math.max(q.count, 1));
             if (state == 2)

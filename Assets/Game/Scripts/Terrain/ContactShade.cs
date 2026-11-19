@@ -48,7 +48,7 @@ namespace Punchy.Terrain
         {
             DetailPolicy.FloraClass.Tree or DetailPolicy.FloraClass.Plant => Kind.Plant,
             DetailPolicy.FloraClass.Rock => Kind.Rock,
-            DetailPolicy.FloraClass.Structure => Kind.Building,
+            DetailPolicy.FloraClass.Structure or DetailPolicy.FloraClass.Field => Kind.Building,
             _ => Kind.Prop
         };
 

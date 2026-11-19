@@ -588,7 +588,13 @@ namespace Punchy.Terrain
             if (version == IslandV3.Version && IslandV2.AuditRequested())
             {
                 if (hit) Debug.Log("[island] audits skipped on a cache hit (-freshisland or PUNCHY_FRESHISLAND=1 runs them)");
-                else { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source)); }
+                else { Debug.Log(V3Audit.Run(source)); Debug.Log(V3Ranges.Checks(source)); Debug.Log(V3Ground.Report(source));
+#if UNITY_EDITOR
+                    // WaterTruth is editor-only; without this guard every player build fails.
+                    var truth = Punchy.Debugging.WaterTruth.Measure(source);
+                    Debug.Log("[island] water truth " + string.Join(",", truth.Counts));
+#endif
+                }
             }
             StartLedger.Add("island reports", report.Elapsed.TotalMilliseconds);
             StartLedger.Stamp("island ready");
@@ -621,8 +627,11 @@ namespace Punchy.Terrain
             source.V3Ground = gen.V3Ground;
             source.BiomeCells = default;
             source.RiverSettings = version == IslandV3.Version ? IslandV3.Rivers(source.RiverSettings) : IslandV2.Rivers(source.RiverSettings);
-            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.CliffKit = default; source.Anchors = default; source.PondMask = default; source.CaveSockets = default; source.Herds = default;
-            TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true);
+            // M-07 r2b: the painted edits before any place, so places, rivers and roads are laid out on the edited ground.
+            source.Edits = PaintedEdits.Build(version, Allocator.Persistent);
+            Debug.Log(PaintedEdits.LastLog);
+            source.Rivers = default; source.Landmarks = default; source.Settlements = default; source.Caves = default; source.BatFolk = default; source.Icebergs = default; source.GrandFalls = default; source.Archipelago = default; source.Scarps = default; source.CliffKit = default; source.Anchors = default; source.PondMask = default; source.CaveSockets = default; source.Herds = default; source.Paddies = default; source.BayMask = default;
+            TerrainAuthoring.BuildPlaces(ref source, biomes, types, palette.Placed ?? new List<PlacedLandmark>(), palette.Roadside ?? new List<RoadsideLandmark>(), Allocator.Persistent, villages: true, paddies: false);
             // #72 (W-87): "-campsitetest <look>" adds one test campsite (debug only; nothing without the flag).
             CampsiteTest.Add(ref source, biomes, types, Allocator.Persistent);
             // W-29: the grand falls go in after every place, so no landmark, cave or settlement sees them.
@@ -637,6 +646,11 @@ namespace Punchy.Terrain
             // W-155: scarps last of all, cut into the finished ground, so no place, river or cave is laid out on them.
             source.Scarps = ScarpBake.Build(source, Allocator.Persistent);
             Debug.Log(ScarpBake.LastLog);
+            // W-153: still water after the scarps (the stepped pools take their levels only once the falls have cut their gorge), before the cliff kit, sockets and herds, which read the finished ground.
+            source.Paddies = source.BuildPaddies(Allocator.Persistent, out var paddyReport);
+            Debug.Log($"[paddies] {paddyReport}");
+            source.BayMask = source.BuildBayMask(Allocator.Persistent, out var bayReport);
+            Debug.Log($"[bays] {bayReport}");
             // W-150: the cliff kit after the scarps, on the finished ground; its own stream, so no place sees it.
             source.CliffKit = CliffKitBaking.Build(source, biomes, Allocator.Persistent);
             Debug.Log(CliffKitBaking.LastLog);
@@ -644,6 +658,8 @@ namespace Punchy.Terrain
             long socketsAt = watch.ElapsedMilliseconds;
             source.CaveSockets = CaveSocketSetBlob.Build(source, Allocator.Persistent);
             long socketsMs = watch.ElapsedMilliseconds - socketsAt;
+            // M-07 r2b: warn about painted tiles on places the generator reshapes (reads only; never changes the bake).
+            PaintedEditsCheck.Run(source);
             // A-108: the herds last, on the finished ground; nothing above reads them.
             source.Herds = Punchy.Fauna.HerdBaking.Build(source, biomes, Allocator.Persistent);
             Debug.Log(Punchy.Fauna.HerdBaking.LastLog);
@@ -705,7 +721,7 @@ namespace Punchy.Terrain
                     Free(ref baked.BiomeMap); Free(ref baked.Island); Free(ref baked.V3Ground);
                     Free(ref baked.Rivers); Free(ref baked.Landmarks); Free(ref baked.Settlements); Free(ref baked.Caves);
                     Free(ref baked.BatFolk); Free(ref baked.Icebergs); Free(ref baked.GrandFalls); Free(ref baked.Archipelago); Free(ref baked.Scarps);
-                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit); Free(ref baked.CaveSockets); Free(ref baked.Herds);
+                    Free(ref baked.Anchors); Free(ref baked.PondMask); Free(ref baked.CliffKit); Free(ref baked.CaveSockets); Free(ref baked.Herds); Free(ref baked.Edits); Free(ref baked.Paddies); Free(ref baked.BayMask);
                 }
                 bakes.Clear();
             }
@@ -722,6 +738,7 @@ namespace Punchy.Terrain
                 source.BiomeKind = baked.BiomeKind;
                 source.BiomeMap = baked.BiomeMap;
                 source.Island = baked.Island;
+                source.Edits = baked.Edits;
                 source.V3Ground = baked.V3Ground;
                 source.BiomeCells = baked.BiomeCells;
                 source.RiverSettings = baked.RiverSettings;
@@ -741,6 +758,8 @@ namespace Punchy.Terrain
                 source.CliffKit = baked.CliffKit;
                 source.CaveSockets = baked.CaveSockets;
                 source.Herds = baked.Herds;
+                source.Paddies = baked.Paddies;
+                source.BayMask = baked.BayMask;
             }
         }
     }

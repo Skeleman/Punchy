@@ -29,6 +29,7 @@ MonoBehaviour:
   - {r: 0.35, g: 0.95, b: 0.75, a: 1}
   AccentAmount: 0
   ColorVariation: 0.12
+  BarkKind: 1
   Finish: 0
   GlowingAccents: 1
   GlowPulse: 0.25

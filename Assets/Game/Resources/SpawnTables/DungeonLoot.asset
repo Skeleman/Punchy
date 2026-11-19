@@ -149,3 +149,292 @@ MonoBehaviour:
     WorldState: 
     Range: 0.8
     Task: 0
+  - Content: Coin
+    Species: {fileID: 0}
+    Weight: 30
+    Count: {x: 2, y: 8}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Mushroom
+    Species: {fileID: 0}
+    Weight: 20
+    Count: {x: 1, y: 3}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Torch
+    Species: {fileID: 0}
+    Weight: 15
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Arrow
+    Species: {fileID: 0}
+    Weight: 10
+    Count: {x: 3, y: 8}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Lantern
+    Species: {fileID: 0}
+    Weight: 10
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Pickaxe
+    Species: {fileID: 0}
+    Weight: 8
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Shovel
+    Species: {fileID: 0}
+    Weight: 5
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Cap
+    Species: {fileID: 0}
+    Weight: 2
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 1
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Coin
+    Species: {fileID: 0}
+    Weight: 30
+    Count: {x: 3, y: 12}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Key
+    Species: {fileID: 0}
+    Weight: 15
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Arrow
+    Species: {fileID: 0}
+    Weight: 10
+    Count: {x: 4, y: 10}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Lantern
+    Species: {fileID: 0}
+    Weight: 8
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Sword
+    Species: {fileID: 0}
+    Weight: 6
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Helm
+    Species: {fileID: 0}
+    Weight: 6
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Bow
+    Species: {fileID: 0}
+    Weight: 5
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Cloak
+    Species: {fileID: 0}
+    Weight: 5
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0
+  - Content: Chainmail
+    Species: {fileID: 0}
+    Weight: 3
+    Count: {x: 1, y: 1}
+    Seeded: 1
+    Kind: 1
+    Size: {x: 0, y: 255}
+    Types: 8
+    NeedTags: 0
+    Landmark: {fileID: 0}
+    Biomes: []
+    Families: 0
+    Times: 15
+    Seasons: 15
+    WorldState: 
+    Range: 0.8
+    Task: 0

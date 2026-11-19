@@ -13,7 +13,7 @@ Shader "Punchy/Flame"
 
     HLSLINCLUDE
     #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-    #include "Sky.hlsl"
+    #include "SkyCommon.hlsl"
     #include "SharedClock.hlsl"
 
     CBUFFER_START(UnityPerMaterial)

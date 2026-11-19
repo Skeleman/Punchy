@@ -22,6 +22,8 @@ namespace Punchy.Terrain
         public float3 Tone;
         /// <summary>How rounded (0 a sharp slab, 1 a boulder), how much moss on its top, its noise offset.</summary>
         public float Round, Moss, Seed;
+        /// <summary>1 where the block wears the face's own rock (its strata, its tone), 0 for the bed's tone.</summary>
+        public float Own;
         /// <summary>Which draw group it goes in (<see cref="ScarpDebris.Group"/>).</summary>
         public int Group;
     }
@@ -39,6 +41,18 @@ namespace Punchy.Terrain
         public static int Groups(ref Scarp sc) => 2 * ((int)math.ceil(sc.Length / GroupLength) + 1);
 
         public static int Group(ref Scarp sc, float s, bool small) => 2 * (int)math.clamp(s / GroupLength, 0f, math.ceil(sc.Length / GroupLength)) + (small ? 1 : 0);
+
+        /// <summary>W-162 row 4: draw groups per cave mouth (its big and its small stones), after every scarp's.</summary>
+        public const int MouthGroups = 2;
+
+        /// <summary>All the cave mouths' draw groups (one pair per cave, tunnels included so the index is the cave's).</summary>
+        public static int MouthGroupTotal(in TerrainSource source) =>
+            source.Caves.IsCreated ? MouthGroups * source.Caves.Value.Caves.Length : 0;
+
+        public const int FallGroups = 2;
+
+        public static int FallGroupTotal(in TerrainSource source) =>
+            source.Rivers.IsCreated ? FallGroups * source.Rivers.Value.Falls.Length : 0;
     }
 
     /// <summary>
@@ -68,6 +82,223 @@ namespace Punchy.Terrain
                 Place(ref sc, groups);
                 groups += ScarpDebris.Groups(ref sc);
             }
+            if (Source.Caves.IsCreated)
+            {
+                ref var caves = ref Source.Caves.Value;
+                for (int i = 0; i < caves.Caves.Length; i++, groups += ScarpDebris.MouthGroups)
+                    if (caves.Caves[i].Tunnel == 0 && caves.Caves[i].NodeCount > 1)
+                        Mouth(ref caves, i, groups);
+            }
+            if (Source.Rivers.IsCreated)
+                for (int i = 0; i < Source.Rivers.Value.Falls.Length; i++, groups += ScarpDebris.FallGroups)
+                    FallFlank(i, groups);
+        }
+
+        void FallFlank(int index, int group)
+        {
+            var shape = FallShape.River(Source, Source.Rivers.Value.Falls[index], math.frac((index + 1000000) * 0.618f));
+            if (shape.UnderRock)
+                return;
+            var rng = new Unity.Mathematics.Random(math.hash(new uint2((uint)index, 0x666c6b73u)) | 1u);
+            var o = shape.Out;
+            var across = new float2(o.y, -o.x);
+            float half = shape.Width * 0.5f, top = shape.Lip.y, pool = top - shape.Drop;
+            if (shape.Drop < 6f)
+            {
+                FallStones(shape, across, ref rng, group + 1);
+                return;
+            }
+            float size = math.clamp(shape.Drop / 6f, 0.8f, 2.2f);
+            int pieces = math.clamp((int)(shape.Drop / 3f), 2, 9);
+            for (int sgn = -1; sgn <= 1; sgn += 2)
+            {
+                var side = across * sgn;
+                for (int k = 0; k < pieces; k++)
+                {
+                    float4 r0 = rng.NextFloat4(), r1 = rng.NextFloat4();
+                    float t = 0.5f - 0.5f * math.cos(math.PI * (k + r1.y) / pieces);
+                    if (r0.x < 0.3f + 0.4f * (1f - math.abs(2f * t - 1f)))
+                        continue;
+                    bool big = r0.y < 0.35f;
+                    float h = (big ? math.lerp(0.7f, 1.1f, r0.z) : math.lerp(0.25f, 0.5f, r0.z)) * size;
+                    var hs = big ? new float3(h * (1.4f + 0.5f * r0.w), h * 0.45f, h * (1.1f + 0.3f * r1.x))
+                                 : new float3(h * (0.9f + 0.5f * r0.w), h * (0.6f + 0.3f * r1.x), h * (0.8f + 0.4f * r1.z));
+                    float y = math.lerp(pool + hs.y * 0.5f, top - 0.2f, t);
+                    float d = (t < 0.25f ? half + 0.5f : half + SprayReach + 1.2f) + hs.x * 0.6f + r1.x * 3.5f;
+                    if (!FlankBlock(shape, side, d, y, hs, r1, big ? 0.15f : 0.35f, group + (big ? 0 : 1)) || !big)
+                        continue;
+                    int bits = 1 + (int)(r1.w * 2.99f);
+                    for (int c = 0; c < bits; c++)
+                    {
+                        float4 q = rng.NextFloat4();
+                        float hc = math.lerp(0.2f, 0.4f, q.x) * size;
+                        var hsc = new float3(hc * (0.9f + 0.4f * q.y), hc * (0.6f + 0.3f * q.z), hc);
+                        FlankBlock(shape, side, d + (q.w - 0.5f) * hs.x * 2.2f, y - hs.y - hsc.y * (0.6f + q.z), hsc, q, 0.4f, group + 1);
+                    }
+                }
+                for (int m = 0; m < 2; m++)
+                {
+                    float4 r = rng.NextFloat4(), p = rng.NextFloat4();
+                    if (r.x > 0.6f)
+                        continue;
+                    float h = math.lerp(0.3f, 0.8f, r.y) * size;
+                    var hs = new float3(h * (1f + 0.4f * p.x), h * (0.6f + 0.3f * p.y), h * (0.9f + 0.3f * p.z));
+                    bool lip = m == 0;
+                    float d = half + 0.4f + hs.x + r.z * 3f;
+                    float s = lip ? -0.5f - r.w * 3f : shape.Run * 0.5f + r.w * (shape.Run + 3f);
+                    var xz = shape.Lip.xz + side * d + o * s;
+                    Put(xz, hs, p.w, p.xy * 0.5f, FlankTone(xz, o) * (0.9f + 0.15f * p.z), 0.5f, lip ? 0.3f : 0.15f, 0.35f, group, 1f);
+                }
+            }
+        }
+
+        // PUNCHY_FALL_WET_REACH: outside it the spray leaves the rock dry, so only blocks near the foot look wet.
+        const float SprayReach = 3f;
+
+        void FallStones(in FallShape shape, float2 across, ref Unity.Mathematics.Random rng, int group)
+        {
+            float half = shape.Width * 0.5f, size = math.clamp(shape.Drop / 3f, 0.4f, 1f);
+            for (int k = 0; k < 6; k++)
+            {
+                float4 r = rng.NextFloat4(), p = rng.NextFloat4();
+                bool lip = k < 2;
+                if (r.x > (lip ? 0.6f : 0.7f))
+                    continue;
+                float h = math.lerp(0.18f, 0.4f, r.y) * size;
+                var hs = new float3(h * (1f + 0.4f * p.x), h * (0.6f + 0.3f * p.y), h * (0.9f + 0.3f * p.z));
+                float s = lip ? -0.4f - r.w * 1.8f : shape.Run + 0.3f + r.w * 2.5f;
+                var side = across * (k % 2 == 0 ? 1f : -1f);
+                if (!Shallow(shape.Lip.xz + shape.Out * s + side * (half + 0.3f + r.z * 1.2f), side, lip ? -0.5f : 1f, shape.Out, hs, out var xz))
+                    continue;
+                Put(xz, hs, p.w, p.xy * 0.4f, FlankTone(xz, shape.Out) * (0.9f + 0.15f * p.z), 0.6f, 0f, 0.4f, group, 1f);
+            }
+        }
+
+        bool Shallow(float2 start, float2 side, float downstream, float2 o, float3 hs, out float2 xz)
+        {
+            float reach = math.max(hs.x, hs.z);
+            for (int a = 0; a < 6; a++)
+                for (int b = 0; b < 12; b++)
+                {
+                    xz = start + o * (a * downstream) + side * (b * 0.5f);
+                    float y = math.min(Source.SampleHeight(xz), math.min(Source.SampleHeight(xz + new float2(reach, 0f)), Source.SampleHeight(xz - new float2(reach, 0f))));
+                    y = math.min(y, math.min(Source.SampleHeight(xz + new float2(0f, reach)), Source.SampleHeight(xz - new float2(0f, reach))));
+                    var g = Source.SampleGround(xz);
+                    if (!g.HasWater || g.WaterSurface - y < hs.y)
+                        return true;
+                }
+            xz = start;
+            return false;
+        }
+
+        bool FlankBlock(in FallShape shape, float2 side, float d, float y, float3 hs, float4 r, float round, int group)
+        {
+            var o = shape.Out;
+            var column = shape.Lip.xz + side * d;
+            float face = float.NaN;
+            for (float s = -3f; s < shape.Run + 6f; s += 0.25f)
+                if (Source.SampleHeight(column + o * s) < y)
+                {
+                    face = s;
+                    break;
+                }
+            if (!(face > -3f) || y + hs.y < Source.SampleGround(column + o * (face + 1f)).WaterSurface)
+                return false;
+            var tilt = r.yw * 0.12f;
+            float yaw = math.atan2(o.x, o.y) / (2f * math.PI) + (r.z - 0.5f) * 0.08f;
+            var m = new float3x3(Turn(yaw, tilt));
+            float under = y - math.dot(math.abs(new float3(m.c0.y, m.c1.y, m.c2.y)), hs) - 0.3f;
+            float2 ex = m.c0.xz * hs.x * 0.5f, ez = m.c2.xz * hs.z * 0.5f;
+            for (float sink = 0.5f + 0.3f * r.z; sink <= 1.5f; sink += 0.25f)
+            {
+                var xz = column + o * (face - hs.z * sink);
+                if (Source.SampleHeight(xz) < under || Source.SampleHeight(xz + ex) < under || Source.SampleHeight(xz - ex) < under
+                    || Source.SampleHeight(xz + ez) < under || Source.SampleHeight(xz - ez) < under)
+                    continue;
+                Keep(new float3(xz.x, y, xz.y), hs, yaw, tilt, FlankTone(xz, o) * (0.92f + 0.12f * r.w), round, 0f, group, 1f);
+                return true;
+            }
+            return false;
+        }
+
+        float3 FlankTone(float2 xz, float2 o)
+        {
+            var ground = Source.SampleGround(xz);
+            return Source.SampleSurface(xz, ground, new float3(-o.x * 0.94f, 0.342f, -o.y * 0.94f)).Albedo;
+        }
+
+        /// <summary>
+        /// W-162 row 4 (#327): a cave mouth gets the cliff toe's fallen stone: rubble lying round the rim, thickest
+        /// where the mouth opens downhill (fallen from its brow and rolled out), now and then a bigger block, in the
+        /// country rock's colour the walls take at the mouth (the ground's own steep rock) with a little of the earth
+        /// round it. Rays walk out from the mouth to its rim (where the terrain's mouth cut ends) and every stone lies
+        /// on the ground past it, never over the opening. Rolled from the cave's own stream (its Key), so no scarp's
+        /// rubble moves.
+        /// </summary>
+        void Mouth(ref CaveSetBlob set, int index, int group)
+        {
+            const int Rays = 64;
+            const float Reach = 16f, March = 0.25f, GridStep = 1f;
+            var cave = set.Caves[index];
+            var rng = new Unity.Mathematics.Random(math.hash(new uint2(cave.Key, 0x6d6f7574u)) | 1u);
+            var outward = math.normalizesafe((cave.Mouth - set.Nodes[cave.FirstNode + 1].Position).xz, new float2(1f, 0f));
+            var flat = new float3(0f, 1f, 0f);
+            for (int r = 0; r < Rays; r++)
+            {
+                // Every roll is drawn whatever happens, so one ray's choices never shift the next's.
+                float4 r0 = rng.NextFloat4(), r1 = rng.NextFloat4(), r2 = rng.NextFloat4();
+                float4 q0 = rng.NextFloat4(), q1 = rng.NextFloat4(), q2 = rng.NextFloat4(), q3 = rng.NextFloat4();
+                float angle = (r + r0.x) * (2f * math.PI / Rays);
+                var dir = new float2(math.cos(angle), math.sin(angle));
+                float rim = -1f;
+                for (float t = 0.5f; t <= Reach; t += March)
+                    if (BuildChunkMeshJob.MouthCutAt(Source, cave.Mouth.xz + dir * t, GridStep) > 0f)
+                    {
+                        rim = t;
+                        break;
+                    }
+                if (rim < 0f)
+                    continue;
+                // More stone on the open, downhill side; a little all round the rim.
+                float spill = math.saturate(0.3f + 0.7f * math.dot(dir, outward));
+                var edge = cave.Mouth.xz + dir * rim;
+                var ground = Source.SampleGround(edge);
+                var normal = Source.SampleNormal(edge, 1f);
+                var down = math.normalizesafe(normal.xz, dir);
+                var steep = new float3(down.x * 0.94f, 0.342f, down.y * 0.94f);
+                var rock = Source.SampleSurface(edge, ground, steep).Albedo;
+                var earth = Source.SampleSurface(edge, ground, flat).Albedo;
+                var tone = math.lerp(rock, math.dot(earth, new float3(0.3f, 0.59f, 0.11f)) * new float3(1.08f, 1f, 0.88f), 0.25f);
+                var side = new float2(-dir.y, dir.x);
+                float4x4 stones = new float4x4(q0, q1, q2, q3);
+                for (int m = 0; m < 3; m++)
+                {
+                    float4 q = stones[m], p = stones[m + 1].wzyx;
+                    if (q.x >= 0.6f * spill + 0.1f)
+                        continue;
+                    float f = math.pow(q.y, 1.6f);
+                    float h = math.lerp(0.07f, 0.24f, q.z) * (1f + 1.2f * f);
+                    var xz = edge + dir * (0.4f + f * (1.5f + 4f * spill)) + side * (q.w - 0.5f) * rim * 0.1f;
+                    Lay(xz, new float3(h * (1f + 0.4f * p.x), h * (0.6f + 0.3f * p.y), h), p.z, p.wx,
+                        tone * (0.85f + 0.25f * p.y), 0.6f, 0.2f, 0.3f, group + 1);
+                }
+                // Now and then a block off the brow, lying a little out from the rim.
+                if (r1.x < 0.14f * spill)
+                {
+                    float h = math.lerp(0.35f, 0.9f, r1.y * r1.y);
+                    var xz = edge + dir * (0.8f + h + r1.z * 2.5f * spill);
+                    var half = new float3(h * (1.1f + 0.5f * r1.w), h * (0.5f + 0.3f * r2.x), h * (0.8f + 0.3f * r2.y));
+                    Lay(xz, half, r2.z, r2.wx * 0.6f, tone * (0.9f + 0.2f * r0.y), 0.35f, 0.4f, 0.35f, group);
+                }
+            }
+        }
+
+        /// <summary>Lays one mouth stone (<see cref="Put"/>) where it sits wholly on the ground past the rim.</summary>
+        void Lay(float2 xz, float3 half, float yaw, float2 tilt, float3 tone, float round, float moss, float sink, int group)
+        {
+            if (BuildChunkMeshJob.MouthCutAt(Source, xz, 1f) < 0.3f + math.cmax(half))
+                return;
+            Put(xz, half, yaw, tilt, tone, round, moss, sink, group);
         }
 
         void Place(ref Scarp sc, int group0)
@@ -185,9 +416,12 @@ namespace Punchy.Terrain
         /// <summary>Sits one block on the ground (on the lowest of five points under it, sunk by its share of its
         /// height), unless it would stand on a flora rock or drown.</summary>
         void Add(ref Scarp sc, float2 xz, float3 half, float yaw, float2 tilt, float3 tone, float round, float moss,
-                 float sink, float s, bool small, int group0)
+                 float sink, float s, bool small, int group0) =>
+            Put(xz, half, yaw, tilt, tone, round, moss, sink, group0 + ScarpDebris.Group(ref sc, s, small));
+
+        /// <summary>Sits one block on the ground in draw group group (Add's work, shared with the cave mouths').</summary>
+        void Put(float2 xz, float3 half, float yaw, float2 tilt, float3 tone, float round, float moss, float sink, int group, float own = 0f)
         {
-            var turn = math.mul(quaternion.RotateY(yaw * 2f * math.PI), quaternion.Euler(tilt.x - 0.5f * tilt.y, 0f, tilt.y - 0.5f * tilt.x));
             float reach = math.max(half.x, half.z);
             float y = Source.SampleHeight(xz);
             y = math.min(y, Source.SampleHeight(xz + new float2(reach, 0f)));
@@ -199,11 +433,20 @@ namespace Punchy.Terrain
                 return;
             if (HasFlora && FloraPlacement.RockAt(ref Flora.Value, Source, xz, reach, out _))
                 return;
+            Keep(new float3(xz.x, y + half.y * (1f - 2f * sink), xz.y), half, yaw, tilt, tone, round, moss, group, own);
+        }
+
+        static quaternion Turn(float yaw, float2 tilt) =>
+            math.mul(quaternion.RotateY(yaw * 2f * math.PI), quaternion.Euler(tilt.x - 0.5f * tilt.y, 0f, tilt.y - 0.5f * tilt.x));
+
+        void Keep(float3 position, float3 half, float yaw, float2 tilt, float3 tone, float round, float moss, int group, float own = 0f)
+        {
+            var turn = Turn(yaw, tilt);
             Blocks.Add(new ScarpBlock
             {
-                Position = new float3(xz.x, y + half.y * (1f - 2f * sink), xz.y), Half = half, Turn = turn, Tone = tone,
+                Position = position, Half = half, Turn = turn, Tone = tone,
                 Round = round, Moss = moss, Seed = (Blocks.Length * 7.31f) % 113f,
-                Group = group0 + ScarpDebris.Group(ref sc, s, small)
+                Group = group, Own = own
             });
         }
     }
@@ -282,15 +525,15 @@ namespace Punchy.Terrain
             var surface = Source.SampleSurface(position.xz, g, normal);
             // The bed's tone over the terrain's own rock, darker underneath where grime gathers, moss and a little
             // grass on top on the damp ones.
-            var albedo = math.lerp(surface.Albedo, block.Tone, 0.8f);
-            albedo *= 1f - 0.3f * math.smoothstep(0f, -0.7f, normal.y);
+            var albedo = math.lerp(surface.Albedo, block.Tone, 0.8f - 0.4f * block.Own);
+            albedo *= 1f - (0.3f - 0.15f * block.Own) * math.smoothstep(0f, -0.7f, normal.y);
             float top = math.smoothstep(0.55f, 0.9f, normal.y);
             float patch = math.saturate(0.5f + 1.5f * noise.snoise(position.xz * 0.9f + block.Seed));
             float moss = block.Moss * top * patch;
             albedo = math.lerp(albedo, new float3(0.07f, 0.1f, 0.035f), 0.5f * moss);
             surface.Albedo = albedo;
             surface.Grass = 0.1f * moss;
-            surface.Strata = 0f;
+            surface.Strata *= block.Own;
             surface.Paving = 0f;
             surface.Pebbles = 0f;
             return surface;

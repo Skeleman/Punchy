@@ -58,6 +58,8 @@ namespace Punchy.Flora
         /// and jumps under these rather than its cylinders and support grid. Empty for everything else.
         /// </summary>
         public readonly List<KitBox> Boxes = new List<KitBox>();
+        /// <summary>P-37 r3 (#369): a walk-in house's door leaves (StructureKit.WalkIn), model space: solid only while shut.</summary>
+        public readonly List<KitBox> DoorBoxes = new List<KitBox>();
         /// <summary>
         /// Where each collider starts above the base, by index (missing = 0, the ground). Lets a leaning shape (an
         /// ArcSpire's prongs) be a stack of short slices that follow its tilt instead of one fat upright cylinder.
@@ -104,7 +106,7 @@ namespace Punchy.Flora
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
-            form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
+            form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Field or FloraForm.Woodpile
                  or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence or FloraForm.HitchRail;
 
         /// <summary>
@@ -122,6 +124,8 @@ namespace Punchy.Flora
                 case FloraForm.MineFrame: case FloraForm.HazardShelter: case FloraForm.KitBuilding: case FloraForm.KitRuin:
                 case FloraForm.Ruin: case FloraForm.Stable: case FloraForm.HitchRail:
                     return Punchy.Settings.DetailPolicy.FloraClass.Structure;
+                case FloraForm.Field:
+                    return Punchy.Settings.DetailPolicy.FloraClass.Field;
                 case FloraForm.Boulder: case FloraForm.Spire: case FloraForm.Crystal: case FloraForm.Den: case FloraForm.Columns:
                 case FloraForm.IceArch: case FloraForm.Fulgurite: case FloraForm.ArcSpire: case FloraForm.FloatingRock:
                 case FloraForm.Bones:
@@ -251,8 +255,14 @@ namespace Punchy.Flora
         /// Everything Grow does but making the meshes: pure code over the species' settings, safe on a worker thread
         /// (<paramref name="name"/> is the species asset's name, read on the main thread). FloraModel.Finish makes the meshes.
         /// </summary>
-        static FloraModel GrowParts(FloraSpecies species, int variant, string name, bool shapeOnly = false)
+        static FloraModel GrowParts(FloraSpecies species, int variant, string name, bool shapeOnly = false, UnitDef unit = null)
         {
+            // M-06 r5 blueprint hook: a unit given (GrowUnit) or a species' own non-empty Unit is drawn in place of its
+            // form's builder. An empty Unit (every species so far) changes nothing.
+            if (unit == null && species.Unit != null && species.Unit.Parts != null && species.Unit.Parts.Length > 0)
+                unit = species.Unit;
+            if (unit == null && species.JsonUnit != null && species.JsonUnit.Parts.Length > 0)   // W-175 row 6: a saved blueprint
+                unit = species.JsonUnit;
             var model = new FloraModel { Species = species, MeshName = $"{name} {variant}", Pending = shapeOnly ? null : new FloraMeshBuilder[3] };
             model.CastsShadows = !FloraModel.Shadowless(species.Form);
             var seed = (int)Hash((uint)species.Seed, (uint)variant, StableHash(name));
@@ -264,14 +274,19 @@ namespace Punchy.Flora
                                   : species.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Foliage;
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 builder.GlowPulse = species.GlowPulse;
-                builder.BarkSeams = species.GlowingSeams;
-                builder.BarkVeins = species.GlowingVeins;
+                var trunk = species.TrunkOf != null ? species.TrunkOf : species;
+                builder.BarkSeams = trunk.GlowingSeams;
+                builder.BarkVeins = trunk.GlowingVeins;
                 builder.BarkStrata = species.RockStrata;
+                builder.BarkKind = trunk.BarkKind;
                 builder.BaseFamily = FormFamily(species.Form);
                 builder.Family = builder.BaseFamily;
+                builder.TimberFamily = species.KitCulture == Punchy.Terrain.FolkCulture.Elf ? Punchy.Terrain.MaterialFamily.Stone : Punchy.Terrain.MaterialFamily.Wood;
                 builder.WoodKind = WoodKindFor(species);
+                SurfaceKinds(builder, species, variant);
                 var g = new Grower(species, variant, lod, seed, builder);
-                switch (species.Form)
+                if (unit != null) BuildUnit(g, unit);
+                else switch (species.Form)
                 {
                     case FloraForm.BroadleafTree: Broadleaf(g); break;
                     case FloraForm.Conifer: Conifer(g); break;
@@ -330,6 +345,7 @@ namespace Punchy.Flora
                     case FloraForm.Hall: Hall(g); break;
                     case FloraForm.Shrine: Shrine(g); break;
                     case FloraForm.Garden: Garden(g); break;
+                    case FloraForm.Field: Field(g); break;
                     case FloraForm.Lodge: Lodge(g); break;
                     case FloraForm.Signpost: Signpost(g); break;
                     case FloraForm.Bridge: Bridge(g); break;
@@ -344,6 +360,8 @@ namespace Punchy.Flora
                 }
                 if (species.BarkFace > 0f && g.TrunkPath != null)
                     BarkFace(g);
+                if (species.Strangler > 0f && g.TrunkPath != null)
+                    StranglerRoots(g);
                 if (Founded(species.Form))
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
@@ -362,6 +380,7 @@ namespace Punchy.Flora
                     model.TrunkRadius = g.TrunkRadius;
                     model.Colliders.AddRange(g.Colliders);
                     model.Boxes.AddRange(g.Boxes);
+                    model.DoorBoxes.AddRange(g.DoorBoxes);
                     model.ColliderBase.AddRange(g.ColliderBase);
                     model.Perches.AddRange(g.Perches);
                     model.Chimneys.AddRange(g.Chimneys);
@@ -382,7 +401,7 @@ namespace Punchy.Flora
                 // plants still move, and cloth has its own motion (Flora.hlsl).
                 if (shapeOnly)
                     break;
-                var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
+                var flexibility = Founded(species.Form) && species.Form is not (FloraForm.Garden or FloraForm.Field) ? 0f : species.Flexibility;
                 builder.Sway(g.Height, flexibility);
                 model.Pending[lod] = builder;
             }
@@ -437,7 +456,11 @@ namespace Punchy.Flora
             public readonly int Variant, Lod;
             public readonly FloraMeshBuilder B;
             /// <summary>Shape decisions: consumed identically at every level of detail.</summary>
-            readonly System.Random rng;
+            System.Random rng;
+            /// <summary>W-175 row 4: the variant's own stream while a unit part draws from a stream of its own (UsePartStream).</summary>
+            System.Random sharedRng;
+            /// <summary>The variant's seed (W-175 row 4: unit parts' own streams are seeded from it).</summary>
+            public readonly int Seed;
             /// <summary>Fine detail that only some levels draw (loose leaves, florets).</summary>
             public readonly System.Random Detail;
             public float Height, Width, TrunkRadius, DoorHeight;
@@ -453,6 +476,7 @@ namespace Punchy.Flora
             public List<List<Vector3>> Limbs;
             public readonly List<Vector4> Colliders = new List<Vector4>();
             public readonly List<KitBox> Boxes = new List<KitBox>();
+            public readonly List<KitBox> DoorBoxes = new List<KitBox>();
             public readonly List<float> ColliderBase = new List<float>();
             public readonly List<Vector3> Perches = new List<Vector3>();
             public readonly List<Vector3> Chimneys = new List<Vector3>();
@@ -639,6 +663,26 @@ namespace Punchy.Flora
                 B = b;
                 rng = new System.Random(seed);
                 Detail = new System.Random(seed ^ 0x5BD1E995);
+                Seed = seed;
+            }
+
+            /// <summary>
+            /// W-175 row 4: draws shape decisions from a stream of their own until UseSharedStream, so a unit part's look
+            /// doesn't depend on the parts before it (UnitDef.PartStreams). The same at every level of detail.
+            /// </summary>
+            public void UsePartStream(int seed)
+            {
+                sharedRng ??= rng;
+                rng = new System.Random(seed);
+            }
+
+            /// <summary>Back to the variant's own stream, where it left off.</summary>
+            public void UseSharedStream()
+            {
+                if (sharedRng == null)
+                    return;
+                rng = sharedRng;
+                sharedRng = null;
             }
 
             public float R() => (float)rng.NextDouble();
@@ -648,7 +692,7 @@ namespace Punchy.Flora
             public Vector3 Direction() => FloraMeshBuilder.RandomDirection(rng);
             public Vector3 Flat(float angle) => new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
 
-            public Color Bark => S.Bark.linear;
+            public Color Bark => (S.TrunkOf != null ? S.TrunkOf.Bark : S.Bark).linear;
             public Color FoliageColor() => Color.Lerp(S.Foliage, S.FoliageVariation, R()).linear;
             public bool HasAccent => S.Accents.Count > 0 && S.AccentAmount > 0f;
             public Color Accent => S.Accents.Count > 0 ? S.Accents[Variant % S.Accents.Count].linear : Color.white;

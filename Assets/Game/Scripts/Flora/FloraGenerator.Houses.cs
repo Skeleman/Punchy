@@ -34,54 +34,27 @@ namespace Punchy.Flora
         static void Hut(Grower g)
         {
             var s = g.S;
-            var b = g.B;
             var height = g.Range(s.Height);
             var radius = height * s.Spread * 0.5f;
             var wall = height * 0.55f;
             g.Height = height;
             g.Width = radius * 2.5f;
             g.TrunkRadius = radius;
-            // Collision only up to the eaves (the trunk cylinder would reach the roof's peak and push anyone on the roof
-            // off it, F-36); the roof itself is stood on through its support grid.
+            // Creatures stop at the cylinder up to the eaves (F-36); the player stands on the kit's roof slabs.
             g.Colliders.Add(new Vector4(0f, 0f, radius, wall));
-            var sides = g.Sides(14, 10, 7);
 
-            // Walls, slightly bulging, sunk a little into the ground.
-            var first = b.VertexCount;
-            b.Tube(new List<Vector3> { Vector3.down * 0.1f, Vector3.up * wall * 0.5f, Vector3.up * wall },
-                   new List<float> { radius, radius * 1.02f, radius * 0.98f }, sides, g.Bark, FloraPart.Bark);
-            // Timber bands round the wall.
-            if (g.Lod < 2)
-                foreach (var y in new[] { 0.15f, wall * 0.95f })
-                    b.Tube(new List<Vector3> { Vector3.up * (y - 0.06f), Vector3.up * (y + 0.06f) },
-                           new List<float> { radius * 1.04f, radius * 1.04f }, sides, g.Bark * 0.6f, FloraPart.Bark);
-            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.6f));
-
-            // Conical roof with an overhang, rough at the edge.
-            var roof = b.VertexCount;
-            var overhang = radius * 1.3f;
-            var roofColor = g.FoliageColor();
-            // A thick lip at the rim (#32): a lower ring just inside the edge, so the eave has a visible thickness.
-            b.Surface = (int)Punchy.Terrain.KitSurface.Thatch;   // W-99: drawn as thatch
-            RoofTube(b, wall - 0.3f, overhang, sides, roofColor, FloraPart.Bark, height, 0.05f, wall + (height - wall) * 0.45f, overhang * 0.55f);
-            b.Surface = 0;
-            b.Occlude(roof, (p, n) => Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(n.y + 0.2f)));
-            g.Perches.Add(Vector3.up * height);
-
-            // A door facing +Z in a shallow porch whose sides run back into the curved wall, and a couple of windows.
-            // The door stands out past the wall's slight bulge, so the curve doesn't poke through it.
-            var doorWidth = Mathf.Min(radius * 0.5f, 1.25f);
-            Porch(g, radius * 1.05f, WallBehind(radius, doorWidth), doorWidth, Mathf.Min(wall * 0.8f, HumanDoor), 0.4f, g.Bark, roofColor, FloraPart.Bark);
-            // On the wall itself: its radius at that height (between the bulge and the top).
-            Windows(g, radius * Mathf.Lerp(1.02f, 0.98f, 0.16f), wall * 0.58f, 4, 0.55f, 40f, sides);
-            DoorMat(g, radius * 1.05f + 0.4f, doorWidth);
-            // W-147: some have a ladder leaning to the thatch's eave, at a side or the back (between the windows, off the porch).
-            if (HouseLadderRoll(g, out var pick))
-            {
-                var a = (pick < 0.34f ? 0f : pick < 0.67f ? 180f : 270f) * Mathf.Deg2Rad;
-                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                HouseLadder(g, dir * (overhang + 0.4f), dir * (overhang + 0.05f) + Vector3.up * (wall - 0.2f), dir);
-            }
+            var seed = (uint)(g.R() * 16777215f) ^ ((uint)g.Variant << 24) ^ (uint)s.Seed * 0x9E3779B9u;
+            var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
+            trim.Wall = g.Bark;
+            trim.Trim = g.Bark * 0.6f;
+            trim.RoofColour = g.FoliageColor();
+            var ladder = HouseLadderRoll(g, out var pick) ? pick : -1f;
+            var parts = Punchy.Terrain.StructureKit.RoundHut(seed, trim, radius, wall, height, ladder, g.HasAccent, out var door);
+            DrawKitHouse(g, parts, trim, (Punchy.Terrain.KitSurface.Plain, Punchy.Terrain.KitSurface.Thatch), seed);
+            Doorway(g, radius * 1.05f, door.x, door.y);
+            var span = door.x * 0.5f + 0.31f;
+            g.Colliders.Add(new Vector4(0f, radius * 1.05f + 0.4f - span * 0.95f, span, door.y + 0.58f));
+            DoorMat(g, radius * 1.05f + 0.4f, door.x);
         }
 
 
@@ -133,10 +106,10 @@ namespace Punchy.Flora
             switch (s.Form)
             {
                 case FloraForm.Hut:
-                    inside = new Vector3((half - 0.15f) * 2f, height * 0.55f, (half - 0.15f) * 2f);
+                    inside = new Vector3((half - 0.3f) * 2f, height * 0.55f, (half - 0.3f) * 2f);
                     break;
                 case FloraForm.StoneHouse:
-                    inside = new Vector3((half - 0.3f) * 2f, height * 0.65f, (half - 0.3f) * 2f);
+                    inside = new Vector3((half - 0.4f) * 2f, height * 0.65f, (half - 0.4f) * 2f);
                     break;
                 case FloraForm.Tower:
                     inside = new Vector3((half - 0.3f) * 2f, height * 0.62f, (half - 0.3f) * 2f);

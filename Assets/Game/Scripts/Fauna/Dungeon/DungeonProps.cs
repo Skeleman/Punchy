@@ -14,7 +14,7 @@ namespace Punchy.Fauna
     /// <see cref="DungeonSpawner.PropPlace"/> gives it (local space, centred, +z facing the room), so what you bump
     /// into is what you see. One mesh set per content and box size, shared by every prop of that kind.
     /// </summary>
-    public static class DungeonProps
+    public static partial class DungeonProps
     {
         /// <summary>Prop materials (the kit's mesh groups are reused as slots).</summary>
         const int Stone = 0, Wood = 1, Iron = 2, Bone = 3, Cloth = 4, Clay = 5;
@@ -23,10 +23,13 @@ namespace Punchy.Fauna
         static Material[] materials;
         static Material source;
 
+        static CaveSystem cave;
+
         /// <summary>The props' material copies (null when there is no cave material to copy yet).</summary>
         static Material[] Materials()
         {
-            var cave = Object.FindFirstObjectByType<CaveSystem>();
+            if (cave == null)
+                cave = Object.FindFirstObjectByType<CaveSystem>();
             if (cave == null || cave.Material == null)
                 return null;
             if (materials != null && source == cave.Material && materials[0] != null)
@@ -51,37 +54,6 @@ namespace Punchy.Fauna
                 materials[g] = mat;
             }
             return materials;
-        }
-
-        /// <summary>
-        /// The prop for a pick, one child per material under a root at the box's centre; null when there is no cave
-        /// material (the caller then falls back to a plain box).
-        /// </summary>
-        public static GameObject Make(DungeonContent c, float3 size)
-        {
-            var mats = Materials();
-            if (mats == null)
-                return null;
-            var key = (c, (int)math.round(size.x * 100f) | (int)math.round(size.y * 100f) << 10 | (int)math.round(size.z * 100f) << 20);
-            // (Rebuilt if Unity dropped the cached meshes, e.g. play mode ended without a domain reload.)
-            if (!Meshes.TryGetValue(key, out var meshes) || !Alive(meshes))
-            {
-                var kit = new CaveRoomKit.Kit();
-                Build(kit.Parts, c, size, (uint)key.Item2 ^ (uint)c * 0x9E3779B1u);
-                meshes = CaveRoomKit.BuildMeshes(kit);
-                Meshes[key] = meshes;
-            }
-            var root = new GameObject($"Dungeon {c}");
-            for (int g = 0; g < meshes.Length; g++)
-            {
-                if (meshes[g] == null)
-                    continue;
-                var child = new GameObject(mats[g].name);
-                child.transform.SetParent(root.transform, false);
-                child.AddComponent<MeshFilter>().sharedMesh = meshes[g];
-                child.AddComponent<MeshRenderer>().sharedMaterial = mats[g];
-            }
-            return root;
         }
 
         static bool Alive(Mesh[] meshes)

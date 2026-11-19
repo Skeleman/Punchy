@@ -265,7 +265,7 @@ namespace Punchy.Flora
         /// <summary>Debug: the plants in the last wide cull by DetailPolicy kind (reads the counts back: a GPU sync).</summary>
         void ReadWideKinds()
         {
-            var counts = new int[5];
+            var counts = new int[6];
             for (int i = 0; i < layers.Length; i++)
             {
                 var l = layers[i];

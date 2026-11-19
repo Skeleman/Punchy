@@ -28,6 +28,7 @@ namespace Punchy.Terrain
         public float Paving;
         /// <summary>W-108: 1 where the paving is big flagstones (a town's square), 0 for cobbles (TerrainSurface).</summary>
         public float Slabs;
+        public float Cracks;
         /// <summary>How much rain soaks in (TerrainSurface.Porosity): sand darkens rather than pooling.</summary>
         public float Porosity;
 
@@ -44,6 +45,7 @@ namespace Punchy.Terrain
             Strata = math.lerp(a.Strata, b.Strata, t),
             Paving = math.lerp(a.Paving, b.Paving, t),
             Slabs = math.lerp(a.Slabs, b.Slabs, t),
+            Cracks = math.lerp(a.Cracks, b.Cracks, t),
             Porosity = math.lerp(a.Porosity, b.Porosity, t)
         };
 
@@ -60,6 +62,7 @@ namespace Punchy.Terrain
             Strata += s.Strata * w;
             Paving += s.Paving * w;
             Slabs += s.Slabs * w;
+            Cracks += s.Cracks * w;
             Porosity += s.Porosity * w;
         }
     }
@@ -108,6 +111,10 @@ namespace Punchy.Terrain
         public int TerraceSteps;
         public float2 Wind;
         public float Rainfall;
+        /// <summary>The bare rock under the biome (StoneKind, W-166): what its scarps and river notches are cut through.</summary>
+        public byte Stone;
+        /// <summary>The biome's BiomeFamily: what its towns' roofs, plaster and thatch are made of.</summary>
+        public byte Family;
         /// <summary>Water look: rgb colour (linear), a murk 0..1; plus glow.</summary>
         public float4 Water;
         public float WaterGlow;
@@ -252,6 +259,10 @@ namespace Punchy.Terrain
         public float Slope;        // degrees
         public float WaterDepth;   // metres below the local water surface (negative = above it)
         public float River;        // 0..1, 1 inside a river channel
+        public float PointBar;
+        public float Rapids;
+        public float Inland;
+        public float Mouth, MouthStreak, Spray;
         public float EdgeNoise;    // -1..1
         public float ColorNoise;   // -1..1
     }
@@ -1099,11 +1110,147 @@ namespace Punchy.Terrain
                     mask *= math.smoothstep(1f - layer.PatchCoverage - 0.08f, 1f - layer.PatchCoverage + 0.08f, n);
                 }
                 if (mask > 0f)
-                    props = SurfaceProps.Lerp(props, SurfaceWithVariation(ref set, layer.Surface, g.ColorNoise), mask);
+                {
+                    var surface = SurfaceWithVariation(ref set, layer.Surface, g.ColorNoise);
+                    if (layer.OnlyInRivers != 0)
+                        RiverBed(ref surface, (StoneKind)biome.Stone, g);
+                    props = SurfaceProps.Lerp(props, surface, mask);
+                }
             }
 
+            MouthSilt(ref props, g);
+            PointBarGravel(ref props, (StoneKind)biome.Stone, g);
+            DampBank(ref props, (StoneKind)biome.Stone, g);
             return props;
         }
+
+        static void PointBarGravel(ref SurfaceProps s, StoneKind stone, in GroundContext g)
+        {
+            if (g.PointBar <= 0f || g.WaterDepth > 0.4f) return;
+            var bar = g.PointBar * (1f - math.saturate(s.Snow)) * (1f - math.smoothstep(1.5f, 3f, -g.WaterDepth));
+            float3 tint = MaterialLibrary.StoneTint(stone);
+            var gravel = math.lerp(new float3(0.58f, 0.54f, 0.46f), new float3(0.5f, 0.5f, 0.48f) * tint, math.saturate(0.5f + 0.5f * g.EdgeNoise)) * (1f + 0.12f * g.ColorNoise);
+            s.Albedo = math.lerp(s.Albedo, gravel, bar);
+            s.Grass = math.lerp(s.Grass, 0f, bar);
+            s.Pebbles = math.lerp(s.Pebbles, 0.85f, bar);
+            s.Bump = math.lerp(s.Bump, 0.6f, bar);
+            s.Smoothness = math.lerp(s.Smoothness, 0.12f, bar);
+            var wet = bar * (1f - math.smoothstep(0.05f, 0.7f, -g.WaterDepth));
+            s.Albedo *= math.lerp(1f, 0.55f, wet);
+            s.Smoothness = math.lerp(s.Smoothness, 0.6f, wet);
+        }
+
+        static void MouthSilt(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Mouth <= 0f || g.WaterDepth < -3f || g.WaterDepth > 2.5f)
+                return;
+            var fan = g.Mouth * (1f - math.smoothstep(1.5f, 3f, -g.WaterDepth)) * (1f - math.saturate(s.Snow)) * (1f - 0.5f * math.saturate(s.Grass));
+            s.Albedo = math.lerp(s.Albedo, new float3(0.52f, 0.46f, 0.35f) * (1f + 0.12f * g.ColorNoise), fan);
+            s.Smoothness = math.lerp(s.Smoothness, 0.22f, fan);
+            var wet = g.MouthStreak * fan;
+            s.Albedo = math.lerp(s.Albedo, new float3(0.13f, 0.11f, 0.085f), 0.85f * wet);
+            s.Smoothness = math.lerp(s.Smoothness, 0.55f, wet);
+        }
+
+        public static void FallSpray(ref SurfaceProps s, in GroundContext g)
+        {
+            WaterlineWet(ref s, g);
+            BankMud(ref s, g);
+            if (g.Spray <= 0f || g.WaterDepth > 0.3f) return;
+            var wet = g.Spray * (1f - math.saturate(s.Snow)) * (1f - 0.4f * math.saturate(s.Grass));
+            s.Albedo *= math.lerp(1f, 0.5f, wet);
+            s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, 0.72f), wet);
+        }
+
+        // After the rock pass, so rock and scree banks keep the wet line DampBank's soil tint loses under V3Ground.
+        public const float WaterlineWetAbove = 0.45f;
+
+        static void WaterlineWet(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Inland <= 0f || g.WaterDepth < -WaterlineWetAbove || g.WaterDepth > 0.05f) return;
+            var reach = 0.2f + 0.2f * math.saturate(0.5f + 0.5f * g.EdgeNoise) + 0.15f * math.smoothstep(0.08f, 0.35f, g.Rapids);
+            var wet = (1f - math.smoothstep(0.05f, reach, -g.WaterDepth)) * (1f - math.saturate(s.Snow)) * g.Inland;
+            s.Albedo *= math.lerp(1f, math.lerp(0.78f, 0.62f, math.saturate(s.Porosity)), wet);
+            s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, 0.6f), wet);
+        }
+
+        // The rock pass paints steep bank faces as scree; their mud patches come back over it.
+        static void BankMud(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Inland <= 0f || g.WaterDepth < -3f || g.WaterDepth > 0.3f) return;
+            var mud = (1f - BankShingleMask(g)) * BankBare(s, g);
+            if (mud <= 0f) return;
+            s.Albedo = math.lerp(s.Albedo, new float3(0.25f, 0.2f, 0.15f) * (1f + 0.12f * g.ColorNoise), mud);
+            s.Pebbles = math.lerp(s.Pebbles, 0.2f, mud);
+            s.Bump = math.lerp(s.Bump, 0.25f, mud);
+            s.Smoothness = math.lerp(s.Smoothness, 0.35f, mud);
+        }
+
+        static float BankBare(in SurfaceProps s, in GroundContext g) =>
+            g.Inland * (1f - math.saturate(s.Snow)) * (1f - math.saturate(s.Grass * 1.5f)) * (1f - math.smoothstep(2.2f, 3f, -g.WaterDepth));
+
+        static float BankShingleMask(in GroundContext g) =>
+            math.smoothstep(0.05f, 0.25f, noise.snoise(g.Position * 0.5f + 41.7f) + 0.3f * noise.snoise(g.Position * 1.7f - 8.3f));
+
+        static void DampBank(ref SurfaceProps s, StoneKind stone, in GroundContext g)
+        {
+            if (g.Inland <= 0f || g.WaterDepth < -3f || g.WaterDepth > 0.3f)
+                return;
+            BankShingle(ref s, stone, g);
+            if (g.WaterDepth < -2.5f)
+                return;
+            var fast = math.smoothstep(0.08f, 0.35f, g.Rapids);
+            // Steep banks stand in for outer bends: the current undercuts them and splashes higher.
+            var reach = 0.5f + 0.6f * fast + 0.4f * math.smoothstep(15f, 40f, g.Slope) + 0.15f * g.EdgeNoise;
+            var damp = (1f - math.smoothstep(reach * 0.4f, reach, -g.WaterDepth)) * (1f - math.saturate(s.Snow)) * g.Inland;
+            var grass = math.saturate(s.Grass);
+            s.Albedo *= math.lerp(1f, math.lerp(math.lerp(0.68f, 0.55f, math.saturate(s.Porosity)), 0.86f, grass), damp);
+            s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, math.lerp(0.55f, 0.3f, grass)), damp);
+            var mud = (1f - math.smoothstep(0.02f, 0.1f, math.abs(g.WaterDepth + 0.03f))) * (1f - 0.6f * fast) * damp;
+            s.Albedo = math.lerp(s.Albedo, new float3(0.19f, 0.16f, 0.12f), 0.85f * mud);
+            s.Smoothness = math.lerp(s.Smoothness, 0.62f, mud);
+        }
+
+        // River banks: bare ground splits into patches of mud and the biome's stone, not one flat sand band.
+        static void BankShingle(ref SurfaceProps s, StoneKind stone, in GroundContext g)
+        {
+            var bare = BankBare(s, g);
+            if (bare <= 0f) return;
+            var shingle = BankShingleMask(g);
+            float3 tint = MaterialLibrary.StoneTint(stone);
+            var stoneColour = new float3(0.56f, 0.55f, 0.52f) * tint * (1f + 0.15f * g.ColorNoise);
+            var mud = new float3(0.25f, 0.2f, 0.15f) * (1f + 0.12f * g.ColorNoise);
+            s.Albedo = math.lerp(s.Albedo, math.lerp(mud, stoneColour, shingle), bare);
+            s.Pebbles = math.lerp(s.Pebbles, math.lerp(0.2f, 0.95f, shingle), bare);
+            s.Bump = math.lerp(s.Bump, math.lerp(0.25f, 0.7f, shingle), bare);
+            s.Smoothness = math.lerp(s.Smoothness, math.lerp(0.35f, 0.18f, shingle), bare);
+        }
+
+        static void RiverBed(ref SurfaceProps bed, StoneKind stone, in GroundContext g)
+        {
+            var under = math.smoothstep(-0.1f, 0.3f, g.WaterDepth);
+            var fast = math.smoothstep(0.08f, 0.35f, g.Rapids);
+            float3 tint = MaterialLibrary.StoneTint(stone);
+            var gravel = math.lerp(bed.Albedo, math.csum(bed.Albedo) / 3f, 0.5f) * tint * (1f + 0.15f * g.ColorNoise);
+            // Sand and silt take the biome ground's hue, so a bed in ash or poison mud is not the same beige everywhere.
+            var hue = math.clamp(bed.Albedo / math.max(math.csum(bed.Albedo) / 3f, 0.02f), 0.5f, 1.6f);
+            var sand = BedTone(math.lerp(new float3(0.44f, 0.39f, 0.3f), new float3(0.27f, 0.25f, 0.21f), math.saturate((g.WaterDepth - 0.5f) / 1.5f)), hue);
+            var patch = noise.snoise(g.Position * 0.3f) + 0.5f * noise.snoise(g.Position * 1.1f + 17.3f);
+            var shallow = 1f - math.smoothstep(0.5f, 1.4f, g.WaterDepth);
+            // Inner bends drop fine sand; riffles (fast and shallow) keep only coarse cobbles.
+            var bend = g.PointBar * (1f - fast);
+            var riffle = fast * (1f - 0.5f * math.smoothstep(1f, 2f, g.WaterDepth));
+            var stony = math.max(riffle, shallow * math.smoothstep(-0.3f, 0.5f, patch)) * (1f - bend);
+            var silt = (1f - fast) * math.smoothstep(0.7f, 1.3f, g.WaterDepth) * math.smoothstep(-0.2f, 0.4f, -patch) * (1f - bend);
+            sand = math.lerp(sand, BedTone(new float3(0.5f, 0.45f, 0.35f), hue), bend);
+            var bedColour = math.lerp(math.lerp(sand, gravel, stony), BedTone(new float3(0.2f, 0.19f, 0.15f), hue), silt) * (1f + 0.4f * noise.snoise(g.Position * 0.9f - 5.1f) * math.max(stony, 0.5f * shallow));
+            bed.Albedo = math.lerp(bed.Albedo, bedColour, under);
+            bed.Bump = math.lerp(bed.Bump, math.lerp(math.lerp(0.15f, 0.9f, stony), 0.05f, silt), under);
+            bed.Pebbles = math.lerp(bed.Pebbles, math.lerp(0.1f, 1f, stony) * (1f - silt), under);
+            bed.Smoothness = math.lerp(bed.Smoothness, math.lerp(math.lerp(0.35f, 0.6f, stony), 0.25f, silt), under);
+        }
+
+        static float3 BedTone(float3 colour, float3 hue) => math.lerp(colour, math.csum(colour) / 3f * hue, 0.6f);
 
         static SurfaceProps SurfaceWithVariation(ref BiomeSetBlob set, int surfaceIndex, float colorNoise)
         {

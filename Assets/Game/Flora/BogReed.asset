@@ -41,6 +41,7 @@ MonoBehaviour:
   OnlyNearWater: 0
   Aquatic: 1
   WaterDepth: {x: 0, y: 0.7}
+  MaxRapids: 0.5
   Floats: 0
   Solid: 0
   SizeRange: {x: 0.85, y: 1.15}

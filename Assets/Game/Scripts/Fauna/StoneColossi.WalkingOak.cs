@@ -39,6 +39,8 @@ namespace Punchy.Fauna
             var root = new GameObject("WalkingOak").transform;
             root.SetPositionAndRotation(new Vector3(at.x, at.y - 0.6f, at.z), Quaternion.Euler(0f, yaw, 0f));
             var m = new DunesColossus.MeshBuilder();
+            m.Family(OakBark, MaterialFamily.Wood, (int)WoodKind.Oak);                 // W-166 r4 (#336): the bark is library oak
+            m.Family(OakBarkDark, MaterialFamily.Wood, (int)WoodKind.Oak);
             var crown = new DunesColossus.MeshBuilder();
             var loose = new DunesColossus.MeshBuilder();
             var rng = Unity.Mathematics.Random.CreateFromIndex(seed | 1u);

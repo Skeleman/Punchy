@@ -17,13 +17,15 @@ namespace Punchy.Interact
     /// "-talktest N [offers]" (P-26): stands the player in front of N folk in turn and presses Use, logging how long the
     /// window took and what the folk did, moving on to further doors when the folk nearby run out. With "offers": asks
     /// until a quest and a gift have each been offered, accepts both, then meets that folk again. With "pad": a virtual
-    /// pad opens a talk, moves down the list, picks, tries to look and walk, and ends it two ways. "-talkshot dir" saves
-    /// the whole screen, the window included, at each step.
+    /// pad opens a talk, moves down the list, picks, tries to look and walk, and ends it two ways. With "replies" (P-42):
+    /// walks a made-up reply branch (ReplyBook) through the window: a gesture, an item offer taken by a reply, the depth
+    /// cap, and a goodbye. With "exchanges" (P-42 row 2): the shipped reply exchanges (FolkTalk.Exchanges.cs).
+    /// "-talkshot dir" saves the whole screen, the window included, at each step.
     /// </summary>
     public partial class FolkTalk
     {
         int testCount;
-        bool testOffers, testPad;
+        bool testOffers, testPad, testReplies;
         int nextDoor;
         Gamepad pad;
         GamepadButton? tapNext;
@@ -43,6 +45,8 @@ namespace Punchy.Interact
                 return;
             testOffers = at + 2 < args.Length && args[at + 2] == "offers";
             testPad = at + 2 < args.Length && args[at + 2] == "pad";
+            testReplies = at + 2 < args.Length && args[at + 2] == "replies";
+            testExchanges = at + 2 < args.Length && args[at + 2] == "exchanges";
             StartCoroutine(RunTest());
         }
 
@@ -130,6 +134,16 @@ namespace Punchy.Interact
             if (testOffers)
             {
                 yield return Offers(tried);
+                testCount = 0;
+            }
+            if (testReplies)
+            {
+                yield return Replies(tried);
+                testCount = 0;
+            }
+            if (testExchanges)
+            {
+                yield return Exchanges(tried);
                 testCount = 0;
             }
             int opened = 0, fast = 0, stood = 0, faced = 0, total = 0;
@@ -376,6 +390,97 @@ namespace Punchy.Interact
                 }
             }
             Debug.Log($"[talk] offers summary: quest {quest}, gift {gift}");
+        }
+
+        /// <summary>The work topic's lines while the replies test runs: three replies, a reply-only topic with a gift offer
+        /// taken by a reply, and a loop back to it past the depth cap.</summary>
+        const string ReplyBook = @"{
+  ""Any"": {
+    ""work"": [ { ""text"": ""I keep bees."", ""options"": [
+      { ""say"": ""Bees?"", ""then"": ""bees"" },
+      { ""say"": ""Wave."", ""do"": ""gesture:Wave"" },
+      { ""say"": ""Goodbye."", ""do"": ""end"" } ] } ],
+    ""bees"": [ { ""text"": ""Honey bees, mostly. Take some berries for the road."", ""offer"": ""item:Berry"", ""options"": [
+      { ""say"": ""Thank you!"", ""do"": ""accept"", ""then"": ""stings"" },
+      { ""say"": ""No, thanks."", ""do"": ""decline"" } ] } ],
+    ""stings"": [ { ""text"": ""Mind the stings."", ""options"": [ { ""say"": ""More bees?"", ""then"": ""bees"" } ] } ]
+  }
+}";
+
+        /// <summary>P-42: opens a talk and walks ReplyBook's branch through the window, as a player would (the d-pad's
+        /// step, then the pick), checking what the window lists at each answer.</summary>
+        IEnumerator Replies(HashSet<uint> tried)
+        {
+            var bad = new List<string>();
+            void Check(bool ok, string what)
+            {
+                Debug.Log($"[talk] replies: {(ok ? "ok" : "BAD")}: {what}");
+                if (!ok)
+                    bad.Add(what);
+            }
+            string Listed() => string.Join(" | ", choices.ConvertAll(c => c.Label));
+            var opened = false;
+            Entity e = Entity.Null;
+            for (int n = 0; n < 10 && !opened; n++)
+            {
+                e = NextFolk(tried, out var s);
+                for (int hop = 0; e == Entity.Null && hop < 6; hop++)
+                {
+                    nextDoor += 20;
+                    Hop(nextDoor);
+                    yield return new WaitForSecondsRealtime(6f);
+                    e = NextFolk(tried, out s);
+                }
+                if (e == Entity.Null)
+                    break;
+                tried.Add(s.Individual);
+                StandBefore(s);
+                yield return new WaitForSecondsRealtime(0.3f);
+                yield return Press(e, (o, d) => opened = o && talking);
+                Debug.Log($"[talk] replies: try {n}: #{s.Individual:X8}, window {talking}");
+            }
+            Check(opened, "a talk opened");
+            if (!opened)
+            {
+                Debug.Log("[talk] replies => FAIL (no talk)");
+                yield break;
+            }
+            FolkConversation.TestTalk = FolkConversation.Parse(Newtonsoft.Json.Linq.JObject.Parse(ReplyBook));
+            var work = choices.FindIndex(c => c.Id == "work");
+            Check(work >= 0, "work is a topic");
+            Choose(work);
+            Check(replying && Listed() == "Bees? | Wave. | Goodbye.", $"work lists its replies: {Listed()}");
+            yield return Shot("replies");
+            // The d-pad's step to the second reply, then the pick: the wave, back to the topics.
+            Step(1);
+            Choose(selected);
+            Check(!replying && choices.Exists(c => c.Id == "work") && body.Contains("You: Wave."), $"wave goes back to the topics, body \"{body.Replace('\n', ' ')}\"");
+            Check(shown.Action == IdleAction.Wave, $"the folk waves ({shown.Action})");
+            yield return new WaitForSecondsRealtime(0.5f);
+            if (Hosting || !Joined)
+            {
+                var em = World.DefaultGameObjectInjectionWorld.EntityManager;
+                if (em.Exists(e))
+                    Debug.Log($"[talk] replies: folk's action after the wave: {em.GetComponentData<CreatureState>(e).Action}");
+            }
+            Choose(choices.FindIndex(c => c.Id == "work"));
+            Choose(0);
+            Check(replying && offering && Listed() == "Thank you! | No, thanks." && body.Contains("Honey bees"), $"bees offers berries: {Listed()}");
+            yield return Shot("reply-offer");
+            Choose(0);
+            Check(gifted.Contains(who.Individual) && body.Contains("(You receive") && body.Contains("Mind the stings."), $"thank you takes the gift: \"{body.Replace('\n', ' ')}\"");
+            Check(replying && Listed() == "More bees?", $"stings lists its reply: {Listed()}");
+            yield return Shot("reply-taken");
+            Choose(0);
+            Check(shown.Depth == FolkConversation.MaxDepth && !replying && !offering && choices.Exists(c => c.Id == "work"),
+                  $"past the cap, the gift already given: back to the topics (depth {shown.Depth}, {Listed()})");
+            Choose(choices.FindIndex(c => c.Id == "work"));
+            Choose(2);
+            Check(endAt > 0f && choices.Count == 0, "goodbye ends the talk");
+            yield return new WaitForSecondsRealtime(EndingSeconds + 0.5f);
+            Check(!talking, "the window closed after the goodbye");
+            FolkConversation.TestTalk = null;
+            Debug.Log($"[talk] replies => {(bad.Count == 0 ? "PASS" : "FAIL (" + string.Join("; ", bad) + ")")}");
         }
     }
 }

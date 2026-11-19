@@ -16,7 +16,7 @@ namespace Punchy.EditorTools
     /// <see cref="FloraGenerator.Grow"/> (finest level of detail); dungeon pieces are cave room kits
     /// (<see cref="CaveRoomKit.Build"/> and <see cref="CaveRoomKit.BuildMeshes"/>), one per <see cref="CaveRoomType"/>,
     /// with the ceiling left off so the turntable looks in. Nothing here is saved or changes the game: the gap to
-    /// blueprint editing is W-175's unit format, which the Lab will read once it lands (M-06 row 5).
+    /// blueprint editing (W-175 units) is ModelLab.Blueprints (M-06 row 5).
     /// </summary>
     public partial class ModelLab
     {
@@ -25,7 +25,7 @@ namespace Punchy.EditorTools
         /// <summary>Forms that are built structures (houses, halls, shrines, wells, bridges, ruins, kit buildings).</summary>
         static bool IsStructure(FloraForm f) => f is FloraForm.Hut or FloraForm.StoneHouse or FloraForm.Tent or FloraForm.Tower
             or FloraForm.Pen or FloraForm.Stall or FloraForm.Inn or FloraForm.Smithy or FloraForm.Forum or FloraForm.Fountain
-            or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Lodge or FloraForm.Bridge
+            or FloraForm.Well or FloraForm.Hall or FloraForm.Shrine or FloraForm.Garden or FloraForm.Field or FloraForm.Lodge or FloraForm.Bridge
             or FloraForm.Palisade or FloraForm.MineFrame or FloraForm.Ruin or FloraForm.HazardShelter or FloraForm.KitBuilding
             or FloraForm.KitRuin or FloraForm.Stable;
 
@@ -53,7 +53,7 @@ namespace Punchy.EditorTools
                     .Where(s => s != null && IsStructure(s.Form))
                     .Select(s => BuildingPrefix + s.name).Distinct().OrderBy(n => n);
                 var rooms = Enum.GetNames(typeof(CaveRoomType)).Select(n => RoomPrefix + n);
-                setPieceNames = buildings.Concat(rooms).ToArray();
+                setPieceNames = buildings.Concat(rooms).Concat(BlueprintNames()).ToArray();   // (blueprints: M-06 row 5)
             }
             return setPieceNames;
         }
@@ -115,7 +115,7 @@ namespace Punchy.EditorTools
 
         bool TryLoadSetPiece(string name)
         {
-            if (!name.StartsWith(BuildingPrefix) && !name.StartsWith(RoomPrefix))
+            if (!name.StartsWith(BuildingPrefix) && !name.StartsWith(RoomPrefix) && !IsBlueprintName(name))
                 return false;
             if (EditorApplication.isPlayingOrWillChangePlaymode)
             {
@@ -127,7 +127,8 @@ namespace Punchy.EditorTools
             family = Family.SetPiece;
             loadedName = name;
             ground = 0f;
-            var ok = name.StartsWith(BuildingPrefix) ? BuildBuilding(name.Substring(BuildingPrefix.Length)) : BuildRoom(name.Substring(RoomPrefix.Length));
+            var ok = IsBlueprintName(name) ? BuildBlueprint(name)
+                   : name.StartsWith(BuildingPrefix) ? BuildBuilding(name.Substring(BuildingPrefix.Length)) : BuildRoom(name.Substring(RoomPrefix.Length));
             if (!ok)
             {
                 Unload();
@@ -324,6 +325,7 @@ namespace Punchy.EditorTools
                 if (m != null)
                     DestroyImmediate(m);
             setPieceMeshes.Clear();
+            ClearBlueprintSelection();
             setPieceParts.Clear();
             setPieceHover = -1;
             setPieceNote = "";
@@ -331,6 +333,8 @@ namespace Punchy.EditorTools
 
         void DrawSetPieces()
         {
+            if (DrawBlueprintSelection())
+                return;
             // Hovering a part row in the side list dims every other mesh, so the row's parts stand out.
             dimBlock ??= new MaterialPropertyBlock();
             dimBlock.SetColor("_Color", new Color(0.3f, 0.3f, 0.3f, 1f));
@@ -355,6 +359,11 @@ namespace Punchy.EditorTools
 
         void DrawSetPiecePanel()
         {
+            if (IsBlueprintName(loadedName))
+            {
+                DrawBlueprintPanel();
+                return;
+            }
             GUILayout.Label("Set piece", EditorStyles.boldLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -372,8 +381,8 @@ namespace Punchy.EditorTools
             }
             EditorGUILayout.LabelField(setPieceNote, EditorStyles.wordWrappedMiniLabel);
             DrawSetPieceParts();
-            EditorGUILayout.HelpBox("View only: built by the game's own builders from its definitions. Editing and saving " +
-                                    "buildings waits on W-175's unit format (M-06 row 5).", MessageType.Info);
+            EditorGUILayout.HelpBox("View only: built by the game's own builders from its definitions. Blueprints (W-175 units) " +
+                                    "are edited and saved under Set piece > Blueprint (M-06 row 5).", MessageType.Info);
         }
 
         /// <summary>M-08 row 3 (the cheaper version): the piece's parts as a side list; hovering a row highlights its mesh.</summary>

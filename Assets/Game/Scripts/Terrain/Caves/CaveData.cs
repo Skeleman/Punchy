@@ -323,8 +323,12 @@ namespace Punchy.Terrain
         public const float MouthBlend = 1.2f;
         /// <summary>How far under the terrain surface the cave walls end (m, measured across the slope). W-112: was 10 cm,
         /// which showed as a lip round every mouth where the terrain's cut (wider by up to half a quad) exposed the
-        /// walls' skin; at 2 cm the skin sits flush with the surface and still stays under it.</summary>
-        public const float SkinGap = 0.02f;
+        /// walls' skin; at 2 cm the skin sat flush with the surface. W-162 row 4: 20 cm, since 2 cm let the skin poke
+        /// through the drawn ground in pale patches all round a mouth (the walls' cells cut corners off the field).</summary>
+        public const float SkinGap = 0.2f;
+        /// <summary>The terrain's own mouth cut (TerrainSource.MouthCut) keeps the old 2 cm gap: at SkinGap its 15 cm
+        /// mesh depth went below zero and the cut ate the ground for metres round every mouth.</summary>
+        public const float CutGap = 0.02f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
         /// <summary>Most the ceiling's ridges, fractures and blocks move it at Jaggedness 1.</summary>
@@ -1203,6 +1207,42 @@ namespace Punchy.Terrain
                     return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Whether any cave segment's box overlaps a ground rectangle (#400: the terrain streamer charges a chunk over
+        /// a cave more, since its vertices sample the mouth cut several times each).
+        /// </summary>
+        public static bool NearRect(ref CaveSetBlob set, float2 min, float2 max)
+        {
+            if (set.Cells.Length == 0)
+                return false;
+            var c0 = math.max((int2)math.floor((min - set.GridOrigin) / set.CellSize), 0);
+            var c1 = math.min((int2)math.floor((max - set.GridOrigin) / set.CellSize), set.GridSize - 1);
+            for (int y = c0.y; y <= c1.y; y++)
+            for (int x = c0.x; x <= c1.x; x++)
+            {
+                var range = set.Cells[y * set.GridSize.x + x];
+                for (int k = range.x; k < range.x + range.y; k++)
+                {
+                    ref var seg = ref set.Segments[set.Items[k]];
+                    if (math.all(max >= seg.Min.xz) && math.all(min <= seg.Max.xz))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// W-174 r6: the cave walls' field (negative in rock) at height y over a column whose drawn surface is surface,
+        /// with scale the across-slope factor (TerrainSource.AcrossSlope) and cave the cave distance there. CaveSystem's
+        /// FieldJob builds the walls from it.
+        /// </summary>
+        public static float WallField(float y, float surface, float scale, float cave)
+        {
+            var ground = (y - surface) * scale + SkinGap;
+            // Far from every cave (distance 1e9) the blend cancels to 0 in floats, losing the ground's crossing.
+            return cave + ground >= MouthBlend ? ground : -SmoothMin(-ground, cave, MouthBlend);
         }
 
         internal static float SmoothMin(float a, float b, float k)

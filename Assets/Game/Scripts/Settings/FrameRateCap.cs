@@ -53,7 +53,7 @@ namespace Punchy.Settings
                 if (args[i] == "-vsync" && int.TryParse(args[i + 1], out var v) && v >= 0 && v <= 4)
                     VSync = v;
                 if (args[i] == "-maxqueued" && int.TryParse(args[i + 1], out var q) && q >= 0 && q <= 10)
-                    MaxQueued = q;
+                    MaxQueued = System.Math.Max(1, q);   // (at least 1, per the render lane's review of #424)
             }
             Apply();
             Debug.Log($"FrameRateCap: vSyncCount {QualitySettings.vSyncCount}, maxQueuedFrames {QualitySettings.maxQueuedFrames}");

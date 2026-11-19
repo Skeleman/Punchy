@@ -166,35 +166,75 @@ namespace Punchy.Flora
         /// </summary>
         static void Driftwood(Grower g)
         {
-            var b = g.B;
+            if (g.S.RiverSpot == RiverSpot.Heap)
+            {
+                DriftHeap(g);
+                return;
+            }
             var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
             var r = Mathf.Max(0.06f, g.S.Thickness * g.Range(0.85f, 1.15f));
             g.Height = r * 2f;
             g.Width = len;
             g.TrunkRadius = 0f;
+            DriftLog(g, new Vector3(0f, r, 0f), 0f, 0f, len, r, true);
+        }
+
+        // A flood heap on a bar head or outer bend.
+        static void DriftHeap(Grower g)
+        {
+            var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
+            var r = Mathf.Max(0.06f, g.S.Thickness);
+            var count = 4 + (int)g.Range(0f, 3.99f);
+            var top = 0f;
+            for (int k = 0; k < count; k++)
+            {
+                var layer = k < 2 ? 0 : k < 4 ? 1 : 2;
+                var lr = r * g.Range(0.75f, 1.2f);
+                var ll = len * (layer == 0 ? g.Range(0.8f, 1f) : g.Range(0.5f, 0.85f));
+                var yaw = layer == 0 ? g.Range(-15f, 15f) : (g.R() < 0.5f ? -1f : 1f) * g.Range(25f, 75f);
+                var mid = new Vector3(g.Range(-0.15f, 0.15f) * len, layer * r * 1.7f + lr,
+                                      layer == 0 ? (k == 0 ? -1f : 1f) * g.Range(0.15f, 0.45f) : g.Range(-0.3f, 0.3f));
+                DriftLog(g, mid, yaw, layer == 0 ? 0f : g.Range(-7f, 7f), ll, lr, k == 0 || g.R() < 0.3f);
+                top = Mathf.Max(top, mid.y + lr);
+            }
+            if (g.Lod < 2)
+                for (int k = 0, n = 2 + (int)g.Range(0f, 2.99f); k < n; k++)
+                {
+                    var mid = new Vector3(g.Range(-0.35f, 0.35f) * len, g.Range(0.3f, 1f) * top, g.Range(-0.5f, 0.5f));
+                    DriftLog(g, mid, g.Range(0f, 360f), g.Range(20f, 45f), g.Range(0.5f, 1.1f), r * g.Range(0.3f, 0.45f), false);
+                }
+            g.Height = top;
+            g.Width = len;
+            g.TrunkRadius = 0f;
+        }
+
+        static void DriftLog(Grower g, Vector3 mid, float yaw, float pitch, float len, float r, bool roots)
+        {
+            var b = g.B;
+            var turn = Quaternion.Euler(0f, yaw, pitch);
+            Vector3 At(float x, float y, float z) => mid + turn * new Vector3(x, y, z);
             var bend = g.Range(-0.08f, 0.08f) * len;
             var sides = g.Sides(9, 6, 4);
             var first = b.VertexCount;
-            b.Tube(new List<Vector3> { new Vector3(-len * 0.5f, r * 1.1f, 0f), new Vector3(0f, r, bend), new Vector3(len * 0.5f, r * 0.8f, bend * 0.3f) },
+            b.Tube(new List<Vector3> { At(-len * 0.5f, r * 0.1f, 0f), At(0f, 0f, bend), At(len * 0.5f, -r * 0.2f, bend * 0.3f) },
                    new List<float> { r * 1.15f, r, r * 0.6f }, sides, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
             if (g.Lod >= 2)
                 return;
-            // Root stubs flare out of the thick end, some up in the air.
-            for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
-            {
-                var a = (k + g.Range(0f, 0.6f)) * Mathf.PI * 2f / n;
-                var tip = new Vector3(-len * 0.5f - g.Range(0.2f, 0.6f), r * 1.1f + Mathf.Sin(a) * r * 2.2f, Mathf.Cos(a) * r * 2.2f);
-                b.Tube(new List<Vector3> { new Vector3(-len * 0.5f + 0.1f, r * 1.1f, 0f), tip }, new List<float> { r * 0.45f, r * 0.12f },
-                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
-            }
-            // A few snapped branch stubs along the length.
+            if (roots)
+                for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
+                {
+                    var a = (k + g.Range(0f, 0.6f)) * Mathf.PI * 2f / n;
+                    var tip = At(-len * 0.5f - g.Range(0.2f, 0.6f), r * 0.1f + Mathf.Sin(a) * r * 2.2f, Mathf.Cos(a) * r * 2.2f);
+                    b.Tube(new List<Vector3> { At(-len * 0.5f + 0.1f, r * 0.1f, 0f), tip }, new List<float> { r * 0.45f, r * 0.12f },
+                           g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+                }
             for (int k = 0, n = 1 + (int)g.Range(0f, 3.5f); k < n; k++)
             {
                 var x = g.Range(-0.3f, 0.4f) * len;
                 var a = g.Range(-1.2f, 1.2f);
-                var from = new Vector3(x, r, Mathf.Lerp(0f, bend, 1f - Mathf.Abs(x) / (len * 0.5f)));
-                var dir = new Vector3(g.Range(0.2f, 0.6f), Mathf.Cos(a), Mathf.Sin(a)).normalized;
+                var from = At(x, 0f, Mathf.Lerp(0f, bend, 1f - Mathf.Abs(x) / (len * 0.5f)));
+                var dir = turn * new Vector3(g.Range(0.2f, 0.6f), Mathf.Cos(a), Mathf.Sin(a)).normalized;
                 b.Tube(new List<Vector3> { from, from + dir * (r + g.Range(0.15f, 0.5f)) }, new List<float> { r * 0.3f, r * 0.15f },
                        g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
             }
@@ -217,60 +257,8 @@ namespace Punchy.Flora
             g.Colliders.Add(new Vector4(0f, 0f, r + 0.05f, StumpSeat));
         }
 
-        /// <summary>
-        /// A fire pit: stones in a ring round a sunken ash bed, three or four charred logs leaning together over the
-        /// middle, and embers glowing in the ash (the flames are a landmark Flame effect drawn by FireSystem).
-        /// </summary>
-        static void FirePit(Grower g)
-        {
-            var s = g.S;
-            var b = g.B;
-            var radius = g.Range(s.Height);
-            var stones = Mathf.Max(6, g.Count(s.Branches));
-            g.Height = radius * 0.8f;
-            g.Width = radius * 2.4f;
-            g.TrunkRadius = 0f;
-            // The ash bed, a little below the stones' feet.
-            b.Blob(Vector3.up * 0.01f, new Vector3(radius * 0.9f, 0.04f, radius * 0.9f), Quaternion.identity, 1, 0.2f, g.R() * 50f,
-                   new Color(0.09f, 0.085f, 0.08f), FloraPart.Bark);
-            // The ring: rough stones of varied size, each turned its own way.
-            var turn = g.R() * 6.28f;
-            for (int k = 0; k < stones; k++)
-            {
-                var a = turn + k * Mathf.PI * 2f / stones + g.Range(-0.12f, 0.12f);
-                var size = radius * g.Range(0.2f, 0.3f);
-                var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius + Vector3.up * size * 0.35f;
-                var stone = b.Blob(at, new Vector3(size, size * g.Range(0.6f, 0.85f), size * g.Range(0.8f, 1.1f)),
-                                   Quaternion.Euler(0f, -a * Mathf.Rad2Deg + g.Range(-20f, 20f), 0f), g.Lod == 0 ? 1 : 0, 0.35f, g.R() * 50f,
-                                   g.Bark * g.Range(0.85f, 1.1f), FloraPart.Bark);
-                b.Occlude(stone, (p, n) => Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(n.y + 0.5f)));
-            }
-            // Charred logs leaning together over the middle, blackening towards the burning ends.
-            var logs = g.R() < 0.5f ? 3 : 4;
-            var lean = g.R() * 6.28f;
-            var top = Vector3.up * radius * 0.55f;
-            for (int k = 0; k < logs; k++)
-            {
-                var a = lean + k * Mathf.PI * 2f / logs;
-                var foot = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * 0.7f + Vector3.up * 0.03f;
-                b.Tube(new List<Vector3> { foot, Vector3.Lerp(foot, top, 0.6f), top + (foot - top) * -0.08f },
-                       new List<float> { radius * 0.09f, radius * 0.08f, radius * 0.05f }, g.Sides(6, 5, 4),
-                       g.FoliageColor() * 0.6f, FloraPart.Bark);
-            }
-            // Embers in the ash and on the logs' charred ends.
-            if (g.Lod < 2)
-            {
-                var ember = AccentAt(g, 0);
-                for (int k = 0; k < 9; k++)
-                {
-                    var a = g.R() * 6.28f;
-                    var at = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius * g.Range(0.05f, 0.55f) + Vector3.up * 0.04f;
-                    b.Blob(at, Vector3.one * radius * g.Range(0.04f, 0.08f), Quaternion.identity, 0, 0.3f, g.R() * 50f,
-                           ember * g.Range(0.7f, 1.2f), FloraPart.Glow);
-                }
-            }
-            g.Colliders.Add(new Vector4(0f, 0f, radius * 1.1f, radius * 0.4f));
-        }
+        // W-175 row 3: the fire pit is a unit of library parts (FloraGenerator.Units.FirePitUnit).
+        static void FirePit(Grower g) => BuildUnit(g, FirePitUnit);
 
         /// <summary>
         /// Bracket fungus (FloraSpecies.Brackets, a share of a tree's variants): half-moon shelves stepping up one side

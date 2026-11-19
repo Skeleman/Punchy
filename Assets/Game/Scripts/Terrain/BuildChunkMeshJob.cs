@@ -19,7 +19,7 @@ namespace Punchy.Terrain
         public half4 Extra;     // metallic, grass density, snow depth, skirt drop (0 on the surface)
         public half4 Emission;  // emission rgb (linear HDR), geomorph offset (coarse height − height)
         public float4 Morph;    // geomorph start / complete distance from the focus; z surface bumpiness; w distance to cave air
-        public half4 Strata;    // rock strata amount, cobble paving amount, hollow depth (m, for puddles), flagstones (W-108)
+        public half4 Strata;    // x rock strata (> 0) or cracks (< 0), cobble paving amount, hollow depth (m, for puddles), flagstones (W-108)
         public half2 Soak;      // porosity (how much rain soaks in, item 22), the next-coarser LOD's hollow depth (W-169)
 
         public static readonly VertexAttributeDescriptor[] Layout =
@@ -39,7 +39,8 @@ namespace Punchy.Terrain
             Surface = new half4(new float4(s.Albedo, s.Smoothness));
             Extra = new half4(new float4(s.Metallic, s.Grass, s.Snow, 0f));
             Emission = new half4(new float4(s.Emission, 0f));
-            Strata = new half4(new float4(s.Strata, s.Paving, 0f, s.Slabs));
+            // Signed: no channel was free, and strata (mesa cliffs) never share ground with cracks (salt flats).
+            Strata = new half4(new float4(s.Strata - s.Cracks, s.Paving, 0f, s.Slabs));
             Soak = new half2(new float2(s.Porosity, 0f));
         }
     }
@@ -81,11 +82,13 @@ namespace Punchy.Terrain
     /// or an empty mesh when the chunk is dry.
     /// </summary>
     [BurstCompile]
-    struct BuildChunkMeshJob : IJobParallelFor
+    partial struct BuildChunkMeshJob : IJobParallelFor
     {
         [NativeDisableParallelForRestriction] public Mesh.MeshDataArray Meshes;
         [ReadOnly] public NativeArray<ChunkBuildRequest> Requests;
         [ReadOnly] public NativeArray<VertexAttributeDescriptor> WaterLayout;
+        /// <summary>W-174 r6: TerrainVertex.Layout, for a chunk whose temple collar changes its vertex count (unset: no collars).</summary>
+        [ReadOnly] public NativeArray<VertexAttributeDescriptor> TerrainLayout;
         public TerrainSource Source;
         public float ChunkSize;
         public float NormalEpsilon;
@@ -121,9 +124,17 @@ namespace Punchy.Terrain
             var looks = new NativeArray<float4>(v * v, Allocator.Temp);   // water colour + murk, glow in a separate array
             var glows = new NativeArray<float2>(v * v, Allocator.Temp);
             var pooled = new NativeArray<bool>(v * v, Allocator.Temp);
+            var templeLod = request.Lod <= TempleMaxLod && Source.Landmarks.IsCreated && TerrainLayout.IsCreated;
+            var entranceLod = templeLod;
+            var templeCut = new NativeArray<float>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var worlds = new NativeArray<float2>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var rawCave = new NativeArray<float>(entranceLod ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var collared = false;
+            var corners = new NativeList<float2>(16, Allocator.Temp);
+            if (templeLod)
+                TempleCorners(request.Origin, step, ref corners);
             // Cave entrances: each vertex carries its distance to cave air, and the terrain shader cuts away the
             // surface just inside the cave's edge (per pixel, so the opening follows the cave, not the grid).
-            var cutHoles = request.Lod <= 1 && Source.Caves.IsCreated;
             // W-136: darkening where trunks, rocks, walls and props meet the ground, multiplied into the albedo.
             var shaded = Flora.IsCreated && Contacts.IsCreated;
             var shade = new NativeArray<float>(shaded ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
@@ -135,13 +146,66 @@ namespace Punchy.Terrain
                                          ContactPixelsPerMetre, ContactStrength, ContactReach, shade);
             }
 
+            var patchMin = (int2)math.floor(request.Origin / MouthPatch.Cell) - 1;
+            var patchSize = (int)(ChunkSize / MouthPatch.Cell) + 2;
+            var patch = new NativeArray<bool>(request.Lod <= MouthPatch.MaxLod ? patchSize * patchSize : 1, Allocator.Temp);
+            var patched = request.Lod <= MouthPatch.MaxLod && MouthPatch.Fill(Source, patchMin, patchSize, patch);
+            var rims = new NativeArray<bool>(patched ? v * v : 1, Allocator.Temp);
+
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
             {
                 var local = new float2(x, z) * step;
                 var world = request.Origin + local;
+                var grid = world;          // the water sheet keeps the grid point (it is built on the grid)
                 var ground = Source.SampleGround(world);
+                var gridGround = ground;
                 var h = ground.Height;
+                // Cut where the ground is replaced (see Cut). W-174 row 4 (#405), the one seam builder: a ground vertex
+                // near a rim moves onto it, so the per-pixel cut's edge runs through vertices on the rim (exact corners and
+                // noisy mouth rims, no slot beside a temple wall) instead of between grid points.
+                world = Seam(world, h, step, request.Lod, out var cave, out var strip, out var stripY);
+                // W-174 r6: the vertex nearest a corner of the temple's entrance takes it, so the rim turns on a vertex.
+                if (templeLod && world.Equals(grid) && SnapCorner(corners, grid, step, out var corner))
+                    world = corner;
+                var rim = false;
+                if (patched)
+                {
+                    MouthPatch.Membership(grid, patch, patchMin, patchSize, out var any, out var all);
+                    rim = any && !all;
+                    rims[z * v + x] = rim;
+                }
+                if (rim)
+                {
+                    world = grid;
+                    strip = 100f;
+                }
+                if (!world.Equals(grid))
+                {
+                    local = world - request.Origin;
+                    ground = Source.SampleGround(world);
+                    h = ground.Height;
+                }
+                if (rim)
+                    h = MouthPatch.Height(Source, grid, patch, patchMin, patchSize);
+                // W-174 r6: entrance cuts are not snapped to; their triangles are split on the rim (Collars). They still go
+                // into the vertex's cut, so a triangle Collars can't split is clipped per pixel as before.
+                if (entranceLod)
+                {
+                    var tc = templeLod ? Source.TempleCut(world) : 100f;
+                    templeCut[z * v + x] = tc;
+                    worlds[z * v + x] = world;
+                    collared |= tc < 0f;
+                    rawCave[z * v + x] = cave;   // before the entrance cut, for a dropped speck (DropSpecks)
+                    if (math.abs(tc) < RimOn)
+                    {
+                        tc = 0f;
+                        cave = math.min(cave, SeamEpsilon);
+                    }
+                    else
+                        cave = math.min(cave, tc);
+                    templeCut[z * v + x] = tc;
+                }
                 // Fixed-scale normals keep lighting identical across LODs, so LOD switches don't flicker.
                 var normal = Source.SampleNormal(world, NormalEpsilon);
                 minY = math.min(minY, h);
@@ -153,21 +217,13 @@ namespace Punchy.Terrain
                     surface.Albedo *= shade[z * v + x];
                 if (Clay)
                     surface = ScarpClay.Surface();
+                var shoreWet = Source.ShoreWet(world, ground, h, ref surface);
                 vertex.SetSurface(surface);
-                // Ground just above the water stays wet (a dark band along shores); stored as a negative skirt drop.
-                if (ground.HasWater)
-                    vertex.Extra.w = (half)(-(1f - math.smoothstep(0.1f, 1.4f, h - ground.WaterSurface)));
-                // Cut where the cave walls' field opens (see TerrainSource.MouthCut): the walls carry a skin of the
-                // surface round the opening, under the terrain.
-                var cave = cutHoles ? MouthCut(world, h, step) : 100f;
-                // W-56: the sunken temple's entrance cut, widened a step so no terrain hangs over it (its coping covers the edge).
-                if (request.Lod <= 1 && Source.Landmarks.IsCreated)
-                    cave = math.min(cave, Source.TempleCut(world) - step);
-                // W-155: a scarp's stepped strip is left to its skin mesh. The strip is cut away like a cave mouth, and
-                // the vertices in it carry the level run-on of the rim or the foot, so the cut edges land on both.
-                if (request.Lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, world, step, h, out var strip, out var stripY))
+                vertex.Extra.w = (half)shoreWet;
+                // W-155: the vertices in a scarp's strip carry the level run-on of the rim or the foot, so the cut
+                // edges land on both.
+                if (strip < 100f)
                 {
-                    cave = math.min(cave, strip);
                     if (strip < 0f)
                     {
                         vertex.Position.y = stripY;
@@ -182,41 +238,67 @@ namespace Punchy.Terrain
                 // rise (twice it), so a gully running downhill, or anywhere on a slope, has a side that falls away
                 // and gets none, however far it sits below its banks on average.
                 if (request.Lod <= HollowMaxLod)
-                {
-                    float ring = 0f, lowest = float.MaxValue;
-                    for (int k = 0; k < 8; k++)
-                    {
-                        math.sincos(k * (math.PI / 4f) + (k & 1) * 0.3f, out var sn, out var cs);
-                        var around = Source.SampleHeight(world + new float2(cs, sn) * ((k & 1) == 0 ? 2.5f : 6f));
-                        ring += around;
-                        lowest = math.min(lowest, around);
-                    }
-                    vertex.Strata.z = (half)math.clamp(math.min(ring / 8f - h, 2f * (lowest - h)), -1f, 1f);
-                }
+                    vertex.Strata.z = (half)HollowDepth(Source, world, h);
                 vertex.Soak.y = vertex.Strata.z;   // (an unmorphed chunk keeps its own; WriteMorphOffsets sets the rest)
                 verts[z * v + x] = vertex;
                 // Landmark pools are left out of the sheet: CaveSystem bakes each on the finer 0.5 m water lattice, fitted
                 // to its basin (W-148; a small pool spans only a few quads of this grid, which gave it a ragged edge).
-                var sheet = ground.WaterSurface;
+                var sheet = gridGround.WaterSurface;
                 if (Source.Landmarks.IsCreated)
                 {
-                    var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, world, out var claim);
-                    if (claim > 0f && pool >= ground.WaterSurface - 0.001f)
+                    var pool = LandmarkSampling.PoolWater(ref Source.Landmarks.Value, grid, out var claim);
+                    if (claim > 0f && pool >= gridGround.WaterSurface - 0.001f)
                         sheet = GroundSample.NoWater;
                     pooled[z * v + x] = claim > 0f;
                 }
-                water[z * v + x] = new float4(sheet, ground.Flow, h);
-                rapids[z * v + x] = ground.Rapids;
-                looks[z * v + x] = Source.WaterLook(world, ground.Biomes, out var glow);
+                water[z * v + x] = new float4(sheet, gridGround.Flow, gridGround.Height);
+                rapids[z * v + x] = gridGround.Rapids;
+                looks[z * v + x] = Source.WaterLook(grid, gridGround.Biomes, out var glow);
 
                 glows[z * v + x] = glow;
             }
+
+            // W-174 r3 (#365): stray specks of the mouth cut (a lone hole beside a mouth, a scrap of ground inside one)
+            // are dropped here, at the grid's own resolution: each flipped vertex takes back its cut without the entrance.
+            if (collared)
+            {
+                var flip = new NativeArray<bool>(v * v, Allocator.Temp);
+                if (DropSpecks(templeCut, v, step, flip))
+                {
+                    collared = false;
+                    for (int i = 0; i < v * v; i++)
+                    {
+                        if (flip[i])
+                        {
+                            var tc = -templeCut[i];
+                            templeCut[i] = tc;
+                            var vertex = verts[i];
+                            vertex.Morph.w = math.min(rawCave[i], tc);
+                            verts[i] = vertex;
+                        }
+                        collared |= templeCut[i] < 0f;
+                    }
+                }
+                flip.Dispose();
+            }
+            rawCave.Dispose();
 
             ExtendStillWater(verts, water, pooled, q, step, request.Origin);
             pooled.Dispose();
 
             if (request.CanMorph)
                 WriteMorphOffsets(verts, q, request.Lod + 1 <= HollowMaxLod);
+            // #301: the patch doesn't morph, so its rim mustn't either.
+            for (int i = 0; patched && i < v * v; i++)
+            {
+                if (!rims[i])
+                    continue;
+                var vertex = verts[i];
+                vertex.Emission.w = default;
+                vertex.Soak.y = vertex.Strata.z;
+                verts[i] = vertex;
+            }
+            rims.Dispose();
 
             var depth = SkirtDepth * (request.Lod + 1);
             int skirtBase = v * v;
@@ -242,6 +324,12 @@ namespace Punchy.Terrain
                 uint i1 = i0 + 1;
                 uint i2 = i0 + (uint)v;
                 uint i3 = i2 + 1;
+                if (patched && InPatch(request.Origin + (new float2(x, z) + 0.5f) * step))
+                {
+                    for (int k = 0; k < 6; k++)
+                        indices[t++] = i0;
+                    continue;
+                }
                 indices[t++] = i0; indices[t++] = i2; indices[t++] = i1;
                 indices[t++] = i1; indices[t++] = i2; indices[t++] = i3;
             }
@@ -254,11 +342,31 @@ namespace Punchy.Terrain
                 uint b = (uint)EdgeVertex(edge, k + 1, q);
                 uint sa = (uint)(skirtBase + edge * v + k);
                 uint sb = sa + 1;
+                var inside = 0.5f * (verts[(int)a].Position.xz + verts[(int)b].Position.xz);
+                if (patched && InPatch(request.Origin + inside + math.sign(ChunkSize * 0.5f - inside) * (step * 0.5f)))
+                {
+                    for (int n = 0; n < 12; n++)
+                        indices[t++] = a;
+                    continue;
+                }
                 indices[t++] = a; indices[t++] = b; indices[t++] = sa;
                 indices[t++] = b; indices[t++] = sb; indices[t++] = sa;
                 indices[t++] = a; indices[t++] = sa; indices[t++] = b;
                 indices[t++] = b; indices[t++] = sa; indices[t++] = sb;
             }
+
+            if (collared)
+                Collars(ref mesh, verts, worlds, templeCut, request, step, depth, ref minY, ref maxY);
+            templeCut.Dispose();
+            patch.Dispose();
+
+            bool InPatch(float2 xz)
+            {
+                var cell = (int2)math.floor(xz / MouthPatch.Cell) - patchMin;
+                return patch[cell.y * patchSize + cell.x];
+            }
+            corners.Dispose();
+            worlds.Dispose();
 
             HeightRanges[index] = new float2(minY - depth, maxY);
             WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step, request.Origin);
@@ -304,11 +412,24 @@ namespace Punchy.Terrain
         /// <summary>The coarsest LOD that carries the hollow depth (puddles): its 2.5 m and 6 m rings need about 2 m vertices.</summary>
         const int HollowMaxLod = 1;
 
+        internal static float HollowDepth(in TerrainSource source, float2 world, float h)
+        {
+            float ring = 0f, lowest = float.MaxValue;
+            for (int k = 0; k < 8; k++)
+            {
+                math.sincos(k * (math.PI / 4f) + (k & 1) * 0.3f, out var sn, out var cs);
+                var around = source.SampleHeight(world + new float2(cs, sn) * ((k & 1) == 0 ? 2.5f : 6f));
+                ring += around;
+                lowest = math.min(lowest, around);
+            }
+            return math.clamp(math.min(ring / 8f - h, 2f * (lowest - h)), -1f, 1f);
+        }
+
         /// <summary>How far (metres) still water reaches out over dry vertices below its level, and wets the shore.</summary>
         const float StillReach = 8f;
         /// <summary>Extended still water never gets deeper than this over its vertex (a real basin is claimed already).</summary>
         const float StillReachDepth = 1.5f;
-        /// <summary>W-111: how far below a neighbour's surface a dry vertex may lie and still get a tucked sheet edge.</summary>
+        /// <summary>How far below a neighbour's surface a dry vertex may lie and still join the sheet.</summary>
         const float TuckDrop = 1.5f;
 
         /// <summary>
@@ -333,8 +454,8 @@ namespace Punchy.Terrain
 
             int a = math.max(1, (int)math.ceil(StillReach / step));
             int w = v + 2 * a;
-            // x: still-water level (NoWater where dry, flowing or a landmark pool), y: ground (+inf blocks a pool).
-            var apron = new NativeArray<float2>(w * w, Allocator.Temp);
+            // x: still-water level (NoWater where dry, flowing or a landmark pool), y: ground (+inf blocks a pool), z: any water surface.
+            var apron = new NativeArray<float3>(w * w, Allocator.Temp);
             for (int z = 0; z < w; z++)
             for (int x = 0; x < w; x++)
             {
@@ -358,8 +479,8 @@ namespace Punchy.Terrain
                     }
                 }
                 var still = s.x > GroundSample.NoWater * 0.5f && math.lengthsq(s.yz) < 1e-6f;
-                apron[z * w + x] = pool ? new float2(GroundSample.NoWater, float.MaxValue)
-                                        : new float2(still ? s.x : GroundSample.NoWater, s.w);
+                apron[z * w + x] = pool ? new float3(GroundSample.NoWater, float.MaxValue, GroundSample.NoWater)
+                                        : new float3(still ? s.x : GroundSample.NoWater, s.w, s.x);
                 if (still)
                     maxStill = math.max(maxStill, s.x);
             }
@@ -421,6 +542,14 @@ namespace Punchy.Terrain
                     if (CaveSampling.NearColumn(ref Source.Caves.Value, at) && Source.CaveDistance(new float3(at.x, sheet, at.y)) < 0.5f)
                         sheet = GroundSample.NoWater;
                 }
+                // A neighbour too far below the level for BuildWater to tuck the edge down to would leave the sheet's edge hanging over it.
+                for (int dz = -1; dz <= 1 && sheet > GroundSample.NoWater * 0.5f; dz++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    var c = apron[(z + a + dz) * w + x + a + dx];
+                    if (c.y < sheet - TuckDrop && c.z < sheet - TuckDrop)
+                        sheet = GroundSample.NoWater;
+                }
                 if (sheet > GroundSample.NoWater * 0.5f)
                 {
                     var s = water[i];
@@ -459,56 +588,52 @@ namespace Punchy.Terrain
                 surface[i] = water[i].x;
                 flow[i] = water[i].yz;
             }
-            // Neighbours just across the chunk's edge count too (sampled here), or a sheet would stop short with a
-            // straight edge wherever a shore runs along a chunk border.
+            // Two rings past the chunk edge, so shores along a border don't stop short with a straight edge.
+            int pw = v + 4;
+            var wa = new NativeArray<float4>(pw * pw, Allocator.Temp);
+            for (int z = 0; z < pw; z++)
+            for (int x = 0; x < pw; x++)
+            {
+                int lx = x - 2, lz = z - 2;
+                wa[z * pw + x] = lx >= 0 && lz >= 0 && lx < v && lz < v ? water[lz * v + lx] : WaterAt(origin + new float2(lx, lz) * step);
+            }
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
             {
                 var i = z * v + x;
                 if (water[i].x > GroundSample.NoWater * 0.5f)
                     continue;
+                var p = (z + 2) * pw + x + 2;
                 var best = GroundSample.NoWater;
-                var edge = x == 0 || z == 0 || x == v - 1 || z == v - 1;
                 for (int dz = -1; dz <= 1; dz++)
                 for (int dx = -1; dx <= 1; dx++)
                 {
-                    var nx = x + dx;
-                    var nz = z + dz;
-                    var inside = nx >= 0 && nz >= 0 && nx < v && nz < v;
-                    if (!inside && !edge)
-                        continue;
-                    var n = inside ? water[nz * v + nx] : WaterAt(origin + new float2(nx, nz) * step);
+                    var n = wa[p + dz * pw + dx];
+                    if (n.x <= GroundSample.NoWater * 0.5f)
+                        n = PitFill(wa, p + dz * pw + dx, pw);
                     if (n.x > best && water[i].w >= n.x - 0.05f)
                     {
                         best = n.x;
                         flow[i] = n.yz;
                     }
                 }
-                // W-111: a dry vertex a little below a neighbour's surface (outside a pond's thin rim, which the mesh
-                // can't resolve) used to get nothing, so the quad between dropped and the sheet ended in a staircase
-                // of whole quads short of the shore. It now takes a surface tucked just under its own ground: the
-                // quad is drawn and the sheet meets the ground along a smooth line inside it. Not past TuckDrop (a
-                // cliff below a raised pool keeps its edge rather than a steep sloping sheet).
+                // A closed pit fills flat so the sheet ends at the ground; an open drop keeps the tuck so no edge hangs.
                 if (best <= GroundSample.NoWater * 0.5f)
                 {
-                    var top = GroundSample.NoWater;
-                    for (int dz = -1; dz <= 1; dz++)
-                    for (int dx = -1; dx <= 1; dx++)
+                    var pit = PitFill(wa, p, pw);
+                    if (pit.x > GroundSample.NoWater * 0.5f)
                     {
-                        var nx = x + dx;
-                        var nz = z + dz;
-                        var inside = nx >= 0 && nz >= 0 && nx < v && nz < v;
-                        if (!inside && !edge)
-                            continue;
-                        var n = inside ? water[nz * v + nx] : WaterAt(origin + new float2(nx, nz) * step);
-                        if (n.x > top && n.x > n.w + 0.02f && water[i].w >= n.x - TuckDrop)
+                        var closed = true;
+                        for (int dz = -1; dz <= 1; dz++)
+                        for (int dx = -1; dx <= 1; dx++)
                         {
-                            top = n.x;
-                            flow[i] = n.yz;
+                            var n = wa[p + dz * pw + dx];
+                            closed &= n.x > GroundSample.NoWater * 0.5f || n.w >= pit.x - 0.05f ||
+                                      PitFill(wa, p + dz * pw + dx, pw).x > GroundSample.NoWater * 0.5f;
                         }
+                        best = closed ? pit.x : water[i].w - 0.05f;
+                        flow[i] = pit.yz;
                     }
-                    if (top > GroundSample.NoWater * 0.5f)
-                        best = water[i].w - 0.05f;
                 }
                 // Under a bank the sheet is hidden in the ground, unless a cave runs through the bank: there it would
                 // hang in the cave's air as a flat face across the passage.
@@ -520,6 +645,7 @@ namespace Punchy.Terrain
                 }
                 surface[i] = best;
             }
+            wa.Dispose();
 
             // A quad is water if all corners have a surface and at least one corner is actually submerged.
             int quadCount = 0;
@@ -536,6 +662,19 @@ namespace Punchy.Terrain
                     quadCount++;
             }
 
+            // Unsplit, a step between two levels with no fall (a raised pool by a river) draws as a ramp over the lower bank.
+            int splits = 0;
+            for (int z = 0; z < q; z++)
+            for (int x = 0; x < q; x++)
+            {
+                if (!wetQuad[z * q + x])
+                    continue;
+                int i0 = z * v + x, i1 = i0 + 1, i2 = i0 + v, i3 = i2 + 1;
+                var diagonal = StepEdge(surface, i1, i2, v, step, origin);
+                splits += (diagonal || StepEdge(surface, i0, i2, v, step, origin) || StepEdge(surface, i0, i1, v, step, origin) ? 1 : 0) +
+                          (diagonal || StepEdge(surface, i1, i3, v, step, origin) || StepEdge(surface, i2, i3, v, step, origin) ? 1 : 0);
+            }
+
             var range = new float2(1f, 0f);
             if (quadCount == 0)
             {
@@ -546,8 +685,8 @@ namespace Punchy.Terrain
             }
             else
             {
-                mesh.SetVertexBufferParams(v * v, WaterLayout);
-                mesh.SetIndexBufferParams(quadCount * 6, IndexFormat.UInt32);
+                mesh.SetVertexBufferParams(v * v + splits * 4, WaterLayout);
+                mesh.SetIndexBufferParams(quadCount * 6 + splits * 18, IndexFormat.UInt32);
                 var verts = mesh.GetVertexData<WaterVertex>();
                 var indices = mesh.GetIndexData<uint>();
                 range = new float2(float.MaxValue, float.MinValue);
@@ -567,17 +706,15 @@ namespace Punchy.Terrain
                 }
 
                 int t = 0;
+                int extra = v * v;
                 for (int z = 0; z < q; z++)
                 for (int x = 0; x < q; x++)
                 {
                     if (!wetQuad[z * q + x])
                         continue;
-                    uint i0 = (uint)(z * v + x);
-                    uint i1 = i0 + 1;
-                    uint i2 = i0 + (uint)v;
-                    uint i3 = i2 + 1;
-                    indices[t++] = i0; indices[t++] = i2; indices[t++] = i1;
-                    indices[t++] = i1; indices[t++] = i2; indices[t++] = i3;
+                    int i0 = z * v + x, i1 = i0 + 1, i2 = i0 + v, i3 = i2 + 1;
+                    SplitStep(verts, indices, water, surface, i0, i2, i1, v, step, origin, ref t, ref extra);
+                    SplitStep(verts, indices, water, surface, i1, i2, i3, v, step, origin, ref t, ref extra);
                 }
                 mesh.subMeshCount = 1;
                 mesh.SetSubMesh(0, new SubMeshDescriptor(0, t), MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
@@ -589,20 +726,234 @@ namespace Punchy.Terrain
             return range;
         }
 
+        /// <summary>Level a dry vertex below a neighbour's surface (within TuckDrop) would fill to, NoWater if none.</summary>
+        static float4 PitFill(NativeArray<float4> wa, int p, int pw)
+        {
+            var own = wa[p];
+            var pit = new float4(GroundSample.NoWater, 0f, 0f, own.w);
+            if (own.x > GroundSample.NoWater * 0.5f)
+                return pit;
+            for (int dz = -1; dz <= 1; dz++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                var n = wa[p + dz * pw + dx];
+                if (n.x <= GroundSample.NoWater * 0.5f)
+                    continue;
+                if (own.w >= n.x - 0.05f)
+                    return new float4(GroundSample.NoWater, 0f, 0f, own.w);
+                if (n.x > pit.x && n.x > n.w + 0.02f && own.w >= n.x - TuckDrop)
+                    pit = new float4(n.x, n.yz, own.w);
+            }
+            return pit;
+        }
+
+        /// <summary>A water triangle's surface rise (m) between corners above which it is split by level (SplitStep).</summary>
+        const float StepRise = 1f;
+
+        bool NearFall(float2 xz)
+        {
+            if (!Source.Rivers.IsCreated)
+                return false;
+            ref var falls = ref Source.Rivers.Value.Falls;
+            for (int f = 0; f < falls.Length; f++)
+                if (math.distance(xz, falls[f].Lip.xz) < falls[f].Width * 0.5f + 30f)
+                    return true;
+            return false;
+        }
+
+        /// <summary>Whether grid edge (a, b) joins two levels further apart than StepRise, away from any fall.</summary>
+        bool StepEdge(NativeArray<float> surface, int a, int b, int v, float step, float2 origin) =>
+            math.abs(surface[a] - surface[b]) > StepRise && !NearFall(origin + (Grid(a, v) + Grid(b, v)) * 0.5f * step);
+
+        static float2 Grid(int i, int v) => new float2(i % v, i / v);
+
+        /// <summary>
+        /// Emits water triangle (a, b, c), split on its step edges (StepEdge): each side keeps its corners' levels out to
+        /// where the water's level crosses the step, joined by a two-sided curtain. One step edge splits it in two; two
+        /// (or three) cut off the corner they share.
+        /// </summary>
+        void SplitStep(NativeArray<WaterVertex> verts, NativeArray<uint> indices, NativeArray<float4> water,
+                       NativeArray<float> surface, int a, int b, int c, int v, float step, float2 origin, ref int t, ref int extra)
+        {
+            bool ab = StepEdge(surface, a, b, v, step, origin), bc = StepEdge(surface, b, c, v, step, origin), ca = StepEdge(surface, c, a, v, step, origin);
+            if (!ab && !bc && !ca)
+            {
+                indices[t++] = (uint)a; indices[t++] = (uint)b; indices[t++] = (uint)c;
+                return;
+            }
+            int x = a, y = b, z = c;
+            if ((ab ? 1 : 0) + (bc ? 1 : 0) + (ca ? 1 : 0) == 1)
+            {
+                if (ab) { x = b; y = c; z = a; }
+                else if (bc) { x = c; y = a; z = b; }
+                var f = StepAt(surface, z, x, v, step, origin);
+                uint pz = (uint)extra, px = pz + 1;
+                verts[extra++] = OnEdge(verts, water, z, x, f, z);
+                verts[extra++] = OnEdge(verts, water, z, x, f, x);
+                indices[t++] = (uint)x; indices[t++] = (uint)y; indices[t++] = px;
+                indices[t++] = pz; indices[t++] = (uint)y; indices[t++] = (uint)z;
+                indices[t++] = px; indices[t++] = (uint)y; indices[t++] = pz;
+                indices[t++] = pz; indices[t++] = (uint)y; indices[t++] = px;
+                return;
+            }
+            if (ab && bc && !ca) { x = b; y = c; z = a; }
+            else if (bc && ca && !ab) { x = c; y = a; z = b; }
+            uint xy = (uint)extra, xz = xy + 1, yx = xy + 2, zx = xy + 3;
+            var fy = StepAt(surface, x, y, v, step, origin);
+            var fz = StepAt(surface, x, z, v, step, origin);
+            verts[extra++] = OnEdge(verts, water, x, y, fy, x);
+            verts[extra++] = OnEdge(verts, water, x, z, fz, x);
+            verts[extra++] = OnEdge(verts, water, x, y, fy, y);
+            verts[extra++] = OnEdge(verts, water, x, z, fz, z);
+            indices[t++] = (uint)x; indices[t++] = xy; indices[t++] = xz;
+            indices[t++] = yx; indices[t++] = (uint)y; indices[t++] = (uint)z;
+            indices[t++] = yx; indices[t++] = (uint)z; indices[t++] = zx;
+            indices[t++] = xy; indices[t++] = xz; indices[t++] = zx;
+            indices[t++] = xy; indices[t++] = zx; indices[t++] = yx;
+            indices[t++] = xy; indices[t++] = zx; indices[t++] = xz;
+            indices[t++] = xy; indices[t++] = yx; indices[t++] = zx;
+        }
+
+        /// <summary>Where (0..1 from a) the water's level crosses the middle of the step along edge (a, b); the middle of
+        /// the edge where the corners' levels are borrowed rather than their own.</summary>
+        float StepAt(NativeArray<float> surface, int a, int b, int v, float step, float2 origin)
+        {
+            // From the lower index, so the triangles and chunks sharing the edge split it at one point.
+            var flip = a > b;
+            if (flip)
+                (a, b) = (b, a);
+            var pa = origin + Grid(a, v) * step;
+            var pb = origin + Grid(b, v) * step;
+            var mid = (surface[a] + surface[b]) * 0.5f;
+            var highA = surface[a] > surface[b];
+            if (WaterAt(pa).x > mid != highA || WaterAt(pb).x > mid == highA)
+                return 0.5f;
+            float lo = 0f, hi = 1f;
+            for (int k = 0; k < 10; k++)
+            {
+                var m = (lo + hi) * 0.5f;
+                if (WaterAt(math.lerp(pa, pb, m)).x > mid == highA)
+                    lo = m;
+                else
+                    hi = m;
+            }
+            return flip ? 1f - (lo + hi) * 0.5f : (lo + hi) * 0.5f;
+        }
+
+        /// <summary>The point f along edge (a, b) at corner own's level, with own's flow and looks.</summary>
+        static WaterVertex OnEdge(NativeArray<WaterVertex> verts, NativeArray<float4> water, int a, int b, float f, int own)
+        {
+            var o = verts[own];
+            var y = o.Position.y;
+            var ground = math.lerp(water[a].w, water[b].w, f);
+            o.Position = new float3(math.lerp(verts[a].Position.xz, verts[b].Position.xz, f), y).xzy;
+            o.Data.z = y - ground;
+            return o;
+        }
+
+        /// <summary>
+        /// The terrain's cut at a point (negative where the ground is replaced; the shader clips it per pixel): the cave
+        /// walls' field where a mouth opens (MouthCut; the walls carry a skin of the surface round the opening, under the
+        /// terrain), the sunken temple's entrance cut, and a scarp's stepped strip, left to its skin mesh (strip, and its
+        /// level run-on stripY; strip is 100 off any strip). The same holes as GroundHoles.Removed.
+        /// </summary>
+        public float Cut(float2 xz, float h, float step, bool cutHoles, int lod, out float strip, out float stripY)
+        {
+            var cave = SeamCut(xz, h, step, cutHoles, lod, out strip, out stripY);
+            // W-56: the temple's entrance cut (exact; W-174 r6: to LOD2, with the triangles split on its rim by Collars).
+            if (lod <= TempleMaxLod && Source.Landmarks.IsCreated)
+                cave = math.min(cave, Source.TempleCut(xz));
+            return cave;
+        }
+
+        /// <summary>Cut without the temple (W-174 r6: Collars splits the triangles on its rim, so Seam leaves it alone).</summary>
+        float SeamCut(float2 xz, float h, float step, bool cutHoles, int lod, out float strip, out float stripY)
+        {
+            var cave = cutHoles ? MouthCut(Source, xz, h, step) : 100f;
+            strip = 100f;
+            stripY = 0f;
+            if (lod <= 2 && Source.Scarps.IsCreated && ScarpSet.Strip(ref Source.Scarps.Value, xz, step, h, out var s, out var sy))
+            {
+                strip = s;
+                stripY = sy;
+                cave = math.min(cave, s);
+            }
+            return cave;
+        }
+
+        /// <summary>
+        /// W-174 row 4 (#405): the one seam builder for every replaced patch of ground (cave mouths, temple entrances,
+        /// scarp strips). Returns where a grid vertex goes (the grid point, or the rim point it snaps to) and its cut
+        /// there. Only vertices on the kept side snap (holding SeamEpsilon, so the clip edge runs through them): if both sides
+        /// snapped, a triangle with every corner on the rim would put its edge through the midpoints, off the rim at a
+        /// corner. With one side, a straight rim through a snapped corner can't cross its triangle. Only Source
+        /// is read, so TestHooks.SeamProblems builds the same vertices to check the seams.
+        /// </summary>
+        public float2 Seam(float2 grid, float h, float step, int lod, out float cave, out float strip, out float stripY)
+        {
+            var cutHoles = false;   // #301: cave mouths are patched (MouthPatch), not cut
+            cave = SeamCut(grid, h, step, cutHoles, lod, out strip, out stripY);
+            if (!(cave > 0f && cave < 1.3f * step) || !SeamSnap(grid, cave, step, cutHoles, lod, out var rim))
+                return grid;
+            // One Newton step lands on the rim of a straight edge or a smooth field, but not across a kink (where two
+            // rooms' edges meet, a mouth's 5-tap min): a vertex that misses the rim keeps its grid point.
+            var at = SeamCut(rim, Source.SampleHeight(rim), step, cutHoles, lod, out var rimStrip, out var rimStripY);
+            if (math.abs(at) > SeamMiss + 0.25f * math.abs(cave))
+                return grid;
+            cave = math.max(at, SeamEpsilon);
+            strip = rimStrip;
+            stripY = rimStripY;
+            return rim;
+        }
+
+        /// <summary>
+        /// Moves a point near a rim onto it with one Newton step along the cut's gradient (exact for the temple's walls,
+        /// close for a mouth's noisy field). False where the field is flat there (MouthCut's rock value is capped) or
+        /// the move would leave the vertex's fan of triangles (see SeamReach).
+        /// </summary>
+        bool SeamSnap(float2 xz, float cut, float step, bool cutHoles, int lod, out float2 rim)
+        {
+            rim = xz;
+            var e = math.min(SeamProbe, 0.25f * step);
+            float2 ax = xz + new float2(e, 0f), az = xz + new float2(0f, e);
+            var g = new float2(SeamCut(ax, Source.SampleHeight(ax), step, cutHoles, lod, out _, out _) - cut,
+                               SeamCut(az, Source.SampleHeight(az), step, cutHoles, lod, out _, out _) - cut) / e;
+            var g2 = math.lengthsq(g);
+            if (g2 < 0.04f)
+                return false;
+            var move = -cut * g / g2;
+            // The fan round a vertex (split i0-i2-i1 / i1-i2-i3, diagonals along x+z) is the hexagon
+            // max(|x|, |z|, |x+z|) < 1 quad: inside it no triangle flips.
+            if (math.cmax(math.abs(new float3(move, move.x + move.y))) > SeamReach * step)
+                return false;
+            rim = xz + move;
+            return true;
+        }
+
+        /// <summary>Finite-difference distance (m) for the seam builder's gradient.</summary>
+        const float SeamProbe = 0.2f;
+        /// <summary>The cut value a snapped vertex keeps (its side's sign), so the clip edge runs through it.</summary>
+        public const float SeamEpsilon = 0.001f;
+        /// <summary>How far off the rim (m of cut, plus a quarter of the grid point's) a snap may land and still count.</summary>
+        const float SeamMiss = 0.02f;
+        /// <summary>How far a vertex may move onto a rim, as a share of its fan (quads): most of it, so a ground vertex
+        /// can reach a convex corner of a hole instead of the chord between two edge snaps cutting the corner off.</summary>
+        const float SeamReach = 0.9f;
+
         /// <summary>
         /// The terrain's cut at a vertex: the lowest MouthCut at it and half a quad away each way. An opening narrower
         /// than a quad (the slit at the top of a mouth) lies between vertices that all read as rock, and the triangles
         /// spanning it would stay, a strip of ground bridging the slit; this way the triangles round it are cut, and
         /// the cave walls' skin under the terrain fills in.
         /// </summary>
-        float MouthCut(float2 xz, float h, float step)
+        static float MouthCut(in TerrainSource source, float2 xz, float h, float step)
         {
-            var cut = Source.MouthCut(xz, h, TerrainSource.MeshCutDepth, out var cave);
+            var cut = source.MouthCut(xz, h, TerrainSource.MeshCutDepth, out var cave);
             if (cut >= 100f)
                 return cut;
             var r = step * 0.5f;
             var at = new float2x4(xz + new float2(r, 0f), xz - new float2(r, 0f), xz + new float2(0f, r), xz - new float2(0f, r));
-            var heights = new float4(Source.SampleHeight(at.c0), Source.SampleHeight(at.c1), Source.SampleHeight(at.c2), Source.SampleHeight(at.c3));
+            var heights = new float4(source.SampleHeight(at.c0), source.SampleHeight(at.c1), source.SampleHeight(at.c2), source.SampleHeight(at.c3));
             // Over most of a cave's footprint the passage is metres down. Once the field is at least SettledCave from
             // every neighbour's sample point, each neighbour's cut is the same settled value as this one's and can't
             // lower the min, so they're skipped: the samples lie within reach of this one (half a quad across, their
@@ -612,13 +963,13 @@ namespace Punchy.Terrain
             if (cave > SettledCave + FieldSlope * reach)
                 return cut;
             for (int k = 0; k < 4; k++)
-                cut = math.min(cut, Source.MouthCut(at[k], heights[k], TerrainSource.MeshCutDepth, out _));
+                cut = math.min(cut, source.MouthCut(at[k], heights[k], TerrainSource.MeshCutDepth, out _));
             return cut;
         }
 
         /// <summary>Cave field distance beyond which MouthCut is settled at its rock value (the smooth min's blend is
-        /// spent: MouthCutDepth - SkinGap + MouthBlend), with half a metre to spare.</summary>
-        const float SettledCave = TerrainSource.MouthCutDepth - CaveSampling.SkinGap + CaveSampling.MouthBlend + 0.5f;
+        /// spent: MouthCutDepth - CutGap + MouthBlend), with half a metre to spare.</summary>
+        const float SettledCave = TerrainSource.MouthCutDepth - CaveSampling.CutGap + CaveSampling.MouthBlend + 0.5f;
         /// <summary>A safe bound on how fast the cave field changes per metre (it's a smoothed, noise-moved distance
         /// that can overstate by up to 1.8 times, so not a true 1-per-metre distance).</summary>
         const float FieldSlope = 2f;

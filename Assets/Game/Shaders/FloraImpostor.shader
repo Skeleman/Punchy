@@ -116,7 +116,7 @@ Shader "Punchy/FloraImpostor"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "WideShadow.hlsl"
             #include "Flora.hlsl"
             #include "Grounding.hlsl"
@@ -143,8 +143,8 @@ Shader "Punchy/FloraImpostor"
                 half r = input.plant.z;
                 uint g = asuint(input.ground.y);
                 half4 ground = half4(g & 255, (g >> 8) & 255, (g >> 16) & 255, g >> 24) / 255.0;
-                bool rockTint = ground.a > 0.998;
-                bool greenTint = ground.a > 0.99 && !rockTint;
+                bool greenTint = ground.a > 0.994 && ground.a <= 0.998;
+                bool rockTint = ground.a > 0.998 || ground.a * 255 > 223.5 && !greenTint;
                 half3 albedo = surface.albedo * (0.88 + 0.24 * r);
                 if (leafy)
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
@@ -155,7 +155,8 @@ Shader "Punchy/FloraImpostor"
                 {
                     half lum = dot(albedo, half3(0.3, 0.59, 0.11));
                     half rockLum = max(dot(ground.rgb, half3(0.3, 0.59, 0.11)), 0.02);
-                    albedo = lerp(albedo, ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85);
+                    half moss = ground.a < 0.998 ? saturate((albedo.g - max(albedo.r, albedo.b)) / max(albedo.g, 0.02) * 4) : 0;
+                    albedo = lerp(albedo, ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85 * (1 - moss));
                 }
                 if (leafy && greenTint)
                 {
@@ -168,6 +169,7 @@ Shader "Punchy/FloraImpostor"
 
                 // The mesh's lighting (Flora.shader, through Surface.hlsl), from the baked normal.
                 PunchySurface ps = PunchySurfaceAt(positionWS, n);
+                ps.caveAir = 0; // far plants stand outside
                 ps.wideNormalWS = half3(0, 1, 0);
                 ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
                 ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
