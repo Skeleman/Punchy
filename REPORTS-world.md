@@ -8849,3 +8849,30 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Row 3, kit-built today: KitHouse (it replaces the biggest settlement's house, seat, inn, smithy, store and workshop plots), ElfTower/ElfStable, fishing and sea folk buildings, marsh huts, the hazard shelter houses, and the StructureKit shapes (stilt houses, docks, piers, boardwalks, igloos, alpine, shell domes, spires, wharfs, smoke huts, wrecks). Tower rooms already use kit boxes.
 - Row 3, hand-built FloraForms that still use cylinders: Hut/StoneHouse, Inn, Lodge, Smithy, Stable, Hall (boxes as of row 1), Tower, Forum, Tent, Pen, Stall, Shrine, Garden, Well, Fountain, Bridge, Palisade.
 - Row 3, rough hours: (a) collision-only kit boxes like row 1 take about 1-2 h per building with a walkable roof (Hut/StoneHouse, Inn, Lodge, Smithy, Stable, Tower), about 10 h in all. Small props (Tent, Pen, Stall, Well, Fountain, Shrine, Garden) are fine on cylinders, or take 0.5 h each. (b) A full move to StructureKit pieces, so they share kit interiors, doors, materials and far forms: about 4-8 h per house type and 3-4 h each for Forum, Bridge and Palisade, so about 40-50 h plus a look review. Doing (a) first and (b) per type when a card needs interiors is the cheap path.
+
+## walls-zero (11-19), world/walls-zero@90b6b30d, PR #663
+- I sorted the 11 water walls left after #657 by cause.
+  - 4 were false positives in the measurement, fixed in WaterTruth.
+    - The worst wall, at (-1994,73,3006), is the lip of landmark 58's own waterfall, where the sheet already pours. The shot looks right, and before and after are the same view with no world change.
+    - At 3 others a bank rises to the water between the 4 m samples, and the 1 m mesh holds it.
+  - Fall lip sides (4), for the banks lane: falls 51 (-3978,990), 63 (-3334,1030) and 92 (two walls at -3160,1220). Fall 92's shot reads fine; the step is 1.6 m.
+  - Fall foot sides (2), for banks/render: falls 85 (-3466,1198) and 133 (-2202,3658, at a sea mouth).
+  - Lake rim (1), world, left for now: (-622,634). A gully below the lake surface, and the lake spills into it as stretched streaky water. A rim sill was too broad on the coarse lake mask.
+  - Bay causes: 0.
+- Water truth is now 83,0,0,0,0,0,0,7,1,17,129,0,0, and the baseline is tightened to match. The landmark hash stays 120 B32C5306.
+- WorldTests 21/22. Village_CreatureDensity is flaky: 53, then 42 at the same spot on a rerun, which passed.
+- Shots are in PunchyMilestones/world/walls-zero: worst-wall-before/after, fall92-lip-sides, lake-gully.
+
+## StructureKit rebuild order (#399, W-173 row 4+), estimates per type
+- The order follows how many layouts use each type.
+  1. StoneHouse: human village, dwarf hold, both mining camps, hermits. 6-8 h.
+  2. Hut + MudHut: human village, goblin camp, hermits. They are round, so the kit needs a ring wall and cone roof part. 6-8 h.
+  3. Inn: village, mining camp, lone inn. 5-6 h.
+  4. Smithy: village, dwarf hold, both mining camps. 4-5 h.
+  5. Hall + StoneHall: they keep the 0.6 m plinth and the roof kit boxes from #661. 5-6 h.
+  6. Stable: village, dwarf hold. 3-4 h.
+  7. OgreLodge: 4 h.
+  8. Stall: goblin and ogre camps. 2 h.
+  9. Forum: elf grove. 3-4 h.
+  10. Tent and Tower: no layout uses them now, so they come last. 2 h each.
+- Total: about 45 h.
