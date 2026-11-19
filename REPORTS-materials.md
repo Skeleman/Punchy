@@ -346,3 +346,7 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 
 | 2026-11-18 | fall-sheen (W-166) | materials/fall-sheen | Stone.hlsl PunchyStoneSteepDamp: sharp spec lobe + sky Fresnel x0.3 on vertical faces, full on flat (shared: terrain, caves, boulders). Shots PunchyMilestones/fall-sheen/*-pair.jpg (fall3, fall22, pool-rim): left flank darker, right flank still streaked - the rest is URP's own spec from smoothness raised at TerrainSurface.shader:686, not in Stone.hlsl. MaterialLibraryTests 13/13. |
 | 2026-11-18 | fall-sheen part 2 | materials/fall-sheen 1e0fc586 | TerrainSurface.shader:686 wet-gloss lerp x PunchyStoneSteepDamp(stoneN0) (coordinator OK). Retaken pairs PunchyMilestones/fall-sheen/fall3-pair.jpg, pool-rim-pair.jpg (before2/after2, time/weather re-set right before each shot): left flank dark and matte, right flank much less gold, but exposure still drifts between runs (after is darker overall). MaterialLibraryTests 13/13. |
+
+## materials/river-banks (pushed)
+- Grassland river banks: the flat BeachSand band (up to 3 m above inland water) now splits into dark mud and grey stone patches tinted by the biome's stone (MaterialLibrary.StoneTint), with pebbles on the stone. BiomeData.BankShingle, called from DampBank. Grass is left alone.
+- Shots: PunchyMilestones/river-banks/pairs.jpg (top: -1170,3570; bottom: -997,3325). Still open: tall bend banks above 3 m stay beige; the slopes keep their stretched streaks (TerrainSurface relief); the white cell lines on the bed look like Water.shader caustics (read-only for me).
