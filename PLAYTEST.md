@@ -380,3 +380,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #696 R-31 (#325): a larger 25 cm dirt-speck layer so bare ground reads grainy at 20 m (average tone unchanged).
 - 11-19 #697 v0.17.0 bundleVersion bump; release build from main b7db1ed6.
 - 11-19 Released v0.17.0 (https://github.com/Skeleman/Punchy/releases/tag/v0.17.0), smoke clean ~100 fps; checklist release/checklist-v0.17.md.
+- 11-19 #698 R-31 (#325): snow grain (wind ripples, sastrugi, blue-grey hollows, sun glitter); dirt clods kept off snow.
