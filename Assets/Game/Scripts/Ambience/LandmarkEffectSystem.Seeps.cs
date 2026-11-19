@@ -19,6 +19,7 @@ namespace Punchy.Ambience
             public float Width;
             public SeepKind Kind;
             public uint Hash;
+            public bool UnderRock;
         }
 
         const float SeepCell = 10f;
@@ -58,7 +59,9 @@ namespace Punchy.Ambience
                     seepBeads.Add(SeepPlume(s));
                 LastSeeps = seeps.Count;
                 Kit.Sparks.Set(seepOwner, seepBeads);
+                SeepFallMesh(source, eye, range);
             }
+            DrawSeepFalls();
             var t = Time.time;
             // Only the nearest few light their rock: forty seeps on a cone would starve the campfires' slots.
             for (int i = 0; i < math.min(seeps.Count, SeepLights); i++)
@@ -202,7 +205,8 @@ namespace Punchy.Ambience
                 Drop = drop,
                 Width = 0.3f + 0.4f * ((h & 0xFF) / 255f),
                 Kind = SeepKind.Lava,
-                Hash = h
+                Hash = h,
+                UnderRock = true
             };
             return true;
         }
@@ -245,7 +249,7 @@ namespace Punchy.Ambience
                 Seed = ((s.Hash >> 12) & 0x3FFF) / 16384f,
                 Color = LavaBead,
                 Shape = new float4(0f, s.Width, 0.05f + 0.03f * a, 7f + 6f * b),
-                Timing = new float4(0f, 1f, 1f, 4 + (int)((s.Hash >> 20) % 3u)),
+                Timing = new float4(0f, 1f, 1f, 2 + (int)((s.Hash >> 20) % 2u)),
                 Out = math.any(s.Run != 0f) ? s.Run : new float2(0.001f, 0f),
                 Drop = s.Drop
             };
@@ -264,6 +268,7 @@ namespace Punchy.Ambience
         {
             Kit.Sparks.Set(seepOwner, null);
             seeps.Clear();
+            ClearSeepFalls();
             seepCellAt = new int2(int.MinValue);
         }
     }
