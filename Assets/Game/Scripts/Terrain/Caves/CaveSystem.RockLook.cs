@@ -49,7 +49,7 @@ namespace Punchy.Terrain
             /// draw it), a its share, fading to 0 by RockReach in (the shader fades to the style's own colours); none in
             /// a road tunnel or deeper in, so the extra sample costs only the walls near a mouth.
             /// </summary>
-            float4 Look(float3 p, out float4 data, out float open, out float4 rock)
+            internal float4 Look(float3 p, out float4 data, out float open, out float4 rock)
             {
                 var surface = Source.SampleHeight(p.xz);
                 // Daylight from the mouth of whichever cave this wall belongs to.

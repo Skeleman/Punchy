@@ -6,7 +6,6 @@ using Random = Unity.Mathematics.Random;
 
 namespace Punchy.Terrain
 {
-    /// <summary>W-181 r3 (#534): cliff kit shelves on cave walls, stood on through FloorUnder (CaveDeck).</summary>
     public static partial class CliffKit
     {
         public const byte CaveFace = 2;

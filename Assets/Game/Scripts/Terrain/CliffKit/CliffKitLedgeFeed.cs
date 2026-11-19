@@ -7,7 +7,6 @@ using Unity.Transforms;
 
 namespace Punchy.Terrain
 {
-    /// <summary>W-181 r3 (#534): feeds baked cliff kit ledges near players into ClimbLedges, changing only its own slots.</summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation | WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateBefore(typeof(Punchy.Player.PlayerMovementSystem))]
