@@ -999,8 +999,10 @@ Shader "Punchy/Water"
                 color += light.color * glitter * 10;
                 // Toxic pools glow from within, pulsing slowly in patches.
                 color += input.look.rgb * glow * (1 - lava) * (0.7 + 0.3 * sin(t * 0.6 + PunchyValueNoise(p * 0.08) * 6.28)) * 1.5;
-                half bodyAlpha = 1 - exp(-thickness * _Opacity * (1 + murk * 12));
-                half alpha = saturate(bodyAlpha + fresnel + glint + glitter + lanternGlint);
+                // The first half metre stays clear so the bed shows through (#631).
+                half clearShallow = lerp(0.35, 1, smoothstep(0.1, 0.6, thickness));
+                half bodyAlpha = 1 - exp(-thickness * _Opacity * clearShallow * (1 + murk * 12));
+                half alpha = saturate(bodyAlpha + fresnel * lerp(0.5, 1, clearShallow) + glint + glitter + lanternGlint);
 
                 // Thick water: an oily rainbow film in the reflection, and pale scum drifting in slow rafts.
                 if (viscous > 0)
@@ -1190,6 +1192,14 @@ Shader "Punchy/Water"
                 [branch] if (input.fall.y > 0.5)
                     // (Seen edge-on, the curtain reads as a pale blade with a hard top edge.)
                     alpha *= smoothstep(0, 1, saturate((input.fall.y - 0.55) / 0.45)) * smoothstep(0.05, 0.3, curtainFacing);
+                float bedDepth = thickness * saturate(v.y);
+                float2 bedXZ = input.positionWS.xz - v.xz * thickness;
+                // Steep bed (submerged rock sides) would smear the web into streaks, so it fades there.
+                float bedPixel = max(length(fwidth(bedXZ)), 1e-4);
+                float bedDx = length(ddx(bedXZ)), bedDy = length(ddy(bedXZ));
+                // Where the bed projection squashes one screen axis (thin edges), the cells smear into stripes.
+                half bedSquash = smoothstep(0.25, 0.45, min(bedDx, bedDy) / max(max(bedDx, bedDy), 1e-5));
+                half bedFlat = 1 - smoothstep(0.4, 1.0, fwidth(bedDepth) / bedPixel);
                 half refractionTier = saturate((pixelsPerMetre - _PunchyWaterTiers.w) / max(_PunchyWaterTiers.z - _PunchyWaterTiers.w, 1e-3));
                 [branch] if (frontFace && _PunchyRefraction > 0 && alpha < 0.995 && distanceFade * refractionTier > 0)
                 {
@@ -1198,7 +1208,33 @@ Shader "Punchy/Water"
                     float bentEye = LinearEyeDepth(SampleSceneDepth(bentUV), _ZBufferParams);
                     bentUV = bentEye > surfaceEye ? bentUV : screenUV;
                     half3 behind = SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, UnityStereoTransformScreenSpaceTex(bentUV), 0).rgb;
-                    color = lerp(behind, color, alpha);
+                    half bedLight = smoothstep(0.03, 0.12, bedDepth) * (1 - smoothstep(0.15, 1.0, bedDepth)) * bedFlat * shadow * saturate(light.direction.y * 3) * (1 - murk) * (1 - lava) * (1 - steep) * (1 - underRock) * refractionTier;
+                    half3 caustic = 0;
+                    // Sunlit shallows get a moving caustic web on the bed, fading out by about 1 m deep (#262).
+                    [branch] if (bedLight > 0.01 && _PunchyWaterDetail > 0.5)
+                    {
+                        float2 bedUV = bedXZ * 2.8;
+                        bedUV += 0.3 * sin(bedUV.yx * 1.7 + t * 0.7);
+                        float2 cell = floor(bedUV);
+                        float2 f = bedUV - cell;
+                        float f1 = 8, f2 = 8;
+                        [unroll] for (int cy = -1; cy <= 1; cy++)
+                            [unroll] for (int cx = -1; cx <= 1; cx++)
+                            {
+                                float2 o = float2(cx, cy);
+                                float2 h = float2(PunchyHash(cell + o), PunchyHash(cell + o + 17.3));
+                                float2 d = o + 0.5 + 0.4 * sin(t * 0.9 + 6.2831 * h) - f;
+                                float dd = dot(d, d);
+                                f2 = dd < f1 ? f1 : min(f2, dd);
+                                f1 = min(f1, dd);
+                            }
+                        // Cell borders (F2 - F1) trace the web; at least two pixels wide, gone once a cell is under ~4 px (rule 20).
+                        float cellPixel = bedPixel * 2.8;
+                        half web = (1 - smoothstep(0.0, 0.07 + cellPixel * 2, sqrt(f2) - sqrt(f1))) * (1 - smoothstep(0.12, 0.25, cellPixel));
+                        caustic = (behind + 0.12) * (web * bedLight * bedSquash * 1.3) * min(light.color, 1.5);
+                    }
+                    // Added after the blend: the web is focused sunlight, so the surface tint must not wash it out.
+                    color = lerp(behind, color, alpha) + caustic;
                     alpha = 1;
                 }
                 return half4(color, alpha);
