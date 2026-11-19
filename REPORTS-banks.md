@@ -61,3 +61,10 @@
 - Spacing: one outer-bank waterline cell per heap reach, and a heap reach must out-draw 2 reaches each way, so heaps sit about 60 m or more apart. DriftHeap density is now 25. Probe of a 1.2 km box: 17 fit cells, 8 heaps. Builder summaries cut to one reason line.
 - Shots: D:/Unity/PunchyMilestones/river-details/drift-heaps/{before,after}/heap-a.png. I viewed after: three pale log heaps on the outer cut bank at the waterline. Also after/heap-b.png (-741,1207): one heap at the waterline of an islet bank.
 - Heaps cluster a little (probe: 8 within 300 m of -1396,585, 4 on one bend).
+
+## #365 bay mask (PR #657): banks/bay-mask@03474a9c
+- Lake bays are now baked as a flood-filled mask on a 4 m grid near lakes. Each pocket is kept or dropped whole, so deeper ground beside a wet bay is never left dry. IslandCache format is now 7.
+- Bake: 34 pockets kept (234 cells), 4 open pockets dropped. Walls 49 -> 11: pool walls 37 -> 3, lake walls 5 -> 1. The WorldTests baseline is re-based.
+- Landmarks 120 B32C5306 and fingerprint 1AC019EC are unchanged. WorldTests 21/22: Setup_SpawnRainAndShot timed out in the full run and passes alone.
+- Shots: D:/Unity/PunchyMilestones/water/bay-mask/{before,after}/bay.png. I viewed both: the stair-stepped bay tongue east of the pond is gone, leaving one clean edge.
+- Gotcha: changing TerrainSource's struct size hangs the open editor on a Burst SharedStatic error. Commit first, then restart through EditorApplication.Exit.
