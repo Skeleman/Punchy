@@ -488,7 +488,8 @@ namespace Punchy.Terrain
                 // the only way over the lip; they narrow a wider channel to the sheet over its last few metres.
                 if (lipSide)
                 {
-                    var side = math.smoothstep(0f, 2f, distance - baseWidth * 0.5f)
+                    var edge = math.min(width, baseWidth) * 0.5f; // the carved channel can be narrower than the sheet
+                    var side = math.smoothstep(edge - 1f, edge + 0.5f, distance)
                              * math.smoothstep(LipHold - 10f, LipHold - 4f, past)
                              * (1f - math.smoothstep(width * 0.5f + SurfaceMargin, width * 0.5f + SurfaceMargin + 4f, distance));
                     if (side > q.ShoulderWeight)
@@ -505,7 +506,8 @@ namespace Punchy.Terrain
                              * (1f - math.smoothstep(LipHold + width * 0.6f, LipHold + width * 1.2f, past));
                     var pit = math.min(drop * FootPoolDepth, 2.5f);
                     carve = Profile(distance, level, width, Depth(baseWidth, s) + pit * sink, bank);
-                    var rim = math.max(width, baseWidth) * 0.5f + FootPoolMargin + 1.5f + Wobble(xz, 1f / 8f, 5.5f) * 3f;
+                    var rim = math.min(math.max(width, baseWidth) * 0.5f + FootPoolMargin + 1.5f + Wobble(xz, 1f / 8f, 5.5f) * 3f,
+                                        width * 0.5f + SurfaceMargin - 0.5f); // the bowl closes before the water's edge
                     var talus = math.smoothstep(foot - 1f, foot + 1f, past) * (1f - math.smoothstep(foot + 2f, foot + 7f, past))
                               * math.smoothstep(rim, rim + 1.5f, distance) * math.lerp(0.4f, 2f, Wobble(xz, 1f / 3f, 27.1f));
                     var pool = profile.WaterB - (Depth(baseWidth, s) * 0.75f + pit) * (1f - math.smoothstep(rim - 2.5f, rim, distance))
