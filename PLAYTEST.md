@@ -343,3 +343,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #657 W-172 bay mask (#365): lake bays fill or stay dry whole; no stair-stepped water tongues beside ponds (-goto -2018,-1070).
 - #660 W-166 (#336): dry-sand shingle no longer a 17 cm checker; uses the shared rubble cells (11-18).
 - #661 W-173 (#399): walk on the village hall roof; kit house chimney no longer hangs into the room (11-18).
+- #659 W-153 (#301): fall flanks get ledged blocks in the cliff's own rock, wet only near the spray (11-18).
+- #662 W-153 (#301): soft spray puffs at fall feet (no grey balls), stronger pool patch, visible shore lap line (11-18).

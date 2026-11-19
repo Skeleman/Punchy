@@ -46,6 +46,8 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - banks/bay-mask -> #657
 - materials/sand-checker -> #660
 - world/playtest-1115 -> #661
+- banks/fall-flanks -> #659
+- render/fall-foot -> #662
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
