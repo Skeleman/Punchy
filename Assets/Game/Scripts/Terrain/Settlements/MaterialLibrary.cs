@@ -188,10 +188,6 @@ namespace Punchy.Terrain
             _ => Vector3.one
         };
 
-        /// <summary>
-        /// The wet line up a trunk or log standing in the bank's wet band (BiomeSampling.WaterlineWet), in 0.04 m steps for
-        /// FloraPlacement's wet ground mark; 0 outside the band.
-        /// </summary>
         public static uint WetLineSteps(in GroundSample ground, float seaLevel)
         {
             if (!ground.HasWater || ground.WaterSurface <= seaLevel + 0.01f || ground.WaterDepth < -BiomeSampling.WaterlineWetAbove || ground.WaterDepth > 0.05f)

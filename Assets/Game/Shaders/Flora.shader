@@ -172,7 +172,7 @@ Shader "Punchy/Flora"
                 bool wetRock = wetTop > -0.5 && !greenTint && !rockTint;
                 // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
                 bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
-                // A trunk or log in the bank's wet band keeps its own colour; only the wet line rises up it (MaterialLibrary.WetLineSteps).
+                // Wet-band wood keeps its colour; only the wet line rises.
                 bool wetBase = wetRock && (input.living > 0.5 || wood);
                 rockTint = rockTint || (wetRock && !wetBase);
                 bool built = input.ground.a > 0 && !rockTint && !greenTint && !wetBase;
