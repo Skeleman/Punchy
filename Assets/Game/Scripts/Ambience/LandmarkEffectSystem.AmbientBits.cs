@@ -29,7 +29,7 @@ namespace Punchy.Ambience
         }
         const float VentCell = 12f;
         const float VentShare = 0.07f;
-        const float GeoVentShare = 0.35f;
+        const int PlacedVentsMin = 3, PlacedVentsMax = 20;
         const float VentRise = 3f;
         const float VentMaxRange = 140f;
 
@@ -41,7 +41,7 @@ namespace Punchy.Ambience
         readonly HashSet<Punchy.Flora.FloraSpecies> oneSpecies = new HashSet<Punchy.Flora.FloraSpecies>();
         readonly List<(float3 foot, float3 top, float height, float crown, int seed)> leafTrees = new List<(float3, float3, float, float, int)>();
         readonly List<Kit.Plume> leaves = new List<Kit.Plume>(), ventSmoke = new List<Kit.Plume>(), ventSteam = new List<Kit.Plume>();
-        readonly HashSet<int> ventLandmarkTypes = new HashSet<int>();
+        readonly Dictionary<int, bool> ventLandmarkTypes = new Dictionary<int, bool>();
         BiomePalette ambientFrom;
         bool[] ventBiome;
         float3 leavesAt = new float3(float.MaxValue);
@@ -57,6 +57,7 @@ namespace Punchy.Ambience
                 AmbientTables(palette);
                 SeepTables(palette);
                 CeilingTables(palette);
+                CaveLeafTables(palette);
                 leavesAt = new float3(float.MaxValue);
                 ventCellAt = new int2(int.MinValue);
             }
@@ -64,6 +65,7 @@ namespace Punchy.Ambience
             Vents(source, palette, eye);
             Seeps(source, eye);
             CeilingFalls(source, eye);
+            CaveLeaves(source, eye);
             RiverSpray(source, eye);
             RiverMist(source, eye);
             RiverLeaves(source, palette, eye);
@@ -94,12 +96,13 @@ namespace Punchy.Ambience
             for (int t = 0; t < palette.Landmarks.Length; t++)
             {
                 var type = palette.Landmarks[t];
-                if (type == null || FallType(type))
+                // Towns and camps puff chimney and fire smoke, not vents.
+                if (type == null || FallType(type) || type.Settlement != null || type.Effects.Exists(e => e.Kind == LandmarkEffectKind.Flame))
                     continue;
                 foreach (var effect in type.Effects)
                     if (effect.Kind == LandmarkEffectKind.Plume && Kit.FamilyOf(effect.Color, effect.Glow) is var family && (family == Kit.Steam || family == Kit.Smoke))
                     {
-                        ventLandmarkTypes.Add(t);
+                        ventLandmarkTypes[t] = family == Kit.Smoke;
                         break;
                     }
             }
@@ -200,52 +203,88 @@ namespace Punchy.Ambience
             ventRangeAt = range;
             ventSmoke.Clear();
             ventSteam.Clear();
+            if (source.Landmarks.IsCreated)
+                PlacedVents(source, eye, range);
             var n = (int)math.ceil(range / VentCell);
-            var landmarks = source.Landmarks.IsCreated;
             for (int z = -n; z <= n; z++)
             for (int x = -n; x <= n; x++)
             {
                 var c = cell + new int2(x, z);
                 var h = Scramble(math.hash(new int3(c, 0x7E47)));
                 var roll = (h & 0xFFFF) / 65536f;
-                if (roll >= GeoVentShare)
+                if (roll >= VentShare)
                     continue;
                 var r = Scramble(h ^ 0x9E3779B9u);
                 var xz = ((float2)c + new float2((r & 0xFFFF) / 65536f, (r >> 16) / 65536f)) * VentCell;
                 if (math.distancesq(xz, ((float3)eye).xz) > range * range)
                     continue;
-                var geo = landmarks && LandmarkSampling.Find(ref source.Landmarks.Value, xz, out var hit) && hit.Distance < 0.9f && ventLandmarkTypes.Contains(hit.Type);
-                if (!geo && (roll >= VentShare || !VentBiome(source.SampleGround(xz).Biomes)))
-                    continue;
                 var ground = source.SampleGround(xz);
-                if (ground.HasWater && ground.WaterSurface > ground.Height - 0.05f)
+                if (!VentBiome(ground.Biomes) || ground.HasWater && ground.WaterSurface > ground.Height - 0.05f)
                     continue;
-                var s = Scramble(r);
-                var a = (s & 0xFF) / 255f;
-                var b = ((s >> 8) & 0xFF) / 255f;
-                var intermittent = ((s >> 16) & 3u) == 0u;
-                var plume = new Kit.Plume
-                {
-                    Position = new float3(xz.x, ground.Height - 0.1f, xz.y),
-                    Seed = ((s >> 18) & 0x3FFF) / 16384f,
-                    Shape = new float4(VentRise * (0.6f + 0.8f * a), 0.25f + 0.35f * b, 0.45f + 0.4f * a, 4f + 3f * b),
-                    Timing = new float4(intermittent ? 9f + 8f * b : 0f, 0.45f, geo ? 0.4f : 0.45f, 7 + (int)((s >> 24) % 4u))
-                };
-                if (geo)
-                {
-                    plume.Color = new float4(0.86f, 0.87f, 0.88f, 0f);
-                    ventSteam.Add(plume);
-                }
-                else
-                {
-                    var grey = 0.5f + 0.14f * b;
-                    plume.Color = new float4(grey, grey * 0.97f, grey * 0.93f, 0f);
-                    ventSmoke.Add(plume);
-                }
+                if (source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, xz, out var hit) && ventLandmarkTypes.ContainsKey(hit.Type))
+                    continue;
+                AddVent(xz, ground.Height, Scramble(r), false);
             }
             LastVents = ventSmoke.Count + ventSteam.Count;
             Kit.Smoke.Set(ventOwner, ventSmoke);
             Kit.Steam.Set(ventOwner, ventSteam);
+        }
+
+        void PlacedVents(in TerrainSource source, Vector3 eye, float range)
+        {
+            ref var set = ref source.Landmarks.Value;
+            var eyeXZ = ((float3)eye).xz;
+            for (int i = 0; i < set.Instances.Length; i++)
+            {
+                var inst = set.Instances[i];
+                if (!ventLandmarkTypes.TryGetValue(inst.Type, out var smoke))
+                    continue;
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                if (math.distance(inst.Position, eyeXZ) > range + radius)
+                    continue;
+                var h = Scramble(math.hash(inst.Position) ^ 0x7E47u);
+                var count = math.clamp((int)(radius * radius / 140f), PlacedVentsMin, PlacedVentsMax);
+                var turn = (h & 0xFFFF) / 65536f * 6.2832f;
+                for (int k = 0; k < count; k++)
+                {
+                    var r = Scramble(h + (uint)k * 0x9E3779B9u);
+                    // Sunflower spread: even over the footprint without two wisps on one spot.
+                    var d = radius * math.lerp(0.15f, 0.8f, math.sqrt((k + 0.5f) / count)) * (0.85f + 0.3f * (r & 0xFF) / 255f);
+                    var a = turn + k * 2.39996f;
+                    var xz = inst.Position + new float2(math.cos(a), math.sin(a)) * d;
+                    if (math.distancesq(xz, eyeXZ) > range * range)
+                        continue;
+                    var ground = source.SampleGround(xz);
+                    if (ground.HasWater && ground.WaterSurface > ground.Height - 0.05f)
+                        continue;
+                    AddVent(xz, ground.Height, Scramble(r), !smoke);
+                }
+            }
+        }
+
+        void AddVent(float2 xz, float height, uint s, bool steam)
+        {
+            var a = (s & 0xFF) / 255f;
+            var b = ((s >> 8) & 0xFF) / 255f;
+            var intermittent = ((s >> 16) & 3u) == 0u;
+            var plume = new Kit.Plume
+            {
+                Position = new float3(xz.x, height - 0.1f, xz.y),
+                Seed = ((s >> 18) & 0x3FFF) / 16384f,
+                Shape = new float4(VentRise * (0.6f + 0.8f * a), 0.25f + 0.35f * b, 0.45f + 0.4f * a, 4f + 3f * b),
+                Timing = new float4(intermittent ? 9f + 8f * b : 0f, 0.45f, steam ? 0.4f : 0.45f, 7 + (int)((s >> 24) % 4u))
+            };
+            if (steam)
+            {
+                plume.Color = new float4(0.86f, 0.87f, 0.88f, 0f);
+                ventSteam.Add(plume);
+            }
+            else
+            {
+                var grey = 0.5f + 0.14f * b;
+                plume.Color = new float4(grey, grey * 0.97f, grey * 0.93f, 0f);
+                ventSmoke.Add(plume);
+            }
         }
 
         bool VentBiome(in BiomeWeights biomes)
@@ -267,6 +306,7 @@ namespace Punchy.Ambience
             ClearRiverLeaves();
             ClearSeeps();
             ClearCeilingFalls();
+            ClearCaveLeaves();
             leavesAt = new float3(float.MaxValue);
             ventCellAt = new int2(int.MinValue);
         }
