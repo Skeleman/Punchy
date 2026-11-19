@@ -8938,3 +8938,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 ## 11-19 lake-gully rebased on main (PR #685, world/lake-gully@faa7ce83)
 - Rebased over #687 cascade pools. Water truth on main is now {83,0,0,0,0,0,0,3,0,15,108,0,0}: walls 3 from the gully, tilt 15 and step 108 from #687. WorldTests 22/23; the one failure is Setup_SpawnRainAndShot hitting its 180 s timeout as the first test after the editor start (shot setup only, no water).
 - Gully still fills: at (-622,634) the ground is 54.6 under water at 56.2, and 102 of 169 probe points within 12 m are wet at one level.
+
+## 11-19 town-roofs: roof kind follows the town's biome (PR #692, world/town-roofs@5eb2d701)
+- Kit variants now each stand for one biome family. Settlement plots and landmark props are remapped to the variant matching the biome at the town centre (volcanic falls back to desert, then temperate). Culture overrides stay. Biome blobs carry Family. Pure remap, no draws move.
+- WorldTests 22/23 (same rain-shot setup timeout), no re-pins.
+- Shot: world/town-roofs/sonoran-town-after.png shows clay roofs. Tundra shots whited out by snow fog, so cold towns were not checked by eye.
