@@ -8,7 +8,7 @@ namespace Punchy.Terrain
     /// <summary>W-172 row 7: the kinds of cave wall detail, one mesh and one material per kind per cave.</summary>
     public enum CaveWallKind : byte
     {
-        Moss, Fungi, GlowFungi, Carving, Fossil, Ossuary, Bones, Frost, Icicles, Salt, Flowstone, TideLine, Soot
+        Moss, Fungi, GlowFungi, Carving, Fossil, Ossuary, Bones, Frost, Icicles, Salt, Flowstone, TideLine, Soot, Basalt, Sulphur, Ember
     }
 
     /// <summary>What a cave's wall details are chosen from: the climate over its mouth, its rock, what is built in it and
@@ -38,7 +38,7 @@ namespace Punchy.Terrain
     /// </summary>
     public static class CaveWallDetails
     {
-        public const int Kinds = 13;
+        public const int Kinds = 16;
         /// <summary>The most kinds one cave takes.</summary>
         public const int MaxKinds = 4;
         /// <summary>How far a settlement's folk carve (m from its edge).</summary>
@@ -49,20 +49,22 @@ namespace Punchy.Terrain
         const float DaylightReach = 18f;
 
         public static readonly string[] Names =
-            { "Moss", "Fungi", "GlowFungi", "Carving", "Fossil", "Ossuary", "Bones", "Frost", "Icicles", "Salt", "Flowstone", "TideLine", "Soot" };
+            { "Moss", "Fungi", "GlowFungi", "Carving", "Fossil", "Ossuary", "Bones", "Frost", "Icicles", "Salt", "Flowstone", "TideLine", "Soot", "Basalt", "Sulphur", "Ember" };
         /// <summary>Each kind's size for its screen-size reach (m, DetailPolicy.ExtraReach with Pixels).</summary>
-        public static readonly float[] Size = { 2f, 0.5f, 0.5f, 1f, 0.6f, 1.5f, 0.5f, 2f, 0.6f, 1.5f, 1.5f, 2f, 2.5f };
+        public static readonly float[] Size = { 2f, 0.5f, 0.5f, 1f, 0.6f, 1.5f, 0.5f, 2f, 0.6f, 1.5f, 1.5f, 2f, 2.5f, 1.5f, 1.2f, 1f };
         public const float Pixels = 3f;
         /// <summary>How likely an eligible kind is taken in a cave.</summary>
-        static readonly float[] Chance = { 0.8f, 0.75f, 0.6f, 0.5f, 0.6f, 0.7f, 0.5f, 0.9f, 0.8f, 0.7f, 0.8f, 0.6f, 0.7f };
+        static readonly float[] Chance = { 0.8f, 0.75f, 0.6f, 0.5f, 0.6f, 0.7f, 0.5f, 0.9f, 0.8f, 0.7f, 0.8f, 0.6f, 0.7f, 0.9f, 0.8f, 0.85f };
         /// <summary>Places per cave by kind (min, max).</summary>
         internal static readonly int2[] Places =
         {
             new int2(3, 6), new int2(2, 4), new int2(2, 4), new int2(1, 2), new int2(1, 3), new int2(1, 1), new int2(2, 4),
-            new int2(3, 6), new int2(2, 4), new int2(3, 5), new int2(2, 4), new int2(0, 0), new int2(0, 0)
+            new int2(3, 6), new int2(2, 4), new int2(3, 5), new int2(2, 4), new int2(0, 0), new int2(0, 0),
+            new int2(2, 4), new int2(2, 4), new int2(2, 5)
         };
         /// <summary>The light of a glowing fungus cluster (rgb, w reach in m).</summary>
         public static readonly Vector4 GlowLight = new Vector4(0.25f, 0.85f, 0.75f, 5f);
+        public static readonly Vector4 EmberLight = new Vector4(1f, 0.38f, 0.1f, 3.5f);
 
         public static void Colours(CaveWallKind kind, out Color rock, out Color dark)
         {
@@ -80,6 +82,9 @@ namespace Punchy.Terrain
                 case CaveWallKind.Salt: rock = new Color(0.93f, 0.91f, 0.87f); dark = new Color(0.72f, 0.7f, 0.66f); break;
                 case CaveWallKind.Flowstone: rock = new Color(0.84f, 0.71f, 0.52f); dark = new Color(0.56f, 0.42f, 0.28f); break;
                 case CaveWallKind.TideLine: rock = new Color(0.27f, 0.22f, 0.15f); dark = new Color(0.15f, 0.12f, 0.08f); break;
+                case CaveWallKind.Basalt: rock = new Color(0.2f, 0.19f, 0.18f); dark = new Color(0.08f, 0.075f, 0.07f); break;
+                case CaveWallKind.Sulphur: rock = new Color(0.9f, 0.8f, 0.22f); dark = new Color(0.6f, 0.5f, 0.1f); break;
+                case CaveWallKind.Ember: rock = new Color(0.14f, 0.09f, 0.07f); dark = new Color(0.06f, 0.03f, 0.02f); break;
                 default: rock = new Color(0.07f, 0.065f, 0.06f); dark = new Color(0.03f, 0.03f, 0.03f); break;
             }
         }
@@ -89,7 +94,7 @@ namespace Punchy.Terrain
         /// the cave's dim ambient reaches: without a soft glow of their own their caps read black against lit rock.
         /// </summary>
         public static Color OwnLight(CaveWallKind kind) =>
-            kind == CaveWallKind.Fungi ? new Color(0.34f, 0.27f, 0.17f) : Color.clear;
+            kind == CaveWallKind.Fungi ? new Color(0.34f, 0.27f, 0.17f) : kind == CaveWallKind.Ember ? new Color(1.6f, 0.42f, 0.08f) : Color.clear;
 
         // ------------------------------------------------------------------------------------------- choosing
 
@@ -189,6 +194,9 @@ namespace Punchy.Terrain
                 case CaveWallKind.Flowstone: return natural && s.Rock == CaveRockKind.Limestone;
                 case CaveWallKind.TideLine: return natural && s.Streams;
                 case CaveWallKind.Soot: return s.Tunnel > 0 && s.Camps;
+                case CaveWallKind.Basalt:
+                case CaveWallKind.Sulphur:
+                case CaveWallKind.Ember: return natural && s.Volcanic;
             }
             return false;
         }
@@ -276,6 +284,7 @@ namespace Punchy.Terrain
         public readonly int[] Counts = new int[CaveWallDetails.Kinds];
         /// <summary>Glowing fungus clusters, for their lights.</summary>
         public readonly List<Vector3> Glows = new List<Vector3>();
+        public readonly List<Vector3> Embers = new List<Vector3>();
         /// <summary>
         /// W-177: mushroom clusters on the Fungi and GlowFungi patches, drawn by CaveSystem with the flora grower's models.
         /// Model: glow * 2 + wall-grown (CaveSystem.MushroomModel); yaw turns a wall cluster's +Z out of the rock.
@@ -416,8 +425,8 @@ namespace Punchy.Terrain
             var aim = kind switch
             {
                 CaveWallKind.Icicles => Aim.Ceiling,
-                CaveWallKind.Bones => Aim.Floor,
-                CaveWallKind.Salt => Aim.LowWall,
+                CaveWallKind.Bones or CaveWallKind.Basalt or CaveWallKind.Ember => Aim.Floor,
+                CaveWallKind.Salt or CaveWallKind.Sulphur => Aim.LowWall,
                 _ => Aim.Wall
             };
             for (int attempt = 0; attempt < 10; attempt++)
@@ -463,6 +472,7 @@ namespace Punchy.Terrain
                     CaveWallKind.Moss => depth < 25f || NearWater(ref set, set.Nodes[n].Position),
                     CaveWallKind.Frost or CaveWallKind.Icicles => depth < 30f,
                     CaveWallKind.Fungi => depth > 8f,
+                    CaveWallKind.Ember => depth > 10f,
                     CaveWallKind.GlowFungi => depth > math.max(30f, near * 0.45f),
                     CaveWallKind.Salt => depth < 40f,
                     _ => depth > 5f
@@ -618,6 +628,27 @@ namespace Punchy.Terrain
                     }
                     break;
                 }
+                case CaveWallKind.Basalt:
+                    Basalt(source, g, p, n, h);
+                    break;
+                case CaveWallKind.Sulphur:
+                {
+                    g.Sheet(source, Cave, p, n, 0.8f + CaveWallDetails.U(h, 40) * 1.1f, 1f, h, 0.035f);
+                    var count = 6 + (int)(CaveWallDetails.U(h, 41) * 8f);
+                    for (int i = 0; i < count; i++)
+                    {
+                        var hc = CaveWallDetails.Hash(h, 15, i, 0);
+                        if (!OnWall(source, g, p, n, (CaveWallDetails.U(hc, 0) - 0.5f) * 1.4f, (CaveWallDetails.U(hc, 1) - 0.5f) * 1.2f, out var q, out var qn))
+                            continue;
+                        var lean = new float3(CaveWallDetails.U(hc, 5) - 0.5f, CaveWallDetails.U(hc, 6) - 0.5f, CaveWallDetails.U(hc, 7) - 0.5f) * 0.8f;
+                        g.Spike(q, math.normalize(qn + lean), 0.025f + CaveWallDetails.U(hc, 2) * 0.03f, 0.06f + CaveWallDetails.U(hc, 3) * 0.14f,
+                                0.9f + CaveWallDetails.U(hc, 4) * 0.25f);
+                    }
+                    break;
+                }
+                case CaveWallKind.Ember:
+                    Ember(source, g, p, n, h);
+                    break;
                 case CaveWallKind.Carving:
                     Carving(source, g, p, n, h);
                     break;
@@ -685,6 +716,51 @@ namespace Punchy.Terrain
                     continue;
                 Hangings.Add(new CaveHanging(CaveHangingKind.Tendril, q + new float3(0f, 0.03f, 0f), default, length, CaveWallDetails.U(hc, 4)));
             }
+        }
+
+        /// <summary>A cluster of hexagonal basalt columns stood on the floor, tallest in the middle, on a dark bed.</summary>
+        void Basalt(in TerrainSource source, CaveWallMesh g, float3 p, float3 n, uint h)
+        {
+            g.Sheet(source, Cave, p, n, 0.9f + CaveWallDetails.U(h, 40) * 0.8f, 0.8f, h, 0.03f);
+            var count = 5 + (int)(CaveWallDetails.U(h, 41) * 8f);
+            var r = 0.16f + CaveWallDetails.U(h, 42) * 0.1f;
+            var turn = CaveWallDetails.U(h, 43) * 1.0472f;
+            for (int i = 0; i < count; i++)
+            {
+                var ring = i == 0 ? 0 : 1 + (i - 1) / 6;
+                var a = (i - 1) % 6 * math.PI / 3f + turn + ring * 0.52f;
+                var off = new float3(math.cos(a), 0f, math.sin(a)) * r * 1.75f * ring;
+                var hc = CaveWallDetails.Hash(h, 13, i, 0);
+                if (!Cast(source, p + off + new float3(0f, 0.6f, 0f), new float3(0f, -1f, 0f), 1.5f, out var q, out var qn) || qn.y < 0.6f)
+                    continue;
+                var height = (0.25f + CaveWallDetails.U(hc, 0) * 0.9f) * (1f - ring * 0.25f);
+                g.Prism(q - new float3(0f, 0.05f, 0f), new float3(0f, 1f, 0f), r, height + 0.05f, 0.9f + CaveWallDetails.U(hc, 1) * 0.2f, turn);
+            }
+        }
+
+        /// <summary>A few glowing cracks branching over the floor from a place, each following the floor and narrowing.</summary>
+        void Ember(in TerrainSource source, CaveWallMesh g, float3 p, float3 n, uint h)
+        {
+            var branches = 2 + (int)(CaveWallDetails.U(h, 40) * 3f);
+            for (int b = 0; b < branches; b++)
+            {
+                var hc = CaveWallDetails.Hash(h, 14, b, 0);
+                var a = CaveWallDetails.U(hc, 0) * math.PI * 2f;
+                var width = 0.05f + CaveWallDetails.U(hc, 1) * 0.05f;
+                var steps = 4 + (int)(CaveWallDetails.U(hc, 2) * 6f);
+                float3 at = p, atN = n;
+                for (int s = 0; s < steps; s++)
+                {
+                    a += (CaveWallDetails.U(CaveWallDetails.Hash(hc, 14, s, 1), 0) - 0.5f) * 1.2f;
+                    var ahead = at + new float3(math.cos(a), 0f, math.sin(a)) * 0.3f;
+                    if (!Cast(source, ahead + new float3(0f, 0.5f, 0f), new float3(0f, -1f, 0f), 1.2f, out var q, out var qn) || qn.y < 0.5f)
+                        break;
+                    g.Strip(at, atN, q, qn, width * (1f - s / (steps + 1f)), 0.015f, 1f);
+                    at = q;
+                    atN = qn;
+                }
+            }
+            Embers.Add(p + n * 0.3f);
         }
 
         static float3 Perp(float3 n)
@@ -1117,6 +1193,40 @@ namespace Punchy.Terrain
                 Quad(p0, p1, p2, p3, n, tint);
             else
                 Quad(p0, p3, p2, p1, n, tint);
+        }
+
+        /// <summary>A flat strip lying on the rock from a to b, `width` across, lifted off it.</summary>
+        public void Strip(float3 a, float3 an, float3 b, float3 bn, float width, float lift, float tint)
+        {
+            var n = math.normalizesafe(an + bn);
+            var side = math.normalizesafe(math.cross(n, b - a)) * width * 0.5f;
+            var p0 = a + an * lift - side; var p1 = b + bn * lift - side;
+            var p2 = b + bn * lift + side; var p3 = a + an * lift + side;
+            if (math.dot(math.cross(p1 - p0, p3 - p0), n) >= 0f)
+                Quad(p0, p1, p2, p3, n, tint);
+            else
+                Quad(p0, p3, p2, p1, n, tint);
+        }
+
+        /// <summary>A six-sided column from its base along up, with a flat cap (basalt).</summary>
+        public void Prism(float3 b, float3 up, float radius, float length, float tint, float turn)
+        {
+            const int sides = 6;
+            var u = math.normalize(math.cross(math.abs(up.y) > 0.9f ? new float3(1f, 0f, 0f) : new float3(0f, 1f, 0f), up));
+            var w = math.cross(up, u);
+            var top = b + up * length;
+            float3 Ring(int k) => (u * math.cos(turn + k * math.PI * 2f / sides) + w * math.sin(turn + k * math.PI * 2f / sides)) * radius;
+            for (int k = 0; k < sides; k++)
+            {
+                float3 r0 = Ring(k), r1 = Ring(k + 1);
+                var face = math.normalize(r0 + r1);
+                var faceTint = tint * (0.85f + 0.15f * (k & 1));
+                if (math.dot(math.cross(r1 - r0, up), face) >= 0f)
+                    Quad(b + r0, b + r1, top + r1, top + r0, face, faceTint);
+                else
+                    Quad(b + r1, b + r0, top + r0, top + r1, face, faceTint);
+                AddFacing(top, top + r0, top + r1, up, tint * 1.1f);
+            }
         }
 
         /// <summary>A box round centre, turned by rotation; darker underneath (as CaveRoomKit's).</summary>
