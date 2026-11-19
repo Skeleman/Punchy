@@ -316,3 +316,5 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #631 W-166 (#336): river beds get gravel/sand patches in the shallows and dark silt in pools.
 - #632 #301 row 4: fallen logs bridge narrow streams; small gravel islands with reeds on wide slow reaches.
 - #633 #301: every river fall lands in a carved plunge pool (dry fall feet 120 -> 0); landmarks 120 E811A278 (lone inn moves 6 m, new cave entrance near -2239,-428).
+- #634 W-166 (#336): driftwood bleaches silver-grey; trunks and logs in the bank wet band get a dark wet line. Look at log ends at the water.
+- #635 #269 + #301: cliffs beside waterfalls start late, lean and pause on ledges; uneven pool rims, talus at the wall foot. Landmark pin 120 B32C5306.

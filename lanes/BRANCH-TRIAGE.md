@@ -20,6 +20,8 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - materials/river-bed -> #631
 - banks/river-logs -> #632
 - world/fall-pools -> #633
+- materials/driftwood -> #634
+- world/fall-notch -> #635
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
 - banks/overhangs -> #614
