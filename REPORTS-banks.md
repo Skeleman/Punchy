@@ -81,3 +81,9 @@
 - WorldTests 22/22 on base 03982fd5: landmarks 120 B32C5306, water truth wall 11, dry fall feet 0. Merge-tree onto main 77c5ed3c is clean; debris doesn't touch the fauna pin.
 - Shots before/after in PunchyMilestones/water/fall-ground (tall-wide, small-wide, flanks, contact sheets), all viewed. BENCH line queued.
 - Next row: the #663 walls (lip sides at falls 51, 63, 92 x2; feet at 85 and 133).
+
+## banks/fall-walls (DONE, PR #676, a8659b4a)
+- No re-pin. Main was already 22/22 at landmarks B32C5306 and walls 7. Fauna A9684863 came from #670, not #668.
+- Fixed lips 51 and 92 x2: shoulders now start at the narrower of the channel and sheet edges. Fixed foot 85: the bowl rim is capped inside the water edge. Wall 7 -> 4, step 129 -> 125; baseline tightened.
+- Still open: lip 63 (rapids on a bend 23 m upstream), foot 133 (sea-mouth slope, lower cell wet by about 0), a new pool-to-river step at fall 95's foot, and the lake rim.
+- WorldTests 22/22, river graph unchanged (140 falls). Merge-tree onto main 4c591507 is clean. Scratch scripts are now lane-named.
