@@ -361,3 +361,10 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Pale bend face was the V3 rock pass (scree 28-38 deg, rock 38-45 deg) over BankShingle mud, not beach sand. BankMud (post-pass in FallSpray) restores mud patches up to 3 m; taller faces stay rock-pass geology by design.
 - Shots: PunchyMilestones/wet-margin (before = bank-slopes/after, same code as main). bend-pair viewed.
 - BENCH-QUEUE: BankMud adds 2 snoise per bank vertex in the surface post-pass; shader shore band adds 3 value-noise taps on shore pixels.
+
+## materials/river-bed (W-166, #336) - DONE 69a229fb
+- RiverBed (BiomeData) reuses Rapids + PointBar: riffles go cobble, inner bends sand, slow pools silt. No new mesh channel.
+- TerrainSurface: cobbles + sparse big stones on the stony underwater bed via shared Stone.hlsl rubble.
+- Shots: D:/Unity/PunchyMilestones/river-bed2/ (riffle-pair.jpg, over-pair.jpg). Change is subtle: the water tint/opacity mutes the bed (Water.shader not mine).
+- Pre-existing ~0.5 m checker on riffle shallows/margin (in before too, likely caustics) - not mine.
+- BENCH-QUEUE: two 3x3 Voronoi (PunchyStoneRubble) passes per stony underwater bed pixel in TerrainSurface; BiomeData adds no noise.
