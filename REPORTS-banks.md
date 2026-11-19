@@ -87,3 +87,8 @@
 - Fixed lips 51 and 92 x2: shoulders now start at the narrower of the channel and sheet edges. Fixed foot 85: the bowl rim is capped inside the water edge. Wall 7 -> 4, step 129 -> 125; baseline tightened.
 - Still open: lip 63 (rapids on a bend 23 m upstream), foot 133 (sea-mouth slope, lower cell wet by about 0), a new pool-to-river step at fall 95's foot, and the lake rim.
 - WorldTests 22/22, river graph unchanged (140 falls). Merge-tree onto main 4c591507 is clean. Scratch scripts are now lane-named.
+
+## banks/fall-feet (11-19): BLOCKED, no PR
+- On main 9356e483 the 3 named walls (95, 63, 133) are all steep water: 1.1-2.0 m surface drop per 4 m sample beside a bank. Wet-ing the low cell only turns each wall into a step of the same height.
+- Tried 3 fixes: pool floor following the blended water (95), no point bars on rapids, a water film to the channel edge. Best result was wall 4 -> 4, step 125 -> 130; the worst was wall 5, step 140. All reverted; nothing committed.
+- Root cause: reaches below falls 95 and 63, and the 133 sea mouth, drop about 25-50% (main already counts 1.0-1.2 m steps there). A real fix limits water gradient (cascade pools or spreading the drop), or the coordinator decides those count as fall steps.
