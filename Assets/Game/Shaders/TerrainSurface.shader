@@ -359,6 +359,20 @@ Shader "Punchy/Terrain Surface"
                 return (h >> 22) / 1023.0 - 0.5;
             }
 
+            // Grass ground's blade strokes: a turned, staggered lattice of short streaks (size: across, along), each its own tone.
+            half BladeStrokes(float2 p, float angle, float2 size)
+            {
+                float sn, cs;
+                sincos(angle, sn, cs);
+                float2 q = float2(cs * p.x - sn * p.y, sn * p.x + cs * p.y) / size;
+                q.y += Grain(float2(floor(q.x), 3)) + 0.5;
+                float2 cell = floor(q), f = q - cell;
+                half mid = 0.5 + Grain(cell + 7) * 0.5;
+                half across = 1 - smoothstep(0.12, 0.28, abs(f.x - mid));
+                half along = smoothstep(0, 0.25, f.y) * (1 - smoothstep(0.7, 1, f.y));
+                return Grain(cell) * across * along;
+            }
+
             // Raindrop rings on puddles: Water.shader's RainRipples (a ring per jittered cell at a random phase), so
             // puddles and rivers ripple alike in the rain.
             float2 PuddleRings(float2 p, float t)
@@ -599,18 +613,32 @@ Shader "Punchy/Terrain Surface"
 
                 SurfaceData surface = (SurfaceData)0;
                 half3 albedo = input.surface.rgb * (1 + (micro.z - 0.5) * 0.5);   // grain in the colour too (faded in micro)
-                // Up close, bare ground (sand, dirt, gravel) is grainy: single grains a shade lighter or darker, at two sizes
-                // (about 3 and 7 cm, hashed by cell so they hold still), gone before they could shimmer, and not under grass.
-                if (detailFade > 0.001)
+                // R-31: bare ground is speckled and grassy ground streaked, so the two differ by more than colour; every
+                // pattern fades from 4 to 2 pixels of its own size (DetailPolicy.ScreenSize) to the same average tone.
+                half bare = detailMask * (1 - rockFace) * (1 - input.extra.y);
+                half grainFine = saturate(pxmR / 37 * 0.5 - 1), grainCoarse = saturate(pxmR / 15 * 0.5 - 1);
+                [branch] if (bare * grainCoarse > 0.001)
                 {
                     float2 gq[3] = { input.positionWS.zy, p, input.positionWS.xy };
                     half grain = 0;
                     [unroll] for (int gi = 0; gi < 3; gi++)
                     {
                         float2 g = gq[gi];
-                        grain += (Grain(g * 37) * 0.6 + Grain(float2(g.x * 0.866 - g.y * 0.5, g.x * 0.5 + g.y * 0.866) * 15 + 11.3) * 0.4) * triW[gi];   // turned: no grid
+                        float2 gt = float2(g.x * 0.866 - g.y * 0.5, g.x * 0.5 + g.y * 0.866) * 15 + 11.3;   // turned: no grid
+                        float2 sc = floor(gt);
+                        half pick = Grain(sc + 5);
+                        half speck = (1 - smoothstep(0.2, 0.3, length(gt - sc - 0.5 - Grain(sc + 9) * 0.3))) * (abs(pick) > 0.38) * sign(pick);
+                        grain += (Grain(g * 37) * 0.6 * grainFine + (Grain(gt) * 0.4 + speck * 0.6) * grainCoarse) * triW[gi];
                     }
-                    albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
+                    albedo *= 1 + grain * 0.5 * bare;
+                }
+                half grassy = input.extra.y * (input.extra.w <= 0.01) * (1 - rockFace) * triW.y;
+                half strokeFine = saturate(pxmR * 0.03 * 0.5 - 1), strokeCoarse = saturate(pxmR * 0.07 * 0.5 - 1);
+                [branch] if (grassy * strokeCoarse > 0.001)
+                {
+                    float2 sp = p + (float2(PunchyValueNoise(p * 1.7), PunchyValueNoise(p * 1.7 + 5.3)) - 0.5) * 0.35;   // bent, not combed
+                    half strokes = BladeStrokes(sp, 0.45, float2(0.03, 0.1)) * strokeFine + BladeStrokes(sp + 3.1, -0.9, float2(0.06, 0.18)) * strokeCoarse;
+                    albedo *= 1 + strokes * 0.45 * grassy * half3(1.1, 1, 0.7);
                 }
                 // W-166: stony river beds (RiverBed's rough bump under water) lie in cobbles with a few big stones.
                 half bedStony = smoothstep(0.55, 0.85, input.bump) * (-input.extra.w > 0.999) * (1 - rockFace) * (1 - saturate(input.extra.y * 2));
