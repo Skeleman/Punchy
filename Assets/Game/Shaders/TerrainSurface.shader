@@ -721,7 +721,12 @@ Shader "Punchy/Terrain Surface"
                 [branch] if (shore > 0.01)
                 {
                     half bandMix = smoothstep(0.35, 0.7, PunchyValueNoise(p * 0.21 + 8.3) * 0.75 + PunchyValueNoise(p * 1.9) * 0.25);
-                    half3 shingle = lerp(albedo, dot(albedo, half3(0.3, 0.5, 0.2)).xxx * 1.35, 0.7) * (1 + Grain(p * 6) * 0.5);
+                    // Shingle pebbles from the shared rubble (hash-jittered, turned cells): square grain cells read as a checker.
+                    const float2x2 pebTurn = float2x2(0.8, -0.6, 0.6, 0.8);
+                    float2 pebMid, pebCell;
+                    float pebEdge = PunchyStoneRubble(mul(pebTurn, p) * 2, 5.9, pebMid, pebCell) / 2;
+                    half pebGap = 1 - smoothstep(0.003, 0.01 + 1 / max(pxmR, 1e-3), pebEdge);
+                    half3 shingle = lerp(albedo, dot(albedo, half3(0.3, 0.5, 0.2)).xxx * 1.35, 0.7) * (1 + (PunchyStoneHash(pebCell + 3.3) - 0.5) * 0.5 - pebGap * 0.25);
                     albedo = lerp(albedo, shingle, bandMix * shore * (1 - input.extra.y));
                 }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
