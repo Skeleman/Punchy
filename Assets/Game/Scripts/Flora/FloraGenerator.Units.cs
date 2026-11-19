@@ -9,7 +9,7 @@ namespace Punchy.Flora
     {
         /// <summary>
         /// A market stall facing +Z: four timber poles (the front two shorter), a counter across the front with goods laid
-        /// out on it, and a striped awning sloping from the back down over the front, overhanging it.
+        /// out on it, a striped awning sloping from the back down over the front, and crates stacked beside it.
         /// </summary>
         public static readonly UnitDef StallUnit = new UnitDef
         {
@@ -25,6 +25,9 @@ namespace Punchy.Flora
                 new UnitPart { Part = "awning", At = new Vector3(0f, 1f, -0.55f), AtMetres = new Vector3(0f, 0.05f, 0f),
                                To = new Vector3(0f, 0.82f, 0.5f), ToMetres = new Vector3(0f, -0.15f, 0.45f),
                                Span = new Vector3(1.1f, 0f, 0f), SpanMetres = new Vector3(0f, 0.3f, 0f) },
+                new UnitPart { Part = "crate", At = new Vector3(0.5f, 0f, 0.5f), AtMetres = new Vector3(0.42f, 0f, -0.1f), SpanMetres = new Vector3(0.55f, 0f, 0f) },
+                new UnitPart { Part = "crate", At = new Vector3(0.5f, 0f, 0.5f), AtMetres = new Vector3(0.4f, 0.55f, -0.08f), SpanMetres = new Vector3(0.4f, 0f, 0f) },
+                new UnitPart { Part = "crate", At = new Vector3(-0.5f, 0f, -0.5f), AtMetres = new Vector3(0.35f, 0f, 0.35f), SpanMetres = new Vector3(0.5f, 0f, 0f) },
             },
         };
 
