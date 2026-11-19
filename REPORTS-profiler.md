@@ -2,6 +2,24 @@
 
 Newest first.
 
+## Request W-153 row 4 (world, #301): deep-lake water, B +0.6 ms GPU against one clean A round; patch build unchanged
+
+world/river-lakes 8d1e9937 (B; the tip 50065032 breaks player builds) vs world/river-curtain 7a9af48e (A). High, 1920x1080
+uncapped, noon, Clear, 3 rounds alternated, standing at -2900,2650 facing the lake at -2990,2734 (yaw 313; the player ends
+up at y 103, the ground there). Laptop GTX 1060 Max-Q. Spec q153.job.
+
+| arm | GPU ms by round | mean GPU | median frame | CPU | 1% low fps |
+|---|---|---|---|---|---|
+| A | (17.1), 25.1, stalled | **25.1** | 33.7 | 39.2 | 3.8 |
+| B | 25.9, 25.5, 25.8 | **25.73** | 34.3 | 41.7 | 2.1 |
+
+- GPU: B is +0.63 ms over A, but A has only one clean round. A's round 1 froze for 63.7 s once (at 146.6 s, standing still),
+  and round 3 stalled twice (the log went quiet for 150 s; the first try also had a 4.0 s frame). B's three rounds agree
+  within 0.4 ms, so B's own number is firm; the difference is not.
+- Water patch build (world-ready stage line, WaterPatchSystem main ms sum / worst frame): A 38-42 / 10-11, B 39-41 / 10-11.
+  The extra deep-lake patches don't show up in the build time.
+- Both arms are slow at this view (25 ms GPU, about 226 frames over the slow mark in 300). That isn't the lakes; both arms have it.
+- A's freezes look like the 56-57 s freezes the 0003a19 build had in R-42. B didn't freeze in either job. I haven't looked into the cause.
 ## Job 111 (R-35 r3 #333): cloud E, NO RESULT: the branch build drew no sky or clouds; rebuilding (q151b)
 
 q151 ran all 72 games (render/cloud-e 25fbc044 base / E `-skyoff 65536` / off `-skyoff 3`, and main 814a4da6; Medium and
