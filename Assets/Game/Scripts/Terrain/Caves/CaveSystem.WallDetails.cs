@@ -126,6 +126,9 @@ namespace Punchy.Terrain
                     if (k == (int)CaveWallKind.GlowFungi)
                         foreach (var glow in build.Glows)
                             Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, glow, CaveWallDetails.GlowLight);
+                    if (k == (int)CaveWallKind.Ember)
+                        foreach (var ember in build.Embers)
+                            Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, ember, CaveWallDetails.EmberLight);
                 }
             }
             if (drop != null)
