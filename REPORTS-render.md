@@ -1070,3 +1070,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Shader hooks (materials lane files): new SeepStreaks.hlsl (wet streak, foot damp patch, moss clumps faded by fwidth); TerrainSurface.shader include + seep/sheen/realWet/albedo lines; Cave.shader include + damp and moss lines.
 - Shots PunchyMilestones/water-seeps: s2-before/after-3m and -20m (river bank), c1-before/after-3m and -20m (cave wall; 20 m barely shows, subtle by design). All viewed; ignore s1-*.
 - WorldTests 23/23. Cost: up to 8-seep loop per terrain/cave pixel inside the seep rect; sort per 10 m cell rebuild. BENCH line added. Freeze: merge after 16:30.
+
+## 11-19 render-2: W-142 tail - cave-foliage leaves + placed vents (#262) - PR #703
+- render/262-tail@04c65476. Cave leaves (new partial LandmarkEffectSystem.CaveLeaves.cs): leaves sift down hanging roots and grassy shafts (stacked streams on deep shafts), hashed per plant/shaft, range by leaf screen size. Island caves only have 8 hanging roots, so shafts are the second source.
+- Placed vents: wisps spread sunflower-style over each vent landmark (count by area, 3-20), steam/smoke from the landmark's own plume, fixed per instance. Towns and camps are no longer vent types. Biome vents unchanged, and they skip vent footprints.
+- Shader hooks: none. Shots PunchyMilestones/cave-leaves: a-before/after-3m and -20m (root cave), b-before/after-3m (shaft, from below). PunchyMilestones/placed-vents: v-before/after-3m and -20m (FumaroleField -215,-2013). Viewed: a3, b3, v3, v20.
+- WorldTests 23/23. Cost: Leaves plumes (max 17 particles, under the existing 18 cap) refreshed every 3 s or 4 m; placed vents roughly 17 per fumarole field instead of about 18 hashed cells. BENCH line added.
