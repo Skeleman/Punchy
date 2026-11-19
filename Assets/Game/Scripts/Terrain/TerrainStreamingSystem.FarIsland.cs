@@ -59,6 +59,7 @@ namespace Punchy.Terrain
             public NativeArray<ChunkBuildRequest> Requests;
             public NativeArray<float2> Ranges, WaterRanges;
             public NativeArray<VertexAttributeDescriptor> WaterLayout;
+            public NativeArray<VertexAttributeDescriptor> TerrainLayout;
             public float Span;
             public int Count;
         }
@@ -176,6 +177,7 @@ namespace Punchy.Terrain
                 Ranges = new NativeArray<float2>(count, Allocator.Persistent),
                 WaterRanges = new NativeArray<float2>(count, Allocator.Persistent),
                 WaterLayout = new NativeArray<VertexAttributeDescriptor>(WaterVertex.Layout, Allocator.Persistent),
+                TerrainLayout = new NativeArray<VertexAttributeDescriptor>(TerrainVertex.Layout, Allocator.Persistent),
                 Span = span,
                 Count = count
             };
@@ -203,6 +205,7 @@ namespace Punchy.Terrain
                 Meshes = batch.Data,
                 Requests = batch.Requests,
                 WaterLayout = batch.WaterLayout,
+                TerrainLayout = batch.TerrainLayout,
                 Source = source,
                 ChunkSize = span,
                 // The disc's normal scale, so the island lights like the ground it meets.
@@ -289,6 +292,7 @@ namespace Punchy.Terrain
             batch.Ranges.Dispose();
             batch.WaterRanges.Dispose();
             batch.WaterLayout.Dispose();
+            batch.TerrainLayout.Dispose();
             batch.Count = 0;
         }
 
