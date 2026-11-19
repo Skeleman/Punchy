@@ -663,7 +663,9 @@ Shader "Punchy/Water"
                 float2 flowingSlope = 0;
                 float4 flowLines = 0;
                 half carried = 0;
-                bool foamy = rapids > 0.02 && flowAmount > 0.02;
+                // W-159 row 4: only breaking water carries white; merely fast water shows glinting ridges instead.
+                half breaking = smoothstep(0.7, 0.95, rapids);
+                bool foamy = rapids > 0.6 && flowAmount > 0.02;
                 [branch] if (flowAmount > 0 || rapids > 0)
                 {
                     // R-9 row 6: both patterns are turned to the flow, so reading them at the world position put the
@@ -761,7 +763,7 @@ Shader "Punchy/Water"
                 }
                 float lineFade = flowAmount * smoothstep(2.5, 7, pixelsPerMetre * PunchyFlowLineSpacing)
                     * (1 - steep) * (1 - 0.75 * murk) * (1 - viscous) * (1 - lava);
-                wakeSlope += flowLines.xy * lineFade;
+                wakeSlope += flowLines.xy * lineFade * 1.6;
                 // Murky water barely ripples; thick water instead heaves in slow, broad swells and bubbles.
                 slope *= 1 - 0.75 * murk;
                 float3 bubbles = 0;
@@ -1095,15 +1097,15 @@ Shader "Punchy/Water"
                     half gather = saturate(max(1 - smoothstep(0.1, 0.7, thickness), standCrest * 1.5));
                     half cover = smoothstep(0.84 - 0.24 * gather * rapids, 0.95 - 0.15 * gather * rapids, carried);
                     // (From 0.1: cave brooks carry a floor of 0.12 down the middle and should stay clear there.)
-                    whiteWater = cover * smoothstep(0.1, 0.6, rapids) * (0.55 + 0.45 * churn) * lerp(0.35, 1, gather) * distanceFade;
+                    whiteWater = cover * breaking * (0.55 + 0.45 * churn) * lerp(0.35, 1, gather) * distanceFade;
                     // Row 6: the standing waves break white along their crests, torn up by the carried foam.
-                    half standWhite = standCrest * smoothstep(0.45, 0.8, carried);
+                    half standWhite = standCrest * smoothstep(0.45, 0.8, carried) * smoothstep(0.6, 0.9, rapids);
                     whiteWater = max(whiteWater, standWhite * (1 - caveRun) * distanceFade);
                 }
-                half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.12), 0.85) * (1 - steep),
-                                        flowAmount * smoothstep(0.55, 0.9, flowLines.w) * smoothstep(0.6, 0.8, PunchyValueNoise(p * 3.3)) * smoothstep(0.25, 0.6, rapids) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
+                half3 foamParts = half3(foam, min(max(whiteWater * 0.85, rapids * rapids * churn * 0.12 * breaking), 0.85) * (1 - steep),
+                                        flowAmount * smoothstep(0.55, 0.9, flowLines.w) * smoothstep(0.6, 0.8, PunchyValueNoise(p * 3.3)) * smoothstep(0.6, 0.85, rapids) * (0.2 + 0.4 * rapids) * distanceFade * (1 - viscous)
                                         // (Fewer in white water, where they scratched thin lines over the carried foam.)
-                                        * (1 - 0.75 * smoothstep(0.3, 0.8, rapids))
+                                        * (1 - 0.75 * smoothstep(0.85, 1, rapids))
                                         // Not on running cave water: there the flecks came out as thin lines across the
                                         // flow (Z-34, seen with -waterprobe 4), striping every cave stream.
                                         * (1 - caveRun) * (1 - steep));
@@ -1136,6 +1138,8 @@ Shader "Punchy/Water"
                 // still glowed white at noon.)
                 half sunFacing = lerp(saturate(light.direction.y), 0.4 + 0.5 * saturate(dot(face, light.direction)), steep);
                 half3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * sunFacing + lanternLit);
+                // W-159 row 4: foam stays the brightest thing in shade and overcast, lit by the whole sky.
+                foamLit = max(foamLit, _FoamColor.rgb * dot(ambient, half3(0.2126, 0.7152, 0.0722)) * 1.8);
                 color = lerp(color, foamLit, foam * (1 - lava));
                 alpha = max(alpha, foam * (1 - lava));
 

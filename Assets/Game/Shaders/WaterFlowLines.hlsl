@@ -20,7 +20,8 @@ float4 PunchyFlowLine(float2 q, float2 along, float fast, float seed)
     float warp = (PunchyValueNoise(float2(a * 0.12, c * 0.3) + seed) - 0.5) * lerp(2.0, 4.5, fast);
     float phi = c * k + warp;
     float s = 0.5 + 0.5 * sin(phi);
-    float sharp = lerp(1.5, 5.0, fast);
+    // W-159 row 4: narrower crests, so fast water glints along thin ridges.
+    float sharp = lerp(3.0, 8.0, fast);
     float env = smoothstep(lerp(0.45, 0.25, fast), 0.8, PunchyValueNoise(float2(a / 5.0, c / PunchyFlowLineSpacing * 0.5) + seed * 1.7));
     float crest = pow(max(s, 1e-4), sharp) * env;
     float rise = sharp * pow(max(s, 1e-4), sharp - 1) * 0.5 * cos(phi) * k * env;
