@@ -214,7 +214,9 @@ namespace Punchy.Terrain
                 {
                     // Inside, only the rim has to meet the terrain: dropping straight down keeps the field's layout, so nothing folds.
                     var g = Source.SampleGround(p.xz).Height;
-                    if (math.abs(p.y - g) > 0.5f * Voxel)
+                    // A corner the field left on or past the rim would sit at ground height there, off the patch's straight rim.
+                    MouthPatch.Membership(p.xz, Patch, PatchMin, PatchCells, out _, out var inside);
+                    if (!inside || math.abs(p.y - g) > 0.5f * Voxel)
                         return -2;
                     raw[Positions.Length] = p;
                     p.y = g;
@@ -300,6 +302,42 @@ namespace Punchy.Terrain
                 }
                 Indices.ResizeUninitialized(kept);
                 map.Dispose();
+                for (int t = 0; t < PatchIndices.Length; t += 3)
+                    if (Straight(t, out var end0, out var mid, out var end1))
+                        SplitAt(t, end0, mid, end1);
+            }
+
+            bool Straight(int t, out int end0, out int mid, out int end1)
+            {
+                int a = PatchIndices[t], b = PatchIndices[t + 1], c = PatchIndices[t + 2];
+                (end0, mid, end1) = (a, b, c);
+                if (a == b || b == c || a == c)
+                    return false;
+                float3 pa = PatchVerts[a].Position, pb = PatchVerts[b].Position, pc = PatchVerts[c].Position;
+                if (math.lengthsq(math.cross(pb - pa, pc - pa)) > 1e-10f * math.lengthsq(pb - pa) * math.lengthsq(pc - pa))
+                    return false;
+                if (math.dot(pa - pb, pa - pc) < 0f)
+                    (end0, mid, end1) = (b, a, c);
+                else if (math.dot(pc - pa, pc - pb) < 0f)
+                    (end0, mid, end1) = (a, c, b);
+                else if (math.dot(pb - pa, pb - pc) >= 0f)
+                    return false;
+                return true;
+            }
+
+            // A straight sliver hides its middle corner from the terrain vertex there, so the face across it is split instead.
+            void SplitAt(int sliver, int end0, int mid, int end1)
+            {
+                for (int u = 0; u < PatchIndices.Length; u += 3)
+                for (int k = 0; k < 3 && u != sliver; k++)
+                {
+                    int a = PatchIndices[u + k], b = PatchIndices[u + (k + 1) % 3], c = PatchIndices[u + (k + 2) % 3];
+                    if (!(a == end0 && b == end1) && !(a == end1 && b == end0))
+                        continue;
+                    PatchIndices[u] = a; PatchIndices[u + 1] = mid; PatchIndices[u + 2] = c;
+                    PatchIndices[sliver] = mid; PatchIndices[sliver + 1] = b; PatchIndices[sliver + 2] = c;
+                    return;
+                }
             }
 
             void Quad(NativeArray<int> cellVertex, int c0, int c1, int c2, int c3, bool flip)
