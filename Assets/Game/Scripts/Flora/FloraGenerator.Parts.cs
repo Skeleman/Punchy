@@ -25,6 +25,7 @@ namespace Punchy.Flora
             ["chimney stack"] = ChimneyStack,
             ["anvil"] = Anvil,
             ["hide tent"] = HideTent,
+            ["guy ropes"] = GuyRopes,
             ["door mat"] = DoorMatPart,
             ["fire ring"] = FireRing,
             ["log tepee"] = LogTepee,
@@ -58,7 +59,7 @@ namespace Punchy.Flora
         /// The parts drawn round the unit's origin rather than at their At (each is one round thing: a tent, a fire). Their
         /// At moves them afterwards (Place), so a unit can stand a fire pit off-centre.
         /// </summary>
-        static readonly HashSet<string> CentredParts = new HashSet<string> { "hide tent", "fire ring", "log tepee", "embers", "unit" };
+        static readonly HashSet<string> CentredParts = new HashSet<string> { "hide tent", "guy ropes", "fire ring", "log tepee", "embers", "unit" };
 
         /// <summary>
         /// Draws a unit: grows its frame from the species (height from Height, width from Spread or WidthOfHeight) or takes
@@ -432,6 +433,45 @@ namespace Punchy.Flora
             foreach (var top in new[] { 1.1f, 2f, 3f })
                 if (top < apex.y - 0.5f)
                     g.Colliders.Add(new Vector4(apex.x * top / apex.y, apex.z * top / apex.y, radius * 0.95f * (1f - (top - 0.5f) / apex.y), top));
+        }
+
+        /// <summary>
+        /// Guy ropes for a tent Span.x across and Span.y tall centred on At: three or four sagging cords from partway up the
+        /// shell out to wooden stakes leaning back from the pull, none across the +Z doorway. Dropped at the far level of detail.
+        /// </summary>
+        static void GuyRopes(Grower g, UnitFrame f, UnitPart p)
+        {
+            if (g.Lod == 2)
+                return;
+            var b = g.B;
+            var span = f.Span(p);
+            var radius = span.x * 0.5f;
+            var apexY = span.y * 0.88f;
+            // Its own stream, so the shell and everything drawn after it keep their draws.
+            var rng = new System.Random((int)(((uint)g.S.Seed * 0x9E3779B9u ^ (uint)g.Variant * 0x85EBCA6Bu ^ 0x6E7u) & 0x7FFFFFFF));
+            float R(float lo, float hi) => lo + (float)rng.NextDouble() * (hi - lo);
+            var ropes = rng.NextDouble() < 0.5 ? 3 : 4;
+            var cord = Color.Lerp(g.Bark, new Color(0.62f, 0.54f, 0.4f), 0.55f);
+            var turn = R(0f, 360f / ropes);
+            for (int k = 0; k < ropes; k++)
+            {
+                var a = (turn + k * 360f / ropes + R(-12f, 12f)) % 360f;
+                if (Mathf.Abs(Mathf.DeltaAngle(a, 0f)) < 35f)
+                    a += 70f;
+                var dir = Quaternion.Euler(0f, a, 0f) * Vector3.forward;
+                var t = R(0.4f, 0.55f);
+                var tie = dir * radius * (1f - t) * 0.97f + Vector3.up * apexY * t;
+                var stake = dir * radius * R(1.5f, 1.8f);
+                var sag = Vector3.Lerp(tie, stake, 0.5f) + Vector3.down * radius * 0.03f;
+                b.Family = Family.Cloth;
+                b.Tube(new List<Vector3> { tie, sag, stake + Vector3.up * 0.18f }, new List<float> { 0.015f, 0.015f, 0.015f }, 3, cord, FloraPart.Bark);
+                b.Family = Timber(g);
+                b.Wood = true;
+                b.Tube(new List<Vector3> { stake - dir * 0.04f + Vector3.down * 0.1f, stake + dir * 0.06f + Vector3.up * 0.24f },
+                       new List<float> { 0.03f, 0.025f }, 4, g.Bark * 0.8f, FloraPart.Bark);
+                b.Wood = false;
+            }
+            b.Family = b.BaseFamily;
         }
 
         /// <summary>

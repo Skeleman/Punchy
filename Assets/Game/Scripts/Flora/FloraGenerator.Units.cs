@@ -63,7 +63,7 @@ namespace Punchy.Flora
 
         /// <summary>
         /// A hide tent (goblin and ogre camps): the shell, the frame's full size and setting the unit's bounds, and a door
-        /// mat before its open +Z panel.
+        /// mat before its open +Z panel; guy ropes staked out round it.
         /// </summary>
         public static readonly UnitDef TentUnit = new UnitDef
         {
@@ -71,6 +71,7 @@ namespace Punchy.Flora
             Parts = new[]
             {
                 new UnitPart { Part = "hide tent", Span = new Vector3(1f, 1f, 1f), Bounds = true },
+                new UnitPart { Part = "guy ropes", Span = new Vector3(1f, 1f, 1f) },
                 new UnitPart { Part = "door mat", At = new Vector3(0f, 0f, 0.5f), Span = new Vector3(0.35f, 0f, 0f) },
             },
         };
