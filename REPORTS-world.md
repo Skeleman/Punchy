@@ -8828,3 +8828,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 ## 11-18 perched-pond walls: parked (over the hour)
 - 36 of the 37 pool walls are lake bays (TerrainSource bay pocket rule). Each point decides on its own (depth limit, a 3-sample line to the nearest lake cell), so deeper ground next to a wet point can stay dry: at -2018,-1070 the depth limit is 2.7 m with dry ground at 2.8-3.5 m; at 1154,2358 and -494,1234 the line test fails on one sample and passes on the next.
 - The real fix is a baked, flood-filled bay mask (connected pockets, all wet or all dry), about 2-3 h plus a cache-key change. Card it if wanted. The 15.7 m one at -1994,3006 is a landmark pool 0.1 m deep at a cliff lip. Moving on to W-181 r3.
+
+## 11-18 W-181 r3 cave shelves + world ledge feed (world/w181-r3@d7035059)
+- 33 cliff kit slab shelves in natural caves: 1-2 on about half the chambers, ledges 1.0-2.5 m long, grade 2 (humans hang). They are stood on via FloorUnder (CaveDeck) and drawn in the cave's light. Fall flanks skipped (materials lane).
+- New CliffKitLedgeFeedSystem feeds baked cliff and cave lips within 6 m of a player into ClimbLedges and only changes its own slots. Live check: at a cave shelf the list held 2 grade-2 lips (depth 2.0); on a cliff top it held 2 grade-3 lips (cliff faces stay out of reach for humans by grade). A full hang was not tested in play.
+- WorldTests 22/22, water truth unchanged, no overlap with main e1d0db06 (#641). Expect Fauna_Fingerprint 1AC019EC after a rebase.
+- Shots (viewed): PunchyMilestones/world/cave-shelves/r3-ca|cb.png show two slabs on a cave wall. Ready for PR.
