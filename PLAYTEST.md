@@ -361,3 +361,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #676 W-153 (#301): three waterfall lips/feet no longer leave dry walls beside the water.
 - #677 materials moss sheet (#336): shared Moss.hlsl, mottled torn-edge moss on wet river/bank rocks and moss sheets.
 - #678 render-2 lake-flow tie (#269): rivers crossing a lake at its own level take the lake; striped flow and holes on lakes gone.
+- 11-19 #680 W-173 Inn and Hall built from the kit parts (plank grain, stone base) (#399)
