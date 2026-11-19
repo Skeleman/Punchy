@@ -8792,3 +8792,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 
 ## 11-18 #301 fall-pools rebased: world/fall-pools@0f04bb4d on main with #632
 - WorldTests 22/22. Pin unchanged at 120 E811A278, dry fall feet 0, caves 0 pits / 0 ledges. Truth 83,0,0,0,0,0,0,46,1,17,134,0,0. Rule 35 comment trims done. Next: fall-notch + #269 on world/fall-notch.
+
+## 11-18 #269 + fall-notch walls: world/fall-notch@813107fc (on fall-pools)
+- FallShape: a column counts toward the sheet width only where its water pours within 4.5 m, so flat side shelves are no longer clipped into the sheet (#269).
+- Notch walls (Zach's ask): beside the sheet the step comes later by a noisy amount, leans, sometimes pauses on a ledge; the foot pool rim and outer slope wobble and a talus apron sits at the wall foot. I used this cheaper river-step version instead of ScarpSet records. The step never moves upstream of the lip, because that made a wet shelf that widened fall 69's sheet onto dry bank.
+- Dry fall feet 0, WorldTests 22/22, caves 24 / 0 pits / 0 ledges, truth 83,0,0,0,0,0,0,48,1,17,146,0,0. Landmarks re-pinned E811A278 -> 120 B32C5306. Shots: PunchyMilestones/world/fall-notch/before|after (fall3 viewed: walls step back unevenly).

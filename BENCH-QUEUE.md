@@ -1216,3 +1216,5 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 
 - materials/river-bed (materials): RiverBed adds 3 noise.snoise per underwater river-bed sample on the per-vertex terrain path; check chunk build time against main.
 - 11-18 banks: banks/river-logs@ae15d970: RiverSampling.Query adds island work (Isle blend, a 5-point Lake check when Isle > 0) and Consider calls Isle per segment; report-only terrain chunk build time near the island at -1427,-1323, main vs branch.
+
+- materials/driftwood: Flora.shader adds one PunchyValueNoise per part-0 fragment of wet-band trunks/logs; check flora frame cost at a river.
