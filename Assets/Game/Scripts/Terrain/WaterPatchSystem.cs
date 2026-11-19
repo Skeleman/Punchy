@@ -136,6 +136,7 @@ namespace Punchy.Terrain
             /// <summary>The heights of the neighbour's segment's ends, less the vertex's own (a fall's sheet stands near
             /// upright, and what moves it there depends on height).</summary>
             public float2 ParentY;
+            public uint Fall;
         }
 
         static readonly VertexAttributeDescriptor[] Layout =
@@ -146,6 +147,7 @@ namespace Punchy.Terrain
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 2),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord3, VertexAttributeFormat.Float32, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord4, VertexAttributeFormat.Float32, 2),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord5, VertexAttributeFormat.UNorm8, 4),
         };
 
         /// <summary>One wet chunk water quad in the square: its cell (world metres) and corners (world positions), in
