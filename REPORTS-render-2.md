@@ -466,3 +466,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Riverside trees (40% of those within crown+2 m of a channel) drop 2 leaves at a time to the water. All faded by Leaves GonePixels via ExtraReach (cap 120 m). Rebuilt on river-cell change or every 5 s.
 - LandmarkEffects.hlsl: a negative drop marks a floating leaf (drift or eddy ring, yaw spin, bob).
 - Shots: D:/Unity/PunchyMilestones/river-leaves/eddy-pair.jpg (before | after, SparklingForest reach -2390,-842 at 10:00; 8 float, 6 eddy, 3 tree plumes). WorldTests 21/21.
+
+## River caustics (#262, #631) - render/river-caustics 0096c8ba
+- Water.shader: a moving caustic web on sunlit shallow river bed (two drifting _PunchyCaveDetail height reads, near/mid refraction tier, -waterdetail gated). It fades by about 1 m vertical depth, at the waterline sliver, on steep bed, in shade, at low sun and in murk.
+- The first ~0.5 m is clearer: body alpha x0.35 and fresnel x0.5 at thin water, so the new bed patches show through.
+- Shots: D:/Unity/PunchyMilestones/river-caustics/riffle-pair.jpg (before | after, -2427.6,-904.3 hour 11 Clear). The change is subtle at this view; thin-edge ripple glints now show where the foam haze was. WorldTests 21/21.
