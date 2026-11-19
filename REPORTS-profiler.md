@@ -2,7 +2,7 @@
 
 Newest first.
 
-## Job 111 (R-35 r3 #333): cloud pick E, PASS: E costs nothing measurable (−0.32 to +0.10 ms GPU against base)
+## Job 111 (R-35 r3 #333): cloud pick E, PASS: E costs nothing measurable (−0.10 to +0.32 ms GPU against the fixed-metre fade, no consistent sign)
 
 render/cloud-e 25fbc044, built as bench-only eb93ff7 (one unused constant per program block in Sky, CloudsLowRes,
 SunkenTemple and Colossus, so the shader cache couldn't serve the broken compile again; see below). Arms: base; E off
