@@ -372,3 +372,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #688 W-173 (#669): clay pantile roofs keep their tile pattern out to ~30 m (faded flat by 6 m before).
 - 11-19 #690 W-142 (#262): lava seeps are small lava falls (0.3-1 m ribbon in the curtain lava material), cave seeps end in a glow pool; #684 streak removed.
 - 11-19 #691 W-181 row 4 (#301): closed bank pits fill flat so the water sheet ends at the ground; shoreline grid reaches 2 rings past chunk edges.
+- 11-19 #693 W-181 row 2 (#301): riverless ponds of 1-2 cells get a dug bowl ~1 m under the water instead of a sheet diving into ground; ponds under 0.3 m go dry.
