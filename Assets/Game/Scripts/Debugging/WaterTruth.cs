@@ -302,6 +302,7 @@ namespace Punchy.Debugging
         static void Grid(TerrainSource s, Result result, float step)
         {
             ref var r = ref s.Rivers.Value;
+            var lips = LandmarkLips(s);
             int side = (int)math.ceil(r.Resolution * r.CellSize / step);
             var ground = new NativeArray<float>(side * side, Allocator.TempJob);
             var surface = new NativeArray<float>(side * side, Allocator.TempJob);
@@ -341,7 +342,7 @@ namespace Punchy.Debugging
                         continue;
                     var hiAt = r.Origin + (new float2(hi % side, hi / side) + 0.5f) * step;
                     var loAt = r.Origin + (new float2(lo % side, lo / side) + 0.5f) * step;
-                    if (AtFallLip(ref r, hiAt, loAt, step))
+                    if (AtFallLip(ref r, hiAt, loAt, step) || AtLandmarkLip(lips, hiAt, loAt, step) || HeldByRim(s, hiAt, loAt, surface[hi]))
                     {
                         result.FallSteps++;
                         continue;
@@ -365,16 +366,66 @@ namespace Punchy.Debugging
         /// (any grid neighbour with a downstream lean: an oblique fall's lip line crosses both grid axes, W-153).</summary>
         static bool AtFallLip(ref RiverMapBlob r, float2 hi, float2 lo, float step)
         {
-            var dir = math.normalizesafe(lo - hi);
             for (int f = 0; f < r.Falls.Length; f++)
-            {
-                var rel = hi - r.Falls[f].Lip.xz;
-                var o = r.Falls[f].Out;
-                var along = math.dot(rel, o);
-                var across = math.abs(rel.x * o.y - rel.y * o.x);
-                if (across <= r.Falls[f].Width * 0.5f + step * 0.5f && along >= -step - 1f && along <= 1f && math.dot(dir, o) > 0.25f)
+                if (OnLip(r.Falls[f].Lip.xz, r.Falls[f].Out, r.Falls[f].Width, hi, lo, step))
                     return true;
+            return false;
+        }
+
+        static bool OnLip(float2 lip, float2 o, float width, float2 hi, float2 lo, float step)
+        {
+            var rel = hi - lip;
+            var along = math.dot(rel, o);
+            var across = math.abs(rel.x * o.y - rel.y * o.x);
+            return across <= width * 0.5f + step * 0.5f && along >= -step - 1f && along <= 1f && math.dot(math.normalizesafe(lo - hi), o) > 0.25f;
+        }
+
+        // A Waterfall landmark's upper pool pours over its own cliff, so its lip is a fall like a river's.
+        static List<FallShape> LandmarkLips(TerrainSource s)
+        {
+            var lips = new List<FallShape>();
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (!s.Landmarks.IsCreated || world == null || !world.IsCreated)
+                return lips;
+            var query = world.EntityManager.CreateEntityQuery(Unity.Entities.ComponentType.ReadOnly<BiomePalette>());
+            if (query.CalculateEntityCount() != 1)
+                return lips;
+            var types = world.EntityManager.GetComponentObject<BiomePalette>(query.GetSingletonEntity()).Landmarks;
+            ref var set = ref s.Landmarks.Value;
+            for (int i = 0; types != null && i < set.Instances.Length; i++)
+            {
+                ref var inst = ref set.Instances[i];
+                if (inst.Type >= types.Length || types[inst.Type] == null)
+                    continue;
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                foreach (var effect in types[inst.Type].Effects)
+                    if (effect.Kind == LandmarkEffectKind.Waterfall)
+                        lips.Add(FallShape.Landmark(s, LandmarkSampling.ToWorld(inst, effect.Offset, radius), inst.Facing,
+                                                    effect.Height * inst.Scale, effect.Width * inst.Scale, 0f));
             }
+            return lips;
+        }
+
+        // The terrain mesh is drawn at 1 m, so a bank that rises to the water between two 4 m samples holds it: no face shows.
+        static bool HeldByRim(TerrainSource s, float2 hi, float2 lo, float surface)
+        {
+            var n = (int)math.ceil(math.distance(hi, lo));
+            var held = false;
+            for (int k = 1; k < n; k++)
+            {
+                var g = s.SampleGround(math.lerp(hi, lo, k / (float)n));
+                if (held && g.HasWater && g.WaterSurface > g.Height + WetDepth)
+                    return false;
+                held |= g.Height >= surface - 0.05f;
+            }
+            return held;
+        }
+
+        static bool AtLandmarkLip(List<FallShape> lips, float2 hi, float2 lo, float step)
+        {
+            foreach (var lip in lips)
+                if (OnLip(lip.Lip.xz, lip.Out, lip.Width, hi, lo, step))
+                    return true;
             return false;
         }
 
