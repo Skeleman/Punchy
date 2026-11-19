@@ -43,6 +43,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - render/shore-blend -> #655
 - materials/river-bed -> #656
 - world/w181-r4 -> #658
+- banks/bay-mask -> #657
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
