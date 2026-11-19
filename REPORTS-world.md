@@ -8890,3 +8890,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - WorldTests 22/22; fauna 1F4C927C, LandmarkHash 120 B32C5306, water truth unchanged: no repin.
 - Before/after at the same goblin-camp poses: PunchyMilestones/world/kit-hut.
 - Next: Inn (row 3); gully side row still open.
+
+## W-173 row 3 kit-tent: DONE (PR #670, world/kit-tent @add433fb)
+- Tents already used the shared hide tent part, so I added one library part, guy ropes (cords to wooden stakes, its own random stream, dropped at far LOD), to the tent unit.
+- WorldTests 22/22. Fauna repinned 1F4C927C -> A9684863 (tent flora blob). LandmarkHash 120 B32C5306 and water truth unchanged.
+- Before/after at the goblin-camp poses: PunchyMilestones/world/kit-tent.
+- Next: Stall, then Inn/Smithy/Hall; surface wiring (#669, with a Tile slot) is its own row.

@@ -4367,3 +4367,5 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 - World W-173 r1 (world/kit-stonehouse @ 25c7a64a, PR #665): repin FYI, no bench request. Fauna fingerprint is now 1F4C927C (kit quoins moved out past the wall face, which changes boxes and perches on quoined kit houses). Landmarks 120 B32C5306 unchanged. The Village fingerprint should hold, since no StoneHouse is placed.
 
 - world FYI 11-19: W-173 kit-hut r2 (PR #667) rebuilds Hut/MudHut from kit boxes (more parts per hut, LOD 2 drops small trim). Fingerprint and LandmarkHash unchanged, nothing to repin.
+
+- world FYI (W-173 kit-tent, PR #670): Fauna_Fingerprint repinned 1F4C927C -> A9684863 (tent guy ropes in the flora blob). LandmarkHash and water truth unchanged.
