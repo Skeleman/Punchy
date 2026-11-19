@@ -153,6 +153,7 @@ namespace Punchy.Terrain
             source.RiverRoughOn = false;
             source.PondMask = default;
             source.Paddies = default;
+            source.BayMask = default;
             // W-53 (W-37, option b): wide rivers on island v2 meander in bends that scale with width, but every place
             // (landmarks, settlements, the salt tower) is chosen against the jittered rivers they were always placed
             // by, so no landmark moves. Two river maps are baked; the jittered one is dropped once places are set.
@@ -279,6 +280,8 @@ namespace Punchy.Terrain
                 source.Paddies = source.BuildPaddies(allocator, out var paddyReport);
                 Stage("paddies");
                 UnityEngine.Debug.Log($"[paddies] {paddyReport}");
+                source.BayMask = source.BuildBayMask(allocator, out var bayReport);
+                UnityEngine.Debug.Log($"[bays] {bayReport}");
             }
             UnityEngine.Debug.Log($"[ponds] {pondReport}. Dropped {dropped} cells.");
             UnityEngine.Debug.Log(stages.ToString());
@@ -376,6 +379,7 @@ namespace Punchy.Terrain
                 if (source.Anchors.IsCreated) AddBlobAsset(ref source.Anchors, out _);
                 if (source.PondMask.IsCreated) AddBlobAsset(ref source.PondMask, out _);
                 if (source.Paddies.IsCreated) AddBlobAsset(ref source.Paddies, out _);
+                if (source.BayMask.IsCreated) AddBlobAsset(ref source.BayMask, out _);
                 AddComponent(entity, source);
             }
 
