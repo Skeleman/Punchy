@@ -156,7 +156,8 @@ namespace Punchy.Tests
         // Wall 48 -> 49 (fall-flank): the blocky steps beside a sheet leave one more wall by a fall (7 now).
         // Wall 49 -> 11 (#365 bay mask): lake bays flood per pocket, not per point (pool walls 37 -> 3, lake walls 5 -> 1).
         // Wall 7 -> 4 (fall-walls): lip shoulders follow the carved edge and foot bowls close before the water's edge; step 129 -> 125.
-        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 4, 1, 17, 125, 0, 0 };
+        // Deep 1 -> 0 (lake-flow tie): a river at its lake's own level now takes the lake, so the last deep point goes.
+        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 4, 0, 17, 125, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
