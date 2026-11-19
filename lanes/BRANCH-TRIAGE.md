@@ -61,6 +61,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - render/wake-streaks -> #673
 - materials/bank-spots -> #674
 - world/kit-surfaces -> #675
+- banks/fall-walls -> #676
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
