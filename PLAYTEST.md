@@ -319,3 +319,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #634 W-166 (#336): driftwood bleaches silver-grey; trunks and logs in the bank wet band get a dark wet line. Look at log ends at the water.
 - #635 #269 + #301: cliffs beside waterfalls start late, lean and pause on ledges; uneven pool rims, talus at the wall foot. Landmark pin 120 B32C5306.
 - #636 #301: stepping-stone rows across narrow riffles, splash boulders with foam tails in rapids. Fauna pin 785BB213.
+- #637 W-166 (#336): driftwood shows coarse rings and long splits along the grain.

@@ -1220,3 +1220,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 
 - materials/driftwood: Flora.shader adds one PunchyValueNoise per part-0 fragment of wet-band trunks/logs; check flora frame cost at a river.
 - 11-18 banks: banks/stepping-stones@9aa8dbde: two new flora species in every land biome raise each layer 1-2 cell's density bound (more cells run the full fit). Riffle/Splash spots sample the river (WetEdge steps, SampleGround) per candidate cell near rapids; the spray adds up to 2 plumes per nearby splash boulder. Check flora chunk build time and the effects pass near -1396,585, main vs branch.
+- materials/drift-grain: Wood.hlsl adds two value-noise calls per driftwood fragment (branch on grey>0.7); check flora cost at a river with logs.
