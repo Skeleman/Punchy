@@ -120,7 +120,7 @@ namespace Punchy.Terrain
         {
             new WoodRow(new Color(0.36f, 0.24f, 0.15f), 0.011f, 1.0f, 0.45f, 0.0f, 1.0f),    // oak: warm, open rings
             new WoodRow(new Color(0.46f, 0.33f, 0.20f), 0.007f, 1.25f, 0.9f, 0.0f, 0.7f, 0.8f, 0.38f, 0.6f, 0.18f),    // pine: pale, tight, knotty; narrow straight boards
-            new WoodRow(new Color(0.60f, 0.58f, 0.54f), 0.014f, 0.7f, 0.2f, 0.95f, 1.4f, 1.2f, 0.8f, 1.6f, 0.35f),    // driftwood: bleached silver-grey; wide twisted boards
+            new WoodRow(new Color(0.60f, 0.58f, 0.54f), 0.03f, 0.95f, 0.2f, 0.95f, 1.4f, 1.2f, 0.8f, 1.6f, 0.35f),    // driftwood: bleached silver-grey; wide twisted boards
             new WoodRow(new Color(0.27f, 0.18f, 0.12f), 0.009f, 0.6f, 0.3f, 0.0f, 0.8f, 1.1f, 0.7f, 0.8f, 0.12f),     // dark: walnut-brown, quiet; kept clean
             new WoodRow(new Color(0.48f, 0.42f, 0.34f), 0.012f, 0.8f, 0.4f, 0.5f, 1.2f, 1f, 0.55f, 1.2f, 0.34f),     // bleached: sun-greyed; worn
         };

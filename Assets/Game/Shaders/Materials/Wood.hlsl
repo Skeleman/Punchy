@@ -126,6 +126,13 @@ half3 PunchyWoodGrain(half3 albedo, float along, float2 across, float footprint,
     half3 lateTone = albedo * 0.58 * k.hue;
     half3 c = ring < 0 ? lerp(albedo, early, saturate(-ring * 5)) : lerp(albedo, lateTone, saturate(ring * 1.25));
     c *= 1 + (pore - 0.5) * 0.28 * k.streak * fPore;
+    // Long-weathered wood splits along the grain, readable from a few metres where its rings have faded.
+    if (k.grey > 0.7)
+    {
+        float cs = side / 0.045 + (PunchyValueNoise(float2(along * 0.8 + seed * 7.0, side * 9.0)) - 0.5) * 0.6;
+        half run = smoothstep(0.45, 0.7, PunchyValueNoise(float2(along * 1.6 + seed * 13.0, floor(cs) * 3.1)));
+        c *= 1 - (1 - smoothstep(0.0, 0.08, abs(frac(cs) - 0.5))) * run * 0.55 * PunchyWoodFade(0.045, footprint);
+    }
     c = lerp(c, albedo * 0.45 * k.hue, knot * 0.85 * fKnot);
     // Grime collects in soft bands: darker where the noise runs high, the rest a touch lighter, netting to nothing
     // over a piece (the band averages 0.21 over value noise).
