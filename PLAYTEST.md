@@ -375,3 +375,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #693 W-181 row 2 (#301): riverless ponds of 1-2 cells get a dug bowl ~1 m under the water instead of a sheet diving into ground; ponds under 0.3 m go dry.
 - 11-19 #685 W-173 (#301): a higher lake no longer floods over a lower lake's shore pockets; lake walls 4 -> 3.
 - 11-19 #692 W-173 (#669): towns take roofs, plaster and thatch from their biome (no slate in desert towns).
+- 11-19 #694 R-31 (#325): grassy ground gets bent blade strokes and dirt gets specks plus fine grain, fading by screen size.
