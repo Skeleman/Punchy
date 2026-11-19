@@ -819,10 +819,8 @@ namespace Punchy.Terrain
                 // own channel (an outlet keeps its ramp above).
                 if (lake < 1f && riverClaim <= 0f)
                 {
-                    var shore = RiverSampling.ShoreLevel(ref Rivers.Value, xz);
-                    if (shore > g.Height + 0.05f && shore > water
-                        && RiverSampling.NearestLakeAbove(ref Rivers.Value, xz, g.Height + 0.05f, out var lakeCentre, out var bayLevel)
-                        && bayLevel > water && bayLevel - g.Height <= BayDepthLimit(lakeCentre) && ConnectsBelow(xz, lakeCentre, bayLevel))
+                    var bayLevel = BayMask.IsCreated ? BayMask.Value.Sample(xz) : LooseBayLevel(xz, g.Height, water);
+                    if (bayLevel > g.Height + 0.05f && bayLevel > water)
                     {
                         water = bayLevel;
                         flow = float2.zero;
@@ -1499,6 +1497,6 @@ namespace Punchy.Terrain
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island && Edits == o.Edits &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && Paddies == o.Paddies && V3Ground == o.V3Ground;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && Paddies == o.Paddies && BayMask == o.BayMask && V3Ground == o.V3Ground;
     }
 }
