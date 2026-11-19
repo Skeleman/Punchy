@@ -53,3 +53,10 @@
 - Splash boulders are wider than tall (height 0.8 of width) and rounder, with a smaller side chunk further out.
 - Fauna_Fingerprint repinned to 377B279B. WorldTests: 21/22 before the repin, failing only on the fingerprint.
 - Shots: D:/Unity/PunchyMilestones/river-details/splash-round/{before,after}/splash-a.png. I viewed after: the pillar is now a low, round boulder.
+
+## #301 drift-heaps (PR #641): banks/drift-heaps@92ea76b4
+- New RiverSpot.Heap: bar heads and sharp outer-bend waterlines in about one reach in four. Driftwood there grows a heap of 4-7 logs plus thin sticks; single driftwood unchanged (shared DriftLog helper).
+- New DriftHeap species (density 4, LateAddition) in the 13 biomes with DriftSnag. Rapids checks now name Riffle/Splash.
+- Fauna_Fingerprint repinned to D78C33B3. WorldTests: 21/22 before the repin, failing only on the fingerprint. Branch lacks #638, so repin again once both merge.
+- Shots: D:/Unity/PunchyMilestones/river-details/drift-heaps/{before,after}/heap-a.png. I viewed after: three pale log heaps on the outer cut bank at the waterline.
+- Heaps cluster a little (probe: 8 within 300 m of -1396,585, 4 on one bend).
