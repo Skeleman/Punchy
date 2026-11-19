@@ -33,6 +33,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - materials/river-stone -> #646
 - render/river-caustics -> #647
 - world/river-mouth -> #648
+- materials/river-banks -> #649
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
