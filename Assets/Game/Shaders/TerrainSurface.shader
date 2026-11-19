@@ -507,8 +507,10 @@ Shader "Punchy/Terrain Surface"
                 }
                 half sheen = max(wet * (1 - 0.85 * porosity), shore) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
-                half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
-                normalWS = normalize(normalWS - (half3)microSlope * relief);
+                half relief = 0.2 * (1 - puddle);   // (the octaves' fades are already in micro)
+                // Stronger or uncapped, the summed octaves tilt away from the sun into sky-lit spots on wet banks (#666).
+                half3 tilt = (half3)microSlope * relief;
+                normalWS = normalize(normalWS - tilt * rsqrt(1 + dot(tilt, tilt) * 16));
                 half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
                 // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.

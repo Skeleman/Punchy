@@ -4,7 +4,7 @@
 // W-166 row 4: one call into the material library for shaders that carry a family per vertex instead of their own
 // decode (Colossus.shader: colossi, the salt tower; later the items on the ground). The family numbers are
 // MaterialFamily's (MaterialLibrary.cs); the kind is the family's own row (WoodKind for wood; for stone 0 natural rock,
-// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide; for thatch the ThatchKind; for plaster the PlasterKind; for tile the RoofKind plus 16 x the shingles' WoodKind; for wood, plus 16 x the grain's axis when it isn't up, plus 64 x the TimberKind). Each family's look comes from its include, so an upgrade there
+// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide; thatch, plaster: their kind; tile: RoofKind + 16 x WoodKind; wood: + 16 x axis + 64 x TimberKind). Each family's look comes from its include, so an upgrade there
 // reaches these callers too (rule 33). Every family fades its detail by its own on-screen size (rules 20, 25).
 // Needs Sky.hlsl (the noise) first, and _PunchyCaveDetail / sampler_PunchyCaveDetail declared (stone reads them).
 // p, n and v are in the caller's pattern frame: for a body that moves, its own scaled object space, so the pattern
