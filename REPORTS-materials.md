@@ -426,3 +426,9 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Tint hook (MaterialLibrary.cs): enum RoofKind {WoodShingle, ClayTile, Slate, StoneSlab}, RoofTint(kind) (base colour), RoofFor(FolkCulture, BiomeFamily) (dwarf slab, elf shingle; arid clay, cold slate, volcanic slab; else shingle), RoofLibraryKind(kind, woodKind).
 - Wiring: Flora's family channel (FloraMeshBuilder's per-family value) has no Tile slot yet; world adds it or calls PunchyRoofCover direct. Verified by probe swatch at 35 deg tilt: house-surfaces/roof-swatch.jpg. Compile clean.
 - BENCH-QUEUE: none until wired.
+
+## 11-19 materials/house-surfaces row 4: dressed timber framing (de3ab49d, W-173 #399)
+- Entries (Materials/Wood.hlsl): PUNCHY_TIMBER_ROUGH 0 / HEWN 1 / SAWN 2 / TARRED 3; PunchyTimberFrame(albedo, p, axisCode, footprint, woodKind, seed, kind), PunchyTimberChecks. Library Wood (1) kind = WoodKind + 16 x axis + 64 x TimberKind; kind < 64 draws exactly as before (rough = old grain).
+- Tint hook (MaterialLibrary.cs): enum TimberKind {Rough, Hewn, Sawn, Tarred}, TimberTint(kind), TimberFor(FolkCulture, BiomeFamily) (goblin/ogre rough, fish/sea folk tarred, dwarf/elf sawn; wet tarred; else hewn), TimberLibraryKind(kind, woodKind, axis).
+- Verified by probe swatch (grain along x): house-surfaces/timber-swatch.jpg. Compile clean (Cave/Colossus/Creature/Flora). Card W-173 surfaces done: rows 1-4 = a613477f, 79e3909c, e6375d42, de3ab49d on materials/house-surfaces.
+- BENCH-QUEUE: none until wired.
