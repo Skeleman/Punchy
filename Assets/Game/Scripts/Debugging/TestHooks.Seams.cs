@@ -12,8 +12,9 @@ namespace Punchy.Debugging
     /// <summary>
     /// Test hooks for the ground's seams (W-174 rows 4-5, #405): rebuilds the terrain's cut edge round every replaced
     /// patch of ground the way BuildChunkMeshJob does (its own Seam and Cut) and measures how far the drawn edge strays
-    /// from the true rim, the slot or overhang a straight slice between grid points leaves. Temple entrances and cave
-    /// mouths (W-174 r6) are cut in the mesh itself, so their check builds the real chunk meshes (EntranceSeams).
+    /// from the true rim, the slot or overhang a straight slice between grid points leaves. Temple entrances (W-174 r6)
+    /// are cut in the mesh itself, so their check builds the real chunk meshes (EntranceSeams). Cave mouths are #301
+    /// patches, checked by MouthPatchProblems.
     /// </summary>
     public static partial class TestHooks
     {
@@ -22,20 +23,8 @@ namespace Punchy.Debugging
         public static string SeamTrail;
 
         /// <summary>Widest slot (drawn as cut where the ground should stay: a gap to see through) the seams may leave, in
-        /// metres, per kind: temple entrances (exact rectangles), cave mouths (the rim between crossings on the grid's
-        /// edges is a chord of a curved, noisy line; the collar hangs from the chord, so this is no gap) and scarp strips
-        /// (their fields are not true distances).</summary>
-        public const float TempleSeamTolerance = 0.06f, MouthSeamTolerance = 0.2f, ScarpSeamTolerance = 0.25f;
-        /// <summary>W-174 r6 row 2: how far inside a mouth's cut the ground may still be drawn (m of the cut): the rim is
-        /// a straight chord between crossings on the grid's edges, and the noisy cut bows inside it. The collar hangs from
-        /// the chord, so this is an overhang of the lip, not a hole (measured up to 0.36 at LOD1).</summary>
-        public const float MouthLipTolerance = 0.4f;
-        /// <summary>W-174 r6 row 2: how far (m of the walls' field) a mouth collar's foot vertex may sit off the cave walls,
-        /// and how far the midpoint of an edge between two feet may bow into the cave's air (the wall curves between
-        /// feet a few centimetres apart; the edge then sits in front of the wall skin, never behind a slot; up to 0.07).</summary>
-        public const float CollarFootTolerance = 0.01f, CollarChordTolerance = 0.08f;
-        /// <summary>W-174 r6 row 2: feet closer than this (m) are the collar's finest split; a bow between them is a crease.</summary>
-        const float CollarCrease = 0.03f;
+        /// metres, per kind: temple entrances (exact rectangles) and scarp strips (their fields are not true distances).</summary>
+        public const float TempleSeamTolerance = 0.06f, ScarpSeamTolerance = 0.25f;
         /// <summary>Widest overhang (terrain drawn where the ground is removed: a lip over the hole) as a share of a quad.
         /// Only kept-side vertices snap, so a convex corner of a hole between two edge snaps keeps a small lip (under the
         /// temple's corner coping); it must also be no wider than the plain grid's.</summary>
@@ -44,8 +33,7 @@ namespace Punchy.Debugging
         public const float SeamOverhangMargin = 0.05f;
 
         /// <summary>
-        /// W-174 row 5: every open seam ("" when none). Temples and cave mouths (the first three, and the two on the
-        /// steepest ground): EntranceSeams. For the first two scarps, at each LOD that cuts it, the grid round the rim is built through BuildChunkMeshJob.Seam; inside
+        /// W-174 row 5: every open seam ("" when none). Temples: EntranceSeams. For the first two scarps, at each LOD that cuts it, the grid round the rim is built through BuildChunkMeshJob.Seam; inside
         /// each triangle (the mesh's i0-i2-i1 / i1-i2-i3 split) the interpolated cut, which the shader clips per pixel,
         /// is compared with the cut at the interpolated point: a slot wider than the kind's tolerance, or an overhang past
         /// SeamOverhangQuads or wider than the plain grid's, is an open seam. Ground inside a temple's cut must also read as removed (GroundHoles.Removed).
@@ -68,34 +56,6 @@ namespace Punchy.Debugging
                     if (set.Types[set.Instances[i].Type].Temple != 0)
                         temples.Add(set.Instances[i].Position);
             }
-            var mouths = new List<float2>();
-            if (s.Caves.IsCreated)
-            {
-                ref var caves = ref s.Caves.Value;
-                for (int i = 0; i < caves.Caves.Length && mouths.Count < 3; i++)
-                    if (caves.Caves[i].Tunnel == 0)
-                        mouths.Add(caves.Caves[i].Mouth.xz);
-                // W-174 r6 row 2: and the two mouths on the steepest ground, where a slot under the collar would show most.
-                for (int pick = 0; pick < 2; pick++)
-                {
-                    int best = -1;
-                    var flattest = 2f;
-                    for (int i = 0; i < caves.Caves.Length; i++)
-                    {
-                        var at = caves.Caves[i].Mouth.xz;
-                        if (caves.Caves[i].Tunnel != 0 || mouths.Contains(at))
-                            continue;
-                        var scale = s.AcrossSlope(at);
-                        if (scale < flattest)
-                        {
-                            flattest = scale;
-                            best = i;
-                        }
-                    }
-                    if (best >= 0)
-                        mouths.Add(caves.Caves[best].Mouth.xz);
-                }
-            }
             var scarps = new List<float2>();
             if (s.Scarps.IsCreated)
             {
@@ -111,11 +71,7 @@ namespace Punchy.Debugging
             if (temples.Count == 0)
                 problems.Add("no temple found");
             for (int i = 0; i < temples.Count; i++)
-                EntranceSeams(job, config, temples[i], i, false, problems, trail);
-            if (mouths.Count == 0)
-                problems.Add("no mouth found");
-            for (int i = 0; i < mouths.Count; i++)
-                EntranceSeams(job, config, mouths[i], i, true, problems, trail);
+                EntranceSeams(job, config, temples[i], i, problems, trail);
             Kind("scarp", scarps, 3, ScarpSeamTolerance);
             SeamTrail = string.Join("; ", trail);
             return string.Join("; ", problems);
@@ -216,33 +172,25 @@ namespace Punchy.Debugging
 
         /// <summary>How far (m) round a temple's centre EntranceSeams looks: past its ruin's furthest corner.</summary>
         const float TempleSeamReach = 36f;
-        /// <summary>How far (m) round a cave's mouth point EntranceSeams looks.</summary>
-        const float MouthSeamReach = 16f;
         /// <summary>EntranceSeams' sample spacing (m).</summary>
         const float TempleSeamStep = 0.1f;
 
         /// <summary>
-        /// W-174 r6 (#405): one entrance (a sunken temple's, or a cave mouth's from row 2) as the chunk meshes really cut
+        /// W-174 r6 (#405): a sunken temple's entrance as the chunk meshes really cut
         /// it. At each LOD that cuts it, the chunks round it are built by BuildChunkMeshJob itself; every sample point more
         /// than the kind's tolerance outside the cut must lie on a ground triangle (else a slot) and every point that far
         /// inside on none (else a lip), collars and skirts aside. A ground vertex on a chunk edge must have its twin in the
         /// chunk across (rim crossings are found from the same two grid points in the same order, so they match to the
-        /// bit). Temples: ground inside the cut must read as removed (GroundHoles.Removed). Mouths: every edge of the
-        /// ground's hole must carry a collar (no gap), every collar foot must lie on the cave walls' field
-        /// (CollarFootTolerance; no lip or slot against the wall skin) and so must the midpoints between feet
-        /// (CollarChordTolerance), and a foot two chunks share must match to the bit. SeamTrail gets the counts.
+        /// bit). Ground inside the cut must read as removed (GroundHoles.Removed). SeamTrail gets the counts.
         /// </summary>
-        static void EntranceSeams(BuildChunkMeshJob job, in TerrainConfig config, float2 centre, int site, bool mouth,
+        static void EntranceSeams(BuildChunkMeshJob job, in TerrainConfig config, float2 centre, int site,
                                   List<string> problems, List<string> trail)
         {
-            var name = mouth ? "mouth" : "temple";
-            var reach = mouth ? MouthSeamReach : TempleSeamReach;
-            var tolerance = mouth ? MouthSeamTolerance : TempleSeamTolerance;
-            var lipTolerance = mouth ? MouthLipTolerance : TempleSeamTolerance;
+            var reach = TempleSeamReach;
+            var tolerance = TempleSeamTolerance;
             var n = (int)math.ceil(2f * reach / TempleSeamStep) + 1;
             var corner = centre - reach;
             var cut = new float[n * n];
-            if (!mouth)
             {
                 int unremoved = 0;
                 for (int z = 0; z < n; z++)
@@ -262,15 +210,10 @@ namespace Punchy.Debugging
             var hi = (int2)math.floor((centre + reach) / config.ChunkSize);
             var wide = hi.x - lo.x + 1;
             var count = wide * (hi.y - lo.y + 1);
-            var footStep = job.NormalEpsilon;
-            for (int lod = 0; lod <= (mouth ? 1 : 2); lod++)
+            for (int lod = 0; lod <= 2; lod++)
             {
                 var quads = config.QuadsForLod(lod);
                 var step = config.ChunkSize / quads;
-                if (mouth)
-                    for (int z = 0; z < n; z++)
-                    for (int x = 0; x < n; x++)
-                        cut[z * n + x] = BuildChunkMeshJob.MouthCutAt(job.Source, corner + new float2(x, z) * TempleSeamStep, step);
                 var data = Mesh.AllocateWritableMeshData(count * 2);
                 var requests = new NativeArray<ChunkBuildRequest>(count, Allocator.TempJob);
                 var ranges = new NativeArray<float2>(count, Allocator.TempJob);
@@ -303,12 +246,8 @@ namespace Punchy.Debugging
                 var covered = new bool[n * n];
                 // Ground vertices on chunk edges, per chunk: world xz (to 0.1 mm) -> height.
                 var edges = new Dictionary<int2, Dictionary<long, float>>();
-                // Mouth collar feet: world xz -> height and chunk, the first chunk's (a foot two chunks share must match;
-                // within one chunk two feet may stand one above the other on a sheer wall).
-                var feetSeen = new Dictionary<long, (float y, int chunk)>();
-                int rims = 0, collars = 0, feet = 0, offFeet = 0, stepFeet = 0, stepChords = 0, badChords = 0, orphans = 0, footless = 0, sharedFeet = 0, strayFeet = 0;
-                float riser = 0f, footOff = 0f, chordOff = 0f, chordSpan = 0f, rockBow = 0f;
-                var why = "";
+                int rims = 0, collars = 0;
+                float riser = 0f;
                 for (int i = 0; i < count; i++)
                 {
                     build.Execute(i);
@@ -320,68 +259,26 @@ namespace Punchy.Debugging
                     {
                         if (verts[k].Morph.w == BuildChunkMeshJob.SeamEpsilon && (float)verts[k].Extra.w == 0f && verts[k].Normal.y != 0f)
                             rims++;
-                        if (mouth && verts[k].Morph.w == BuildChunkMeshJob.CollarFoot)
-                        {
-                            var w = verts[k].Position + new float3(origin.x, 0f, origin.y);
-                            feet++;
-                            var off = math.abs(BuildChunkMeshJob.WallFieldAt(job.Source, w, footStep));
-                            if (off > CollarFootTolerance && FieldStep(job.Source, w, footStep))
-                                stepFeet++;   // on a step in the walls' own field (the walls break there too)
-                            else
-                            {
-                                footOff = math.max(footOff, off);
-                                if (off > CollarFootTolerance)
-                                    offFeet++;
-                            }
-                            var key = Key(w.xz);
-                            if (feetSeen.TryGetValue(key, out var seen))
-                            {
-                                if (seen.chunk != i)
-                                {
-                                    sharedFeet++;
-                                    if (seen.y != w.y)
-                                        strayFeet++;
-                                }
-                            }
-                            else
-                                feetSeen[key] = (w.y, i);
-                        }
                     }
                     var edge = new Dictionary<long, float>();
-                    var groundEdges = new Dictionary<long, int>();   // vertex pair -> ground triangles using it
-                    var collarEdges = new HashSet<long>();
                     for (int t = 0; t + 2 < tris.Length; t += 3)
                     {
                         int ia = (int)tris[t], ib = (int)tris[t + 1], ic = (int)tris[t + 2];
                         float3 a = verts[ia].Position, b = verts[ib].Position, c = verts[ic].Position;
                         float2 pa = a.xz + origin, pb = b.xz + origin, pc = c.xz + origin;
                         var area = Cross(pb - pa, pc - pa);
-                        var footA = verts[ia].Morph.w == BuildChunkMeshJob.CollarFoot;
-                        var footB = verts[ib].Morph.w == BuildChunkMeshJob.CollarFoot;
-                        var footC = verts[ic].Morph.w == BuildChunkMeshJob.CollarFoot;
-                        if (footA || footB || footC || math.abs(area) < 2e-4f)
+                        if (math.abs(area) < 2e-4f)
                         {
-                            // A collar (rim down to the wall top or the cave walls' field) or a skirt: no ground seen from above.
+                            // A collar (rim down to the wall top) or a skirt: no ground seen from above.
                             var hanging = (float)verts[ia].Extra.w != 0f || (float)verts[ib].Extra.w != 0f || (float)verts[ic].Extra.w != 0f;
-                            if (footA || footB || footC || !hanging && (ia >= skirts || ib >= skirts || ic >= skirts))
+                            if (!hanging && (ia >= skirts || ib >= skirts || ic >= skirts))
                             {
                                 collars++;
                                 riser = math.max(riser, math.cmax(new float3(a.y, b.y, c.y)) - math.cmin(new float3(a.y, b.y, c.y)));
-                                collarEdges.Add(Pair(ia, ib));
-                                collarEdges.Add(Pair(ib, ic));
-                                collarEdges.Add(Pair(ic, ia));
-                                // Between two feet the collar's edge must stay on the walls too (unless it spans a step in
-                                // the walls' own field, where the walls break as well).
-                                if (footA && footB) Chord(a, b);
-                                if (footB && footC) Chord(b, c);
-                                if (footC && footA) Chord(c, a);
                             }
                             continue;
                         }
                         Cover(pa, pb, pc, area, covered, n, corner);
-                        Count(ia, ib);
-                        Count(ib, ic);
-                        Count(ic, ia);
                         for (int k = 0; k < 3; k++)
                         {
                             var lp = verts[(int)tris[t + k]].Position;
@@ -390,89 +287,6 @@ namespace Punchy.Debugging
                         }
                     }
                     edges[lo + new int2(i % wide, i / wide)] = edge;
-                    // A hole's edge (one ground triangle, not along the chunk's border) with no collar on it: a gap.
-                    if (mouth)
-                        foreach (var kv in groundEdges)
-                        {
-                            if (kv.Value != 1 || collarEdges.Contains(kv.Key))
-                                continue;
-                            float3 a = verts[(int)(kv.Key >> 32)].Position, b = verts[(int)(kv.Key & 0xffffffffL)].Position;
-                            var border = a.x == 0f && b.x == 0f || a.z == 0f && b.z == 0f ||
-                                         a.x == config.ChunkSize && b.x == config.ChunkSize || a.z == config.ChunkSize && b.z == config.ChunkSize;
-                            if (border || math.distance(a.xz, b.xz) <= 1e-3f)
-                                continue;
-                            // Told apart: no foot under one end (the walls' field has no zero near), or a collar missing.
-                            var wa = a.xz + origin;
-                            var wb = b.xz + origin;
-                            if (!BuildChunkMeshJob.MouthFoot(job.Source, wa, footStep, out _, out _) ||
-                                !BuildChunkMeshJob.MouthFoot(job.Source, wb, footStep, out _, out _))
-                            {
-                                footless++;
-                                if (footless <= 2)
-                                {
-                                    var g = job.Source.MeshHeight(wa, footStep);
-                                    why += $" [{wa.x:F1},{wa.y:F1} field at 0/0.1/0.4/1 m down: " +
-                                           $"{BuildChunkMeshJob.WallFieldAt(job.Source, new float3(wa.x, g, wa.y), footStep):F2}/" +
-                                           $"{BuildChunkMeshJob.WallFieldAt(job.Source, new float3(wa.x, g - 0.1f, wa.y), footStep):F2}/" +
-                                           $"{BuildChunkMeshJob.WallFieldAt(job.Source, new float3(wa.x, g - 0.4f, wa.y), footStep):F2}/" +
-                                           $"{BuildChunkMeshJob.WallFieldAt(job.Source, new float3(wa.x, g - 1f, wa.y), footStep):F2}]";
-                                }
-                            }
-                            else
-                                orphans++;
-                        }
-
-                    void Count(int x, int y)
-                    {
-                        var key = Pair(x, y);
-                        groundEdges[key] = groundEdges.TryGetValue(key, out var c) ? c + 1 : 1;
-                    }
-
-                    void Chord(float3 x, float3 y)
-                    {
-                        var o = new float3(origin.x, 0f, origin.y);
-                        var m = 0.5f * (x + y) + o;
-                        // Signed: an edge bowing into the rock is hidden behind the wall; one bowing into the cave's air
-                        // stands proud of the wall under it. Feet a few centimetres apart with the field folding between
-                        // them are a crease in the walls themselves (counted with the steps).
-                        var off = BuildChunkMeshJob.WallFieldAt(job.Source, m, footStep);
-                        rockBow = math.max(rockBow, -off);
-                        if (off <= CollarChordTolerance)
-                            chordOff = math.max(chordOff, off);
-                        else if (FieldStep(job.Source, x + o, footStep) || FieldStep(job.Source, y + o, footStep) || Stepped(x + o, y + o) ||
-                                 math.distance(x, y) < CollarCrease || Jump(m, math.distance(x, y)))
-                            stepChords++;
-                        else
-                        {
-                            if (off > chordOff)
-                                chordSpan = math.distance(x, y);
-                            chordOff = math.max(chordOff, off);
-                            badChords++;
-                        }
-                    }
-
-                    // No wall within half the edge of its middle: the feet sit either side of a break in the walls' field
-                    // (the foot jumps from one face to another), which the walls' own mesh shows too.
-                    bool Jump(float3 m, float span)
-                    {
-                        var p = m;
-                        return !BuildChunkMeshJob.OntoWall(job.Source, ref p, footStep, out _) || math.distance(p, m) > 0.5f * span;
-                    }
-
-                    // The walls' field changes sign more than once along x-y (it folds or steps between the two feet).
-                    bool Stepped(float3 x, float3 y)
-                    {
-                        int flips = 0;
-                        var last = BuildChunkMeshJob.WallFieldAt(job.Source, x, footStep);
-                        for (int q = 1; q <= 16; q++)
-                        {
-                            var f = BuildChunkMeshJob.WallFieldAt(job.Source, math.lerp(x, y, q / 16f), footStep);
-                            if (f < 0f != last < 0f && math.abs(f - last) > 2f * CollarFootTolerance)
-                                flips++;
-                            last = f;
-                        }
-                        return flips > 0;
-                    }
                 }
 
                 int slots = 0, lips = 0;
@@ -481,9 +295,9 @@ namespace Punchy.Debugging
                 {
                     var c = cut[k];
                     if (c > tolerance && !covered[k]) { slots++; slot = math.max(slot, c); }
-                    else if (c < -lipTolerance && covered[k]) { lips++; lip = math.max(lip, -c); }
+                    else if (c < -tolerance && covered[k]) { lips++; lip = math.max(lip, -c); }
                 }
-                var where = mouth ? $"mouth {site} at {centre.x:F0},{centre.y:F0} (slope scale {job.Source.AcrossSlope(centre):F2})" : $"temple {site}";
+                var where = $"temple {site}";
                 if (slots > 0 || lips > 0)
                     problems.Add($"{where} LOD{lod}: {slots} slot points (widest {slot:F2} m), {lips} lip points (widest {lip:F2} m)");
 
@@ -507,23 +321,7 @@ namespace Punchy.Debugging
                 }
                 if (strays > 0)
                     problems.Add($"{where} LOD{lod}: {strays} chunk-edge vertices without an identical twin across");
-                if (mouth)
-                {
-                    if (rims > 0 && (feet == 0 || collars == 0))
-                        problems.Add($"{where} LOD{lod}: {rims} rim vertices but no collar");
-                    if (offFeet > 0)
-                        problems.Add($"{where} LOD{lod}: {offFeet} of {feet} collar feet off the cave walls (worst {footOff:F3} m, max {CollarFootTolerance:F2})");
-                    if (badChords > 0)
-                        problems.Add($"{where} LOD{lod}: {badChords} collar foot edges bowing into the cave's air at their middle (worst {chordOff:F3} m over {chordSpan:F3} m, max {CollarChordTolerance:F2})");
-                    if (orphans + footless > 0)
-                        problems.Add($"{where} LOD{lod}: {orphans + footless} edges of the hole with no collar ({footless} with no foot under an end{why})");
-                    if (strayFeet > 0)
-                        problems.Add($"{where} LOD{lod}: {strayFeet} of {sharedFeet} feet shared across chunks differ");
-                    notes.Add($"LOD{lod} {rims} rim, {collars} collar tris, {feet} feet (off {footOff:F3}, {stepFeet} on field steps, chord {chordOff:F3} (into rock {rockBow:F3}), {stepChords} chords over steps, shared {sharedFeet}), " +
-                              $"riser {riser:F2} m, slot {slot:F2} lip {lip:F2}");
-                }
-                else
-                    notes.Add($"LOD{lod} {rims} rim, {collars} collar tris, riser {riser:F2} m, slot {slot:F2} lip {lip:F2}");
+                notes.Add($"LOD{lod} {rims} rim, {collars} collar tris, riser {riser:F2} m, slot {slot:F2} lip {lip:F2}");
 
                 data.Dispose();
                 requests.Dispose();
@@ -532,22 +330,7 @@ namespace Punchy.Debugging
                 terrainLayout.Dispose();
                 waterLayout.Dispose();
             }
-            trail.Add((mouth ? $"mouth {site} (slope scale {job.Source.AcrossSlope(centre):F2}): " : $"temple {site}: ") + string.Join(", ", notes));
-        }
-
-        /// <summary>True when the walls' field changes sign within 3 mm of p along some axis while |field| stays over the
-        /// foot tolerance: a step in the field itself (the nearest passage's noise switching), not a foot off the wall.</summary>
-        static bool FieldStep(in TerrainSource source, float3 p, float step)
-        {
-            for (int axis = 0; axis < 3; axis++)
-            {
-                var d = float3.zero;
-                d[axis] = 0.003f;
-                float lo = BuildChunkMeshJob.WallFieldAt(source, p - d, step), hi = BuildChunkMeshJob.WallFieldAt(source, p + d, step);
-                if (lo < 0f != hi < 0f && math.abs(hi - lo) > 2f * CollarFootTolerance)
-                    return true;
-            }
-            return false;
+            trail.Add($"temple {site}: " + string.Join(", ", notes));
         }
 
         static long Pair(int a, int b) => ((long)math.min(a, b) << 32) | (uint)math.max(a, b);

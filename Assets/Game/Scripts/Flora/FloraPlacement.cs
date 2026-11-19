@@ -34,7 +34,7 @@ namespace Punchy.Flora
         public float2 SizeRange;
         public int Aquatic, Floats;
         public float2 WaterDepth;
-        public float MinRapids;
+        public float MinRapids, MaxRapids;
         /// <summary>W-63: the FloraSpecies.RiverSpot it is dressed onto (0 = none; see RiverFit).</summary>
         public int RiverSpot;
         /// <summary>How far it lies over onto the slope it stands on (rocks 0.85; upright plants 0).</summary>
@@ -196,6 +196,14 @@ namespace Punchy.Flora
             return a;
         }
 
+        static uint NameHash(string text)
+        {
+            var h = 2166136261u;
+            foreach (var ch in text)
+                h = (h ^ ch) * 16777619u;
+            return h;
+        }
+
         /// <summary>The most tree cells one FindTree looks at.</summary>
         const int MaxTreeCells = 24;
 
@@ -289,10 +297,13 @@ namespace Punchy.Flora
             var perches = new List<float3>();
             var chimneys = new List<float3>();
             var ladders = new List<Punchy.Terrain.ClimbLadder>();
+            var drawIndex = 0;
             for (int i = 0; i < species.Count; i++)
             {
                 var s = species[i];
-                var h = math.hash(new int2(s.Seed, i));
+                // Late species stay out of the running index, so adding one never moves another species' patches or groves.
+                var key = s.LateAddition ? (int)(NameHash(s.name) | 0x40000000u) : drawIndex++;
+                var h = math.hash(new int2(s.Seed, key));
                 rules[i] = new FloraRules
                 {
                     FirstModel = shapes.Count,
@@ -316,18 +327,19 @@ namespace Punchy.Flora
                     GroveGain = s.GroveGain,
                     GroveStraggle = s.GroveStraggle,
                     EdgeAffinity = s.EdgeAffinity,
-                    GroveSeed = math.hash(new int2(s.Seed, i * 31 + 7)),
+                    GroveSeed = math.hash(new int2(s.Seed, key * 31 + 7)),
                     ExtraGain = (s.GroveSpacing > 0f ? math.max(1f, s.GroveGain) : 1f) * (1f + s.EdgeAffinity),
                     SizeRange = s.SizeRange,
                     Aquatic = s.Aquatic ? 1 : 0,
                     Floats = s.Floats ? 1 : 0,
                     WaterDepth = s.WaterDepth,
                     MinRapids = s.MinRapids,
+                    MaxRapids = s.MaxRapids,
                     RiverSpot = (int)s.RiverSpot,
-                    Tilt = s.Form == FloraForm.Boulder ? 0.85f : 0f,
+                    Tilt = s.Form == FloraForm.Boulder && s.RiverSpot != RiverSpot.Undercut ? 0.85f : 0f,
                     OwnColour = s.KeepOwnColour ? 1 : 0,
                     BiomeRock = s.TakeBiomeRock ? 1 : 0,
-                    Dirt = FloraGenerator.Founded(s.Form) ? 1 : 0,
+                    Dirt = s.Form == FloraForm.Field ? 2 : FloraGenerator.Founded(s.Form) ? 1 : 0,
                     // Docks (#36) face the landmark's way too: a fishing village faces open water, so they run out to sea.
                     // A sea folk pier (#37) faces its landing's way too, but sits on its bank as placed: DockShore seats on the sea.
                     FaceLandmark = s.Form == FloraForm.HiveTree || s.Form == FloraForm.KitBuilding && s.KitShape == Punchy.Terrain.KitShape.Pier ? 1 : s.Form == FloraForm.KitBuilding && (s.KitShape == Punchy.Terrain.KitShape.Dock || s.KitShape == Punchy.Terrain.KitShape.Wharf) ? 2 : 0,
@@ -516,12 +528,12 @@ namespace Punchy.Flora
                 sum += math.lerp(soil, new float3(0.62f, 0.64f, 0.68f), math.saturate(surface.Snow));
             }
             var c = (uint3)math.round(math.saturate(sum / 5f) * 255f);
-            return c.x | (c.y << 8) | (c.z << 16) | ((uint)math.clamp(math.round(band * 100f), 1f, 255f) << 24);
+            return c.x | (c.y << 8) | (c.z << 16) | ((uint)math.clamp(math.round(band * 100f), 1f, 223f) << 24);
         }
 
         /// <summary>The ground colour a placed plant carries (FloraInstance.Ground): a rock's tint, or a built thing's dirt.</summary>
         static uint GroundFor(in TerrainSource source, in FloraRules rule, float2 at, float reach, float band) =>
-            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at)
+            (rule.Tilt > 0f || rule.BiomeRock != 0) && rule.OwnColour == 0 ? RockTint(source, at, rule.RiverSpot == (int)RiverSpot.Waterline || rule.MinRapids > 0f)
             : rule.Dirt != 0 ? DirtColor(source, rule, at, reach, band) : GreenTint(source, at);
 
         /// <summary>
@@ -529,16 +541,16 @@ namespace Punchy.Flora
         /// in the desert is sandstone, not grey and mossy), packed as DirtColor is with the alpha at its top value (the
         /// shader's sign for a rock tint); on grassy, wet ground 0, so the rock keeps its own grey and moss.
         /// </summary>
-        public const uint RockTintMark = 255u;
-        static uint RockTint(in TerrainSource source, float2 at)
+        public const uint RockTintMark = 255u, WetRockMark = 224u;
+        static uint RockTint(in TerrainSource source, float2 at, bool wet = false)
         {
             var ground = source.SampleGround(at);
             var flat = source.SampleSurface(at, ground, source.SampleNormal(at, 1f));
-            if (flat.Grass > 0.3f || ground.HasWater && ground.WaterSurface > ground.Height)
+            if (!wet && (flat.Grass > 0.3f || ground.HasWater && ground.WaterSurface > ground.Height))
                 return 0u;
             var cliff = source.SampleSurface(at, ground, math.normalize(new float3(1f, 0.2f, 0f)));
-            var c = (uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow))) * 255f);
-            return c.x | (c.y << 8) | (c.z << 16) | (RockTintMark << 24);
+            var c = MaterialLibrary.FlowMark((uint3)math.round(math.saturate(math.lerp(cliff.Albedo, new float3(0.62f, 0.64f, 0.68f), math.saturate(flat.Snow)) * (wet ? 0.55f * MaterialLibrary.StoneTintAt(source, at) : 1f)) * 255f), wet ? ground.Flow : float2.zero);
+            return c.x | (c.y << 8) | (c.z << 16) | ((wet ? WetRockMark + (uint)math.clamp(math.round(((ground.HasWater ? math.max(ground.WaterSurface - ground.Height, 0f) : 0f) + 0.04f + 0.3f * math.max(ground.Rapids, ground.Spray)) / 0.04f), 0f, 29f) : RockTintMark) << 24);
         }
 
         /// <summary>
@@ -551,10 +563,10 @@ namespace Punchy.Flora
         {
             var ground = source.SampleGround(at);
             var flat = source.SampleSurface(at, ground, new float3(0f, 1f, 0f));
-            if (flat.Grass <= 0.3f)
+            if (flat.Grass <= 0.3f && MaterialLibrary.WetLineSteps(ground, source.World.SeaLevel) == 0u)
                 return 0u;
             var c = (uint3)math.round(math.saturate(flat.Albedo) * 255f);
-            return c.x | (c.y << 8) | (c.z << 16) | (GreenTintMark << 24);
+            return c.x | (c.y << 8) | (c.z << 16) | ((MaterialLibrary.WetLineSteps(ground, source.World.SeaLevel) is var wet && wet > 0u ? WetRockMark + wet : GreenTintMark) << 24);
         }
 
         /// <summary>FloraRules.Footprint for a species (from its settings, without growing it).</summary>
@@ -1185,13 +1197,25 @@ namespace Punchy.Flora
         /// same for every player). Slow water only (rapids under 0.3). The bend is the turn of the flow between a river
         /// width and a half upstream and downstream; the inner side is the side it turns towards.
         /// </summary>
-        static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind)
+        static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind, float cell)
         {
-            if (!source.Rivers.IsCreated || ground.Rapids > 0.3f)
+            if (kind == (int)RiverSpot.Riffle || kind == (int)RiverSpot.Splash)
+                return RapidsFit(source, xz, kind);
+            var waterline = kind == (int)RiverSpot.Waterline;
+            if (!source.Rivers.IsCreated || ground.Rapids > 0.3f && !waterline)
                 return 0f;
-            var q = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz);
+            ref var map = ref source.Rivers.Value;
+            var late = kind >= (int)RiverSpot.Snag;
+            if (late && OnFall(ref map, xz))
+                return 0f;
+            var q = RiverSampling.Query(ref map, source.RiverSettings, xz);
             if (!q.Found || q.Width <= 0.5f || q.Distance > q.Width * 0.5f + 4f)
-                return 0f;
+            {
+                if (!late || kind == (int)RiverSpot.Undercut || kind == (int)RiverSpot.Heap || !StillShore(source, xz, ground))
+                    return 0f;
+                var shoreCell = (int2)math.floor(xz / (map.CellSize * 3f));
+                return ReachDraw(map.Seed, (uint)(shoreCell.x * 73856093 ^ shoreCell.y * 19349663), kind) * (waterline ? 1f : 0.5f);
+            }
             var half = q.Width * 0.5f;
             var edge = q.Distance - half;   // negative in the channel, positive up the bank
             var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
@@ -1205,7 +1229,10 @@ namespace Punchy.Flora
                 return band < 0.12f ? 1f : 0f;
             }
             if (kind == (int)RiverSpot.LogNarrows)
-                return q.Width <= 10f && q.Distance < 2f ? 1f : 0f;
+                return LogFit(ref map, q, xz, kind);
+            if (kind == (int)RiverSpot.Undercut)
+                return Dry(ground) && edge > -2f && edge < 4f && q.Cut > 0.45f
+                    ? math.lerp(0.4f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind)) : 0f;
             var reach = math.max(10f, q.Width * 1.5f);
             var up = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz - flow * reach);
             var down = RiverSampling.Query(ref source.Rivers.Value, source.RiverSettings, xz + flow * reach);
@@ -1219,12 +1246,166 @@ namespace Punchy.Flora
             var onLeft = sideways.Distance > q.Distance ? 1f : -1f;
             var bend = math.saturate(math.abs(turn) / 0.3f);
             var inner = turn * onLeft > 0f;
+            var bar = RiverSampling.BarMask(q);
+            var barHead = bar > 0.25f && RiverSampling.BarMask(up) < 0.1f;
+            var barTail = bar > 0.25f && RiverSampling.BarMask(down) < 0.1f;
+            var isle = IsleFit(q, up, down, xz, kind);
+            if (isle > 0f)
+                return isle;
             if (kind == (int)RiverSpot.InnerBend)
-                return inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
+            {
+                var fit = inner && edge > -half * 0.6f && edge < 3f ? math.smoothstep(0.15f, 0.6f, bend) : 0f;
+                return barTail && edge > -1.5f && edge < 1.5f ? math.max(fit, 0.8f) : fit * (1f - bar);
+            }
             if (kind == (int)RiverSpot.GravelBar)
-                return edge > -1.2f && edge < 2.5f ? (inner ? math.max(bend, 0.3f) : 0.08f) : 0f;
-            return 0f;
+            {
+                var fit = edge > -1.2f && edge < 2.5f ? (inner ? math.max(bend, 0.3f) : 0.08f) : 0f;
+                return math.max(fit, bar * math.smoothstep(-0.1f, 0.3f, noise.snoise(xz / 5f + 7.1f)));
+            }
+            if (kind == (int)RiverSpot.Snag && barHead && edge > -1.5f && edge < 3f)
+                return math.lerp(0.5f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind));
+            if (kind == (int)RiverSpot.Heap)
+            {
+                if (!HeapSpot(source, ref map, xz, cell, kind))
+                    return 0f;
+                return barHead ? 1f : math.lerp(0.5f, 1f, math.smoothstep(0.2f, 0.6f, bend));
+            }
+            if (!late || edge < -1.5f || edge > 2f)
+                return 0f;
+            var draw = ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind);
+            if (waterline)
+                return draw;
+            return draw * (inner ? 0.12f : math.max(math.smoothstep(0.2f, 0.7f, bend), 0.2f));
         }
+
+        // One outer-bank waterline cell per heap reach; a heap reach out-draws 2 reaches each way, so heaps sit about 60 m apart.
+        static bool HeapSpot(in TerrainSource source, ref RiverMapBlob map, float2 xz, float cell, int kind)
+        {
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            var near = map.Nearest[c.y * map.Resolution + c.x];
+            return HeapBank(source, ref map, xz, cell, kind, near.x) || near.y != near.x && HeapBank(source, ref map, xz, cell, kind, near.y);
+        }
+
+        static bool HeapBank(in TerrainSource source, ref RiverMapBlob map, float2 xz, float cell, int kind, int seg)
+        {
+            if (seg < 0 || map.Down[seg] < 0)
+                return false;
+            var h = BiomeSampling.Scramble(math.hash(new uint2((uint)seg, map.Seed ^ 0x5EA9u)));
+            var m = math.lerp(map.Point(seg), map.Point(map.Down[seg]), math.lerp(0.25f, 0.75f, (h & 1023u) / 1023f));
+            var near = map.Width[seg] * 0.5f + 12f;
+            if (math.distancesq(xz, m) > near * near)
+                return false;
+            var d = ReachDraw(map.Seed, (uint)seg, kind);
+            int up = seg, down = seg;
+            for (int i = 0; i < 2; i++)
+            {
+                up = up >= 0 ? map.Up[up] : -1;
+                down = down >= 0 ? map.Down[down] : -1;
+                if (up >= 0 && ReachDraw(map.Seed, (uint)up, kind) >= d || down >= 0 && ReachDraw(map.Seed, (uint)down, kind) > d)
+                    return false;
+            }
+            var q = RiverSampling.Query(ref map, source.RiverSettings, m);
+            if (!q.Found)
+                return false;
+            var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
+            var reach = math.max(10f, q.Width * 1.5f);
+            var a = math.normalizesafe(RiverSampling.Query(ref map, source.RiverSettings, m - flow * reach).Flow);
+            var b = math.normalizesafe(RiverSampling.Query(ref map, source.RiverSettings, m + flow * reach).Flow);
+            var left = new float2(-flow.y, flow.x);
+            var outer = a.x * b.y - a.y * b.x > 0f ? -left : left;
+            var toOuter = RiverSampling.Query(ref map, source.RiverSettings, m + outer).Distance > q.Distance ? q.Distance : -q.Distance;
+            var centre = m - outer * toOuter;
+            float wet = 0f, dry = q.Width * 0.5f + 8f;
+            if (Wet(source, centre + outer * dry))
+                return false;
+            for (int i = 0; i < 7; i++)
+            {
+                var t = (wet + dry) * 0.5f;
+                if (Wet(source, centre + outer * t))
+                    wet = t;
+                else
+                    dry = t;
+            }
+            return math.all((int2)math.floor(xz / cell) == (int2)math.floor((centre + outer * wet) / cell));
+        }
+
+        static bool Wet(in TerrainSource source, float2 xz)
+        {
+            var g = source.SampleGround(xz);
+            return g.HasWater && g.WaterSurface - g.Height > -0.3f;
+        }
+
+        static int NearestSegment(ref RiverMapBlob map, float2 xz)
+        {
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            return map.Nearest[c.y * map.Resolution + c.x].x;
+        }
+
+        static bool OnFall(ref RiverMapBlob map, float2 xz)
+        {
+            if (map.Kind.Length == 0)
+                return false;
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            var near = map.Nearest[c.y * map.Resolution + c.x];
+            return near.x >= 0 && (map.Kind[near.x] & (byte)RiverProfileKind.Fall) != 0
+                || near.y >= 0 && (map.Kind[near.y] & (byte)RiverProfileKind.Fall) != 0;
+        }
+
+        static FloraSystem.FloraInstance UndercutLip(in TerrainSource source, in FloraRules rule, float2 xz, in GroundSample ground,
+                                                     float scale, ref Random rng)
+        {
+            var none = new FloraSystem.FloraInstance { Model = -1 };
+            ref var map = ref source.Rivers.Value;
+            var q = RiverSampling.Query(ref map, source.RiverSettings, xz);
+            var flow = math.normalizesafe(q.Flow, new float2(0f, 1f));
+            var left = new float2(-flow.y, flow.x);
+            var toWater = source.SampleHeight(xz + left * 2f) < source.SampleHeight(xz - left * 2f) ? left : -left;
+            var edge = xz;
+            var top = 0f;
+            var found = false;
+            for (var step = -3f; step <= 3f && !found; step += 0.25f)
+            {
+                edge = xz + toWater * step;
+                top = source.SampleHeight(edge);
+                found = top - source.SampleHeight(edge + toWater * 0.5f) > 0.45f
+                     && source.SampleHeight(edge - toWater * 0.5f) - top < 0.2f;
+            }
+            if (!found || source.SampleHeight(edge + toWater * 1.5f) > top - 0.6f)
+                return none;
+            var face = RiverSampling.Query(ref map, source.RiverSettings, edge);
+            var faceEdge = face.Distance - face.Width * 0.5f;
+            if (face.Cut < 0.45f || faceEdge < -0.6f || faceEdge > 1.5f || top - face.Water < 0.3f + 0.5f * face.Cut)
+                return none;
+            var model = rule.FirstModel + rng.NextInt(rule.Variants);
+            var yaw = FacingYaw(toWater) + rng.NextFloat(-0.2f, 0.2f);
+            var at = new float3(edge.x, top + 0.02f, edge.y);
+            if (rng.NextFloat() < 0.15f)
+            {
+                var foot = edge + toWater;
+                for (var k = 0; k < 8 && source.SampleHeight(foot) - source.SampleHeight(foot + toWater * 0.5f) > 0.25f; k++)
+                    foot += toWater * 0.5f;
+                at = new float3(foot.x, source.SampleHeight(foot) - 0.15f, foot.y);
+                yaw += rng.NextFloat(-1.2f, 1.2f);
+                scale *= 0.65f;
+            }
+            return new FloraSystem.FloraInstance
+            {
+                Position = at,
+                Yaw = yaw,
+                Scale = scale,
+                Model = model,
+                Random = rng.NextFloat(),
+                Ground = GroundFor(source, rule, edge, 1f, 0.25f)
+            };
+        }
+
+        static bool StillShore(in TerrainSource source, float2 xz, in GroundSample ground) =>
+            ground.HasWater && math.lengthsq(ground.Flow) < 1e-4f && ground.WaterSurface > source.World.SeaLevel + 0.3f &&
+            math.abs(ground.WaterSurface - RiverSampling.ShoreLevel(ref source.Rivers.Value, xz)) < 0.3f;
+
+        // Scrambled so neighbouring reaches don't draw alike (math.hash alone has no avalanche).
+        static float ReachDraw(uint seed, uint reach, int kind) =>
+            math.lerp(0.25f, 1f, (BiomeSampling.Scramble(math.hash(new uint3(reach, (uint)kind, seed ^ 0xB4A2u))) & 1023u) / 1023f);
 
         /// <summary>W-63: dry ground (no water over it).</summary>
         static bool Dry(in GroundSample g) => !g.HasWater || g.Height > g.WaterSurface + 0.05f;
@@ -2173,6 +2354,14 @@ namespace Punchy.Flora
                 var v = Punchy.Terrain.StructureKit.FixtureLight(s.FixtureStyle);
                 return new float4(v.x, v.y, v.z, -(FixtureGlowBase + v.w));
             }
+            // A fishing village's walkways (dock, shore, wharf, boardwalk) carry lanterns as glowing accents. They lit the
+            // ground as an always-on plant glow (three times a lamp, orange, 14 m), which washed the beach and the boats
+            // yellow-white at noon: they are pier lamps, so they light like one, after dark only (street lights).
+            if (s.Form == FloraForm.KitBuilding && s.GlowingAccents && WalkwayLanterns(s.KitShape))
+            {
+                var v = Punchy.Terrain.StructureKit.FixtureLight(Punchy.Terrain.FixtureStyle.PierLamp);
+                return new float4(v.x, v.y, v.z, -(FixtureGlowBase + v.w));
+            }
             // W-127: a lived-in kit house has lit windows (FloraGenerator.Kit), so its light is a lamp inside it: indoor,
             // night only (negative), like a hut's. Its glowing accents are lamps in it too, which used to light the
             // street through its walls.
@@ -2209,6 +2398,11 @@ namespace Punchy.Flora
                 return new float4(lin.r * 0.6f, lin.g * 0.6f, lin.b * 0.6f, -math.min(reach, 9f));
             return new float4(lin.r * strength, lin.g * strength, lin.b * strength, reach);
         }
+
+        /// <summary>Kit walkways whose glowing accents are lanterns (see GlowLight).</summary>
+        static bool WalkwayLanterns(Punchy.Terrain.KitShape k) =>
+            k == Punchy.Terrain.KitShape.Dock || k == Punchy.Terrain.KitShape.Shore || k == Punchy.Terrain.KitShape.Wharf ||
+            k == Punchy.Terrain.KitShape.Boardwalk;
 
         /// <summary>
         /// The grid spacing a layer really uses: its tiles hold a whole number of cells, so the cell size is rounded
@@ -2346,7 +2540,7 @@ namespace Punchy.Flora
                             // Sized for its folk (the layout's BuildingScale: ogre tents bigger, goblin huts smaller); bridge
                             // spans and fence lengths at their own size, so they meet end to end.
                             Scale = bridge || plot.Role == PlotRole.Fence ? 1f : rng.NextFloat(0.95f, 1.05f) * towns.Layouts[towns.Settlements[plot.Settlement].Layout].BuildingScale,
-                            Model = buildingRule.FirstModel + rng.NextInt(buildingRule.Variants),
+                            Model = TownSurfaceModel(source, buildingRule, towns.Settlements[plot.Settlement].Centre, buildingRule.FirstModel + rng.NextInt(buildingRule.Variants)),
                             Random = rng.NextFloat(),
                             Snow = bridge || footprint ? 0f : source.SampleBiomeSnow(plot.Centre),   // #82: built plots too
                             Ground = bridge || footprint ? 0u : DirtColor(source, buildingRule, plot.Centre, math.cmax(plot.Half), 0.9f)
@@ -2407,7 +2601,7 @@ namespace Punchy.Flora
                                     spot = stiltPlot;
                                 // W-138: a pier stays where a road ends on it: the landing spur stops at its ramp foot,
                                 // so the road walks straight onto the deck.
-                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) ||
+                                if (OnBuiltPlot(ref f, source, spot, placedRule.Footprint * prop.Scale.y) || (placedRule.Dirt == 2 && WetPlot(source, spot, placedRule.Footprint * prop.Scale.y)) ||
                                     (placedRule.PierReach <= 0f && OnRoad(source, spot, placedRule.Footprint * prop.Scale.y)))
                                     return none;
                                 // W-59d: a shore cluster reaches about 5 m (2.5 m spread plus half a pulled-up boat):
@@ -2490,7 +2684,7 @@ namespace Punchy.Flora
                                     Position = at,
                                     Yaw = placedYaw,
                                     Scale = placedScale,
-                                    Model = placedModel,
+                                    Model = TownSurfaceModel(source, placedRule, set.Instances[landmark.Instance].Position, placedModel),
                                     Random = rng.NextFloat(),
                                     Snow = footprint ? 0f : floatDepth > 0f ? -floatDepth : source.SampleBiomeSnow(spot),   // #82: stalls on a snowy square; item 20, floats
                                     Ground = footprint ? 0u : GroundFor(source, placedRule, spot, 1f, 0.25f)
@@ -2691,9 +2885,15 @@ namespace Punchy.Flora
                         fw = 0f;
                     if (r.MinRapids > 0f)
                         fw *= math.smoothstep(r.MinRapids - 0.1f, r.MinRapids + 0.1f, ground.Rapids);
+                    if (r.MaxRapids > 0f && fw > 0f)
+                    {
+                        fw *= 1f - math.smoothstep(r.MaxRapids * 0.3f, r.MaxRapids, ground.Rapids);
+                        if (fw > 0f && ground.River > 0.02f && source.Rivers.IsCreated && OnFall(ref source.Rivers.Value, xz))
+                            fw = 0f;
+                    }
                     // W-63 river dressing: only on its kind of river spot (asked only once the rest allows it).
                     if (r.RiverSpot != 0 && fw > 0f)
-                        fw *= RiverFit(source, xz, ground, r.RiverSpot);
+                        fw *= RiverFit(source, xz, ground, r.RiverSpot, cellSize);
                     if (r.PatchCoverage < 1f)
                     {
                         var pn = noise.snoise(xz * r.PatchFrequency + r.PatchOffset) * 0.5f + 0.5f;
@@ -2780,43 +2980,16 @@ namespace Punchy.Flora
                 return none;
             var fromProp = picked != candidates[pick];   // a landmark prop's density ring (its runed stones share a pattern)
             if (rule.RiverSpot == (int)RiverSpot.LogNarrows)
-            {
-                // W-63: a fallen log lies across the river (its X across the flow), both ends on dry bank no more than
-                // 1.2 m apart in height; it rests just under the lower bank's top.
-                var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
-                yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.2f, 0.2f);
-                var reach = new float2(math.cos(yaw), math.sin(yaw)) * rule.Span * scale;
-                var endA = source.SampleGround(xz + reach);
-                var endB = source.SampleGround(xz - reach);
-                if (!Dry(endA) || !Dry(endB) || math.abs(endA.Height - endB.Height) > 1.2f)
-                    return none;
-                return new FloraSystem.FloraInstance
-                {
-                    Position = new float3(xz.x, math.min(endA.Height, endB.Height) - 0.12f, xz.y),
-                    Yaw = yaw,
-                    Scale = scale,
-                    Model = rule.FirstModel + rng.NextInt(rule.Variants),
-                    Random = rng.NextFloat(),
-                    Ground = GroundFor(source, rule, xz, 1f, 0.25f)
-                };
-            }
+                return LogAcross(source, rule, xz, ground, scale, ref rng);
+            if (rule.RiverSpot == (int)RiverSpot.Riffle || rule.RiverSpot == (int)RiverSpot.Splash)
+                return RapidsStone(source, rule, xz);
             if (rule.RiverSpot == (int)RiverSpot.Narrows && rule.Span > 0f)
             {
-                // W-65b: a stepping-stone row crosses the river (its X across the flow), both end stones on or just off
-                // the bank; the model's origin sits on the water surface, so every top is 4-12 cm above the water.
                 var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
                 yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.15f, 0.15f);
-                // W-65d: the row fits the narrows it is in (a fixed 12 m row found no narrows on either island): walk
-                // out each way to the first bank (or water under 0.3 m), take the variant whose length (4-14 m, every 2 m,
-                // FloraGenerator.StoneRowLength) just spans it and centre the row between the two banks.
                 if (!ground.HasWater)
                     return none;
-                // W-65f: one row per narrows. Every spot on a 1 m world lattice along the flow within 25 m is measured
-                // the same way (its own flow, no jitter) and only the narrowest one gets a row; so rows are at least ~25 m apart and each sits where the river is tightest. Every cell
-                // whose roll lands a row in this stretch makes the same row (spot, yaw, size and look come from the spot,
-                // not the cell's draws), so the copies coincide exactly and show as one.
-                // W-65g: windows of nearby cells differ, so they can pick neighbouring spots (rows 1.3 m apart); keep a
-                // spot only when it is also the narrowest in its own window (two such spots are then 25 m+ apart).
+                // One row per narrows: every cell rolling a row here snaps to the narrowest spot, so the copies coincide.
                 if (!NarrowestSpot(source, rule, xz, flow, out var bestXz, out var bestAcross, out var bestA, out var bestB, out var water) ||
                     !NarrowestSpot(source, rule, bestXz, new float2(bestAcross.y, -bestAcross.x), out var againXz, out _, out _, out _, out _) ||
                     math.distancesq(againXz, bestXz) > 0.25f)
@@ -2846,7 +3019,9 @@ namespace Punchy.Flora
                     Ground = GroundFor(source, rule, xz, 1f, 0.25f)
                 };
             }
-            if (rule.RiverSpot == (int)RiverSpot.GravelBar)
+            if (rule.RiverSpot == (int)RiverSpot.Undercut)
+                return UndercutLip(source, rule, xz, ground, scale, ref rng);
+            if (rule.RiverSpot == (int)RiverSpot.GravelBar || rule.RiverSpot == (int)RiverSpot.Snag || rule.RiverSpot == (int)RiverSpot.Heap)
             {
                 // Driftwood lies roughly along the flow, as the water left it.
                 var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));

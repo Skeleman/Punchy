@@ -181,6 +181,33 @@ MonoBehaviour:
     OnlyIn: []
     Style: 
     MinPlots: 15
+  - Role: 16
+    Species: {fileID: 11400000, guid: 6911db32b0ac485083e36d69cd9c2df0, type: 2}
+    Weight: 1.2
+    Count: 0
+    OnlyIn:
+    - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
+    - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+    Style: 
+    MinPlots: 0
+  - Role: 16
+    Species: {fileID: 11400000, guid: ab37d4cc7101488facc6b80e6f797c56, type: 2}
+    Weight: 1
+    Count: 0
+    OnlyIn:
+    - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
+    - {fileID: 11400000, guid: efa1fb2872ceb1d45b6ee561e78c8774, type: 2}
+    Style: 
+    MinPlots: 0
+  - Role: 16
+    Species: {fileID: 11400000, guid: 8467222588514265982c483e4df0672b, type: 2}
+    Weight: 1
+    Count: 0
+    OnlyIn:
+    - {fileID: 11400000, guid: f2273bc3afbd8bb4e8b35abb71398bb7, type: 2}
+    - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
+    Style: 
+    MinPlots: 0
   Fixtures:
   - Species: {fileID: 11400000, guid: c5b1fc52dbca7ff499aac0aff7df152b, type: 2}
     Spot: 1

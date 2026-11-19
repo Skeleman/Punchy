@@ -12,7 +12,7 @@ struct AmbientParticle
     float3 position;
     float random;
     float3 ground;   // ground colour under it (white unless the type takes the ground tint)
-    float pad;
+    float water;
 };
 
 StructuredBuffer<AmbientParticle> _AmbientParticles;
@@ -37,6 +37,7 @@ struct ParticleVertex
     float3 tint;        // colour × ground tint
     float size;         // half-width in metres
     float random;
+    float water;
 };
 
 ParticleVertex BuildParticle(uint vertex, uint instance)
@@ -84,6 +85,7 @@ ParticleVertex BuildParticle(uint vertex, uint instance)
     o.tint = _ParticleColor.rgb * lerp(1, p.ground, _ParticleGroundTint);
     o.size = size;
     o.random = r;
+    o.water = p.water;
     return o;
 }
 

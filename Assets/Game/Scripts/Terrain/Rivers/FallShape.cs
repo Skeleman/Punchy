@@ -108,8 +108,11 @@ namespace Punchy.Terrain
             for (int dir = -1; dir <= 1; dir += 2)
                 for (float c = 0f; c <= half; c += 0.5f)
                 {
-                    var g = source.SampleGround(above + across * (c * dir));
-                    if (!(g.HasWater && g.WaterSurface > g.Height + 0.02f && math.abs(g.WaterSurface - top) < 1.5f))
+                    var column = above + across * (c * dir);
+                    var g = source.SampleGround(column);
+                    // #269: only water that pours over the lip counts, so a flat side shelf is not clipped into the sheet.
+                    if (!(g.HasWater && g.WaterSurface > g.Height + 0.02f && math.abs(g.WaterSurface - top) < 1.5f)
+                        || float.IsNaN(FaceStart(source, column, o, g.WaterSurface - 0.75f, 0f, 4.5f)))
                     {
                         if (c > f.Width * 0.5f)
                             break;

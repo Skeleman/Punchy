@@ -13,6 +13,7 @@
 //   tone:  rgb the hue late wood and knots take (luminance about 1), a streak strength
 float4 _PunchyWoodGrainKinds[8];
 float4 _PunchyWoodToneKinds[8];
+float4 _PunchyWoodFormKinds[8];   // x board scale, y knot spacing (m), z figure, w wear
 
 #define PUNCHY_WOOD_OAK 0
 #define PUNCHY_WOOD_PINE 1
@@ -28,6 +29,10 @@ struct PunchyWoodKind
     half grey;
     half3 hue;
     half streak;
+    half boardScale;
+    float knotCell;
+    half figure;
+    half wear;
 };
 
 /// A kind's row; oak until the table has been pushed (a zero row), so nothing divides by zero.
@@ -44,6 +49,12 @@ PunchyWoodKind PunchyWoodKindOf(int kind)
     k.grey = set ? (half)saturate(g.w) : 0;
     k.hue = set && dot(t.rgb, 1) > 0.1 ? (half3)t.rgb : half3(1.1, 0.96, 0.85);
     k.streak = set ? (half)t.a : 1;
+    float4 f = _PunchyWoodFormKinds[i];
+    bool formSet = f.x > 1e-3;
+    k.boardScale = formSet ? (half)f.x : 1;
+    k.knotCell = formSet ? max(f.y, 0.05) : 0.55;
+    k.figure = formSet ? (half)f.z : 1;
+    k.wear = formSet ? (half)f.w : 0.22;
     return k;
 }
 
@@ -57,28 +68,34 @@ half PunchyWoodFade(float period, float footprint)
 /// The grain on a piece of timber, as an albedo. `along` runs with the grain (m), `across` is the position in the
 /// cross-section (m), `seed` makes each board its own piece of tree. Built from scratch for W-166:
 /// - rings: distance from an imaginary pith beside the piece, wandering slowly along it, so a sawn face shows long
-///   stripes that open into arches; bent by domain-warped value noise stretched about 7:1 along the grain; each ring
-///   lightens slowly through the early wood and snaps dark at the late wood;
+///   stripes that open into arches; bent by value noise stretched about 7:1 along the grain and read through a
+///   second, coarser noise (a domain warp, W-163), so the bends flow into each other instead of wobbling in place;
+///   each ring lightens slowly through the early wood and snaps dark at the late wood;
 /// - streaks: fine pores about 100:1 along the grain;
 /// - knots: the odd dark oval (per kind), with the rings swirling round it;
-/// - dirt: broad bands of grime and wear along the piece, greying weathered kinds;
+/// - dirt: soft darker bands of grime running along the piece (W-163), balanced so the piece's mean tone holds,
+///   greying weathered kinds;
 /// - colour: a three-tone ramp (early, mid, late) on the piece's own colour, the dark end turning to the kind's hue.
 half3 PunchyWoodGrain(half3 albedo, float along, float2 across, float footprint, int kind, float seed)
 {
     PunchyWoodKind k = PunchyWoodKindOf(kind);
     float side = across.x + across.y;
 
-    // Domain warp, stretched along the grain.
+    // Domain warp, stretched along the grain: a coarse noise pair shifts where the ring noise is read, mostly along
+    // the grain, so its bends stretch and flow rather than sit as separate lumps.
     float2 q = float2(along * 0.14, side);
-    float warp = (PunchyValueNoise(q * float2(1.3, 9.0) + seed * 3.1) - 0.5) * 0.05
-               + (PunchyValueNoise(q * float2(5.3, 31.0) + seed * 1.7 + 4.2) - 0.5) * 0.012;
+    float2 qc = q * float2(0.6, 4.0) + seed * 2.3;
+    float2 shift = float2(PunchyValueNoise(qc), PunchyValueNoise(qc + float2(5.2, 1.3))) - 0.5;
+    q += shift * float2(0.9, 0.05) * k.figure;
+    float warp = ((PunchyValueNoise(q * float2(1.3, 9.0) + seed * 3.1) - 0.5) * 0.05
+               + (PunchyValueNoise(q * float2(5.3, 31.0) + seed * 1.7 + 4.2) - 0.5) * 0.012) * k.figure;
 
-    // Knots: at most one per half-metre cell along the piece, placed across its face.
-    float cell = floor(along / 0.55);
+    // Knots: at most one per cell (the kind's knot spacing, half a metre for oak) along the piece, across its face.
+    float cell = floor(along / k.knotCell);
     int cellId = (int)cell + (int)(seed * 977.0);
     half kh = PunchyCellHash(int2(cellId, 71));
     half has = step(kh, k.knots * 0.45);
-    float kAlong = (cell + 0.2 + 0.6 * PunchyCellHash(int2(cellId, 72))) * 0.55;
+    float kAlong = (cell + 0.2 + 0.6 * PunchyCellHash(int2(cellId, 72))) * k.knotCell;
     float kSide = (PunchyCellHash(int2(cellId, 73)) - 0.5) * 0.14;
     float kSize = 0.008 + 0.014 * PunchyCellHash(int2(cellId, 74));
     float kd = length(float2((along - kAlong) * 0.55, side - kSide));
@@ -109,8 +126,18 @@ half3 PunchyWoodGrain(half3 albedo, float along, float2 across, float footprint,
     half3 lateTone = albedo * 0.58 * k.hue;
     half3 c = ring < 0 ? lerp(albedo, early, saturate(-ring * 5)) : lerp(albedo, lateTone, saturate(ring * 1.25));
     c *= 1 + (pore - 0.5) * 0.28 * k.streak * fPore;
+    // Long-weathered wood splits along the grain, readable from a few metres where its rings have faded.
+    if (k.grey > 0.7)
+    {
+        float cs = side / 0.045 + (PunchyValueNoise(float2(along * 0.8 + seed * 7.0, side * 9.0)) - 0.5) * 0.6;
+        half run = smoothstep(0.45, 0.7, PunchyValueNoise(float2(along * 1.6 + seed * 13.0, floor(cs) * 3.1)));
+        c *= 1 - (1 - smoothstep(0.0, 0.08, abs(frac(cs) - 0.5))) * run * 0.55 * PunchyWoodFade(0.045, footprint);
+    }
     c = lerp(c, albedo * 0.45 * k.hue, knot * 0.85 * fKnot);
-    c *= 1 + (dirt - 0.5) * 0.22 * fDirt;
+    // Grime collects in soft bands: darker where the noise runs high, the rest a touch lighter, netting to nothing
+    // over a piece (the band averages 0.21 over value noise).
+    half band = smoothstep(0.5, 0.9, dirt);
+    c *= 1 + (0.21 - band) * k.wear * 1.1 * fDirt;
     // Weathered kinds go silver where the wear bands are, keeping their brightness.
     half lum = dot(c, half3(0.299, 0.587, 0.114));
     c = lerp(c, lum * half3(0.98, 1.0, 1.04), k.grey * saturate(dirt * 1.6 - 0.2));
@@ -118,12 +145,72 @@ half3 PunchyWoodGrain(half3 albedo, float along, float2 across, float footprint,
 }
 
 /// The grain on a piece built with its grain along an object axis (FloraMeshBuilder.GrainAlong: 0.25 X, 0.5 Y, 0.75 Z).
-half3 PunchyWoodAlongAxis(half3 albedo, float3 p, half axisCode, float footprint, int kind)
+/// `seed` makes each piece its own cut of tree (W-163: posts and beams stopped sharing one).
+half3 PunchyWoodAlongAxis(half3 albedo, float3 p, half axisCode, float footprint, int kind, float seed)
 {
     int axis = (int)round(axisCode * 4);
     float along = axis == 1 ? p.x : axis == 2 ? p.y : p.z;
     float2 across = axis == 1 ? p.yz : axis == 2 ? p.xz : p.xy;
-    return PunchyWoodGrain(albedo, along, across, footprint, kind, 0);
+    return PunchyWoodGrain(albedo, along + seed * 17.0, across, footprint, kind, seed);
+}
+
+half3 PunchyWoodAlongAxis(half3 albedo, float3 p, half axisCode, float footprint, int kind)
+{
+    return PunchyWoodAlongAxis(albedo, p, axisCode, footprint, kind, 0);
+}
+
+#define PUNCHY_TIMBER_ROUGH 0
+#define PUNCHY_TIMBER_HEWN 1
+#define PUNCHY_TIMBER_SAWN 2
+#define PUNCHY_TIMBER_TARRED 3
+
+/// Drying checks: a few long dark cracks running with the grain, s the distance round the piece.
+half PunchyTimberChecks(float along, float s, float footprint, half seed)
+{
+    float q = s / 0.06 + (PunchyValueNoise(float2(along * 0.9, seed * 31)) - 0.5) * 0.6;
+    half d = abs(frac(q) - 0.5) * 0.06;
+    half run = smoothstep(0.55, 0.75, PunchyValueNoise(float2(along / 0.7, floor(q) + seed * 13)));
+    return (1 - smoothstep(0.0015, 0.005, d)) * run * PunchyWoodFade(0.01, footprint);
+}
+
+/// Dressed framing timber (MaterialLibrary.TimberKind) on a piece with its grain along an object axis: rough is the plain
+/// grain (PunchyWoodAlongAxis); hewn adds adze scallops across the grain and drying checks along it; sawn, the pit saw's
+/// slanting kerf lines and finer checks; tarred, a dark patchy coat the grain only ghosts through.
+half3 PunchyTimberFrame(half3 albedo, float3 p, half axisCode, float footprint, int woodKind, float seed, int kind)
+{
+    half3 c = PunchyWoodAlongAxis(albedo, p, axisCode, footprint, woodKind, seed);
+    int axis = (int)round(axisCode * 4);
+    float along = (axis == 1 ? p.x : axis == 2 ? p.y : p.z) + seed * 17;
+    float2 across = axis == 1 ? p.yz : axis == 2 ? p.xz : p.xy;
+    float s = across.x + across.y;
+    half m = 1;
+    if (kind == PUNCHY_TIMBER_HEWN)
+    {
+        int band = (int)floor(s / 0.07 + PunchyValueNoise(float2(along / 0.25, seed * 5)) * 0.8);
+        float a = along / lerp(0.08, 0.14, PunchyCellHash(int2(band, 72))) + PunchyCellHash(int2(band, 71)) * 0.9;
+        half f = frac(a);
+        half bite = PunchyCellHash(int2((int)floor(a), band + (int)(seed * 97)));
+        half scallop = ((f - 0.5) * 0.11 - (1 - smoothstep(0.0, 0.1, f)) * 0.08) * lerp(0.4, 1.2, bite);
+        m = 1 + scallop * PunchyWoodFade(0.07, footprint) - PunchyTimberChecks(along, s, footprint, seed) * 0.5;
+    }
+    else if (kind == PUNCHY_TIMBER_SAWN)
+    {
+        half kerf = sin((along + s * 0.18) / 0.02 * 6.2832) * 0.07 * PunchyWoodFade(0.02, footprint);
+        m = 1 + kerf - PunchyTimberChecks(along, s * 1.6, footprint, seed) * 0.3;
+    }
+    else if (kind == PUNCHY_TIMBER_TARRED)
+    {
+        half patch = (PunchyValueNoise(float2(along / 0.3, s / 0.2) + seed * 9) - 0.5) * 0.3 * PunchyWoodFade(0.3, footprint);
+        half drip = smoothstep(0.6, 0.9, PunchyValueNoise(float2(s / 0.03, along / 0.5))) * 0.15 * PunchyWoodFade(0.03, footprint);
+        c = lerp(c, albedo * 0.35, 0.92) * (1 + patch - drip);
+    }
+    return c * m;
+}
+
+/// A per-piece seed (0..1) from a piece's vertex colour, which its builder varies piece to piece.
+float PunchyWoodPieceSeed(half3 key)
+{
+    return frac(dot(key, half3(97.31, 61.17, 13.73)));
 }
 
 /// The plane a built face lies on, in the plant's own frame: `row` climbs the face (measured along a slope, so a course
@@ -139,6 +226,7 @@ void PunchyWoodFaceCoords(float3 p, float3 nOS, out float across, out float row)
 /// piece of tree, with a shadow under each lap and butt joints. The grain runs along each board.
 half3 PunchyWoodBoards(half3 albedo, float across, float row, float footprint, int kind, float height)
 {
+    height *= PunchyWoodKindOf(kind).boardScale;   // painted boards: the kind's width, not geometry
     float r = row / height;
     int board = (int)floor(r);
     half fr = frac(r);
@@ -162,14 +250,15 @@ half3 PunchyWoodShingles(half3 albedo, float across, float row, float footprint,
     half fr = frac(r);
     bool laid = course >= 0;
     float c = laid ? course : floor(r);
-    float t = across / 0.3 + frac(c * 0.618);
+    float width = 0.3 * PunchyWoodKindOf(kind).boardScale;   // laid courses keep their height, only width varies
+    float t = across / width + frac(c * 0.618);
     half ft = frac(t);
     half h = PunchyCellHash(int2((int)c, (int)floor(t)));
     half joint = 1 - smoothstep(0.02, 0.07, min(ft, 1 - ft));
     half under = laid ? 0 : smoothstep(0.7, 1.0, fr) * 0.4;
     half lip = laid ? 0 : (1 - smoothstep(0.0, 0.08, fr)) * 0.12;
     half m = lerp(0.8, 1.14, h) * (1 - under - joint * 0.45 * (1 - under)) * (1 + lip);
-    half3 g = PunchyWoodGrain(albedo, row, float2((ft - 0.5) * 0.3, 0), footprint, kind, h);
+    half3 g = PunchyWoodGrain(albedo, row, float2((ft - 0.5) * width, 0), footprint, kind, h);
     return g * lerp(1, m, PunchyWoodFade(0.24, footprint));
 }
 
@@ -190,14 +279,14 @@ half3 PunchyWoodEnd(half3 albedo, float3 p, float footprint, int kind)
 half3 PunchyWoodSurface(half3 albedo, int look, float3 p, half axisCode, float3 nOS, float footprint, half3 key, int kind)
 {
     if (look == 0)
-        return PunchyWoodAlongAxis(albedo, p, axisCode, footprint, kind);
+        return PunchyWoodAlongAxis(albedo, p, axisCode, footprint, kind, PunchyWoodPieceSeed(key));
     if (look == 5)
         return PunchyWoodEnd(albedo, p, footprint, kind);
     float across, row;
     PunchyWoodFaceCoords(p, nOS, across, row);
     if (look == 1)
         return PunchyWoodBoards(albedo, across, row, footprint, kind, 0.21);
-    float course = look == 4 ? floor(frac(dot(key, half3(97.31, 61.17, 13.73))) * 64) : -1;
+    float course = look == 4 ? floor(PunchyWoodPieceSeed(key) * 64) : -1;
     return PunchyWoodShingles(albedo, across, row, footprint, kind, course);
 }
 

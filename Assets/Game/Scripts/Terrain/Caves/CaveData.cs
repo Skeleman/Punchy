@@ -323,13 +323,11 @@ namespace Punchy.Terrain
         public const float MouthBlend = 1.2f;
         /// <summary>How far under the terrain surface the cave walls end (m, measured across the slope). W-112: was 10 cm,
         /// which showed as a lip round every mouth where the terrain's cut (wider by up to half a quad) exposed the
-        /// walls' skin; at 2 cm the skin sat flush with the surface. W-162 row 4: 20 cm, since the mouth collars (W-174
-        /// r6) now hang from the cut's rim down onto the walls and hide the skin there, while 2 cm let the skin poke
+        /// walls' skin; at 2 cm the skin sat flush with the surface. W-162 row 4: 20 cm, since 2 cm let the skin poke
         /// through the drawn ground in pale patches all round a mouth (the walls' cells cut corners off the field).</summary>
         public const float SkinGap = 0.2f;
         /// <summary>The terrain's own mouth cut (TerrainSource.MouthCut) keeps the old 2 cm gap: at SkinGap its 15 cm
-        /// mesh depth went below zero and the cut ate the ground for metres round every mouth. The collars cover the
-        /// 18 cm step between the cut's rim and the walls' top (it's under their CollarDepth).</summary>
+        /// mesh depth went below zero and the cut ate the ground for metres round every mouth.</summary>
         public const float CutGap = 0.02f;
         /// <summary>Most the wall noise moves a wall at Roughness 1 (both octaves at full strength).</summary>
         public const float NoiseReach = 0.75f;
@@ -1238,10 +1236,14 @@ namespace Punchy.Terrain
         /// <summary>
         /// W-174 r6: the cave walls' field (negative in rock) at height y over a column whose drawn surface is surface,
         /// with scale the across-slope factor (TerrainSource.AcrossSlope) and cave the cave distance there. CaveSystem's
-        /// FieldJob builds the walls from it; the terrain's mouth collars end on it.
+        /// FieldJob builds the walls from it.
         /// </summary>
-        public static float WallField(float y, float surface, float scale, float cave) =>
-            -SmoothMin(-((y - surface) * scale + SkinGap), cave, MouthBlend);
+        public static float WallField(float y, float surface, float scale, float cave)
+        {
+            var ground = (y - surface) * scale + SkinGap;
+            // Far from every cave (distance 1e9) the blend cancels to 0 in floats, losing the ground's crossing.
+            return cave + ground >= MouthBlend ? ground : -SmoothMin(-ground, cave, MouthBlend);
+        }
 
         internal static float SmoothMin(float a, float b, float k)
         {

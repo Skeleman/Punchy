@@ -65,7 +65,7 @@ namespace Punchy.Terrain
             }
         }
 
-        class Built
+        partial class Built
         {
             public Mesh Mesh;
             public JobHandle Job;
@@ -137,6 +137,7 @@ namespace Punchy.Terrain
                 if (Rock.IsCreated) Rock.Dispose();
                 if (Indices.IsCreated) Indices.Dispose();
                 if (Mesh != null) Destroy(Mesh);
+                DisposePatch(true);
             }
         }
 
@@ -197,6 +198,7 @@ namespace Punchy.Terrain
         void OnEnable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+            RenderPipelineManager.beginCameraRendering += DrawSkippedOnCut;
             // Quitting (or leaving play mode) frees the TerrainSource blobs before this is disabled, and the surface
             // glow's far scan job may still be reading them: finish every job first, while they are intact.
             Application.quitting += ReleaseWorld;
@@ -294,6 +296,7 @@ namespace Punchy.Terrain
         void OnDisable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing -= ReleaseWorld;
+            RenderPipelineManager.beginCameraRendering -= DrawSkippedOnCut;
             Application.quitting -= ReleaseWorld;
             Release();
         }
@@ -421,7 +424,7 @@ namespace Punchy.Terrain
         // ------------------------------------------------------------------------------------------- pools
 
         /// <summary>A lava pool's glow (rgb linear x intensity; its reach is set by its size).</summary>
-        static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
+        static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.27f * 2.2f, 0.025f * 2.2f, 0f);
 
         /// <summary>
         /// Hands this frame's light requests (lava pools, glowing plants, wall torches, room lights, lit windows here, and
@@ -1712,7 +1715,9 @@ namespace Punchy.Terrain
                 if (b.Opens)
                     b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
                 b.OpeningSeen = false;
+                FinishPatch(b);
             }
+            b.DisposePatch(false);
             b.Field.Dispose();
             b.CaveField.Dispose();
             b.Surface.Dispose();
@@ -1949,16 +1954,19 @@ namespace Punchy.Terrain
             };
             // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
             var gridStep = configQuery.IsEmpty ? 0f : configQuery.GetSingleton<TerrainConfig>().ChunkSize / configQuery.GetSingleton<TerrainConfig>().Lod0Quads;
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
-                .Schedule(points.x * points.z, 64);
+            var patchJob = StartPatch(source, key, b, gridStep);
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale,
+                Patch = b.Patch, PatchMin = PatchMin(key) }.Schedule(points.x * points.z, 64, patchJob);
             var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = voxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
             b.Job = new MeshJob
             {
                 Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
+                Surface = b.Surface, SurfaceScale = b.SurfaceScale, GridStep = gridStep,
                 Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Rock = b.Rock, Indices = b.Indices,
                 Opening = b.Opening, Gap = b.Gap, Contacts = b.Contacts,
+                Patch = b.Patch, PatchMin = PatchMin(key), PatchVerts = b.PatchVerts, PatchIndices = b.PatchIndices, PatchFlips = b.PatchFlips,
                 ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
@@ -1980,13 +1988,16 @@ namespace Punchy.Terrain
             /// between its corners, so the skin round a mouth stays under the drawn ground. 0: the exact height.</summary>
             public float GridStep;
             [WriteOnly] public NativeArray<float> Surface, SurfaceScale;
+            [ReadOnly] public NativeArray<bool> Patch;
+            public int2 PatchMin;
 
             public void Execute(int i)
             {
                 var xz = (float2)(Origin.xz + new int2(i % Points.x, i / Points.x)) * Voxel;
                 var h = GridStep > 0f ? Source.MeshHeight(xz, GridStep) : Source.SampleHeight(xz);
-                Surface[i] = h;
-                SurfaceScale[i] = Source.AcrossSlope(xz);
+                var scale = Source.AcrossSlope(xz);
+                Surface[i] = PatchSurface(Source, xz, h, scale, Patch, PatchMin);
+                SurfaceScale[i] = scale;
             }
         }
 
@@ -2059,6 +2070,9 @@ namespace Punchy.Terrain
             public int3 Cells;
             public float Voxel;
             [ReadOnly] public NativeArray<float> Field, CaveField;
+            /// <summary>W-174 row 3: the columns' drawn surface and slope (ColumnJob), and the near grid's step (0: no patch).</summary>
+            [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
+            public float GridStep;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
             public NativeList<float4> Data, Rock;
@@ -2112,6 +2126,8 @@ namespace Punchy.Terrain
                     cellVertex[i] = -1;
                 // Which vertices lie in the outermost cells the quads use (0 and Cells - 2 on any axis): the chunk's edge.
                 var edge = new NativeList<bool>(Allocator.Temp);
+                var columns = new NativeHashMap<int2, int>(64, Allocator.Temp);
+                var raw = new NativeHashMap<int, float3>(64, Allocator.Temp);
                 Opening[0] = new float3(float.MaxValue);
                 Opening[1] = new float3(float.MinValue);
 
@@ -2129,7 +2145,7 @@ namespace Punchy.Terrain
                         if (Field[i] < 0f) rock++;
                         nearCave |= CaveField[i] < WallReach;
                     }
-                    if (rock == 0 || rock == 8 || !nearCave)
+                    if (rock == 0 || rock == 8 || !nearCave && !PatchColumn(x, z))
                         continue;
 
                     var sum = float3.zero;
@@ -2152,10 +2168,14 @@ namespace Punchy.Terrain
                     var p = ((float3)(Origin + new int3(x, y, z)) + sum / crossings) * Voxel;
                     // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
                     p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
-                    cellVertex[Cell(x, y, z)] = Positions.Length;
+                    var normal = Gradient(p);
+                    var shared = Snap(ref p, ref normal, x, y, z, columns, raw);
+                    cellVertex[Cell(x, y, z)] = shared >= 0 ? shared : Positions.Length;
+                    if (shared >= 0)
+                        continue;
                     edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
-                    Normals.Add(Gradient(p));
+                    Normals.Add(normal);
                     var color = Look(p, out var data, out var open, out var country);
                     // W-135 row 4: darkened round the things standing here (through the rib shade; openness left alone).
                     if (Contacts.Length > 0 && !ShardProbe)
@@ -2189,6 +2209,9 @@ namespace Punchy.Terrain
                         Quad(cellVertex, Cell(x - 1, y - 1, z), Cell(x, y - 1, z), Cell(x, y, z), Cell(x - 1, y, z), a);
                 }
                 cellVertex.Dispose();
+                SplitPatch(raw, edge);
+                columns.Dispose();
+                raw.Dispose();
                 if (Skirt > 0f)
                     Skirts(edge);
                 edge.Dispose();
@@ -2240,23 +2263,6 @@ namespace Punchy.Terrain
                 return skirtOf[v];
             }
 
-            void Quad(NativeArray<int> cellVertex, int c0, int c1, int c2, int c3, bool flip)
-            {
-                int v0 = cellVertex[c0], v1 = cellVertex[c1], v2 = cellVertex[c2], v3 = cellVertex[c3];
-                if (v0 < 0 || v1 < 0 || v2 < 0 || v3 < 0)
-                    return;
-                if (flip)
-                {
-                    Indices.Add(v0); Indices.Add(v2); Indices.Add(v1);
-                    Indices.Add(v0); Indices.Add(v3); Indices.Add(v2);
-                }
-                else
-                {
-                    Indices.Add(v0); Indices.Add(v1); Indices.Add(v2);
-                    Indices.Add(v0); Indices.Add(v2); Indices.Add(v3);
-                }
-            }
-
             float RockAt(float3 p) => math.max(p.y - Source.SampleHeight(p.xz) + CaveSampling.SkinGap, -CaveSampling.Distance(ref Source.Caves.Value, p, out _));
 
             /// <summary>Points out of the rock, into the air.</summary>
@@ -2298,6 +2304,7 @@ namespace Punchy.Terrain
         {
             openingsInView.Clear();
             openingRects.Clear();
+            NoteGathered(cam);
             GeometryUtility.CalculateFrustumPlanes(cam, viewPlanes);
             var ppm = DetailPolicy.Current.Data.PixelsPerMetre > 0f ? DetailPolicy.Current.Data.PixelsPerMetre
                 : DetailPolicy.PixelsPerMetreAt(cam.fieldOfView);
@@ -2443,12 +2450,14 @@ namespace Punchy.Terrain
                 GeometryUtility.CalculateFrustumPlanes(cam, statPlanes);
             }
             var skip = outside && !NoSurfaceSkip && !NoRoomCull && cam != null;
+            skippedChunks.Clear();
             if (skip)
                 GatherOpenings(camPos, cam);
             if (CountReveals && cam != null)
                 GeometryUtility.CalculateFrustumPlanes(cam, revealPlanes);
             foreach (var b in chunks.Values)
             {
+                DrawPatch(b);
                 if (b.Mesh == null)
                     continue;
                 if (CountStats)
@@ -2464,6 +2473,8 @@ namespace Punchy.Terrain
                 if (b.LastSeen >= 0 && b.LastSeen != seen)
                     Counts.SkipFlips++;
                 b.LastSeen = seen;
+                if (seen < 2)
+                    skippedChunks.Add(b);   // drawn after all if the camera cuts before the render (CutGuard)
                 if (CountReveals)
                     CountReveal(b, seen == 2 && cam != null && GeometryUtility.TestPlanesAABB(revealPlanes, b.Mesh.bounds));
                 if (seen == 0 || seen == 1 && !b.CastsShadows)

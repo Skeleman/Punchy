@@ -54,6 +54,9 @@ namespace Punchy.Debugging
 
         // Limits. Each is the size at which the defect shows from the bank, not a tuned pass mark.
         const float WetDepth = 0.05f;      // a sample counts as wet with this much water over the ground
+        public const int SheetCounts = 10;
+        const float SteepSlope = 0.3f;
+        static readonly float SteepNormalY = 1f / math.sqrt(1f + SteepSlope * SteepSlope);
         const float WallHeight = 1f;       // water standing this far above dry ground one sample away
         const float StepHeight = 1f;       // neighbouring surfaces this far apart away from a fall
         const float DeepOver = 2f;         // river water this much deeper than its channel was dug
@@ -98,6 +101,28 @@ namespace Punchy.Debugging
         }
 
         static readonly string[] TypeNames = { "dry", "sea", "river", "lake", "pool" };
+
+        /// <summary>#301: river falls whose sheet lands on ground, somewhere across its foot from a metre past one side to the other.</summary>
+        public static int DryFallFeet(in TerrainSource s)
+        {
+            ref var r = ref s.Rivers.Value;
+            int dry = 0;
+            for (int f = 0; f < r.Falls.Length; f++)
+            {
+                var shape = FallShape.River(s, r.Falls[f], math.frac((f + 1000000) * 0.618f));
+                var across = new float2(shape.Out.y, -shape.Out.x);
+                for (float t = -shape.Width * 0.5f - 1f; t <= shape.Width * 0.5f + 1f; t += 0.5f)
+                {
+                    var g = s.SampleGround(shape.Foot.xz + across * t);
+                    if (!(g.HasWater && g.WaterSurface > g.Height + WetDepth))
+                    {
+                        dry++;
+                        break;
+                    }
+                }
+            }
+            return dry;
+        }
 
         /// <summary>Runs both passes over the live TerrainSource. step is the grid spacing in metres.</summary>
         public static Result Measure(TerrainSource s, float step = 4f)
@@ -217,8 +242,11 @@ namespace Punchy.Debugging
                         if (!Wet(k) && (k == 0 || down >= 0))
                         {
                             var none = type[b + k] == 0;
+                            var q = RiverSampling.Query(ref r, s.RiverSettings, points[b + k], s.RiverRoughOn);
+                            if (q.Isle > 0f)
+                                break;   // island crowns are dry by design
                             // Ground well above what the river carved here was raised afterwards (a paddy, a landmark, a plot).
-                            var carved = RiverSampling.Query(ref r, s.RiverSettings, points[b + k], s.RiverRoughOn).Carve;
+                            var carved = q.Carve;
                             hits[DryRun].Add(new Hit { Score = none ? 50f : ground[b + k] - surface[b + k], At = k == 0 ? here : mid, A = none ? 1f : 0f, B = r.Width[i], I = ground[b + k] > carved + 2f ? 1 : 0 });
                             break;
                         }
@@ -277,6 +305,7 @@ namespace Punchy.Debugging
         static void Grid(TerrainSource s, Result result, float step)
         {
             ref var r = ref s.Rivers.Value;
+            var lips = LandmarkLips(s);
             int side = (int)math.ceil(r.Resolution * r.CellSize / step);
             var ground = new NativeArray<float>(side * side, Allocator.TempJob);
             var surface = new NativeArray<float>(side * side, Allocator.TempJob);
@@ -316,7 +345,7 @@ namespace Punchy.Debugging
                         continue;
                     var hiAt = r.Origin + (new float2(hi % side, hi / side) + 0.5f) * step;
                     var loAt = r.Origin + (new float2(lo % side, lo / side) + 0.5f) * step;
-                    if (AtFallLip(ref r, hiAt, loAt, step))
+                    if (AtFallLip(ref r, hiAt, loAt, step) || AtLandmarkLip(lips, hiAt, loAt, step) || HeldByRim(s, hiAt, loAt, surface[hi]))
                     {
                         result.FallSteps++;
                         continue;
@@ -336,19 +365,70 @@ namespace Punchy.Debugging
             type.Dispose();
         }
 
-        /// <summary>A drop from hi to lo is a fall's own sheet: hi sits on the lip line, inside the fall's width, and lo is downstream of it.</summary>
+        /// <summary>A drop from hi to lo is a fall's own sheet: hi sits on the lip line, inside the fall's width, and lo is downstream of it
+        /// (any grid neighbour with a downstream lean: an oblique fall's lip line crosses both grid axes, W-153).</summary>
         static bool AtFallLip(ref RiverMapBlob r, float2 hi, float2 lo, float step)
         {
-            var dir = math.normalizesafe(lo - hi);
             for (int f = 0; f < r.Falls.Length; f++)
-            {
-                var rel = hi - r.Falls[f].Lip.xz;
-                var o = r.Falls[f].Out;
-                var along = math.dot(rel, o);
-                var across = math.abs(rel.x * o.y - rel.y * o.x);
-                if (across <= r.Falls[f].Width * 0.5f + step * 0.5f && along >= -step - 1f && along <= 1f && math.dot(dir, o) > 0.5f)
+                if (OnLip(r.Falls[f].Lip.xz, r.Falls[f].Out, r.Falls[f].Width, hi, lo, step))
                     return true;
+            return false;
+        }
+
+        static bool OnLip(float2 lip, float2 o, float width, float2 hi, float2 lo, float step)
+        {
+            var rel = hi - lip;
+            var along = math.dot(rel, o);
+            var across = math.abs(rel.x * o.y - rel.y * o.x);
+            return across <= width * 0.5f + step * 0.5f && along >= -step - 1f && along <= 1f && math.dot(math.normalizesafe(lo - hi), o) > 0.25f;
+        }
+
+        // A Waterfall landmark's upper pool pours over its own cliff, so its lip is a fall like a river's.
+        static List<FallShape> LandmarkLips(TerrainSource s)
+        {
+            var lips = new List<FallShape>();
+            var world = Unity.Entities.World.DefaultGameObjectInjectionWorld;
+            if (!s.Landmarks.IsCreated || world == null || !world.IsCreated)
+                return lips;
+            var query = world.EntityManager.CreateEntityQuery(Unity.Entities.ComponentType.ReadOnly<BiomePalette>());
+            if (query.CalculateEntityCount() != 1)
+                return lips;
+            var types = world.EntityManager.GetComponentObject<BiomePalette>(query.GetSingletonEntity()).Landmarks;
+            ref var set = ref s.Landmarks.Value;
+            for (int i = 0; types != null && i < set.Instances.Length; i++)
+            {
+                ref var inst = ref set.Instances[i];
+                if (inst.Type >= types.Length || types[inst.Type] == null)
+                    continue;
+                var radius = set.Types[inst.Type].Radius * inst.Scale;
+                foreach (var effect in types[inst.Type].Effects)
+                    if (effect.Kind == LandmarkEffectKind.Waterfall)
+                        lips.Add(FallShape.Landmark(s, LandmarkSampling.ToWorld(inst, effect.Offset, radius), inst.Facing,
+                                                    effect.Height * inst.Scale, effect.Width * inst.Scale, 0f));
             }
+            return lips;
+        }
+
+        // The terrain mesh is drawn at 1 m, so a bank that rises to the water between two 4 m samples holds it: no face shows.
+        static bool HeldByRim(TerrainSource s, float2 hi, float2 lo, float surface)
+        {
+            var n = (int)math.ceil(math.distance(hi, lo));
+            var held = false;
+            for (int k = 1; k < n; k++)
+            {
+                var g = s.SampleGround(math.lerp(hi, lo, k / (float)n));
+                if (held && g.HasWater && g.WaterSurface > g.Height + WetDepth)
+                    return false;
+                held |= g.Height >= surface - 0.05f;
+            }
+            return held;
+        }
+
+        static bool AtLandmarkLip(List<FallShape> lips, float2 hi, float2 lo, float step)
+        {
+            foreach (var lip in lips)
+                if (OnLip(lip.Lip.xz, lip.Out, lip.Width, hi, lo, step))
+                    return true;
             return false;
         }
 
@@ -388,6 +468,147 @@ namespace Punchy.Debugging
                     Compare(s, far, near, origin, axis, size, result);
                     Compare(s, near, far, origin, axis, size, result);
                 }
+            return result;
+        }
+
+        /// <summary>
+        /// W-153 row 6: the drawn water sheets of loaded chunks round a place against the ground test. Returns { points,
+        /// over a bank (sheet above ground the test calls dry), gaps (test wet, no sheet over the ground), level off by
+        /// over 25 cm (report only), worst over-bank height in mm, sheet edge points hanging over the ground, worst hang
+        /// in mm, edge points hanging where the test is wet: a pool standing over lower ground with no rim (test only),
+        /// steep triangles away from falls, pits (steep triangles diving into the ground) }.
+        /// </summary>
+        public static int[] Sheet(TerrainSource s, TerrainStreamingSystem streaming, float size, float2 centre, int radius)
+        {
+            const float lattice = 0.25f, cell = 0.5f;
+            var result = new int[SheetCounts];
+            var edges = new List<float3>();
+            var points = new List<float2>();
+            var drawn = new List<float>();
+            var drawnGround = new List<float>();
+            var covered = new Dictionary<int2, float>();
+            var first = (int2)math.floor(centre / size);
+            for (int z = -radius; z <= radius; z++)
+                for (int x = -radius; x <= radius; x++)
+                {
+                    var coord = first + new int2(x, z);
+                    if (!streaming.TryGetWater(coord, out var mesh, out _, out _) || mesh == null || mesh.vertexCount == 0)
+                        continue;
+                    var origin = (float2)coord * size;
+                    var vs = mesh.vertices;
+                    var ts = mesh.triangles;
+                    // The terrain grid shares the water grid's indices, so its height under a sheet point is the same blend.
+                    var gs = streaming.TryGetGround(coord, out var groundMesh) ? groundMesh.vertices : null;
+                    // Edges by position: a split's vertices repeat the corners' positions under other indices.
+                    var uses = new Dictionary<(int3, int3), int>();
+                    var ends = new Dictionary<(int3, int3), (float3, float3)>();
+                    for (int t = 0; t < ts.Length; t += 3)
+                        for (int e = 0; e < 3; e++)
+                        {
+                            float3 p0 = vs[ts[t + e]], p1 = vs[ts[t + (e + 1) % 3]];
+                            int3 k0 = (int3)math.round(p0 * 1000f), k1 = (int3)math.round(p1 * 1000f);
+                            if (k0.Equals(k1))
+                                continue;
+                            var k = k0.x < k1.x || k0.x == k1.x && (k0.z < k1.z || k0.z == k1.z && k0.y < k1.y) ? (k0, k1) : (k1, k0);
+                            uses[k] = uses.TryGetValue(k, out var u) ? u + 1 : 1;
+                            ends[k] = (p0, p1);
+                        }
+                    foreach (var pair in uses)
+                    {
+                        if (pair.Value != 1)
+                            continue;
+                        var (a, b) = ends[pair.Key];
+                        // An edge along the chunk's border carries on in the neighbour's sheet.
+                        if (a.x == b.x && (a.x < 0.01f || a.x > size - 0.01f) || a.z == b.z && (a.z < 0.01f || a.z > size - 0.01f))
+                            continue;
+                        var n = math.max(1, (int)math.ceil(math.distance(a.xz, b.xz) / lattice));
+                        for (int i = 0; i <= n; i++)
+                        {
+                            var p = math.lerp(a, b, (float)i / n);
+                            edges.Add(new float3(origin.x + p.x, p.y, origin.y + p.z));
+                        }
+                    }
+                    for (int t = 0; t < ts.Length; t += 3)
+                    {
+                        float3 a = vs[ts[t]], b = vs[ts[t + 1]], c = vs[ts[t + 2]];
+                        // A step's curtain stands between two levels; it is no sheet over the ground.
+                        var normal = math.cross(b - a, c - a);
+                        if (math.lengthsq(normal) < 1e-8f || math.abs(math.normalize(normal).y) < 0.2f)
+                            continue;
+                        var shared = gs != null && math.max(ts[t], math.max(ts[t + 1], ts[t + 2])) < gs.Length &&
+                                     math.distance(((float3)gs[ts[t]]).xz, a.xz) < 0.01f && math.distance(((float3)gs[ts[t + 1]]).xz, b.xz) < 0.01f &&
+                                     math.distance(((float3)gs[ts[t + 2]]).xz, c.xz) < 0.01f;
+                        var under = shared ? new float3(gs[ts[t]].y, gs[ts[t + 1]].y, gs[ts[t + 2]].y) : new float3(float.NaN);
+                        if (math.abs(math.normalize(normal).y) < SteepNormalY && !(s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, origin + (a.xz + b.xz + c.xz) / 3f)))
+                        {
+                            result[8]++;
+                            var low = a.y <= b.y && a.y <= c.y ? new float2(a.y, under.x) : b.y <= c.y ? new float2(b.y, under.y) : new float2(c.y, under.z);
+                            if (low.x <= low.y + WetDepth)
+                                result[9]++;
+                        }
+                        var n = math.max(1, (int)math.ceil(math.max(math.distance(a.xz, b.xz), math.max(math.distance(b.xz, c.xz), math.distance(c.xz, a.xz))) / lattice));
+                        for (int i = 0; i <= n; i++)
+                            for (int j = 0; i + j <= n; j++)
+                            {
+                                // Nudged into the triangle: on a curtain's line the point would belong to both levels.
+                                var wi = (float)i / n * 0.99f + 0.01f / 3f;
+                                var wj = (float)j / n * 0.99f + 0.01f / 3f;
+                                var p = a + (b - a) * wi + (c - a) * wj;
+                                var xz = origin + p.xz;
+                                points.Add(xz);
+                                drawn.Add(p.y);
+                                drawnGround.Add(under.x + (under.y - under.x) * wi + (under.z - under.x) * wj);
+                                var key = (int2)math.floor(xz / cell);
+                                covered[key] = covered.TryGetValue(key, out var top) ? math.max(top, p.y) : p.y;
+                            }
+                    }
+                }
+            var lo = (float2)(first - radius) * size;
+            var side = (int)math.round((2 * radius + 1) * size / cell);
+            var grid = points.Count;
+            for (int z = 0; z < side; z++)
+                for (int x = 0; x < side; x++)
+                    points.Add(lo + (new float2(x, z) + 0.5f) * cell);
+            Sample(s, points, out var ground, out var surface, out _);
+            for (int i = 0; i < grid; i++)
+            {
+                if (s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, points[i]))
+                    continue;
+                var wet = surface[i] > ground[i] + WetDepth;
+                // The grid's chord under a curved bank, or a scarp's cut, lowers the shown ground under water at its true level.
+                var shown = math.max(ground[i], float.IsNaN(drawnGround[i]) ? ground[i] : drawnGround[i]);
+                if (!wet && drawn[i] > shown + WetDepth)
+                {
+                    result[1]++;
+                    result[4] = math.max(result[4], (int)math.round((drawn[i] - shown) * 1000f));
+                }
+                if (wet && math.abs(drawn[i] - surface[i]) > 0.25f)
+                    result[3]++;
+            }
+            result[0] = grid;
+            var edgeAt = new List<float2>();
+            foreach (var e in edges)
+                edgeAt.Add(e.xz);
+            Sample(s, edgeAt, out var edgeGround, out var edgeSurface, out _);
+            for (int i = 0; i < edges.Count; i++)
+            {
+                if (edges[i].y <= edgeGround[i] + WetDepth || (s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, edgeAt[i])))
+                    continue;
+                if (edgeSurface[i] > edgeGround[i] + WetDepth && math.abs(edges[i].y - edgeSurface[i]) < 0.25f)
+                {
+                    result[7]++;
+                    continue;
+                }
+                result[5]++;
+                result[6] = math.max(result[6], (int)math.round((edges[i].y - edgeGround[i]) * 1000f));
+            }
+            for (int i = grid; i < points.Count; i++)
+            {
+                if (surface[i] <= ground[i] + 2f * WetDepth || (s.Rivers.IsCreated && NearFall(ref s.Rivers.Value, points[i])))
+                    continue;
+                if (!covered.TryGetValue((int2)math.floor(points[i] / cell), out var top) || top < ground[i])
+                    result[2]++;
+            }
             return result;
         }
 

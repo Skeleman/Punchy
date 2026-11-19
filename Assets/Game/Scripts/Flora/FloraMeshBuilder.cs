@@ -60,19 +60,20 @@ namespace Punchy.Flora
         public bool BarkVeins;
         /// <summary>Rock banded like the canyon walls (FloraSpecies.RockStrata): marked as Bark + 0.08.</summary>
         public bool BarkStrata;
+        public Punchy.Terrain.BarkKind BarkKind;
         /// <summary>
         /// Timber (Z-30): while set, bark is marked as wood (Bark + 0.02) and carries its grain's direction, the object
         /// axis nearest the length of the piece being built (each primitive sets it: GrainAlong), in its vertex colour's
         /// alpha (0.25 X, 0.5 Y, 0.75 Z), for the flora shader's grain. Builders set it round planks, posts and beams.
-        /// Shorthand for Family == Punchy.Terrain.MaterialFamily.Wood (W-166): clearing it returns to the builder's BaseFamily.
+        /// Setting it gives Family the builder's TimberFamily; clearing it returns to the builder's BaseFamily.
         /// </summary>
         public bool Wood
         {
             get => Family == Punchy.Terrain.MaterialFamily.Wood;
             set
             {
-                if (value) Family = Punchy.Terrain.MaterialFamily.Wood;
-                else if (Family == Punchy.Terrain.MaterialFamily.Wood) Family = BaseFamily == Punchy.Terrain.MaterialFamily.Wood ? Punchy.Terrain.MaterialFamily.None : BaseFamily;
+                if (value) Family = TimberFamily;
+                else if (Family == TimberFamily) Family = BaseFamily == Punchy.Terrain.MaterialFamily.Wood ? Punchy.Terrain.MaterialFamily.None : BaseFamily;
             }
         }
         /// <summary>
@@ -82,6 +83,8 @@ namespace Punchy.Flora
         public Punchy.Terrain.MaterialFamily Family;
         /// <summary>The family a built form's untagged bark is (FloraGenerator.FormFamily): Family returns to it on Clear.</summary>
         public Punchy.Terrain.MaterialFamily BaseFamily;
+        /// <summary>What a builder's timber is made of (FloraGenerator.Timber): Wood, except an elf's stone (W-161).</summary>
+        public Punchy.Terrain.MaterialFamily TimberFamily = Punchy.Terrain.MaterialFamily.Wood;
         /// <summary>
         /// W-166: the kind of wood (MaterialLibrary.Wood) the wood built next is: it rides on the wood mark as
         /// Bark + 0.015 + kind * 0.0025, which the flora shader decodes to pick the kind's grain and tone.
@@ -90,6 +93,12 @@ namespace Punchy.Flora
         /// <summary>W-166 row 3: stone built next is rubble (packed irregular stones), not cut courses: it rides on the
         /// stone mark as + 0.002 (Materials/Stone.hlsl's PunchyStoneBlocks). Cleared with the builder.</summary>
         public bool Rubble;
+        /// <summary>Phase B (#336): the kind of metal (MaterialLibrary.Metal) metal built next is: it rides on the part as
+        /// Metal + kind * 0.1 (under the 0.5 the part rounds by), which Flora.shader decodes. Cleared with the builder.</summary>
+        public Punchy.Terrain.MetalKind MetalKind;
+        public Punchy.Terrain.ThatchKind ThatchKind;
+        public Punchy.Terrain.PlasterKind PlasterKind;
+        public Punchy.Terrain.RoofKind RoofKind;
         readonly int[] barkFamilies = new int[16];
         /// <summary>Bark vertices built per Punchy.Terrain.MaterialFamily since the last Clear (W-166's material test).</summary>
         public int BarkVerticesOf(Punchy.Terrain.MaterialFamily family) => barkFamilies[(int)family];
@@ -133,6 +142,7 @@ namespace Punchy.Flora
             System.Array.Clear(barkFamilies, 0, barkFamilies.Length);
             Surface = 0;
             Rubble = false;
+            MetalKind = Punchy.Terrain.MetalKind.Iron;
             Unfounded = false;
             unfounded.Clear();
         }
@@ -155,7 +165,7 @@ namespace Punchy.Flora
             normals.Add(n);
             colors.Add(c);
             // Glowing parts carry their shimmer as a fraction on the part (the shader rounds the part).
-            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp((int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
+            data.Add(new Vector4(0f, (float)part + (part == FloraPart.Glow ? Mathf.Clamp01(GlowPulse) * 0.4f : part == FloraPart.Metal ? Mathf.Clamp((int)MetalKind, 0, 4) * 0.1f : part == FloraPart.Bark && BarkVeins ? 0.4f : part == FloraPart.Bark && BarkSeams ? 0.25f : part == FloraPart.Bark && BarkStrata ? 0.08f : wood ? 0.015f + Mathf.Clamp(Surface == 3 ? (int)ThatchKind : (int)WoodKind, 0, 7) * 0.0025f : part == FloraPart.Bark ? FamilyMark(Family) + (Rubble && Family == Punchy.Terrain.MaterialFamily.Stone ? 0.002f : 0f) + KindMark(Family) + (Family == Punchy.Terrain.MaterialFamily.None ? Mathf.Clamp((int)BarkKind, 0, 3) * 0.002f : 0f) : part == FloraPart.Foliage && BarkSeams ? 0.25f : 0f),
                                  flutter, Mathf.Clamp01(ao)));
             return positions.Count - 1;
         }
@@ -165,10 +175,22 @@ namespace Punchy.Flora
         /// glowing seams (over 0.15), clear of rock strata (0.08); 0 for families drawn the default way.</summary>
         public static float FamilyMark(Punchy.Terrain.MaterialFamily family) => family switch
         {
+            Punchy.Terrain.MaterialFamily.Tile => 0.091f,
             Punchy.Terrain.MaterialFamily.Plaster => 0.10f,
             Punchy.Terrain.MaterialFamily.Brick => 0.115f,
             Punchy.Terrain.MaterialFamily.Ice => 0.13f,
             Punchy.Terrain.MaterialFamily.Stone => 0.142f,
+            // #550: rope and netting (kit Net parts): twisted fibre, never the stone surface.
+            Punchy.Terrain.MaterialFamily.Cloth => 0.053f,
+            // Painted trim and accents (buoy floats): a smooth chipped coat, never the stone surface.
+            Punchy.Terrain.MaterialFamily.Paint => 0.041f,
+            _ => 0f
+        };
+
+        float KindMark(Punchy.Terrain.MaterialFamily family) => family switch
+        {
+            Punchy.Terrain.MaterialFamily.Plaster => Mathf.Clamp((int)PlasterKind, 0, 2) * 0.002f,
+            Punchy.Terrain.MaterialFamily.Tile => Mathf.Clamp((int)RoofKind - 1, 0, 2) * 0.0015f,
             _ => 0f
         };
 
@@ -261,6 +283,21 @@ namespace Punchy.Flora
         {
             for (int v = firstVertex; v < positions.Count; v++)
                 colors[v] = tint(positions[v], normals[v], colors[v]);
+        }
+
+        /// <summary>
+        /// Darkens the vertices since a vertex that sit below a height (the darker footing of a building or walkway).
+        /// Only the colour: the alpha carries a wood piece's grain axis and look, and scaling it (#550) turned the
+        /// planks of every low deck into shingles.
+        /// </summary>
+        public void DarkenBelow(int firstVertex, float height, float factor)
+        {
+            for (int v = firstVertex; v < positions.Count; v++)
+                if (positions[v].y < height)
+                {
+                    var c = colors[v];
+                    colors[v] = new Color(c.r * factor, c.g * factor, c.b * factor, c.a);
+                }
         }
 
         // ------------------------------------------------------------------------------------------- primitives
@@ -1012,6 +1049,21 @@ namespace Punchy.Flora
             {
                 var d = data[v];
                 d.y = (float)FloraPart.Cloth + 0.45f;
+                d.z = 0f;
+                data[v] = d;
+            }
+        }
+
+        /// <summary>
+        /// Phase B (#336): makes the vertices from <paramref name="firstVertex"/> felt (a bedroll): cloth held still, drawn
+        /// as matted wool, not linen. Carried as Cloth + 0.48, past hide's 0.45 (Flora.hlsl holds anything over 0.42).
+        /// </summary>
+        public void Felt(int firstVertex)
+        {
+            for (int v = firstVertex; v < data.Count; v++)
+            {
+                var d = data[v];
+                d.y = (float)FloraPart.Cloth + 0.48f;
                 d.z = 0f;
                 data[v] = d;
             }

@@ -106,6 +106,7 @@ namespace Punchy.Terrain
             var roadsDone = watch.ElapsedMilliseconds;
             roadsideLandmarks = RoadsideBaking.Place(source, types, roadside, roads, settlements, streets, layouts, firstBuilding, plots);
             var roadsideDone = watch.ElapsedMilliseconds;
+            FieldBaking.Place(source, layouts, firstBuilding, settlements, streets, plots, roadsideLandmarks, palette);
             var blob = BuildBlob(layouts, firstBuilding, settlements, streets, plots, allocator);
             LastTiming = $"(towns {lap} roads {roadsDone - lap} roadside {roadsideDone - roadsDone} blob {watch.ElapsedMilliseconds - roadsideDone})";
             return blob;
@@ -650,7 +651,7 @@ namespace Punchy.Terrain
                 {
                     // (A-117: stables are placed after the layout, by PlaceStable, so they draw nothing here.)
                     if (b.Role == PlotRole.House || b.Role == PlotRole.Landscaping || b.Role == PlotRole.Seat || b.Role == PlotRole.Shrine ||
-                        b.Role == PlotRole.Stable)
+                        b.Role == PlotRole.Stable || b.Role == PlotRole.Field)
                         continue;
                     var central = b.Role == PlotRole.Inn || b.Role == PlotRole.Market;
                     for (int k = 0; k < b.Count && order.Count > 0; k++)
@@ -784,7 +785,7 @@ namespace Punchy.Terrain
                 for (int i = 0; i < layout.Buildings.Count && next < houses.Count; i++)
                 {
                     var b = layout.Buildings[i];
-                    if (b.Species == null || b.OnlyIn == null || !b.OnlyIn.Contains(palette[id]))
+                    if (b.Species == null || b.Role == PlotRole.Field || b.OnlyIn == null || !b.OnlyIn.Contains(palette[id]))
                         continue;
                     var plot = plots[houses[next]];
                     plot.Building = firstBuilding + i;

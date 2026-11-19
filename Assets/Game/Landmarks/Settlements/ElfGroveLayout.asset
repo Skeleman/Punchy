@@ -31,8 +31,8 @@ MonoBehaviour:
   BuildingScale: 1.09
   WaterFeature: {fileID: 11400000, guid: 7c9534dc8b6f9f44caa5189be1a27130, type: 2}
   RoadWidth: 2.6
-  Signpost: {fileID: 11400000, guid: 4b43cc542a9e3e446a95fb86645732a1, type: 2}
-  Bridge: {fileID: 11400000, guid: 6fd3b583e4717e64ea5a0270c7ea34e4, type: 2}
+  Signpost: {fileID: 11400000, guid: f416d78ac24b42b0bce01ef209da5459, type: 2}
+  Bridge: {fileID: 11400000, guid: 98171e8050da4c5a8b016bdec67eae18, type: 2}
   PalisadeWall: {fileID: 0}
   RoadFence: {fileID: 0}
   KitBuilding: {fileID: 11400000, guid: 2aa02a862f9546beb1fda5392a867335, type: 2}
@@ -45,7 +45,7 @@ MonoBehaviour:
     OnlyIn: []
     Style: 
   - Role: 3
-    Species: {fileID: 11400000, guid: 962d1dfd7cc5f4e41b652ae09fa3183b, type: 2}
+    Species: {fileID: 11400000, guid: 7fe9994e8ae746f587144d7e952e6ee1, type: 2}
     Weight: 1
     Count: 0
     OnlyIn: []
@@ -102,7 +102,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 8b3d682c89ea4b3eba7de6d6165e262c, type: 2}
+    Species: {fileID: 11400000, guid: ab850296e97e4e458f458cb88ff291f8, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -110,7 +110,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 8b3d682c89ea4b3eba7de6d6165e262c, type: 2}
+    Species: {fileID: 11400000, guid: ab850296e97e4e458f458cb88ff291f8, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -118,7 +118,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 3abd880b4b52a0d45ac7f2b3a687cee8, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 176d60675112466c9cadf46ed199e1aa, type: 2}
+    Species: {fileID: 11400000, guid: 9ac6e5a5fb304004b621535f0e56b42d, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -127,7 +127,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 176d60675112466c9cadf46ed199e1aa, type: 2}
+    Species: {fileID: 11400000, guid: 9ac6e5a5fb304004b621535f0e56b42d, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -136,21 +136,21 @@ MonoBehaviour:
     - {fileID: 11400000, guid: b6dbd4f6350cf6743b5cf90b12731cfe, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: f17cf23e30eb41419d78e68a143fcc1b, type: 2}
+    Species: {fileID: 11400000, guid: e94e822820944511aba7a4ae92513497, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
     - {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: f17cf23e30eb41419d78e68a143fcc1b, type: 2}
+    Species: {fileID: 11400000, guid: e94e822820944511aba7a4ae92513497, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
     - {fileID: 11400000, guid: 141565d02b6f28c4b9331e5d77a83fac, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 14da0fe2e8e54b1fbe38b7f196fc16d7, type: 2}
+    Species: {fileID: 11400000, guid: fbd70697117d4606913d6fdf80128dcf, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -159,7 +159,7 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     Style: 
   - Role: 0
-    Species: {fileID: 11400000, guid: 14da0fe2e8e54b1fbe38b7f196fc16d7, type: 2}
+    Species: {fileID: 11400000, guid: fbd70697117d4606913d6fdf80128dcf, type: 2}
     Weight: 1
     Count: 1
     OnlyIn:
@@ -168,19 +168,26 @@ MonoBehaviour:
     - {fileID: 11400000, guid: 2643950432d89264cafbe718d23c0c4e, type: 2}
     Style: 
   - Role: 9
-    Species: {fileID: 11400000, guid: 203b815692a7a9449ab214fd42e1f7b8, type: 2}
+    Species: {fileID: 11400000, guid: 9920e0397f6d42228b445c89c05a8e50, type: 2}
     Weight: 1
     Count: 1
     OnlyIn: []
     Style: 
     MinPlots: 0
   - Role: 9
-    Species: {fileID: 11400000, guid: f358ef58bbd5844428b5ad6472dae2ab, type: 2}
+    Species: {fileID: 11400000, guid: 6e478e61791d489c821e18e6a9638639, type: 2}
     Weight: 1
     Count: 1
     OnlyIn: []
     Style: 
     MinPlots: 15
+  - Role: 16
+    Species: {fileID: 11400000, guid: 49bf6470e8d44a42aa908eee7b075218, type: 2}
+    Weight: 1
+    Count: 0
+    OnlyIn: []
+    Style: 
+    MinPlots: 0
   Fixtures:
   - Species: {fileID: 11400000, guid: c69b5618d012ba5439a218da0e61744c, type: 2}
     Spot: 1

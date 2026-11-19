@@ -138,8 +138,14 @@ namespace Punchy.Flora
         [Tooltip("A-117: a stable. A lean-to shed of stalls with hay at the back, a railed paddock in front with its gate " +
                  "gap at +Z, a trough and hay bales (Accent the hay). Height is the back wall; Height times Spread its width.")] Stable,
         [Tooltip("A-117: a hitching rail: two posts and a rail along X (Height the posts', times Spread the rail), a trough " +
-                 "in front and a hay bale (Accent).")] HitchRail
+                 "in front and a hay bale (Accent).")] HitchRail,
+        [Tooltip("W-165: a farm field, its gate at +Z: rows of a crop (Crop; Foliage to Foliage Variation, Accent the " +
+                 "ripe heads) along X on tilled ridges (Bark), Field Size across, inside its Border (Height the border's).")] Field
     }
+
+    public enum CropKind : byte { Grain, Cabbage, Beans, Agave, Potato, Kale, GlowHerb, Rice, Kelp }
+
+    public enum FieldBorder : byte { Rail, Hedge, Wattle, DryStone, Adobe, Brush, StoneKerb }
 
     /// <summary>
     /// W-63: where on a river a species grows (river dressing). None = anywhere its other rules allow; the rest only
@@ -151,7 +157,14 @@ namespace Punchy.Flora
         [Tooltip("The slow inner side of a bend, on the wet shelf and in the shallows (cattail and reed beds).")] InnerBend,
         [Tooltip("A gravel bar: the bank edge at the waterline on the inner side of a bend, or by slow water (driftwood).")] GravelBar,
         [Tooltip("A shallow narrows, in bands across the water (stepping stones).")] Narrows,
-        [Tooltip("Across a narrows, bank to bank, with both ends on dry ground (a fallen log; rare).")] LogNarrows
+        [Tooltip("Across a narrows, bank to bank, with both ends on dry ground (a fallen log; rare).")] LogNarrows,
+        [Tooltip("Caught at the waterline: the outer bank of a bend, more rarely a straight bank, and still lake shores (driftwood snags).")] Snag,
+        [Tooltip("The waterline band of any river or lake, fast water too (wet, dark bank rocks).")] Waterline,
+        [Tooltip("The bank top at the lip of an outer bend, over a drop to the water (a Boulder there is an undercut turf lip " +
+                 "with roots hanging under it).")] Undercut,
+        [Tooltip("Across a narrow fast riffle with low banks, one reach in many (a Boulder there is a row of 3-6 flat stones).")] Riffle,
+        [Tooltip("In a rapids reach, one spot in some (a Boulder there is a big rock the spray gives a foam tail).")] Splash,
+        [Tooltip("A bar head or the waterline of a sharp outer bend, in one reach in a few (driftwood there is a heap of 4-7 logs).")] Heap
     }
 
     public enum FoliageFinish : byte
@@ -198,6 +211,10 @@ namespace Punchy.Flora
         {
             JsonUnit = UnitJson != null ? UnitLibrary.FromJson(UnitJson.text) : null;
             UnitLibrary.Register(JsonUnit);
+            if (NestedJson != null)
+                foreach (var nested in NestedJson)
+                    if (nested != null)
+                        UnitLibrary.Register(UnitLibrary.FromJson(nested.text));
         }
 
         [Header("Growth")]
@@ -208,6 +225,8 @@ namespace Punchy.Flora
         public TextAsset UnitJson;
         /// <summary>W-175 row 6: UnitJson read on the main thread (OnEnable), for growers on worker threads; null without one.</summary>
         [System.NonSerialized] public UnitDef JsonUnit;
+        [Tooltip("Blueprints UnitJson nests by id: a build only has the units some species lists.")]
+        public TextAsset[] NestedJson;
         public FloraLayer Layer = FloraLayer.Shrub;
         [Tooltip("Height range of fully grown plants, in metres.")]
         public Vector2 Height = new Vector2(1f, 1.6f);
@@ -228,6 +247,8 @@ namespace Punchy.Flora
 
         [Header("Colours")]
         public Color Bark = new Color(0.36f, 0.27f, 0.2f);
+        [Tooltip("Logs only: take the bark colour, bark kind and wood from this tree, so a fallen trunk matches the biome's own trees.")]
+        public FloraSpecies TrunkOf;
         public Color Foliage = new Color(0.22f, 0.4f, 0.14f);
         [Tooltip("Second foliage colour; each clump picks somewhere between the two.")]
         public Color FoliageVariation = new Color(0.3f, 0.45f, 0.16f);
@@ -267,6 +288,12 @@ namespace Punchy.Flora
         [Range(0f, 1f)] public float Cocoons;
         [Tooltip("Trees: the share of variants with a face in the bark: hollow eyes that glow faintly and blink, and a mouth.")]
         [Range(0f, 1f)] public float BarkFace;
+        [Tooltip("Trees (BroadleafTree, HiveTree): the share of variants with strangler-fig roots twisting up the trunk from " +
+                 "a splayed foot, paler than the bark.")]
+        [Range(0f, 1f)] public float Strangler;
+        [Tooltip("How the bark cracks: furrowed ridges, deep plates (old pines and oaks, deeper on bigger trees), fine " +
+                 "checks over a fissured dark base (birch) or nearly smooth (beech).")]
+        public Punchy.Terrain.BarkKind BarkKind;
         [Tooltip("Bark veined with cool light that flows slowly up the trunk (weird biomes), instead of ember seams.")]
         public bool GlowingVeins;
         [Tooltip("Rock: banded strata by height, the same bands and colours as terrain surfaces with Strata (mesa cliffs), " +
@@ -329,6 +356,8 @@ namespace Punchy.Flora
         public bool Floats;
         [Tooltip("Aquatic: only in river rapids at least this steep (0..1; 0 = anywhere). Rocks in white water.")]
         [Range(0f, 1f)] public float MinRapids;
+        [Tooltip("Aquatic: thins out as rapids reach this (0..1; 0 = anywhere) and never grows by a waterfall. Reeds in slow water.")]
+        [Range(0f, 1f)] public float MaxRapids;
         [Tooltip("W-63 river dressing: only on this kind of river spot (inner bend, gravel bar, narrows, across a narrows).")]
         public RiverSpot RiverSpot;
         [Tooltip("Blocks the player (trees, big cacti).")]
@@ -339,8 +368,16 @@ namespace Punchy.Flora
         public Punchy.Terrain.FolkCulture KitCulture = Punchy.Terrain.FolkCulture.Human;
         [Tooltip("Kit Building only (#36): a house, a stilt house, a dock out along +Z from its land end, or a cluster of shore details.")]
         public Punchy.Terrain.KitShape KitShape;
+        [Tooltip("#550, Kit Building only: the fish its drying racks hang (the fishing code's own species: shape and coats); empty = a plain silver fish.")]
+        public Punchy.Fauna.CreatureSpecies[] HungFish;
         [Tooltip("W-127, Kit Shape Fixture only: which street light it builds (and so its light's colour and reach).")]
         public Punchy.Terrain.FixtureStyle FixtureStyle;
+        [Tooltip("W-165, Field only: what grows in its rows.")]
+        public CropKind Crop;
+        [Tooltip("W-165, Field only: what rings it.")]
+        public FieldBorder Border;
+        [Tooltip("W-165, Field only: frontage along the rows (x) and depth (y), m at scale 1.")]
+        public Vector2 FieldSize = new Vector2(24f, 16f);
         [Tooltip("Random size of each placed plant, on top of its variant's own size.")]
         public Vector2 SizeRange = new Vector2(0.85f, 1.15f);
 
@@ -349,6 +386,8 @@ namespace Punchy.Flora
         [Range(1, 32)] public int Variants = 4;
         [Tooltip("Changes every generated shape of this species.")]
         public int Seed = 1;
+        [Tooltip("Added after the world was tuned: keyed by name and skipped in the other species' draw keys, so adding it moves no other plant.")]
+        public bool LateAddition;
     }
 
     /// <summary>A species growing in a biome, and how densely.</summary>

@@ -735,6 +735,12 @@ namespace Punchy.Terrain
         }
 
         /// <summary>Whether a chunk is loaded (with or without water), and its detail level.</summary>
+        public bool TryGetGround(int2 coord, out Mesh mesh)
+        {
+            mesh = loaded.TryGetValue(coord, out var chunk) ? chunk.Mesh : null;
+            return mesh != null;
+        }
+
         public bool TryGetLod(int2 coord, out int lod)
         {
             lod = loaded.TryGetValue(coord, out var chunk) ? chunk.Lod : -1;

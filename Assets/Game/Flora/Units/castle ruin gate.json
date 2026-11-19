@@ -1,0 +1,365 @@
+{
+    "Id": "castle ruin gate",
+    "DepthOfWidth": 1.0,
+    "WidthOfHeight": 0.0,
+    "Host": "StoneHall",
+    "Size": {
+        "x": 36.0,
+        "y": 15.0,
+        "z": 36.0
+    },
+    "PartStreams": true,
+    "Parts": [
+        {
+            "Part": "castle tower",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": -14.0,
+                "y": 0.0,
+                "z": -14.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 6.0,
+                "y": 11.0,
+                "z": 0.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 1,
+            "Unit": "",
+            "Wear": 0.85
+        },
+        {
+            "Part": "castle tower",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 14.0,
+                "y": 0.0,
+                "z": -14.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 6.0,
+                "y": 12.0,
+                "z": 0.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 2,
+            "Unit": "",
+            "Wear": 0.7
+        },
+        {
+            "Part": "castle tower",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": -14.0,
+                "y": 0.0,
+                "z": 14.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 6.0,
+                "y": 10.0,
+                "z": 0.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 3,
+            "Unit": "",
+            "Wear": 0.95
+        },
+        {
+            "Part": "castle tower",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 14.0,
+                "y": 0.0,
+                "z": 14.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 6.0,
+                "y": 11.0,
+                "z": 0.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 4,
+            "Unit": "",
+            "Wear": 0.75
+        },
+        {
+            "Part": "curtain wall",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": -11.0,
+                "y": 0.0,
+                "z": -14.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 11.0,
+                "y": 0.0,
+                "z": -14.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 0.0,
+                "y": 6.0,
+                "z": 2.6
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 11,
+            "Unit": "",
+            "Wear": 0.9
+        },
+        {
+            "Part": "curtain wall",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 14.0,
+                "y": 0.0,
+                "z": -11.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 14.0,
+                "y": 0.0,
+                "z": 11.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 0.0,
+                "y": 6.0,
+                "z": 2.6
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 12,
+            "Unit": "",
+            "Wear": 0.95
+        },
+        {
+            "Part": "curtain wall",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": -14.0,
+                "y": 0.0,
+                "z": 11.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": -14.0,
+                "y": 0.0,
+                "z": -11.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 0.0,
+                "y": 5.5,
+                "z": 2.6
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 13,
+            "Unit": "",
+            "Wear": 0.8
+        },
+        {
+            "Part": "castle tower",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 5.0,
+                "y": 0.0,
+                "z": -4.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 8.5,
+                "y": 15.0,
+                "z": 0.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 31,
+            "Unit": "",
+            "Wear": 0.8
+        },
+        {
+            "Part": "unit",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 14.5
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 21,
+            "Unit": "castle gate raised",
+            "Wear": 0.8
+        }
+    ]
+}

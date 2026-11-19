@@ -42,6 +42,7 @@ MonoBehaviour:
   Solid: 0
   Aquatic: 1
   WaterDepth: {x: -0.5, y: 0.45}
+  MaxRapids: 0.35
   RiverSpot: 1
   Variants: 4
   Seed: 631

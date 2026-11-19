@@ -106,7 +106,7 @@ namespace Punchy.Flora
 
         /// <summary>Forms that cast no shadow (see CastsShadows).</summary>
         public static bool Shadowless(FloraForm form) =>
-            form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Woodpile
+            form is FloraForm.Pen or FloraForm.Palisade or FloraForm.Signpost or FloraForm.Garden or FloraForm.Field or FloraForm.Woodpile
                  or FloraForm.Stall or FloraForm.Flowers or FloraForm.Bedroll or FloraForm.RailFence or FloraForm.HitchRail;
 
         /// <summary>
@@ -124,6 +124,8 @@ namespace Punchy.Flora
                 case FloraForm.MineFrame: case FloraForm.HazardShelter: case FloraForm.KitBuilding: case FloraForm.KitRuin:
                 case FloraForm.Ruin: case FloraForm.Stable: case FloraForm.HitchRail:
                     return Punchy.Settings.DetailPolicy.FloraClass.Structure;
+                case FloraForm.Field:
+                    return Punchy.Settings.DetailPolicy.FloraClass.Field;
                 case FloraForm.Boulder: case FloraForm.Spire: case FloraForm.Crystal: case FloraForm.Den: case FloraForm.Columns:
                 case FloraForm.IceArch: case FloraForm.Fulgurite: case FloraForm.ArcSpire: case FloraForm.FloatingRock:
                 case FloraForm.Bones:
@@ -272,12 +274,16 @@ namespace Punchy.Flora
                                   : species.Finish == FoliageFinish.Glass ? FloraPart.Glass : FloraPart.Foliage;
                 builder.PetalAs = species.GlowingAccents ? FloraPart.Glow : FloraPart.Petal;
                 builder.GlowPulse = species.GlowPulse;
-                builder.BarkSeams = species.GlowingSeams;
-                builder.BarkVeins = species.GlowingVeins;
+                var trunk = species.TrunkOf != null ? species.TrunkOf : species;
+                builder.BarkSeams = trunk.GlowingSeams;
+                builder.BarkVeins = trunk.GlowingVeins;
                 builder.BarkStrata = species.RockStrata;
+                builder.BarkKind = trunk.BarkKind;
                 builder.BaseFamily = FormFamily(species.Form);
                 builder.Family = builder.BaseFamily;
+                builder.TimberFamily = species.KitCulture == Punchy.Terrain.FolkCulture.Elf ? Punchy.Terrain.MaterialFamily.Stone : Punchy.Terrain.MaterialFamily.Wood;
                 builder.WoodKind = WoodKindFor(species);
+                SurfaceKinds(builder, species, variant);
                 var g = new Grower(species, variant, lod, seed, builder);
                 if (unit != null) BuildUnit(g, unit);
                 else switch (species.Form)
@@ -339,6 +345,7 @@ namespace Punchy.Flora
                     case FloraForm.Hall: Hall(g); break;
                     case FloraForm.Shrine: Shrine(g); break;
                     case FloraForm.Garden: Garden(g); break;
+                    case FloraForm.Field: Field(g); break;
                     case FloraForm.Lodge: Lodge(g); break;
                     case FloraForm.Signpost: Signpost(g); break;
                     case FloraForm.Bridge: Bridge(g); break;
@@ -353,6 +360,8 @@ namespace Punchy.Flora
                 }
                 if (species.BarkFace > 0f && g.TrunkPath != null)
                     BarkFace(g);
+                if (species.Strangler > 0f && g.TrunkPath != null)
+                    StranglerRoots(g);
                 if (Founded(species.Form))
                     builder.Skirt(FoundationDepth);
                 if (lod == 0)
@@ -392,7 +401,7 @@ namespace Punchy.Flora
                 // plants still move, and cloth has its own motion (Flora.hlsl).
                 if (shapeOnly)
                     break;
-                var flexibility = Founded(species.Form) && species.Form != FloraForm.Garden ? 0f : species.Flexibility;
+                var flexibility = Founded(species.Form) && species.Form is not (FloraForm.Garden or FloraForm.Field) ? 0f : species.Flexibility;
                 builder.Sway(g.Height, flexibility);
                 model.Pending[lod] = builder;
             }
@@ -683,7 +692,7 @@ namespace Punchy.Flora
             public Vector3 Direction() => FloraMeshBuilder.RandomDirection(rng);
             public Vector3 Flat(float angle) => new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
 
-            public Color Bark => S.Bark.linear;
+            public Color Bark => (S.TrunkOf != null ? S.TrunkOf.Bark : S.Bark).linear;
             public Color FoliageColor() => Color.Lerp(S.Foliage, S.FoliageVariation, R()).linear;
             public bool HasAccent => S.Accents.Count > 0 && S.AccentAmount > 0f;
             public Color Accent => S.Accents.Count > 0 ? S.Accents[Variant % S.Accents.Count].linear : Color.white;

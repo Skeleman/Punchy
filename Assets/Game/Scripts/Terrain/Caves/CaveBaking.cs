@@ -99,9 +99,10 @@ namespace Punchy.Terrain
                     continue;
                 var rng = new Random(math.hash(new uint2(inst.Key, 7717u)) | 1u);
                 var style = PickStyle(source, palette, type, inst.Position, ref rng);
+                var relief = style != null ? style.ReliefIn(ScarpBake.StoneAt(source, inst.Position)) : default;
                 var profile = style != null ? new float2(style.Width, style.Width * style.Height) : new float2(1f);
-                var wall = style != null ? new float4(style.Roughness, style.Grain, style.Ribs, style.RibSpacing) : new float4(1f, 1f, 0f, 1.6f);
-                var rock = style != null ? new float4(style.Jaggedness, style.FloorFlatness, style.FloorSteps, style.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
+                var wall = style != null ? new float4(relief.Roughness, relief.Grain, relief.Ribs, relief.RibSpacing) : new float4(1f, 1f, 0f, 1.6f);
+                var rock = style != null ? new float4(relief.Jaggedness, style.FloorFlatness, style.FloorSteps, relief.Blockiness) : new float4(0.7f, 0.85f, 0.4f, 0.3f);
                 // Each cave its own take on its style, from its seed: a little wider or lower, rougher or smoother, more
                 // or less broken, with more or fewer steps (so two limestone caves don't look cast from one mould).
                 var vary = new Random(math.hash(new uint2(inst.Key, 0x5A17u)) | 1u);
@@ -162,10 +163,10 @@ namespace Punchy.Terrain
                 var tall = profile.y * (1.45f + (1f - flatness) * 0.65f);
                 // W-172 row 6: the smallest radius whose top clears a ridden horse past the ceiling's noise. Main path
                 // nodes are never laid smaller, and never squashed below it (a thin roof sinks the floor instead).
-                var facetReach = style != null ? 0.64f * style.FacetSize * style.Angularity : 0f;
+                var facetReach = style != null ? 0.64f * relief.FacetSize * relief.Angularity : 0f;
                 var horse = (RiderHead + CaveSampling.JaggedReach * rock.x * CeilingDip + (CaveSampling.NoiseReach * wall.x + facetReach) * WallDip) / tall;
                 var minMain = math.max(math.max(r * MinMain, MainHead / tall), horse);
-                void Grade(List<int> path, List<float> want, List<float> ceil, float grade = MainGrade)
+                void Grade(List<int> path, List<float> want, List<float> ceil, float grade = MainGrade, bool mouth = false)
                 {
                     var n = path.Count;
                     var up = new float[n];
@@ -212,6 +213,20 @@ namespace Punchy.Terrain
                     {
                         full[i] *= steepen;
                         gap[i] *= steepen;
+                    }
+                    // A mouth too high to get under the rock ahead at MaxGrade sinks rather than leave a ledge inside.
+                    if (mouth && need > MaxGrade)
+                    {
+                        var reach = 0f;
+                        for (int i = 1; i < n; i++)
+                        {
+                            reach += full[i];
+                            if (hard[i] != float.MaxValue)
+                                f[0] = math.min(f[0], hard[i] + reach);
+                        }
+                        var first = nodes[path[0]];
+                        first.Position.y = f[0] + FloorDrop(first.Radius);
+                        nodes[path[0]] = first;
                     }
                     // up is the ceiling made Lipschitz at the chamber-eased grade (where the floors aim); hard at the
                     // full grade (what they must stay under). When a path has to dive under low ground further on, the
@@ -281,7 +296,7 @@ namespace Punchy.Terrain
                     if (k >= 2)
                         attach.Add(new Attach { Node = node, Heading = heading });
                 }
-                Grade(chain, plan, tops);
+                Grade(chain, plan, tops, MainGrade, true);
                 mainEnds.x = previous - firstNode;
 
                 // A-91 row 3: whether the passages laid since segment `since` run into an earlier passage of this cave at
@@ -441,7 +456,7 @@ namespace Punchy.Terrain
                     Style = style != null ? styles.IndexOf(style) + 1 : 0,
                     Profile = profile,
                     Wall = wall,
-                    Facet = style != null ? new float2(style.Angularity, style.FacetSize) : float2.zero,
+                    Facet = style != null ? new float2(relief.Angularity, relief.FacetSize) : float2.zero,
                     Rock = rock,
                     MainEnds = mainEnds
                 });

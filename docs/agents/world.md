@@ -155,6 +155,9 @@ Read before changing terrain, biomes, rivers, landmarks, settlements, roads or c
   exit sockets. A seeded builder (`RuinKit.Temple(seed)`) joins pieces socket to socket, tries side branches only
   where they clear every room, and the result is baked into the landmark blob (`RuinRooms`, `RuinBoxes`, ...), so host
   and client build the same ruin from the seed (`RuinKit.Fingerprint` checks it).
+- Castle ruins (W-182, #254) are the `CastleRuins` landmark: one `CastleRuin` species (Form KitRuin) whose unit JSON
+  lists the castle kit parts directly, since builds only know unit JSONs a species references, so no nested units.
+  `CastleGateRuins` (Temperate, Grassland) grows `CastleRuinGate`, which nests the gate kit through `NestedJson`.
 - The kit is meant to grow into cities, fishing villages and new races' settlements: keep pieces as data (a new biome
   or culture adds a piece factory and a plan, not new collision or drawing code). `SunkenTempleShape` answers floor,
   air, wall and cut from the blob only, and `SunkenTempleSystem` draws the same data, so collision matches the art.

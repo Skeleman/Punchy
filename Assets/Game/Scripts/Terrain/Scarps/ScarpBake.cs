@@ -35,6 +35,41 @@ namespace Punchy.Terrain
             }
         }
 
+        /// <summary>
+        /// Cuts a scarp through a stone (W-166 #336): its MaterialLibrary.Stone row, taken relative to plain rock so a
+        /// plain scarp stays exactly as styled. Blocky stone (granite, sandstone) juts its beds further and steps back
+        /// further from the rim, smooth stone (basalt) hardly at all; fine-grained stone has smaller cracks. Ribbed stone
+        /// (ice) spaces its gullies wider; jagged stone (granite) breaks into more chimneys, smooth stone into fewer.
+        /// Roughness, which would move the whole outline, is left as paint (polish).
+        /// </summary>
+        public static void Stone(StoneKind kind, ref Scarp sc)
+        {
+            var row = MaterialLibrary.StoneOf(kind);
+            var plain = MaterialLibrary.StoneOf(StoneKind.Plain);
+            float blocks = row.Blockiness - plain.Blockiness;
+            sc.Stone = (byte)kind;
+            sc.Crack *= math.sqrt(row.Grain / plain.Grain);
+            sc.Push *= 1f + 0.8f * blocks;
+            sc.Setback *= 1f + 0.4f * blocks;
+            sc.Gully = row.RibSpacing / plain.RibSpacing - 1f;
+            sc.Chimneys = 0.25f * (row.Jaggedness - plain.Jaggedness);
+            var tint = MaterialLibrary.StoneTint(kind);
+            sc.Tint = new float3(tint.x, tint.y, tint.z) - 1f;
+            sc.Beds = 0.8f * blocks;
+            sc.Joints = blocks;
+            sc.Polish = 0.15f * (plain.Roughness - row.Roughness);
+        }
+
+        /// <summary>The stone under a point: the biome there names it (BiomeDefinition.Stone).</summary>
+        public static StoneKind StoneAt(in TerrainSource source, float2 xz)
+        {
+            if (!source.Biomes.IsCreated)
+                return StoneKind.Plain;
+            ref var biomes = ref source.Biomes.Value.Biomes;
+            int id = source.SampleGround(xz).Biomes.Dominant();
+            return id >= 0 && id < biomes.Length ? (StoneKind)biomes[id].Stone : StoneKind.Plain;
+        }
+
         public static BlobAssetReference<ScarpSetBlob> Build(in TerrainSource source, Allocator allocator)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -66,6 +101,9 @@ namespace Punchy.Terrain
                     nodes[i] = new ScarpNode { P = points[i], N = math.dot(normal, rec.Down) < 0f ? -normal : normal, S = along };
                 }
                 sc.Length = along;
+                // The stone is the biome's at the middle of the face (half way along the rim, half way down).
+                var middle = nodes[n / 2];
+                Stone(StoneAt(source, middle.P + middle.N * 0.5f * sc.Width), ref sc);
                 // Each end is an eased cap at least as long as the wall is high: the strip and the drop die away
                 // together, so the foot line curves back round to the rim and the floor past it grows in step,
                 // with no steep side to the cut along the end of the rim.
@@ -129,7 +167,7 @@ namespace Punchy.Terrain
                     layers[i] = rec.Layers[i];
                     sc.LayerSpan += rec.Layers[i].Thickness;
                 }
-                text.Append($"; {rec.Name}: rim {along:F0} m, {n} nodes, drop up to {sc.MaxDrop:F1} m, heights {sc.MinY:F1}..{sc.MaxY:F1}");
+                text.Append($"; {rec.Name} ({(StoneKind)sc.Stone}): rim {along:F0} m, {n} nodes, drop up to {sc.MaxDrop:F1} m, heights {sc.MinY:F1}..{sc.MaxY:F1}");
             }
             root.Bounds = all;
             var blob = builder.CreateBlobAssetReference<ScarpSetBlob>(allocator);

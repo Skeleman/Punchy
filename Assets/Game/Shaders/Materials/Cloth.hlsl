@@ -5,6 +5,14 @@
 // banners, bedrolls. Each detail fades out with the pixels and is centred on 1, so far cloth keeps its vertex colour
 // (rule 25). Needs Sky.hlsl (the noise) included first.
 
+// Pushed by MaterialLibrary (Punchy.Terrain), one row per ClothKind (#336):
+//   x pattern size (1 = as W-99 / W-113 drew it), y contrast, z diffuse wrap, w sheen at a glancing angle
+float4 _PunchyClothKinds[8];
+
+#define PUNCHY_CLOTH_LINEN 0
+#define PUNCHY_CLOTH_HIDE 1
+#define PUNCHY_CLOTH_FELT 2
+
 /// How much of a detail of this period (m) to keep for a pixel covering `footprint` metres (as Wood.hlsl's fade).
 half PunchyClothFade(float period, float footprint)
 {
@@ -17,20 +25,22 @@ half PunchyLinen(float3 p, float3 nOS, float footprint)
 {
     float3 a = abs(nOS);
     float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
-    float2 t = uv / 0.03;
+    float4 row = _PunchyClothKinds[PUNCHY_CLOTH_LINEN];
+    float s = row.x;
+    float2 t = uv / (0.03 * s);
     float2 f = frac(t);
     int2 c = (int2)floor(t);
     bool warp = ((c.x + c.y) & 1) == 0;
     half thread = warp ? sin(f.x * 3.14159) : sin(f.y * 3.14159);
     half slub = PunchyValueNoise(warp ? float2(c.x * 1.7, t.y * 0.15) : float2(t.x * 0.15, c.y * 1.7 + 9.3));
-    half fine = (thread * 0.7 + slub * 0.3 - 0.55) * 0.6 * PunchyClothFade(0.03, footprint);
+    half fine = (thread * 0.7 + slub * 0.3 - 0.55) * 0.6 * PunchyClothFade(0.03 * s, footprint);
     // Sewn panels: a dark seam every ~55 cm with a slight tone change per panel, so it reads at a few metres.
-    float pv = uv.y / 0.55;
+    float pv = uv.y / (0.55 * s);
     half seam = (1 - smoothstep(0.0, 0.035, abs(frac(pv) - 0.5) - 0.465)) * 0.22;
     half panel = (frac(sin(floor(pv) * 12.9898) * 43758.55) - 0.5) * 0.12;
-    half mid = (panel - seam) * PunchyClothFade(0.12, footprint);
-    half coarse = (PunchyValueNoise(uv * 3.1) - 0.5) * 0.22 * PunchyClothFade(0.3, footprint);
-    return 1 + fine + mid + coarse;
+    half mid = (panel - seam) * PunchyClothFade(0.12 * s, footprint);
+    half coarse = (PunchyValueNoise(uv / s * 3.1) - 0.5) * 0.22 * PunchyClothFade(0.3 * s, footprint);
+    return 1 + (fine + mid + coarse) * row.y;
 }
 
 /// W-113: a tent's hide, as leather, not linen: blotchy tanning, fine creases and pores, so it reads at a few
@@ -41,13 +51,45 @@ half PunchyHide(float3 p, float3 nOS, float footprint)
 {
     float3 a = abs(nOS);
     float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
+    float4 row = _PunchyClothKinds[PUNCHY_CLOTH_HIDE];
+    float s = row.x;
+    uv /= s;
     half blotch = (PunchyValueNoise(uv * 1.4) - 0.5) * 0.34 + (PunchyValueNoise(uv * 4.3 + 5.1) - 0.5) * 0.16;
     half crease = (PunchyValueNoise(uv * float2(9, 26)) - 0.5) * 0.12 + (PunchyValueNoise(uv * 55) - 0.5) * 0.08;
     // Tanned unevenly: a slow drift in tone across the hide, and darker worn patches here and there.
     half hides = (PunchyValueNoise(uv * 0.55 + 11.3) - 0.5) * 0.16;
     half worn = smoothstep(0.62, 0.8, PunchyValueNoise(uv * 2.2 + 31.7)) * 0.1;
-    return 1 + blotch * PunchyClothFade(0.4, footprint) + crease * PunchyClothFade(0.03, footprint)
-             + (hides - worn) * PunchyClothFade(0.1, footprint);
+    return 1 + (blotch * PunchyClothFade(0.4 * s, footprint) + crease * PunchyClothFade(0.03 * s, footprint)
+                + (hides - worn) * PunchyClothFade(0.1 * s, footprint)) * row.y;
+}
+
+/// Phase B (#336): a bedroll's felt, matted wool with no weave: soft lumps a hand across, fine fuzz, and a slow
+/// drift in tone where it's worn or packed; fading out with the pixels.
+half PunchyFelt(float3 p, float3 nOS, float footprint)
+{
+    float3 a = abs(nOS);
+    float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
+    float4 row = _PunchyClothKinds[PUNCHY_CLOTH_FELT];
+    uv /= row.x;
+    half lumps = (PunchyValueNoise(uv * 9.0 + 3.7) - 0.5) * 0.16 + (PunchyValueNoise(uv * 21.0) - 0.5) * 0.08;
+    half fuzz = (PunchyValueNoise(uv * 160.0) - 0.5) * 0.14 + (PunchyValueNoise(uv * 70.0 + 7.9) - 0.5) * 0.08;
+    half drift = (PunchyValueNoise(uv * 1.6 + 23.3) - 0.5) * 0.18;
+    return 1 + (lumps * PunchyClothFade(0.08 * row.x, footprint) + fuzz * PunchyClothFade(0.01 * row.x, footprint)
+                + drift * PunchyClothFade(0.4 * row.x, footprint)) * row.y;
+}
+
+/// #550: rope and netting (kit Net parts, Cloth on bark): strands twisted at a slant about 4 cm apart (a thick cord's twist, so it still reads at a few metres) with dark
+/// grooves between them, hairy fibre along each strand and a little tone drift; fading out with the pixels.
+half PunchyRope(float3 p, float3 nOS, float footprint)
+{
+    float3 a = abs(nOS);
+    float2 uv = a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy;
+    float t = (uv.x + uv.y) / 0.04;
+    half strand = sin(frac(t) * 3.14159);
+    half groove = (strand - 0.6) * 0.8 * PunchyClothFade(0.04, footprint);
+    half fibre = (PunchyValueNoise(float2(t * 3.0, (uv.x - uv.y) * 140)) - 0.5) * 0.22 * PunchyClothFade(0.006, footprint);
+    half drift = (PunchyValueNoise(uv * 2.3 + 17.1) - 0.5) * 0.18 * PunchyClothFade(0.2, footprint);
+    return 1 + groove + fibre + drift;
 }
 
 #endif

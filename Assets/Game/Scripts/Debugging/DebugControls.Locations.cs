@@ -75,7 +75,14 @@ namespace Punchy.Debugging
             // (The baked v1 island comes first and v2 replaces it: find the spots again when the landmarks change, A-29b.)
             var landmarkKey = float3.zero;
             if (source.Landmarks.IsCreated && source.Landmarks.Value.Instances.Length > 0)
-                landmarkKey = new float3(source.Landmarks.Value.Instances.Length, source.Landmarks.Value.Instances[0].Position);
+            {
+                // Summed over every spot: v1 and v3 can share a count and a first landmark (W-182 castles did).
+                ref var instances = ref source.Landmarks.Value.Instances;
+                var sum = float2.zero;
+                for (int i = 0; i < instances.Length; i++)
+                    sum += instances[i].Position;
+                landmarkKey = new float3(instances.Length, sum);
+            }
             if (math.any(landmarkKey != locationsKey))
             {
                 locationsKey = landmarkKey;

@@ -242,3 +242,15 @@ Each row keeps Landmarks_V3 or re-pins it with the reason.
 - **Guard:** WorldTests `Blueprints_PlacedInSettlements` (hook `BlueprintPlacements`) fails when a species' JSON reads
   no parts, a filled `Unit` hides it, no landmark lists it, or it stands in none of the landmarks that list it.
 - **Still to do:** converting the older code-built buildings to units (#415).
+
+## Castle kit (W-182, #254)
+
+- **Parts:** `curtain wall` (At to To, Span y walkway height, z thickness), `castle tower` (square, Span x side, y
+  height), `gatehouse` (arch, Span = width, height, depth) and `portcullis` (iron, static) in
+  FloraGenerator.Parts.Castle.cs. Stone goes through DrawBuildParts, so the host's culture sets the look.
+- **Wear:** `UnitPart.Wear` ages any castle part: moss from 0.3, missing merlons, breaches, broken tops and rubble
+  toward 1. The 12 `castle *` blueprints are the four units at 0, 0.45 (mossy) and 0.9 (ruined). Lab only so far.
+- **Gate kit:** `castle gate` (arch, two flanking towers, portcullis down) and `castle gate raised` (portcullis up, teeth
+  in the arch crown) are one unit in two static poses; syncing the portcullis would be a network change. A nested unit
+  ages to at least its part's Wear, and `FloraSpecies.NestedJson` lists the units a species' JSON nests so builds have
+  them. `castle ruin gate` (the `CastleGateRuins` landmark) nests the raised gate at Wear 0.8.

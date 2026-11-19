@@ -232,17 +232,29 @@ namespace Punchy.Flora
                 StoneRow(g);
                 return;
             }
+            if (s.RiverSpot == RiverSpot.Undercut)
+            {
+                BankLip(g);
+                return;
+            }
+            if (s.RiverSpot == RiverSpot.Riffle || s.RiverSpot == RiverSpot.Splash)
+            {
+                if (s.RiverSpot == RiverSpot.Riffle) RiffleRow(g); else SplashRock(g);
+                return;
+            }
             var size = g.Range(s.Height);
             var family = g.Variant % 5;
             var detail = g.Sides(3, 2, 1);
             var first = b.VertexCount;
             var yaw = g.R() * 360f;
+            // Water wears rocks round, and a standing slab in a stream reads as a pillar.
+            var worn = s.Aquatic;
 
             void Block(Vector3 centre, Vector3 radii, Quaternion rotation, float sink = 0.3f)
             {
                 var at = centre + Vector3.up * radii.y * (1f - sink);
                 var colour = Color.Lerp(g.Bark, g.Bark * 0.8f, g.R());
-                b.Blob(at, radii, rotation, detail, 0.14f, g.R() * 100f, colour, FloraPart.Bark, 1f, g.Range(0.35f, 0.6f), 0.55f);
+                b.Blob(at, radii, rotation, detail, 0.14f, g.R() * 100f, colour, FloraPart.Bark, 1f, worn ? g.Range(0.1f, 0.25f) : g.Range(0.35f, 0.6f), 0.55f);
                 g.AddCollider(at, radii * 0.92f, rotation);
             }
             Quaternion Turn(float tilt = 8f) => Quaternion.Euler(g.Range(-tilt, tilt), yaw + g.Range(-20f, 20f), g.Range(-tilt, tilt));
@@ -267,7 +279,10 @@ namespace Punchy.Flora
                     break;
                 }
                 case 3:   // standing
-                    Block(Vector3.zero, new Vector3(w * 0.5f, size * 0.95f, w * g.Range(0.35f, 0.55f)), Turn(12f), 0.2f);
+                    if (worn)
+                        Block(Vector3.zero, new Vector3(w * 0.75f, size * 0.6f, w * g.Range(0.55f, 0.75f)), Turn(12f), 0.25f);
+                    else
+                        Block(Vector3.zero, new Vector3(w * 0.5f, size * 0.95f, w * g.Range(0.35f, 0.55f)), Turn(12f), 0.2f);
                     break;
                 default:   // monstrous: a big mass split down the middle, chunks fallen from it
                 {
@@ -298,6 +313,56 @@ namespace Punchy.Flora
             g.TrunkRadius = w * 0.45f;
             b.Occlude(first, (p, n) => GroundOcclusion(p, size * 0.25f) * Mathf.Lerp(0.75f, 1f, Mathf.Clamp01(n.y + 0.6f)));
             Moss(g, first);
+        }
+
+        static void BankLip(Grower g)
+        {
+            var s = g.S;
+            var b = g.B;
+            var drop = g.Range(s.Height);
+            var length = drop * s.Spread * g.Range(0.6f, 1.9f);
+            var reach = g.Range(0.9f, 1.4f);
+            var thick = g.Range(0.2f, 0.3f);
+            var detail = g.Sides(2, 2, 1);
+            var first = b.VertexCount;
+            var spans = new System.Collections.Generic.List<Vector3>();
+            b.Family = Punchy.Terrain.MaterialFamily.Plaster;   // earth, as tilled fields read
+            for (var x = -length * 0.5f; x < length * 0.5f;)
+            {
+                if (spans.Count > 0 && g.R() < 0.25f)
+                    x += g.Range(0.15f, 0.6f);
+                var w = g.Range(0.6f, 1.6f);
+                var front = reach * g.Range(0.5f, 1.2f);
+                spans.Add(new Vector3(x, x + w, front));
+                var radii = new Vector3(w * 0.62f, thick * g.Range(0.75f, 1.25f), (front + 0.9f) * 0.5f);
+                var centre = new Vector3(x + w * 0.5f, 0.04f - radii.y * 0.55f + g.Range(-0.06f, 0.04f), front - radii.z);
+                b.Blob(centre, radii, Quaternion.Euler(g.Range(-5f, 5f), g.Range(-15f, 15f), g.Range(-6f, 6f)), detail, 0.18f, g.R() * 100f,
+                       Color.Lerp(g.Bark, g.Bark * 0.8f, g.R()), FloraPart.Bark, 1f, 0.45f, 0.7f);
+                x += w * g.Range(0.65f, 0.95f);
+            }
+            b.Family = b.BaseFamily;
+            b.Occlude(first, (p, n) => Mathf.Lerp(0.3f, 1f, Mathf.Clamp01(n.y + 0.7f)));
+            Moss(g, first);
+
+            if (g.Lod < 2)
+            {
+                var strands = g.Count(s.Branches);
+                var sides = g.Sides(4, 3, 3);
+                var rows = g.Lod == 0 ? 5 : 3;
+                var roots = Color.Lerp(s.Foliage.linear, s.FoliageVariation.linear, g.R());
+                for (int i = 0; i < strands; i++)
+                {
+                    var span = spans[Mathf.Min((int)(g.R() * spans.Count), spans.Count - 1)];
+                    var lip = span.z;
+                    var top = new Vector3(Mathf.Lerp(span.x, span.y, g.R()), -thick * 0.6f, lip * g.Range(0.1f, 0.85f));
+                    HangingRoot(g, top, drop * g.Range(0.3f, 1f) * (0.5f + 0.5f * top.z / Mathf.Max(lip, 0.01f)), drop, sides, rows,
+                                roots * g.Range(0.85f, 1.15f));
+                }
+            }
+
+            g.Height = drop;
+            g.Width = length + 0.6f;
+            g.TrunkRadius = 0f;
         }
 
         /// <summary>

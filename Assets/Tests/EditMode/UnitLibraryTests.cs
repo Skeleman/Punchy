@@ -186,6 +186,33 @@ namespace Punchy.Tests
         }
 
         [Test]
+        public void EveryCastlePartGrowsCollidesAndWears()
+        {
+            var ids = (string[])Generator.GetField("CastlePartIds").GetValue(null);
+            var library = ((IEnumerable<string>)Generator.GetProperty("PartIds").GetValue(null)).ToList();
+            foreach (var id in ids)
+            {
+                Assert.Contains(id, library);
+                int Verts(float wear, out int boxes)
+                {
+                    var part = Part(id);
+                    UnitPart.GetField("ToMetres").SetValue(part, new Vector3(12f, 0f, 0f));
+                    UnitPart.GetField("Wear").SetValue(part, wear);
+                    var model = GrowModel(Unit(true, part));
+                    boxes = Boxes(model).Count;
+                    return ((Mesh[])model.GetType().GetField("Lods").GetValue(model))[0].vertexCount;
+                }
+                var fresh = Verts(0f, out var freshBoxes);
+                var ruined = Verts(0.9f, out _);
+                Assert.Greater(fresh, 0, $"{id} drew nothing");
+                Assert.Greater(freshBoxes, 0, $"{id} has no collision box");
+                // Iron bars don't age; stone gains moss, breaches and rubble.
+                if (id != "portcullis")
+                    Assert.AreNotEqual(fresh, ruined, $"{id} looks the same ruined");
+            }
+        }
+
+        [Test]
         public void ATurnedDoorTurnsItsBoxToo()
         {
             var plain = Boxes(GrowModel(Unit(false, Part("door", new Vector3(1f, 0f, 0f)))));

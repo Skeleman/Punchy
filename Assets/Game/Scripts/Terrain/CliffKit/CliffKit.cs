@@ -68,7 +68,7 @@ namespace Punchy.Terrain
     /// it), its back buried in the slope. Drawn from these boxes (CliffKitSystem) and collided with the same boxes
     /// (KitBox), so what you see is what you bump into. Plain maths, safe in Burst.
     /// </summary>
-    public static class CliffKit
+    public static partial class CliffKit
     {
         public const byte Slab = 0, Stacked = 1, Overhang = 2, Buttress = 3, Fallen = 4;
         public const int KitCount = 5;
@@ -393,7 +393,8 @@ namespace Punchy.Terrain
                     // Hand room on the lip: the ground half a metre out is far enough down, and no box of the piece
                     // sits on the lip within a metre (a stacked block's lower lip under the one above isn't a ledge).
                     var q = math.lerp(a, e, s / (float)Samples);
-                    var ok = q.y - source.SampleHeight(q.xz + outward.xz * 0.5f) >= LedgeDrop;
+                    var below = q + outward * 0.5f;
+                    var ok = q.y - (piece.Face == CaveFace ? source.FloorUnder(below, out _) : source.SampleHeight(below.xz)) >= LedgeDrop;
                     for (int j = 0; j < boxes.Length && ok; j++)
                         ok = j == k || !KitCollision.Span(boxes[j], q.xz - outward.xz * 0.3f, out var bottom, out var top) || top <= q.y + 0.05f || bottom >= q.y + 1f;
                     if (ok && runStart < 0)
@@ -419,7 +420,8 @@ namespace Punchy.Terrain
                     B = to,
                     Out = outward,
                     Piece = index,
-                    Grade = overhang ? (byte)4 : (byte)3,
+                    // (Grade 2 on a cave shelf, so a human, who climbs to Assisted, hangs from it: W-181 r3.)
+                    Grade = piece.Face == CaveFace ? (byte)2 : overhang ? (byte)4 : (byte)3,
                     Kind = overhang ? OverhangLedge : LipLedge
                 });
             }
@@ -432,7 +434,7 @@ namespace Punchy.Terrain
     /// classes), clear of settlements, landmarks and cave mouths, gets a piece by a seeded roll. Fallen blocks walk down
     /// to the foot. Its own seed stream, after every place, so landmarks and settlements never see it.
     /// </summary>
-    public static class CliffKitBaking
+    public static partial class CliffKitBaking
     {
         const float Step = 4f, GridCell = 64f;
         const int BlockCells = 4;
@@ -700,6 +702,7 @@ namespace Punchy.Terrain
 
             // W-172 row 4: rock framing every road tunnel portal, after the faces so no face piece moves.
             var framed = PortalFrames(src, stream, pieces, near, kits);
+            var shelves = CaveShelves(src, stream, pieces);
             var acceptMs = watch.ElapsedMilliseconds;
             // The cell grid: each piece in every cell its reach (and the plants' pad) touches.
             var gs = new int2((int)math.ceil(size / GridCell));
@@ -761,7 +764,7 @@ namespace Punchy.Terrain
             var kitText = new System.Text.StringBuilder();
             for (int k = 0; k < CliffKit.KitCount; k++)
                 kitText.Append(k == 0 ? "" : ", ").Append(KitNames[k]).Append(' ').Append(kits[k]);
-            LastLog = $"[cliffkit] {pieces.Count} pieces in {groups} groups + {framed} framing tunnel portals, {ledges.Count} ledges (sea cliff {seaCount}, mesa/canyon {mesaCount}; {kitText}) from {steep} steep blocks, {keptOut} kept out, {watch.ElapsedMilliseconds} ms ({looked} blocks looked at; heights {coarseMs}, faces {blocksMs - coarseMs}, accept {acceptMs - blocksMs}, grid {watch.ElapsedMilliseconds - acceptMs - ledgeMs}, ledges {ledgeMs})";
+            LastLog = $"[cliffkit] {pieces.Count} pieces in {groups} groups + {framed} framing tunnel portals + {shelves} cave shelves, {ledges.Count} ledges (sea cliff {seaCount}, mesa/canyon {mesaCount}; {kitText}) from {steep} steep blocks, {keptOut} kept out, {watch.ElapsedMilliseconds} ms ({looked} blocks looked at; heights {coarseMs}, faces {blocksMs - coarseMs}, accept {acceptMs - blocksMs}, grid {watch.ElapsedMilliseconds - acceptMs - ledgeMs}, ledges {ledgeMs})";
             return blob;
         }
 

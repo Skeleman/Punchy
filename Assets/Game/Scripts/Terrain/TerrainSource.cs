@@ -72,6 +72,7 @@ namespace Punchy.Terrain
         public float Height;
         public BiomeWeights Biomes;   // narrow (surface) blend
         public float River;           // 0..1 channel mask
+        public float PointBar;
         /// <summary>
         /// Metres below the nearest water surface (negative = above it), for surface rules. Smoothed at the edges
         /// of lake/river zones; use <see cref="WaterSurface"/> for the exact surface.
@@ -83,6 +84,7 @@ namespace Punchy.Terrain
         public float2 Flow;
         /// <summary>0..1: how steep the river is here (white water at 1).</summary>
         public float Rapids;
+        public float Mouth, MouthStreak, Spray;
         /// <summary>W-134: the water is a cave pool's or stream's (from the float3 SampleGround, under the surface).</summary>
         public bool CaveWater;
 
@@ -267,6 +269,23 @@ namespace Punchy.Terrain
             if (Landmarks.IsCreated)
                 LandmarkSampling.WaterLook(ref Landmarks.Value, xz, ref look, ref glow);
             return look;
+        }
+
+        // Shore band as a negative skirt drop: wet just above water, but a toxic pool's bank crusts pale and dry (W-154).
+        public float ShoreWet(float2 xz, in GroundSample ground, float h, ref SurfaceProps surface)
+        {
+            if (!ground.HasWater)
+                return 0f;
+            var above = h - ground.WaterSurface;
+            var wet = 1f - math.smoothstep(0.1f, 1.4f, above);
+            if (above > 1f || ground.CaveWater)
+                return -wet;
+            var look = WaterLook(xz, ground.Biomes, out var glow);
+            var toxic = math.smoothstep(1.05f, 1.25f, look.y / math.max(math.max(look.x, look.z), 1e-3f)) * math.saturate(glow.x * 3f) * (1f - math.saturate(glow.y));
+            var crust = toxic * (1f - math.smoothstep(0.3f, 0.9f, above));
+            surface.Albedo = math.lerp(surface.Albedo, new float3(0.62f, 0.58f, 0.36f), crust * 0.8f);
+            surface.Grass *= 1f - crust;
+            return -wet * (1f - 0.85f * crust);
         }
 
         public float4 WaterLook(in BiomeWeights biomes, out float2 glow)
@@ -652,8 +671,8 @@ namespace Punchy.Terrain
             var river = default(RiverQuery);
             if (Rivers.IsCreated)
             {
-                river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
-                h = RiverSampling.Carve(river, RiverSettings, h, xz);
+                river = RiverAt(xz);
+                h = RiverSampling.PondBowl(ref Rivers.Value, xz, RiverSampling.Carve(river, RiverSettings, h, xz));
             }
             var carved = h;
             if (Landmarks.IsCreated)
@@ -674,6 +693,22 @@ namespace Punchy.Terrain
         /// (1.25 rise/m, no change) down to 0.5 (27 deg) on the track's centre, so the walk over the pass stays
         /// under ~30 deg. Uncapped off the track and on v1/v2.
         /// </summary>
+        RiverQuery RiverAt(float2 xz)
+        {
+            var q = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
+            if (q.Bar <= 0f && q.Isle <= 0f)
+                return q;
+            // Not by a cave mouth: lowering the ground under its rim flips the mouth's snapped triangles.
+            var fade = 1f;
+            if (Caves.IsCreated)
+            {
+                ref var caves = ref Caves.Value.Caves;
+                for (int i = 0; i < caves.Length && fade > 0f; i++)
+                    fade = math.min(fade, math.smoothstep(24f, 40f, math.length(math.max(0f, math.max(caves[i].Min.xz - xz, xz - caves[i].Max.xz)))));
+            }
+            return fade >= 1f ? q : RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz), fade);
+        }
+
         float PassBankCap(float2 xz)
         {
             if (!V3Ground.IsCreated)
@@ -738,13 +773,16 @@ namespace Punchy.Terrain
             var carved = g.Height;
             if (Rivers.IsCreated)
             {
-                var river = RiverSampling.Query(ref Rivers.Value, RiverSettings, xz, RiverRoughOn, PassBankCap(xz));
+                var river = RiverAt(xz);
                 notchRiver = river;
                 // A loaded heightmap already contains the carved channels; only noise heights get carved here.
                 if (!UsesHeightmap)
-                    g.Height = RiverSampling.Carve(river, RiverSettings, g.Height, xz);
+                    g.Height = RiverSampling.PondBowl(ref Rivers.Value, xz, RiverSampling.Carve(river, RiverSettings, g.Height, xz));
                 carved = g.Height;
                 g.River = RiverSampling.ChannelMask(river);
+                g.Mouth = MouthFan(ref Rivers.Value, xz, river, World.SeaLevel, out g.MouthStreak);
+                g.Spray = FallSpray(ref Rivers.Value, xz, river, g.Rapids);
+                g.PointBar = math.max(RiverSampling.BarMask(river), RiverSampling.IsleMask(river));
                 var edge = river.Width * 0.5f + RiverSampling.SurfaceMargin;
                 // The river's own surface here and how much it claims this point (for its outlet from a lake, below).
                 var riverLevel = float.MinValue;
@@ -765,10 +803,11 @@ namespace Punchy.Terrain
                 }
 
                 var lake = RiverSampling.Lake(ref Rivers.Value, xz, out var lakeSurface, out var lakeDepth);
-                // Ground lying deeper under the lake's surface than the lake itself is deep isn't lake bed or shore: a
-                // river's gorge has cut through the lake's rim there, and a flat sheet of lake over it would hang in the
-                // air (F-22; a few dozen such points on the island).
-                if (lakeSurface - g.Height > lakeDepth + 2f)
+                // In a river's channel, ground lying deeper under the lake's surface than the lake itself is deep isn't
+                // lake bed or shore: the river's gorge has cut through the lake's rim there, and a flat sheet of lake
+                // over it would hang in the air (F-22). Anywhere else deep ground under a lake is just deep lake bed:
+                // clipping it there left dry holes walled by lake water (W-153 row 4, ~300 points on v3).
+                if (riverClaim > 0f && lakeSurface - g.Height > lakeDepth + 2f)
                     lake = 0f;
                 if (lake > 0f)
                 {
@@ -781,7 +820,8 @@ namespace Punchy.Terrain
                         var ramp = math.lerp(riverLevel, lakeSurface, math.smoothstep(0f, 1f, lake));
                         level = math.lerp(lakeSurface, ramp, riverClaim);
                     }
-                    if (level > water)
+                    // (A river through a lake at the lake's own level ties here; taking the river at random points speckled its flow over the lake.)
+                    if (level >= water - 0.01f)
                     {
                         var outlet = level < lakeSurface - 0.01f;
                         water = level;
@@ -797,10 +837,8 @@ namespace Punchy.Terrain
                 // own channel (an outlet keeps its ramp above).
                 if (lake < 1f && riverClaim <= 0f)
                 {
-                    var shore = RiverSampling.ShoreLevel(ref Rivers.Value, xz);
-                    if (shore > g.Height + 0.05f && shore > water
-                        && RiverSampling.NearestLakeAbove(ref Rivers.Value, xz, g.Height + 0.05f, out var lakeCentre, out var bayLevel)
-                        && bayLevel > water && bayLevel - g.Height <= BayDepthLimit(lakeCentre) && ConnectsBelow(xz, lakeCentre, bayLevel))
+                    var bayLevel = BayMask.IsCreated ? BayMask.Value.Sample(xz) : LooseBayLevel(xz, g.Height, water);
+                    if (bayLevel > g.Height + 0.05f && bayLevel > water)
                     {
                         water = bayLevel;
                         flow = float2.zero;
@@ -1249,7 +1287,7 @@ namespace Punchy.Terrain
                 var mid = (lo + hi) * 0.5f;
                 if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) hi = mid; else lo = mid;
             }
-            return hi;
+            return CliffKit.IsCreated ? Punchy.Terrain.CliffKit.CaveDeck(this, p, hi) : hi;
         }
 
         /// <summary>
@@ -1322,6 +1360,12 @@ namespace Punchy.Terrain
                 Slope = math.degrees(math.acos(math.saturate(normal.y))),
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
+                PointBar = ground.PointBar,
+                Rapids = ground.Rapids,
+                Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
+                Mouth = ground.Mouth,
+                MouthStreak = ground.MouthStreak,
+                Spray = ground.Spray,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1336,6 +1380,7 @@ namespace Punchy.Terrain
             if (V3Ground.IsCreated && context.WaterDepth < 0.3f)
                 Punchy.Terrain.V3Ground.Apply(ref V3Ground.Value, xz, math.max(context.Slope, FieldSlope(xz)),
                     Island.IsCreated ? math.max(Island.Value.Sample(xz), 0f) : 0f, context.EdgeNoise, ref result);
+            BiomeSampling.FallSpray(ref result, context);
             if (Landmarks.IsCreated)
                 LandmarkSampling.Ground(ref Landmarks.Value, xz, context.EdgeNoise, context.ColorNoise, ref result);
             if (Settlements.IsCreated)
@@ -1389,6 +1434,12 @@ namespace Punchy.Terrain
                 Slope = 0f,
                 WaterDepth = ground.WaterDepth,
                 River = ground.River,
+                PointBar = ground.PointBar,
+                Rapids = ground.Rapids,
+                Inland = ground.HasWater && ground.WaterSurface > World.SeaLevel + 0.01f ? 1f : 0f,
+                Mouth = ground.Mouth,
+                MouthStreak = ground.MouthStreak,
+                Spray = ground.Spray,
                 EdgeNoise = noise.snoise(xz * 0.045f) * 0.7f + noise.snoise(xz * 0.17f) * 0.3f,
                 ColorNoise = noise.snoise(xz * 0.021f + 113.5f) * 0.6f + noise.snoise(xz * 0.11f - 57.1f) * 0.4f
             };
@@ -1403,9 +1454,67 @@ namespace Punchy.Terrain
             return result.Snow;
         }
 
+        static float MouthFan(ref RiverMapBlob map, float2 xz, in RiverQuery river, float sea, out float streak)
+        {
+            streak = 0f;
+            if (!river.Found || river.Distance > river.Width * 0.5f + 16f)
+                return 0f;
+            var c = math.clamp((int2)math.floor((xz - map.Origin) / map.CellSize), 0, map.Resolution - 1);
+            var k = map.Nearest[c.y * map.Resolution + c.x].x;
+            var prev = k;
+            for (var step = 0; step < 4 && k >= 0; step++)
+            {
+                // Only where the river enters a lake: from inside one it is an outlet or flows through it.
+                if ((map.LakeDepth[k] > 0f && map.LakeDepth[prev] <= 0f) || map.WaterLevel[k] <= sea + 0.05f)
+                {
+                    var mouth = map.Point(k);
+                    var flow = math.normalizesafe(mouth - map.Point(prev), river.Flow);
+                    var along = math.distance(xz, mouth);
+                    var reach = 30f + 10f * noise.snoise(mouth * 0.013f);
+                    var half = river.Width * 0.5f + math.lerp(22f, 2f, math.smoothstep(0f, reach, along));
+                    var across = math.dot(xz - mouth, new float2(-flow.y, flow.x)) / (along + 8f);
+                    streak = math.smoothstep(0.15f, 0.55f, noise.snoise(new float2(across * 12f, along * 0.04f)));
+                    return (1f - math.smoothstep(half * 0.55f, half, river.Distance)) * (1f - math.smoothstep(reach * 0.75f, reach, along));
+                }
+                prev = k;
+                k = map.Down[k];
+            }
+            return 0f;
+        }
+
+        static float FallSpray(ref RiverMapBlob map, float2 xz, in RiverQuery river, float rapids)
+        {
+            if (!river.Found || river.Distance > river.Width * 0.5f + 40f) return 0f;
+            var spray = rapids * (1f - math.smoothstep(river.Width * 0.5f, river.Width * 0.5f + 4f, river.Distance)) * 0.6f;
+            if (map.Kind.Length == 0) return spray;
+            var cell = (int2)math.floor((xz - map.Origin) / map.CellSize);
+            for (int y = -1; y <= 1; y++)
+            for (int x = -1; x <= 1; x++)
+            {
+                var c = math.clamp(cell + new int2(x, y), 0, map.Resolution - 1);
+                var near = map.Nearest[c.y * map.Resolution + c.x];
+                for (int k = 0; k < 2; k++)
+                {
+                    var start = k == 0 ? near.x : near.y;
+                    if (start < 0 || map.Down[start] < 0 || ((RiverProfileKind)map.Kind[start] & RiverProfileKind.Fall) == 0) continue;
+                    var drop = map.WaterLevel[start] - map.WaterLevel[map.Down[start]];
+                    if (drop < 1f) continue;
+                    var lip = RiverSampling.CurveMid(ref map, start, out var flow);
+                    var width = math.max(map.Width[start], 3f);
+                    var d = xz - lip;
+                    var past = math.dot(d, flow);
+                    var side = math.abs(d.x * flow.y - d.y * flow.x);
+                    var box = math.length(math.max(new float2(math.abs(past - width * 0.5f) - width * 0.75f, side - width * 0.5f), 0f));
+                    var ring = math.lerp(3f, 8f, math.saturate((drop - 3f) / 9f));
+                    spray = math.max(spray, math.smoothstep(1f, 4f, drop) * (1f - math.smoothstep(ring * 0.4f, ring, box)));
+                }
+            }
+            return spray;
+        }
+
         public bool Equals(TerrainSource o) =>
             World.Equals(o.World) && HeightKind == o.HeightKind && Heightmap == o.Heightmap && Island == o.Island && Edits == o.Edits &&
             BiomeKind == o.BiomeKind && BiomeNoise.Equals(o.BiomeNoise) && BiomeMap == o.BiomeMap && Biomes == o.Biomes && BiomeCells == o.BiomeCells &&
-            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && Paddies == o.Paddies && V3Ground == o.V3Ground;
+            RiverSettings.Equals(o.RiverSettings) && Rivers == o.Rivers && Landmarks == o.Landmarks && Settlements == o.Settlements && Caves == o.Caves && BatFolk == o.BatFolk && Icebergs == o.Icebergs && GrandFalls == o.GrandFalls && Archipelago == o.Archipelago && Scarps == o.Scarps && CliffKit == o.CliffKit && Anchors == o.Anchors && PondMask == o.PondMask && Paddies == o.Paddies && BayMask == o.BayMask && V3Ground == o.V3Ground;
     }
 }

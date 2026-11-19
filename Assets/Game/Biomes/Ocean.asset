@@ -32,7 +32,7 @@ MonoBehaviour:
   WindDirection: 60
   Rainfall: 0
   WaterMurk: 0
-  WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
+  WaterColor: {r: 0.12, g: 0.22, b: 0.26, a: 1}
   WaterGlow: 0
   WaterLava: 0
   Weather: []
