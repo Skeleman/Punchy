@@ -579,6 +579,21 @@ namespace Punchy.Ambience
                         Position = foot + new float3(0f, 0.1f, 0f), Seed = math.frac(seed + 0.62f), Color = new float4(0.92f, 0.94f, 0.96f, 0f),
                         Shape = new float4(0.3f, width * 1.3f, 1.2f, 2.2f), Timing = new float4(0f, 0.25f, 0.6f, 24f)
                     });
+                    // Two 24-puff emitters rather than one bigger one, so the spray family's particle cap stays at 24.
+                    Spray(new Emitter
+                    {
+                        Position = foot + new float3(shape.Out.x * 0.6f, 0.3f, shape.Out.y * 0.6f), Seed = math.frac(seed + 0.47f),
+                        Color = new float4(0.93f, 0.95f, 0.98f, 0f),
+                        Shape = new float4(math.clamp(0.8f + drop * 0.12f, 1.2f, 4f), width * 0.8f, math.clamp(0.35f + drop * 0.01f, 0.35f, 0.6f), 3f + math.min(drop * 0.08f, 2f)),
+                        Timing = new float4(0f, 1f, math.clamp(0.06f + drop * 0.002f, 0.06f, 0.11f), 24f)
+                    });
+                    Spray(new Emitter
+                    {
+                        Position = foot + new float3(shape.Out.x * math.min(1.5f + drop * 0.08f, 3.5f), 0.35f, shape.Out.y * math.min(1.5f + drop * 0.08f, 3.5f)), Seed = math.frac(seed + 0.53f),
+                        Color = new float4(0.93f, 0.95f, 0.98f, 0f),
+                        Shape = new float4(0.5f, width * 0.9f + drop * 0.2f, math.clamp(0.4f + drop * 0.01f, 0.4f, 0.7f), 4f + math.min(drop * 0.1f, 2f)),
+                        Timing = new float4(0f, 1f, math.clamp(0.03f + drop * 0.001f, 0.03f, 0.05f), 24f)
+                    });
                     LipSpray(lip, shape.Out, width * 0.8f, math.frac(seed + 0.9f), 1f, 0.4f);
                     min = math.min(min, foot - 6f);
                     max = math.max(max, lip + 6f);

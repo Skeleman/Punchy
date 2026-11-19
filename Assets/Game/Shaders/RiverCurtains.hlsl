@@ -96,10 +96,11 @@ float PunchyFallSide(float3 positionWS)
 // slope that adds (dh/dx, dh/dz) and how churned (white) the water is there (0 to 1). p is the water's point at
 // rest; fine (0 to 1) is how much of the short waves to give: the vertex stages pass what their mesh can carry,
 // the fragment stage what a pixel can show.
-float PunchyFallWater(float3 p, float t, float fine, out float churn, out float2 slope)
+float PunchyFallWater(float3 p, float t, float fine, out float churn, out float2 slope, out float aerated)
 {
     churn = 0;
     slope = 0;
+    aerated = 0;
     float grow = PUNCHY_FALL_RIPPLE_REACH;
     if (_PunchyRiverCurtainCount < 0.5 || any(p.xz < _PunchyRiverCurtainRect.xy - grow) || any(p.xz > _PunchyRiverCurtainRect.zw + grow))
         return 0;
@@ -159,10 +160,18 @@ float PunchyFallWater(float3 p, float t, float fine, out float churn, out float2
                 float2 out2 = float2(alF, beside * (ac < 0 ? -1.0 : 1.0)) / max(r, 0.05);
                 slope += (o * out2.x + side * out2.y) * dr;
                 churn = max(churn, nearPool * (1 - smoothstep(0.5, 4.5, r)));
+                float aerReach = clamp(2.5 + 0.25 * (a.y - b.w), 3.5, PUNCHY_FALL_RIPPLE_REACH - 1);
+                aerated = max(aerated, nearPool * (1 - smoothstep(0, aerReach, r)));
             }
         }
     }
     return height;
+}
+
+float PunchyFallWater(float3 p, float t, float fine, out float churn, out float2 slope)
+{
+    float aerated;
+    return PunchyFallWater(p, t, fine, churn, slope, aerated);
 }
 
 // How wet the ground here is from a fall's spray (0 to 1): a band a few metres either side of the sheet, from
