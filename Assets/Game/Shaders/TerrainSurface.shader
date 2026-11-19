@@ -387,6 +387,22 @@ Shader "Punchy/Terrain Surface"
                 return float3((MicroHeight(p + float2(e, 0), w).x - h.x) / e, (MicroHeight(p + float2(0, e), w).x - h.x) / e, 0.5 + h.y);
             }
 
+            float3 TriplanarWeights(float3 n)   // x: zy plane, y: xz, z: xy
+            {
+                float3 w = pow(abs(n), 4);
+                return w / (w.x + w.y + w.z);
+            }
+
+            // Bank slopes: each plane's relief only where it faces, so a slope gets grain, not top-down streaks.
+            float3 MicroDetailTriplanar(float3 pos, float3 tw, float3 w, out float3 slopeWS)
+            {
+                float3 mt = tw.y > 0.02 ? MicroDetail(pos.xz, w) : float3(0, 0, 0.5);
+                float3 mx = tw.x > 0.02 ? MicroDetail(pos.zy, w) : float3(0, 0, 0.5);
+                float3 mz = tw.z > 0.02 ? MicroDetail(pos.xy, w) : float3(0, 0, 0.5);
+                slopeWS = float3(mt.x, 0, mt.y) * tw.y + float3(0, mx.y, mx.x) * tw.x + float3(mz.x, mz.y, 0) * tw.z;
+                return mt * tw.y + mx * tw.x + mz * tw.z;
+            }
+
             Varyings Vert(TerrainAttributes input)
             {
                 Varyings o = (Varyings)0;
@@ -447,7 +463,10 @@ Shader "Punchy/Terrain Surface"
                 half rockFace = (1 - smoothstep(0.574, 0.766, normalize(input.normalWS).y)) * (input.extra.w <= 0.01);
                 octaves *= 1 - rockFace;
                 detailFade *= 1 - rockFace;
-                float3 micro = max(octaves.x, max(octaves.y, octaves.z)) > 0.001 ? MicroDetail(p, octaves) : float3(0, 0, 0.5);
+                float3 triW = TriplanarWeights(normalize(input.normalWS));
+                float3 microSlope = 0;
+                float3 micro = max(octaves.x, max(octaves.y, octaves.z)) > 0.001
+                             ? MicroDetailTriplanar(input.positionWS, triW, octaves, microSlope) : float3(0, 0, 0.5);
 
                 // Rain: flat ground collects puddles (dark, mirror-smooth, no relief); elsewhere wet ground just
                 // darkens and gets a soft sheen. Grass and snow don't glaze. Far away the sheen fades, since at
@@ -485,7 +504,7 @@ Shader "Punchy/Terrain Surface"
                 half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
-                normalWS = normalize(normalWS - half3(micro.x, 0, micro.y) * relief);
+                normalWS = normalize(normalWS - (half3)microSlope * relief);
                 half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
                 // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.
@@ -527,8 +546,7 @@ Shader "Punchy/Terrain Surface"
                 {
                     // One scale (Cave.shader's groundGrainScale): one that varies over the ground smears far from the origin.
                     float3 q = input.positionWS * 0.6;
-                    float3 tw = pow(abs(normalWS), 4);
-                    tw /= tw.x + tw.y + tw.z;
+                    float3 tw = TriplanarWeights(normalWS);
                     half4 rd = SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.zy) * tw.x
                              + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xz) * tw.y
                              + SAMPLE_TEXTURE2D(_PunchyCaveDetail, sampler_PunchyCaveDetail, q.xy) * tw.z;
@@ -579,7 +597,13 @@ Shader "Punchy/Terrain Surface"
                 // (about 3 and 7 cm, hashed by cell so they hold still), gone before they could shimmer, and not under grass.
                 if (detailFade > 0.001)
                 {
-                    half grain = Grain(p * 37) * 0.6 + Grain(float2(p.x * 0.866 - p.y * 0.5, p.x * 0.5 + p.y * 0.866) * 15 + 11.3) * 0.4;   // turned: no grid
+                    float2 gq[3] = { input.positionWS.zy, p, input.positionWS.xy };
+                    half grain = 0;
+                    [unroll] for (int gi = 0; gi < 3; gi++)
+                    {
+                        float2 g = gq[gi];
+                        grain += (Grain(g * 37) * 0.6 + Grain(float2(g.x * 0.866 - g.y * 0.5, g.x * 0.5 + g.y * 0.866) * 15 + 11.3) * 0.4) * triW[gi];   // turned: no grid
+                    }
                     albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
                 }
                 // Paved ground (settlement streets and squares): cobbles up close, fading to plain stone grey before
