@@ -476,3 +476,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - The painted bars were churn spray plumes (3-5.5 m wide flat quads). They are now short broken clumps (aspect 1-1.5), only where gradient >= 0.08 (splash wakes keep RapidGradient), and each clump fades by its own screen size (rule 20).
 - Water.shader: carried foam, flecks and the floor term are gated by breaking water (rapids 0.7-0.95), so fast smooth water carries no white; WaterFlowLines ridges are sharper (3-8) and the slope is stronger, so they read as glints. Foam keeps a sky-lit floor in shade and overcast.
 - Shots, same pose before/after: D:/Unity/PunchyMilestones/flow-ridges/{riffle,rapid,shade,overcast}-{before,after}.png; rapid pair viewed. Fauna fingerprint untouched (render plus plume placement only).
+
+## Caustic soften (#262) - render/caustic-soften 796e6c58
+- Water.shader caustic web: two domain warps bend the cells, borders have a thin core with a soft glow (squared falloff), low-frequency patches break the web up, and contrast is lower; strength follows light / (1 + sun luminance), so it eases off in strong sun and fades in weak sun.
+- Shots, same pose before/after: D:/Unity/PunchyMilestones/caustic-soften/{riffle,bank}-pair.jpg (bank -1170,3570 hour 11 Clear; riffle -2427.6,-904.3). Bank pair viewed: the paving-stone lines are now a faint warped shimmer.
+- Riffle without caustics, normal view: D:/Unity/PunchyMilestones/flow-ridges/riffle-before.png (same pose, taken before #647).
