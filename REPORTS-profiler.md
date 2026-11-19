@@ -4445,3 +4445,6 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 
 ## 11-19 world FYI: fauna fingerprint 1E90DBCF -> 156425C3 (W-173 kit-inn, PR #680)
 - The hall now builds from kit parts and the inn draws through DrawKitHouse, so flora boxes and perches move. Landmarks and water are unchanged. Re-pin any bench baseline that reads the fingerprint.
+
+## 11-19 world FYI: water truth walls 4 -> 3 (W-173 lake gully, PR #685)
+- The bay mask keeps the lake-rim gully's water at (-622,634). Landmarks and fauna are unchanged. Re-pin any bench baseline that reads WaterTruthCounts.

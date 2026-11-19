@@ -8922,3 +8922,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Only kit buildings show the change: StormShelterHouse (Human) and the dwarf shelter houses. Rule 35 trims done (DrawKitPart and Hall summaries).
 - WorldTests 21/22 (Village_CreatureDensity 52, flaky). Water, LandmarkHash and fauna fingerprint unchanged. Shots: PunchyMilestones/world/kit-tile.
 - Next: lake-rim gully (-622,634).
+
+## 11-19 W-173 lake-rim gully DONE (PR #685)
+- Cause: the bay mask flooded all lakes at once. The 63.3 m lake's flood reached the 56.2 m lake's shore and merged the gully's closed pocket into one open pocket, which was dropped. Fix in TerrainSource.Bays.cs only: dropped cells are capped below their flood level and the flood reruns (up to 8 rounds). RiverData bake untouched.
+- x=-622: z 634/630 ground 54.6 under 56.2 water, z 626 55.8/56.2, z 622 dry. Water truth walls 4 -> 3 (pin updated), step 125, deep 0. LandmarkHash 120 B32C5306 unchanged. WorldTests 23/23.
+- Shot: PunchyMilestones/world/lake-gully/gully-after.png (before: world/walls-zero/lake-gully.png).
+- Next: StormShelterHouse tile play shot (b/fix-kit-tile only if no courses show).
