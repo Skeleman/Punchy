@@ -369,3 +369,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #684 W-142 (#262): lava seeps leave a glowing streak down the rock, readable from 20 m.
 - 11-19 #686 W-182 (#304): pine bark has smaller ragged plates, dark varied fissures, grey faces with orange flaked rims.
 - 11-19 #687 W-181 row 3 (#301): steep river reaches step down as flat pools with short falls and spray (falls 140 -> 151).
+- 11-19 #688 W-173 (#669): clay pantile roofs keep their tile pattern out to ~30 m (faded flat by 6 m before).
