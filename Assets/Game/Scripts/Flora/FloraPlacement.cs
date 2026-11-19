@@ -1199,7 +1199,7 @@ namespace Punchy.Flora
         /// </summary>
         static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind)
         {
-            if (kind >= (int)RiverSpot.Riffle)
+            if (kind == (int)RiverSpot.Riffle || kind == (int)RiverSpot.Splash)
                 return RapidsFit(source, xz, kind);
             var waterline = kind == (int)RiverSpot.Waterline;
             if (!source.Rivers.IsCreated || ground.Rapids > 0.3f && !waterline)
@@ -1211,7 +1211,7 @@ namespace Punchy.Flora
             var q = RiverSampling.Query(ref map, source.RiverSettings, xz);
             if (!q.Found || q.Width <= 0.5f || q.Distance > q.Width * 0.5f + 4f)
             {
-                if (!late || kind == (int)RiverSpot.Undercut || !StillShore(source, xz, ground))
+                if (!late || kind == (int)RiverSpot.Undercut || kind == (int)RiverSpot.Heap || !StillShore(source, xz, ground))
                     return 0f;
                 var shoreCell = (int2)math.floor(xz / (map.CellSize * 3f));
                 return ReachDraw(map.Seed, (uint)(shoreCell.x * 73856093 ^ shoreCell.y * 19349663), kind) * (waterline ? 1f : 0.5f);
@@ -1264,6 +1264,14 @@ namespace Punchy.Flora
             }
             if (kind == (int)RiverSpot.Snag && barHead && edge > -1.5f && edge < 3f)
                 return math.lerp(0.5f, 1f, ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind));
+            if (kind == (int)RiverSpot.Heap)
+            {
+                if (ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind) < HeapOdds)
+                    return 0f;
+                if (barHead && edge > -1f && edge < 2f)
+                    return 1f;
+                return !inner && edge > -1f && edge < 1.5f ? math.smoothstep(0.35f, 0.8f, bend) : 0f;
+            }
             if (!late || edge < -1.5f || edge > 2f)
                 return 0f;
             var draw = ReachDraw(map.Seed, (uint)NearestSegment(ref map, xz), kind);
@@ -1271,6 +1279,9 @@ namespace Punchy.Flora
                 return draw;
             return draw * (inner ? 0.12f : math.max(math.smoothstep(0.2f, 0.7f, bend), 0.2f));
         }
+
+        // ReachDraw spans 0.25-1, so about one reach in four keeps a heap.
+        const float HeapOdds = 0.8f;
 
         static int NearestSegment(ref RiverMapBlob map, float2 xz)
         {
@@ -2918,7 +2929,7 @@ namespace Punchy.Flora
             var fromProp = picked != candidates[pick];   // a landmark prop's density ring (its runed stones share a pattern)
             if (rule.RiverSpot == (int)RiverSpot.LogNarrows)
                 return LogAcross(source, rule, xz, ground, scale, ref rng);
-            if (rule.RiverSpot >= (int)RiverSpot.Riffle)
+            if (rule.RiverSpot == (int)RiverSpot.Riffle || rule.RiverSpot == (int)RiverSpot.Splash)
                 return RapidsStone(source, rule, xz);
             if (rule.RiverSpot == (int)RiverSpot.Narrows && rule.Span > 0f)
             {
@@ -2958,7 +2969,7 @@ namespace Punchy.Flora
             }
             if (rule.RiverSpot == (int)RiverSpot.Undercut)
                 return UndercutLip(source, rule, xz, ground, scale, ref rng);
-            if (rule.RiverSpot == (int)RiverSpot.GravelBar || rule.RiverSpot == (int)RiverSpot.Snag)
+            if (rule.RiverSpot == (int)RiverSpot.GravelBar || rule.RiverSpot == (int)RiverSpot.Snag || rule.RiverSpot == (int)RiverSpot.Heap)
             {
                 // Driftwood lies roughly along the flow, as the water left it.
                 var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));

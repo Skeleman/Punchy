@@ -166,35 +166,82 @@ namespace Punchy.Flora
         /// </summary>
         static void Driftwood(Grower g)
         {
-            var b = g.B;
+            if (g.S.RiverSpot == RiverSpot.Heap)
+            {
+                DriftHeap(g);
+                return;
+            }
             var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
             var r = Mathf.Max(0.06f, g.S.Thickness * g.Range(0.85f, 1.15f));
             g.Height = r * 2f;
             g.Width = len;
             g.TrunkRadius = 0f;
+            DriftLog(g, new Vector3(0f, r, 0f), 0f, 0f, len, r, true);
+        }
+
+        /// <summary>
+        /// #301: a heap of 4-7 driftwood logs that a flood left on a bar head or an outer bend. Two long logs lie along
+        /// X (the flow), shorter ones lie across them in up to two more layers, and a few thin sticks poke out.
+        /// </summary>
+        static void DriftHeap(Grower g)
+        {
+            var len = g.Range(g.S.Height.x, Mathf.Max(g.S.Height.x, g.S.Height.y));
+            var r = Mathf.Max(0.06f, g.S.Thickness);
+            var count = 4 + (int)g.Range(0f, 3.99f);
+            var top = 0f;
+            for (int k = 0; k < count; k++)
+            {
+                var layer = k < 2 ? 0 : k < 4 ? 1 : 2;
+                var lr = r * g.Range(0.75f, 1.2f);
+                var ll = len * (layer == 0 ? g.Range(0.8f, 1f) : g.Range(0.5f, 0.85f));
+                var yaw = layer == 0 ? g.Range(-15f, 15f) : (g.R() < 0.5f ? -1f : 1f) * g.Range(25f, 75f);
+                var mid = new Vector3(g.Range(-0.15f, 0.15f) * len, layer * r * 1.7f + lr,
+                                      layer == 0 ? (k == 0 ? -1f : 1f) * g.Range(0.15f, 0.45f) : g.Range(-0.3f, 0.3f));
+                DriftLog(g, mid, yaw, layer == 0 ? 0f : g.Range(-7f, 7f), ll, lr, k == 0 || g.R() < 0.3f);
+                top = Mathf.Max(top, mid.y + lr);
+            }
+            if (g.Lod < 2)
+                for (int k = 0, n = 2 + (int)g.Range(0f, 2.99f); k < n; k++)
+                {
+                    var mid = new Vector3(g.Range(-0.35f, 0.35f) * len, g.Range(0.3f, 1f) * top, g.Range(-0.5f, 0.5f));
+                    DriftLog(g, mid, g.Range(0f, 360f), g.Range(20f, 45f), g.Range(0.5f, 1.1f), r * g.Range(0.3f, 0.45f), false);
+                }
+            g.Height = top;
+            g.Width = len;
+            g.TrunkRadius = 0f;
+        }
+
+        /// <summary>
+        /// One weathered log, len long and r in radius, gently bent, with snapped branch stubs and (roots) a flare of
+        /// root stubs at its thick -X end; its middle at mid, pitched by pitch degrees about Z and turned by yaw about Y.
+        /// </summary>
+        static void DriftLog(Grower g, Vector3 mid, float yaw, float pitch, float len, float r, bool roots)
+        {
+            var b = g.B;
+            var turn = Quaternion.Euler(0f, yaw, pitch);
+            Vector3 At(float x, float y, float z) => mid + turn * new Vector3(x, y, z);
             var bend = g.Range(-0.08f, 0.08f) * len;
             var sides = g.Sides(9, 6, 4);
             var first = b.VertexCount;
-            b.Tube(new List<Vector3> { new Vector3(-len * 0.5f, r * 1.1f, 0f), new Vector3(0f, r, bend), new Vector3(len * 0.5f, r * 0.8f, bend * 0.3f) },
+            b.Tube(new List<Vector3> { At(-len * 0.5f, r * 0.1f, 0f), At(0f, 0f, bend), At(len * 0.5f, -r * 0.2f, bend * 0.3f) },
                    new List<float> { r * 1.15f, r, r * 0.6f }, sides, g.Bark, FloraPart.Bark);
             b.Occlude(first, (p, n) => GroundOcclusion(p, r * 0.8f));
             if (g.Lod >= 2)
                 return;
-            // Root stubs flare out of the thick end, some up in the air.
-            for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
-            {
-                var a = (k + g.Range(0f, 0.6f)) * Mathf.PI * 2f / n;
-                var tip = new Vector3(-len * 0.5f - g.Range(0.2f, 0.6f), r * 1.1f + Mathf.Sin(a) * r * 2.2f, Mathf.Cos(a) * r * 2.2f);
-                b.Tube(new List<Vector3> { new Vector3(-len * 0.5f + 0.1f, r * 1.1f, 0f), tip }, new List<float> { r * 0.45f, r * 0.12f },
-                       g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
-            }
-            // A few snapped branch stubs along the length.
+            if (roots)
+                for (int k = 0, n = 3 + (int)g.Range(0f, 3f); k < n; k++)
+                {
+                    var a = (k + g.Range(0f, 0.6f)) * Mathf.PI * 2f / n;
+                    var tip = At(-len * 0.5f - g.Range(0.2f, 0.6f), r * 0.1f + Mathf.Sin(a) * r * 2.2f, Mathf.Cos(a) * r * 2.2f);
+                    b.Tube(new List<Vector3> { At(-len * 0.5f + 0.1f, r * 0.1f, 0f), tip }, new List<float> { r * 0.45f, r * 0.12f },
+                           g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
+                }
             for (int k = 0, n = 1 + (int)g.Range(0f, 3.5f); k < n; k++)
             {
                 var x = g.Range(-0.3f, 0.4f) * len;
                 var a = g.Range(-1.2f, 1.2f);
-                var from = new Vector3(x, r, Mathf.Lerp(0f, bend, 1f - Mathf.Abs(x) / (len * 0.5f)));
-                var dir = new Vector3(g.Range(0.2f, 0.6f), Mathf.Cos(a), Mathf.Sin(a)).normalized;
+                var from = At(x, 0f, Mathf.Lerp(0f, bend, 1f - Mathf.Abs(x) / (len * 0.5f)));
+                var dir = turn * new Vector3(g.Range(0.2f, 0.6f), Mathf.Cos(a), Mathf.Sin(a)).normalized;
                 b.Tube(new List<Vector3> { from, from + dir * (r + g.Range(0.15f, 0.5f)) }, new List<float> { r * 0.3f, r * 0.15f },
                        g.Sides(5, 4, 3), g.Bark, FloraPart.Bark);
             }
