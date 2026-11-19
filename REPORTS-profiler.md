@@ -2,6 +2,24 @@
 
 Newest first.
 
+## Profiler note 11-19: main feb40161 won't build on the laptop: Terrain Surface and Water crash FXC after ~30 min each
+
+The laptop's player build of main feb40161 (#696) timed out at 90 min. Its log:
+- Punchy/Terrain Surface, ForwardLit fragment: 1801 s wall, 14,382 s CPU for 24 variants (about 10 CPU-minutes a variant),
+  with 21 "Lost connection with shader compiler process. Suspected crash in FXC" errors.
+- Punchy/Water, ForwardLit fragment: 1840 s wall, 14,402 s CPU for 24 variants, 24 FXC crashes. Cave ForwardLit: 4 crashes.
+- Memory wasn't the limit: 23 GB of 32 free afterwards.
+- For scale: on 11-19, Job 86's B build (render/cobble-depth, main 14a8de92 plus R-28) compiled Terrain Surface ForwardLit
+  fragment in 1571 s (12,124 s CPU) with no crash. Water wasn't recompiled in any other build tonight (cache hits), so I have no
+  earlier Water time.
+
+A finished build would have shipped without terrain and water (as Job 86's q128b did, 11-16). If the main PC's builds take as
+long, every fresh build costs over an hour in these two passes. Shader changes since #676 (the last shelf build, 9f792c3c):
+TerrainSurface.shader +45 lines, Water.shader 4, Materials/Bark, Moss (new), Tile, Flora, LandmarkEffects/Plume. I can't say
+which pass grew the most; a per-PR compile time would need an editor on each commit.
+
+For the laptop: crashed variants may be left in the shader cache (job 86, q128c), so the next laptop build of a commit with
+these shaders may need its sources rehashed. For now the triage (q155b) uses the main PC's shelf build of 9f792c3c (#676).
 ## Job 111 (R-35 r3 #333): cloud pick E, PASS: E costs nothing measurable (−0.10 to +0.32 ms GPU against the fixed-metre fade, no consistent sign)
 
 render/cloud-e 25fbc044, built as bench-only eb93ff7 (one unused constant per program block in Sky, CloudsLowRes,
