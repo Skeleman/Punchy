@@ -8953,3 +8953,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Cause: the Cull Off cave skin shadowed itself (attenuation about 0.45 everywhere). Fix: shadow receivers lifted 0.4 m off the skin.
 - Left: the c22 mouth ring is still about +10/255 lighter than the shadowed terrain beside it; not SSAO, not reflections.
 - Shots at 20 m: PunchyMilestones/world/mouth-snow c22-a/c10-a/c0-b (+ -after). Shader only, no WorldTests run.
+
+### W-172 r7 tail - PR #705 (11-19)
+- Row 1 (86e5f540): natural Ashlands caves get basalt column clusters, sulphur crust and ember floor cracks (AmbientGlow lights via LightBudget). Cave 3 has basalt 3, sulphur 3, ember 4; before this, volcanic caves had no details.
+- Row 2 (dbfd580e): Cave.shader moss masked by openness + damp mask (mouths, damp, seeps, pools). This world has no Limestone or Fungal caves, so the change is barely visible in the Rock cave shots.
+- Shots: PunchyMilestones/world/w172-tail volc3m/volc20m/moss3m/moss20m _before/_after. WorldTests 23/23.
