@@ -73,6 +73,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - materials/bark-plates -> #686
 - banks/water-cascades -> #687
 - b/fix-kit-tile -> #688
+- render/seep-falls -> #690
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
