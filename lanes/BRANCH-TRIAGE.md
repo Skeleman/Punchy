@@ -30,6 +30,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - world/mouth21 -> #643
 - materials/fall-sheen -> #644
 - world/river-defects -> #645
+- materials/river-stone -> #646
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
