@@ -1262,3 +1262,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 render-2: render/seep-falls@44d06dc5 (#690): seep ribbons replace the #684 streak (one curtain-material draw, mesh rebuilt per 10 m cell; beads 4-6 -> 2-3). Same two spots as #683 against main.
 - 11-19 FYI #691 (W-181 r4): water sheet pins steep 66 / pits 16; water grid now 2 rings past chunk edges (slightly more water verts per chunk).
 - 11-19 FYI #693 (replaces #689): RiverSampling.PondBowl adds 4 byte reads (the Kind bits) per terrain sample on top of the river carve. No bench needed unless chunk build time moves.
+- 11-19 materials: materials/r31-ground-grain@9f410940 (#694, R-31): TerrainSurface frag gains dirt specks (3 triplanar taps, ~6 hashes each) and grass blade strokes (2 lattices + 2 value-noise taps), both branched and faded by screen size. Please compare terrain GPU cost in a meadow (-place meadow, v3) at Medium and High, main vs branch.

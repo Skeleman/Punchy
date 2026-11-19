@@ -460,3 +460,10 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Rule 35: Water_SheetSlopes summary and WaterTruth Sheet line trimmed to one reason line each.
 - WorldTests 23/23. Shots in PunchyMilestones/water-flat-edge (subtle at shot scale).
 - Note: an earlier bad push to this branch (a221f0de, it reverted #686-#688) was force-overwritten before any PR opened; the PR diff is 3 files.
+
+## 11-19 R-31 ground grain - DONE, PR #694
+- TerrainSurface.shader only: dirt gets specks plus fine grain, grass ground gets bent blade strokes in two sizes; average tone unchanged.
+- Rule 20: every layer fades from 4 to 2 px of its own size, replacing the fixed 6-22 m dirt-grain fade.
+- Skipped: the tuft carpet (render #487, waiting on BENCH 114); MaterialLibrary doesn't fit (C# building table).
+- Matched before/after shots (MatchedShot.Hold) at 3 m, 20 m and 1 m in PunchyMilestones/R-31-ground-grain.
+- BENCH-QUEUE line added; I didn't time anything.
