@@ -429,81 +429,78 @@ namespace Punchy.Flora
         static void StoneHouse(Grower g)
         {
             var s = g.S;
-            var b = g.B;
             var height = g.Range(s.Height);
             var half = height * s.Spread * 0.5f;      // half the wall's width
             var wall = height * 0.65f;
             g.Height = height;
             g.Width = half * 2.8f;
             g.TrunkRadius = half * 1.1f;
-            var corner = half * 1.414f;              // a 4-sided tube's radius to its corners
-            var square = Quaternion.Euler(0f, 45f, 0f);
 
-            // Walls: a block with flat faces (Z-32: a four-sided tube's smoothed normals turned 45 degrees at each corner,
-            // so every wall shaded from lit edges to a dark middle, or the reverse, and at a glancing view the
-            // double-sided flip caught part of a wall).
-            var first = b.VertexCount;
-            b.Box(new Vector3(0f, (wall - 0.15f) * 0.5f, 0f), new Vector3(half * 2f, wall + 0.15f, half * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
-            b.DarkenBelow(first, 0.6f, 0.8f);   // darker footing
-            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.5f));
-
-            // Wall detail: dressed quoins up each corner (alternating long and short blocks), a plinth course round
-            // the foot, and a string course under the eaves.
-            if (g.Lod < 2)
-            {
-                var dressed = g.Bark * 1.18f;
-                var course = 0.42f;
-                for (int c = 0; c < 4; c++)
-                {
-                    var cx = (c & 1) == 0 ? -half : half;
-                    var cz = (c & 2) == 0 ? -half : half;
-                    for (int k = 0; (k + 0.5f) * course < wall - 0.2f; k++)
-                    {
-                        var longOnX = k % 2 == 0;
-                        var size = new Vector3(longOnX ? 0.7f : 0.35f, course * 0.92f, longOnX ? 0.35f : 0.7f);
-                        var at = new Vector3(cx - Mathf.Sign(cx) * (size.x * 0.5f - 0.04f), (k + 0.5f) * course, cz - Mathf.Sign(cz) * (size.z * 0.5f - 0.04f));
-                        b.Box(at, size, Quaternion.identity, dressed * g.Range(0.92f, 1.08f), FloraPart.Bark);
-                    }
-                }
-                b.Box(new Vector3(0f, 0.2f, 0f), new Vector3(half * 2f + 0.14f, 0.4f, half * 2f + 0.14f), Quaternion.identity, g.Bark * 0.72f, FloraPart.Bark);
-                b.Box(new Vector3(0f, wall - 0.15f, 0f), new Vector3(half * 2f + 0.12f, 0.16f, half * 2f + 0.12f), Quaternion.identity, dressed, FloraPart.Bark);
-            }
-
-            // Low pyramid roof with an overhang, and a chimney.
-            var roof = b.VertexCount;
-            RoofTube(b, wall - 0.24f, corner * 1.2f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);   // rounded lip, not a knife edge (#32)
-            RotateFrom(b, roof, square);
-            b.Occlude(roof, (p, n) => Mathf.Lerp(0.8f, 1f, Mathf.Clamp01(n.y + 0.3f)));
-            var chimney = new Vector3(half * 0.55f, 0f, -half * 0.4f);
-            var stack = b.VertexCount;
-            b.Tube(new List<Vector3> { chimney + Vector3.up * (wall * 0.8f), chimney + Vector3.up * (height + 0.5f) },
-                   new List<float> { 0.32f, 0.3f }, 4, g.Bark * 0.85f, FloraPart.Bark);
-            RotateAround(b, stack, chimney, square);
-            ChimneyTop(g, chimney + Vector3.up * (height + 0.5f), 0.3f * 0.7071f, g.Bark * 0.85f);
-            g.Perches.Add(Vector3.up * height);
-            g.Perches.Add(chimney + Vector3.up * (height + 0.5f));
-
-            Doorway(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f), Mathf.Min(wall * 0.8f, HumanDoor));
-            // A window in the middle of each side wall and the back (the four-way Windows would put them on corners).
-            if (g.HasAccent && g.Lod < 2)
-                foreach (var dir in new[] { Vector3.right, Vector3.left, Vector3.back })
-                    Window(g, dir * (half + 0.03f) + Vector3.up * wall * 0.55f, Quaternion.LookRotation(dir), 0.6f, 0.75f);
-            // ...and one either side of the door.
-            if (g.HasAccent && g.Lod < 2 && half > 1.6f)
-                foreach (var x in new[] { -1f, 1f })
-                    Window(g, new Vector3(x * half * 0.62f, wall * 0.55f, half + 0.03f), Quaternion.identity, 0.6f, 0.75f);
-            // Collision: a square, not the circle round its middle, so its corners stop you too.
+            var seed = (uint)(g.R() * 16777215f) ^ ((uint)g.Variant << 24) ^ (uint)s.Seed * 0x9E3779B9u;
+            var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
+            trim.Wall = g.Bark;
+            trim.Trim = g.Bark * 1.18f;
+            trim.RoofColour = g.FoliageColor();
+            var parts = Punchy.Terrain.StructureKit.StoneHouse(seed, trim, half, wall, HouseLadderRoll(g, out _), out var door);
+            DrawKitHouse(g, parts, trim, Punchy.Terrain.StructureKit.Surfaces(s.KitCulture, seed), seed);
+            Doorway(g, half + 0.02f, door.x, door.y);
+            // Creatures still stop at a square of circles; the player skips them for the kit boxes.
             for (int k = 0; k < 4; k++)
                 g.Colliders.Add(new Vector4((k & 1) == 0 ? -half * 0.5f : half * 0.5f, (k & 2) == 0 ? -half * 0.5f : half * 0.5f, half * 0.55f, wall));
-            DoorMat(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f));
-            // W-147: some have a ladder up a side wall to the eave (clear of the mid-wall window and the corner quoins).
-            if (HouseLadderRoll(g, out var pick))
+            DoorMat(g, half + 0.02f, door.x);
+        }
+
+        /// <summary>W-173 (#399): a kit-built town house's parts, lit windows, chimney tops, perches, ladders and LOD 0 boxes.</summary>
+        static void DrawKitHouse(Grower g, List<Punchy.Terrain.KitPart> parts, in Punchy.Terrain.CultureTrim trim,
+                                 (Punchy.Terrain.KitSurface Wall, Punchy.Terrain.KitSurface Roof) looks, uint seed)
+        {
+            var b = g.B;
+            var contacts = new List<float>();
+            var first = b.VertexCount;
+            var top = 0f;
+            var perch = Vector3.zero;
+            if (g.Lod == 0)
+                g.KitParts = parts;
+            for (int i = 0; i < parts.Count; i++)
             {
-                var side = pick < 0.5f ? -1f : 1f;
-                var eave = half * 1.2f;   // the pyramid roof's edge, its square turned to the walls
-                var z = -half * 0.55f;
-                HouseLadder(g, new Vector3(side * (eave + 0.35f), 0f, z), new Vector3(side * (eave + 0.05f), wall - 0.14f, z), new Vector3(side, 0f, 0f));
+                var p = parts[i];
+                var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail || p.Piece == Punchy.Terrain.KitPiece.Beam ||
+                            p.Piece == Punchy.Terrain.KitPiece.Ladder || (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
+                if (small && g.Lod >= 2)
+                    continue;
+                var lit = p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
+                if (!DrawKitPart(g, parts, i, trim, looks, false, lit, seed, contacts))
+                    continue;
+                var high = p.Centre.y + p.Size.y * 0.5f;
+                top = Mathf.Max(top, high);
+                if (g.Lod == 0 && !KitDecor(p))
+                    g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
+                if (p.Piece == Punchy.Terrain.KitPiece.Chimney)
+                {
+                    var head = p.Centre + Vector3.up * (p.Size.y * 0.5f);
+                    ChimneyTop(g, head, Mathf.Min(p.Size.x, p.Size.z) * 0.5f, Punchy.Terrain.StructureKit.Colour(trim, Punchy.Terrain.KitMaterial.Stone));
+                    g.Perches.Add(head + Vector3.up * 0.1f);
+                }
+                else if ((p.Piece == Punchy.Terrain.KitPiece.Wall || p.Piece == Punchy.Terrain.KitPiece.Roof) && high > perch.y)
+                    perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
+            if (perch.y > 1f)
+                g.Perches.Add(perch);
+            foreach (var p in parts)
+                if (p.Piece == Punchy.Terrain.KitPiece.Ladder)
+                {
+                    var outward = p.Rotation * Vector3.forward;
+                    g.Ladders.Add(new Punchy.Terrain.ClimbLadder
+                    {
+                        Foot = Punchy.Terrain.StructureKit.LadderFoot(p),
+                        Top = Punchy.Terrain.StructureKit.LadderLanding(p, Punchy.Terrain.StructureKit.LadderGrab),
+                        Out = new Vector3(outward.x, 0f, outward.z).normalized,
+                        Grade = Punchy.Terrain.StructureKit.LadderGrade
+                    });
+                }
+            b.DarkenBelow(first, 0.5f, 0.82f);   // darker footing
+            b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
+            g.Height = Mathf.Max(g.Height, top);
         }
 
         /// <summary>
