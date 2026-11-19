@@ -7,13 +7,11 @@ using UnityEngine.Rendering;
 
 namespace Punchy.Terrain
 {
-    /// <summary>W-181 r3 (#534): draws cliff kit cave shelves in the cave's light.</summary>
     public partial class CaveSystem
     {
         const float ShelfSize = 3f;
         readonly Dictionary<int, Mesh> shelfMeshes = new Dictionary<int, Mesh>();
         readonly HashSet<int> shelfShown = new HashSet<int>();
-        Material shelfMaterial;
 
         void DrawShelves(in TerrainSource source, int cave, float3 camPos)
         {
@@ -26,11 +24,6 @@ namespace Punchy.Terrain
             }
             if (mesh == null)
                 return;
-            if (shelfMaterial == null)
-            {
-                shelfMaterial = new Material(Material) { name = "Cave shelf" };
-                shelfMaterial.SetFloat(StyleAirId, 1f);
-            }
             var distance = math.sqrt(mesh.bounds.SqrDistance(camPos));
             var reach = Punchy.Settings.DetailPolicy.ExtraReach(ShelfSize, CaveWallDetails.Pixels);
             if (!Punchy.Settings.DetailPolicy.Within(distance, reach, shelfShown.Contains(cave)))
@@ -39,7 +32,7 @@ namespace Punchy.Terrain
                 return;
             }
             shelfShown.Add(cave);
-            var rp = new RenderParams(shelfMaterial) { worldBounds = mesh.bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true };
+            var rp = new RenderParams(Material) { worldBounds = mesh.bounds, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true };
             Graphics.RenderMesh(rp, mesh, 0, Matrix4x4.identity);
         }
 
@@ -50,6 +43,7 @@ namespace Punchy.Terrain
             var c = set.Caves[cave];
             var wall = new CaveWallMesh(c.Mouth, c.Style);
             var boxes = new FixedList512Bytes<KitBox>();
+            var looker = new MeshJob { Source = source };
             for (int i = 0; i < kit.Pieces.Length; i++)
             {
                 var piece = kit.Pieces[i];
@@ -59,10 +53,12 @@ namespace Punchy.Terrain
                 CaveSampling.Distance(ref set, lip, out var owner);
                 if (owner != cave)
                     continue;
+                var look = looker.Look(lip, out var data, out _, out var rock);
+                wall.Match(look, data, rock);
                 boxes.Clear();
                 CliffKit.Boxes(piece, ref boxes);
                 for (int k = 0; k < boxes.Length; k++)
-                    wall.Box(boxes[k].Centre, boxes[k].Half, boxes[k].Rotation, piece.Tint);
+                    wall.Ledge(boxes[k].Centre, boxes[k].Half, boxes[k].Rotation, data.y, piece.Seed + (uint)k * 0x9E3779B9u);
             }
             return wall.ToMesh("Cave shelves");
         }
@@ -82,9 +78,6 @@ namespace Punchy.Terrain
                     Destroy(mesh);
             shelfMeshes.Clear();
             shelfShown.Clear();
-            if (shelfMaterial != null)
-                Destroy(shelfMaterial);
-            shelfMaterial = null;
         }
     }
 }

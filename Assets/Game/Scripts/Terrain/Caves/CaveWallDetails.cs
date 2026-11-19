@@ -957,17 +957,39 @@ namespace Punchy.Terrain
         readonly List<Vector4> data = new List<Vector4>();
         readonly List<Color> colours = new List<Color>();
         readonly List<int> indices = new List<int>();
+        readonly List<Vector4> rocks = new List<Vector4>();
         readonly float3 mouth;
         readonly float style;
         static readonly float NoRib = CaveSystem.SeamRib(0f, 1f);
 
         public CaveWallMesh(float3 mouth, int style) { this.mouth = mouth; this.style = style; }
 
+        bool hasRock, matched;
+        Vector4 rock;
+        Color colour;
+        float ground;
+
+        // Shelves take the wall's own look at their spot, so they read as the same rock.
+        public void Match(float4 look, float4 data, float4 rockLook)
+        {
+            matched = true;
+            colour = new Color(look.x, look.y, look.z, look.w);
+            ground = data.x;
+            rock = rockLook;
+        }
+
         int Vertex(float3 p, float3 n, float tint)
         {
             positions.Add(p);
             normals.Add(math.normalizesafe(n, new float3(0f, 1f, 0f)));
-            data.Add(new Vector4(0f, tint, style, NoRib));
+            data.Add(new Vector4(matched ? ground : 0f, tint, style, NoRib));
+            rocks.Add(rock);
+            hasRock |= rock.w > 0f;
+            if (matched)
+            {
+                colours.Add(colour);
+                return positions.Count - 1;
+            }
             // Colour alpha is the openness the cave walls take: daylight near the mouth, none deep in.
             colours.Add(new Color(0.5f, 0.5f, 0.5f, math.saturate(1f - math.distance(p, mouth) / 18f)));
             return positions.Count - 1;
@@ -1114,6 +1136,50 @@ namespace Punchy.Terrain
             }
         }
 
+        public void Ledge(float3 centre, float3 half, quaternion rotation, float tint, uint seed)
+        {
+            const int columns = 6;
+            var rng = new Unity.Mathematics.Random(seed | 1u);
+            var profile = new float2[columns + 1, 5];
+            for (int i = 0; i <= columns; i++)
+            {
+                var t = i / (float)columns * 2f - 1f;
+                var front = half.z * (1f - 0.3f * t * t - rng.NextFloat(0f, 0.15f));
+                var chip = half.y * rng.NextFloat(0.15f, 0.4f);
+                var under = half.y * rng.NextFloat(1f, 1.4f);
+                profile[i, 0] = new float2(-half.z, half.y);
+                profile[i, 1] = new float2(front - chip * rng.NextFloat(0.4f, 1f), half.y - rng.NextFloat(0f, 0.04f));
+                profile[i, 2] = new float2(front, half.y - chip);
+                profile[i, 3] = new float2(front - half.z * rng.NextFloat(0.1f, 0.3f), half.y - under);
+                profile[i, 4] = new float2(-half.z, -half.y);
+            }
+            float3 P(int i, int k)
+            {
+                var x = (i / (float)columns * 2f - 1f) * half.x * (i == 0 || i == columns ? 0.85f : 1f);
+                return centre + math.mul(rotation, new float3(x, profile[i, k].y, profile[i, k].x));
+            }
+            var middle = centre + math.mul(rotation, new float3(0f, 0f, -half.z));
+            for (int i = 0; i < columns; i++)
+                for (int k = 0; k < 4; k++)
+                    Facet(P(i, k), P(i + 1, k), P(i + 1, k + 1), P(i, k + 1), middle, tint * (k >= 3 ? 0.6f : 1f));
+            for (int end = 0; end <= columns; end += columns)
+                for (int k = 1; k < 4; k++)
+                    Facet(P(end, 0), P(end, k), P(end, k + 1), P(end, k + 1), middle, tint);
+        }
+
+        void Facet(float3 a, float3 b, float3 c, float3 d, float3 inside, float tint)
+        {
+            var n = math.cross(b - a, c - a);
+            if (math.lengthsq(n) < 1e-10f)
+                n = math.cross(c - a, d - a);
+            if (math.dot(n, (a + b + c + d) * 0.25f - inside) < 0f)
+            {
+                (b, d) = (d, b);
+                n = -n;
+            }
+            Quad(a, b, c, d, n, tint);
+        }
+
         /// <summary>A five-sided cone from its base along dir (icicles, flowstone drips).</summary>
         public void Spike(float3 b, float3 dir, float radius, float length, float tint)
         {
@@ -1186,6 +1252,8 @@ namespace Punchy.Terrain
             mesh.SetNormals(normals);
             mesh.SetColors(colours);
             mesh.SetUVs(0, data);
+            if (hasRock)
+                mesh.SetUVs(1, rocks);
             mesh.SetIndices(indices, MeshTopology.Triangles, 0);
             mesh.RecalculateBounds();
             mesh.UploadMeshData(true);
