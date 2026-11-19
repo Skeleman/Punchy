@@ -329,3 +329,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #645 W-172 (#365): pond/lake sheet rims no longer hang over falling ground (hangs 28-258 -> 0-4).
 - 11-18 #646 W-166 (#336): per-biome WaterColor, river shallows no longer lime green at the shore.
 - #647 W-159/#262: animated caustic web on sunlit shallow river beds, fades by ~1 m (render-2, 11-18)
+- #648 W-172/#365: river mouth into the sea keeps its falls curtain, no jagged sheet (world, 11-18)
