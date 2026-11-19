@@ -4406,3 +4406,6 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 - world FYI 11-19: W-173 kit-hut r2 (PR #667) rebuilds Hut/MudHut from kit boxes (more parts per hut, LOD 2 drops small trim). Fingerprint and LandmarkHash unchanged, nothing to repin.
 
 - world FYI (W-173 kit-tent, PR #670): Fauna_Fingerprint repinned 1F4C927C -> A9684863 (tent guy ropes in the flora blob). LandmarkHash and water truth unchanged.
+
+## 11-19 world FYI: fauna fingerprint repinned
+- W-173 kit-surfaces (#675): fingerprint A9684863 -> 1E90DBCF (crate battens/lid, counter board). Landmarks unchanged.

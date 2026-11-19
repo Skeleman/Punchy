@@ -8902,3 +8902,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Guy-rope summary removed (rule 35). Fingerprint unchanged, so no repin and no profiler FYI.
 - WorldTests 21/22: Place_Prop wharf fails only on repeat runs in one session (identical log line). Village density flaked once.
 - Shots: PunchyMilestones/world/kit-stall (before/after, wide and close).
+
+## 11-19 W-173 kit-surfaces follow-ups DONE (#675)
+- Crates (all Crate callers): planked body, corner battens, wood lid in place of the pale band. Counter: planks plus a top board. Two summaries trimmed (rule 35).
+- Wharf test reads only after a fresh LogWatch mark; 2 back-to-back runs in one session passed (21/22, the one fail was the fingerprint, now repinned).
+- Fauna fingerprint A9684863 -> 1E90DBCF (flora blob). LandmarkHash and water truth unchanged. Shots: PunchyMilestones/world/kit-surfaces.
+- Next: Inn/Smithy/Hall, then #669 library-kind wiring (Tile slot).
