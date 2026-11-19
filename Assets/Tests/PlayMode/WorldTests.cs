@@ -26,7 +26,7 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 120 landmarks, probe hash E811A278 since #301 (fall foot pools re-shape river ground). 5B47CDAE since W-182 row 4 (two CastleGateRuins on their own spots).
+        /// <summary>Target: 120 landmarks, probe hash B32C5306 since #269 (fall notch walls wander and lean). 5B47CDAE since W-182 row 4 (two CastleGateRuins on their own spots).
         /// 5A21F052 since W-182 row 3 (four CastleRuins on their own spots in Temperate,
         /// Grassland and Tundra; the other 114 unmoved). DE33C724 since the W-153 row 3 tail (fall lip shoulders: the swamp
         /// campsite near -1626,33 settles 0.2 m; the other 113 unmoved). 9113464F since W-153 rework row 3 (fall profiles and 138
@@ -50,7 +50,7 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("120 E811A278", hash);
+            Assert.AreEqual("120 B32C5306", hash);
             yield return null;
         }
 

@@ -381,6 +381,8 @@ namespace Punchy.Terrain
             }
         }
 
+        static float Wobble(float2 p, float scale, float seed) => math.smoothstep(-0.6f, 0.6f, noise.snoise(p * scale + seed));
+
         static void Consider(ref RiverMapBlob map, in RiverSettings s, in Bank bank, float2 xz, int start, ref RiverQuery q, ref Join blend)
         {
             if (start < 0)
@@ -436,6 +438,27 @@ namespace Punchy.Terrain
             var level = profile.Bed(tl);
             var baseWidth = profile.Width(t);
             var width = baseWidth * bank.WidthScale;
+            var notch = 0f;
+            if (fall)
+            {
+                // Beside the sheet the step comes later, leans and pauses on a ledge, never before the lip, so the notch walls are not a straight cut.
+                var aside = math.smoothstep(3.5f, 6f, distance - math.max(width, baseWidth) * 0.5f);
+                if (aside > 0f)
+                {
+                    var length = math.max(math.distance(a, b), 1f);
+                    var jag = aside * Wobble(xz, 1f / 9f, 41.7f) * 6f;
+                    var lean = aside * Wobble(xz, 1f / 14f, 7.1f) * 5f;
+                    var s0 = 0.505f + jag / length;
+                    var s1 = 0.55f + (jag + lean) / length;
+                    var mid = math.lerp(s0, s1, math.lerp(0.35f, 0.6f, Wobble(xz, 1f / 11f, 3.3f)));
+                    var k = math.lerp(0.35f, 0.65f, Wobble(xz, 1f / 13f, 12.9f));
+                    var stepped = k * math.smoothstep(s0, mid, t) + (1f - k) * math.smoothstep(mid + (s1 - s0) * 0.15f, s1, t);
+                    var ledge = aside * math.smoothstep(0.45f, 0.75f, Wobble(xz, 1f / 17f, 19.9f));
+                    tl = math.lerp(math.smoothstep(s0, s1, t), stepped, ledge);
+                    level = profile.Bed(tl);
+                    notch = (jag + lean) * aside;
+                }
+            }
             var cut = fall || baseWidth < 3f ? 0f : math.smoothstep(0.25f, 0.6f, outer) * math.lerp(0.5f, 1.5f, outer);
             var water = profile.WaterAt(t);
             var bar = fall || baseWidth < 3f ? 0f : math.smoothstep(0.25f, 0.6f, inner) * math.saturate((level - 0.1f - water) / 0.3f);
@@ -477,13 +500,16 @@ namespace Punchy.Terrain
                 if (!above)
                 {
                     var drop = math.max(profile.BedA - profile.BedB, 0f);
-                    var sink = math.smoothstep(LipHold, LipHold + 2f, past)
+                    var foot = LipHold + math.max(notch, 0f);
+                    var sink = math.smoothstep(foot, foot + 2f, past)
                              * (1f - math.smoothstep(LipHold + width * 0.6f, LipHold + width * 1.2f, past));
                     var pit = math.min(drop * FootPoolDepth, 2.5f);
                     carve = Profile(distance, level, width, Depth(baseWidth, s) + pit * sink, bank);
-                    var rim = math.max(width, baseWidth) * 0.5f + FootPoolMargin;
+                    var rim = math.max(width, baseWidth) * 0.5f + FootPoolMargin + 1.5f + Wobble(xz, 1f / 8f, 5.5f) * 3f;
+                    var talus = math.smoothstep(foot - 1f, foot + 1f, past) * (1f - math.smoothstep(foot + 2f, foot + 7f, past))
+                              * math.smoothstep(rim, rim + 1.5f, distance) * math.lerp(0.4f, 2f, Wobble(xz, 1f / 3f, 27.1f));
                     var pool = profile.WaterB - (Depth(baseWidth, s) * 0.75f + pit) * (1f - math.smoothstep(rim - 2.5f, rim, distance))
-                             + math.max(distance - rim, 0f) * bank.Slope;
+                             + math.max(distance - rim, 0f) * bank.Slope * math.lerp(0.6f, 1.4f, Wobble(xz, 1f / 10f, 61.3f)) + talus;
                     carve = math.lerp(carve, math.min(carve, pool), sink);
                     if (sink > q.PoolWeight)
                     {
