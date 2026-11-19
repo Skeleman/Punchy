@@ -8876,3 +8876,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
   9. Forum: elf grove. 3-4 h.
   10. Tent and Tower: no layout uses them now, so they come last. 2 h each.
 - Total: about 45 h.
+
+- World W-173 row 1 StoneHouse DONE (world/kit-stonehouse @ 25c7a64a, PR #665): the house is built from kit walls, gable roof, chimney, shutters and quoins through the shared DrawKitHouse. The player collides with the kit boxes.
+- Kit fix: quoins stood buried inside the wall and now stand out past it, so every quoined kit house changes.
+- Tests: WorldTests 22/22. Fauna fingerprint repinned to 1F4C927C. Landmarks 120 B32C5306 unchanged. No StoneHouse is placed now, so before/after shots of v0-3 come from Model Lab: PunchyMilestones/world/kit-stonehouse.
+- Next: Hut + MudHut (a new ring wall and cone roof kit part). Materials' house surfaces get wired in once they merge.
