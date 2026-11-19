@@ -143,7 +143,8 @@ namespace Punchy.Tests
         }
 
         static readonly Vector2[] SheetSlopeSpots = { new(-2729, 546), new(-490, 546), new(-2018, -1070) };
-        static readonly Vector2Int SheetSlopeBaseline = new(118, 22);
+        // Row 3 (cascade pools: water steeper than 0.2 m per metre steps down as registered falls, 140 -> 151): steep 118 -> 69, pits 22 -> 19.
+        static readonly Vector2Int SheetSlopeBaseline = new(69, 19);
 
         static readonly string[] WaterTruthKinds =
         {
@@ -180,7 +181,8 @@ namespace Punchy.Tests
         // Wall 49 -> 11 (#365 bay mask): lake bays flood per pocket, not per point (pool walls 37 -> 3, lake walls 5 -> 1).
         // Wall 7 -> 4 (fall-walls): lip shoulders follow the carved edge and foot bowls close before the water's edge; step 129 -> 125.
         // Deep 1 -> 0 (lake-flow tie): a river at its lake's own level now takes the lake, so the last deep point goes.
-        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 4, 0, 17, 125, 0, 0 };
+        // Tilt 17 -> 15, step 125 -> 108 (W-181 row 3 cascade pools): steep reaches step down as short falls between flat pools.
+        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 4, 0, 15, 108, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8

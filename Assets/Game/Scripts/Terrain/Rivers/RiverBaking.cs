@@ -192,7 +192,7 @@ namespace Punchy.Terrain
                 Copy(ref builder, ref root.LakeDepth, lakes);
                 Copy(ref builder, ref root.Points, points);
                 builder.Construct(ref root.BankLow, bankLows);
-                var kinds = RiverProfiles.Kinds(settings, source.World.SeaLevel, down, width, lakes, bed, water, bankLows);
+                var kinds = RiverProfiles.Kinds(settings, source.World.SeaLevel, down, width, lakes, bed, water, bankLows, points);
                 builder.Construct(ref root.Kind, kinds);
                 // Each cell's highest lake level within two cells (for bays the cell grid misses).
                 // W-103: rows in parallel over managed copies (each cell is independent, so the result is identical).

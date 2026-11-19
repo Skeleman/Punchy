@@ -117,15 +117,39 @@ namespace Punchy.Terrain
             return lows;
         }
 
+        /// <summary>W-181 row 3: water steeper than this (m per m) steps down as a cascade fall instead of sloping.</summary>
+        public const float CascadeSlope = 0.2f;
+        /// <summary>A cascade step must drop at least this far, as the bake keeps no fall under it.</summary>
+        public const float CascadeDrop = 1f;
+        /// <summary>A cascade right above a full fall must be this long (m) to hold its own foot pool.</summary>
+        public const float CascadeRun = 8f;
+
+        static bool Cascades(int c, int d, float above, bool byFall, NativeArray<float> lakes, NativeArray<float> water, NativeArray<float2> points)
+        {
+            var drop = water[c] - water[d];
+            // Mouth reaches are dug deep, so a step there would leave its lip flooded; one beside a full fall starves its foot pool.
+            return !byFall && lakes[c] <= 0f && lakes[d] <= 0f && water[c] > above && drop >= CascadeDrop &&
+                   drop > CascadeSlope * math.distance(points[c], points[d]);
+        }
+
         /// <summary>Each cell's segment kind, as RiverProfileKind bits (0 off the rivers).</summary>
         internal static byte[] Kinds(in RiverSettings settings, float seaLevel, NativeArray<int> down, NativeArray<float> width,
-                                     NativeArray<float> lakes, NativeArray<float> bed, NativeArray<float> water, float[] lows)
+                                     NativeArray<float> lakes, NativeArray<float> bed, NativeArray<float> water, float[] lows,
+                                     NativeArray<float2> points)
         {
             var count = down.Length;
             var fed = new bool[count];
             for (int i = 0; i < count; i++)
                 if (width[i] > 0f && down[i] >= 0)
                     fed[down[i]] = true;
+            var byFall = new bool[count];
+            for (int i = 0; i < count; i++)
+                if (width[i] > 0f && down[i] >= 0 && bed[i] - bed[down[i]] >= settings.FallDrop)
+                    byFall[down[i]] = true;
+            for (int i = 0; i < count; i++)
+                if (width[i] > 0f && down[i] >= 0 && down[down[i]] >= 0 && bed[down[i]] - bed[down[down[i]]] >= settings.FallDrop &&
+                    math.distance(points[i], points[down[i]]) < CascadeRun)
+                    byFall[i] = true;
             var kinds = new byte[count];
             LastOverBank = 0;
             for (int i = 0; i < count; i++)
@@ -134,7 +158,7 @@ namespace Punchy.Terrain
                     continue;
                 var d = down[i];
                 var kind = RiverProfileKind.Channel;
-                if (settings.FallDrop > 0f && d >= 0 && bed[i] - bed[d] >= settings.FallDrop)
+                if (settings.FallDrop > 0f && d >= 0 && (bed[i] - bed[d] >= settings.FallDrop || Cascades(i, d, seaLevel + settings.FallDrop, byFall[i], lakes, water, points)))
                     kind |= RiverProfileKind.Fall;
                 if (lakes[i] > 0f)
                     kind |= RiverProfileKind.Lake;
