@@ -346,3 +346,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #659 W-153 (#301): fall flanks get ledged blocks in the cliff's own rock, wet only near the spray (11-18).
 - #662 W-153 (#301): soft spray puffs at fall feet (no grey balls), stronger pool patch, visible shore lap line (11-18).
 - 11-19 #663 world/walls-zero (#301): probe no longer counts waterfall upper-pool lips or sub-4 m bank rises as walls; walls 11 -> 7, test pinned at 7. No visual change.
+- 11-19 #664 materials/river-audit (W-166, #336): swamp/peat/silt/dark-ash banks show relief instead of flat; riverbeds tinted toward the biome ground (subtle under water).
