@@ -2,6 +2,15 @@
 
 Newest first.
 
+## Profiler note 11-19: two lost builds were the profiler's own dry runs (job.sh trap), now requeued
+
+Job 111's first retry build (25fbc044, 22:54) hung 90 min on "Could not read file Assets/Tests/PlayMode/Punchy.Tests.PlayMode.asmdef",
+and Job 86's q150b (92a4630, 02:40) failed with CS0234/CS1061 in BenchmarkRoute.cs (FireSystem, TerrainSource.Settlements,
+ShadowCastDistance "missing"). Neither is the branches' fault. `job.sh`'s EXIT trap checks out the home branch in the build
+tree, and it also fires for `DRY=1` spec checks; the profiler dry-ran new specs at 22:56 and 02:42, which switched the tree to
+an October branch while Unity was compiling (the checkout reflog shows both switches mid-build). Fix: the trap skips the
+checkout under DRY; a waiting chain applies it after q154, when no job.sh is running. Job 111 is rebuilding now (q151, since
+02:44, undisturbed); Job 86 (q150b) is requeued after q154. The WaterTruth break on main (50065032) is separate and real.
 ## Request R-42 (render-2): shore foam water GPU, PASS (no cost)
 
 Merged #552 adc5830a (B) vs its first parent 0003a193 (A). Standing at the beach -4038,1.75,1077 facing west to the sea
