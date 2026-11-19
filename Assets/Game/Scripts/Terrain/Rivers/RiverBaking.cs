@@ -231,8 +231,10 @@ namespace Punchy.Terrain
                     for (int i = 0; i < count; i++)
                     {
                         var d = down[i];
-                        // W-153: the profile's fall segments, less those into lakes, the sea or dry ends.
-                        if ((kinds[i] & (byte)RiverProfileKind.Fall) == 0 || width[d] <= 0f || lakes[i] > 0f || lakes[d] > 0f) continue;
+                        // W-153: the profile's fall segments, less those into lakes or dry ends. A step into the sea keeps its curtain.
+                        if ((kinds[i] & (byte)RiverProfileKind.Fall) == 0 || lakes[i] > 0f || lakes[d] > 0f) continue;
+                        var intoSea = bed[d] < source.World.SeaLevel && water[d] <= source.World.SeaLevel + 0.01f;
+                        if (width[d] <= 0f && !intoSea) continue;
                         if (bed[i] <= source.World.SeaLevel + 1f) continue;
                         fallCells.Add(i);
                     }
