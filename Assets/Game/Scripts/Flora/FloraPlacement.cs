@@ -1199,6 +1199,8 @@ namespace Punchy.Flora
         /// </summary>
         static float RiverFit(in TerrainSource source, float2 xz, in GroundSample ground, int kind)
         {
+            if (kind >= (int)RiverSpot.Riffle)
+                return RapidsFit(source, xz, kind);
             var waterline = kind == (int)RiverSpot.Waterline;
             if (!source.Rivers.IsCreated || ground.Rapids > 0.3f && !waterline)
                 return 0f;
@@ -2916,23 +2918,15 @@ namespace Punchy.Flora
             var fromProp = picked != candidates[pick];   // a landmark prop's density ring (its runed stones share a pattern)
             if (rule.RiverSpot == (int)RiverSpot.LogNarrows)
                 return LogAcross(source, rule, xz, ground, scale, ref rng);
+            if (rule.RiverSpot >= (int)RiverSpot.Riffle)
+                return RapidsStone(source, rule, xz);
             if (rule.RiverSpot == (int)RiverSpot.Narrows && rule.Span > 0f)
             {
-                // W-65b: a stepping-stone row crosses the river (its X across the flow), both end stones on or just off
-                // the bank; the model's origin sits on the water surface, so every top is 4-12 cm above the water.
                 var flow = math.normalizesafe(ground.Flow, new float2(0f, 1f));
                 yaw = math.atan2(flow.x, -flow.y) + rng.NextFloat(-0.15f, 0.15f);
-                // W-65d: the row fits the narrows it is in (a fixed 12 m row found no narrows on either island): walk
-                // out each way to the first bank (or water under 0.3 m), take the variant whose length (4-14 m, every 2 m,
-                // FloraGenerator.StoneRowLength) just spans it and centre the row between the two banks.
                 if (!ground.HasWater)
                     return none;
-                // W-65f: one row per narrows. Every spot on a 1 m world lattice along the flow within 25 m is measured
-                // the same way (its own flow, no jitter) and only the narrowest one gets a row; so rows are at least ~25 m apart and each sits where the river is tightest. Every cell
-                // whose roll lands a row in this stretch makes the same row (spot, yaw, size and look come from the spot,
-                // not the cell's draws), so the copies coincide exactly and show as one.
-                // W-65g: windows of nearby cells differ, so they can pick neighbouring spots (rows 1.3 m apart); keep a
-                // spot only when it is also the narrowest in its own window (two such spots are then 25 m+ apart).
+                // One row per narrows: every cell rolling a row here snaps to the narrowest spot, so the copies coincide.
                 if (!NarrowestSpot(source, rule, xz, flow, out var bestXz, out var bestAcross, out var bestA, out var bestB, out var water) ||
                     !NarrowestSpot(source, rule, bestXz, new float2(bestAcross.y, -bestAcross.x), out var againXz, out _, out _, out _, out _) ||
                     math.distancesq(againXz, bestXz) > 0.25f)

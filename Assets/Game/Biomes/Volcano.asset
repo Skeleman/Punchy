@@ -113,6 +113,10 @@ MonoBehaviour:
   ClearingAmount: 0.3
   ClearingSize: 180
   Flora:
+  - Species: {fileID: 11400000, guid: fcde927f0de144f6977fff160e2b0c18, type: 2}
+    Density: 4
+  - Species: {fileID: 11400000, guid: 4a533897587d4dc0b015686ff9274a55, type: 2}
+    Density: 3
   - Species: {fileID: 11400000, guid: 68442fde2edb8c4448924dd186177a93, type: 2}
     Density: 0.05
   - Species: {fileID: 11400000, guid: b6d022bd9487a0744bddd69571f71986, type: 2}
