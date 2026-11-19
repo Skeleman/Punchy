@@ -1243,3 +1243,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 banks: banks/fall-ground@e5302ff2 (#668): debris blocks 1111 -> 956; each flank block now takes up to 5 SampleHeight calls per sink step (at most 5 steps). Check the scarp debris job time against main.
 - #670 (W-173 tents): Fauna_Fingerprint re-pinned 1F4C927C -> A9684863; guy ropes dropped at far LOD. FYI only.
 - 11-19 render-2: render/water-film@e36b5875 (#671): riffle/wake streaks are now 4 cell reads x 2 PunchyValueNoise per fragment where rapids > 0.2 (was 1-4 reads), plus a few ALU on caustics and film. Check GPU water pass at the rocks pose (cam -2622.4,238.9,726.9 looking -2607.7,231.9,738.9) main vs branch.
+- FYI #673 Water.shader: +1 noise read per rapids cell where rapids > 0.2 (depth taps still 4). Fold into the next water bench.
