@@ -53,13 +53,15 @@ namespace Punchy.Terrain
         public float4 Data;     // flow direction xz, depth below the surface, rapids 0..1
         public float4 Look;     // biome water colour rgb (linear), murk 0..1
         public float2 Glow;     // self-glow (toxic water), lava 0..1
+        public uint Fall;       // always 0: a fall curtain's flag (FallCurtain.Vertex); unbound, lava read its Glow there
 
         public static readonly VertexAttributeDescriptor[] Layout =
         {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 4),
             new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 4),
-            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 2)
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.Float32, 2),
+            new VertexAttributeDescriptor(VertexAttribute.TexCoord5, VertexAttributeFormat.UNorm8, 4)
         };
     }
 
