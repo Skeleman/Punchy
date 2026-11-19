@@ -142,6 +142,7 @@ namespace Punchy.Tests
         static readonly Vector2[] SheetSlopeSpots = { new(-2729, 546), new(-490, 546), new(-2018, -1070) };
         // Row 3 (cascade pools: water steeper than 0.2 m per metre steps down as registered falls, 140 -> 151): steep 118 -> 69, pits 22 -> 19.
         // Row 4 (closed bank pits fill flat instead of tucking): steep 69 -> 66, pits 19 -> 16.
+        // Row 2 (riverless ponds of a cell or two get a bowl dug about a metre under their level): steep and pits stay 66 / 16.
         static readonly Vector2Int SheetSlopeBaseline = new(66, 16);
 
         static readonly string[] WaterTruthKinds =
