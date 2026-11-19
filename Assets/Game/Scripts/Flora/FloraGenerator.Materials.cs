@@ -41,7 +41,10 @@ namespace Punchy.Flora
         // The biome isn't known when a species is grown, so each variant stands for one (temperate twice as often).
         static void SurfaceKinds(FloraMeshBuilder b, FolkCulture culture, int seed)
         {
-            var biome = ((((uint)seed * 0x9E3779B1u) >> 16) % 5u) switch
+            var h = (uint)seed * 0x7FEB352Du;
+            h ^= h >> 15;
+            h *= 0x846CA68Bu;
+            var biome = ((h >> 16) % 5u) switch
             {
                 0u => BiomeFamily.Arid,
                 1u => BiomeFamily.Cold,

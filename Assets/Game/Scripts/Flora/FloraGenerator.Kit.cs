@@ -350,7 +350,7 @@ namespace Punchy.Flora
             // Stone timber (elves) drops the plank/shingle wood mark: their roof courses are slate.
             b.Surface = b.TimberFamily != Punchy.Terrain.MaterialFamily.Wood && look is Punchy.Terrain.KitSurface.Planks or Punchy.Terrain.KitSurface.Shingles ? 0 : (int)look;
             var tiled = !ruined && p.Material == Punchy.Terrain.KitMaterial.Roof && b.TimberFamily == Punchy.Terrain.MaterialFamily.Wood &&
-                        (look == Punchy.Terrain.KitSurface.Shingles && b.RoofKind != Punchy.Terrain.RoofKind.WoodShingle ||
+                        (look is Punchy.Terrain.KitSurface.Shingles or Punchy.Terrain.KitSurface.Planks && b.RoofKind != Punchy.Terrain.RoofKind.WoodShingle ||
                          look == Punchy.Terrain.KitSurface.Plain && b.RoofKind == Punchy.Terrain.RoofKind.StoneSlab);
             if (tiled)
             {
