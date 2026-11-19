@@ -318,6 +318,11 @@ namespace Punchy.Flora
         /// lit window glass when <paramref name="lit"/>, and contact bands where it meets other parts. Shared by
         /// KitStructure and the inn (W-128). False for a moss cap (drawn as a sheet: no box, no collision).
         /// </summary>
+        // A near-cube of wood trim is a crate body (StructureKit.Crate): boarded, not bare timber.
+        static bool Crated(in Punchy.Terrain.KitPart p) =>
+            p.Material == Punchy.Terrain.KitMaterial.Wood && p.Piece == Punchy.Terrain.KitPiece.Trim &&
+            Mathf.Min(p.Size.x, Mathf.Min(p.Size.y, p.Size.z)) > 0.8f * Mathf.Max(p.Size.x, Mathf.Max(p.Size.y, p.Size.z));
+
         static bool DrawKitPart(Grower g, List<Punchy.Terrain.KitPart> parts, int i, in Punchy.Terrain.CultureTrim trim,
                                 (Punchy.Terrain.KitSurface Wall, Punchy.Terrain.KitSurface Roof) looks, bool ruined, bool lit, uint seed, List<float> contacts)
         {
@@ -344,7 +349,8 @@ namespace Punchy.Flora
             }
             // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
             var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
-                       p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
+                       p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof :
+                       Crated(p) ? Punchy.Terrain.KitSurface.Planks : Punchy.Terrain.KitSurface.Plain;
             // Stone timber (elves) drops the plank/shingle wood mark: their roof courses are slate.
             b.Surface = b.TimberFamily != Punchy.Terrain.MaterialFamily.Wood && look is Punchy.Terrain.KitSurface.Planks or Punchy.Terrain.KitSurface.Shingles ? 0 : (int)look;
             // W-166: each part states its family; a ruin's bare walls are old stone, not plaster.
