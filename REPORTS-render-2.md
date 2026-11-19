@@ -471,3 +471,8 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - Water.shader: a moving caustic web on sunlit shallow river bed (animated, wobbled 3x3 Voronoi cell borders, lines at least 2 px, faded under ~4 px cells; near/mid refraction tier, -waterdetail gated). c561e953 replaced the first texture-difference web, which was sub-pixel speckle at play distance. It fades by about 1 m vertical depth, at the waterline sliver, on steep bed, in shade, at low sun and in murk.
 - The first ~0.5 m is clearer: body alpha x0.35 and fresnel x0.5 at thin water, so the new bed patches show through.
 - Shots: D:/Unity/PunchyMilestones/river-caustics/riffle-pair.jpg (before | after, -2427.6,-904.3 hour 11 Clear). Thin bright web lines read clearly in the 0.1-0.5 m margins; crop riffle-crop.jpg. Flow drift was dropped (large clock x varying flow smeared cells into stripes). WorldTests 21/21 at 0096c8ba (shader-only since).
+
+## W-159 row 4 river streaks (#322) - render/flow-ridges f00d6265
+- The painted bars were churn spray plumes (3-5.5 m wide flat quads). They are now short broken clumps (aspect 1-1.5), only where gradient >= 0.08 (splash wakes keep RapidGradient), and each clump fades by its own screen size (rule 20).
+- Water.shader: carried foam, flecks and the floor term are gated by breaking water (rapids 0.7-0.95), so fast smooth water carries no white; WaterFlowLines ridges are sharper (3-8) and the slope is stronger, so they read as glints. Foam keeps a sky-lit floor in shade and overcast.
+- Shots, same pose before/after: D:/Unity/PunchyMilestones/flow-ridges/{riffle,rapid,shade,overcast}-{before,after}.png; rapid pair viewed. Fauna fingerprint untouched (render plus plume placement only).
