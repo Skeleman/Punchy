@@ -55,7 +55,7 @@ namespace Punchy.Tests
         }
 
         /// <summary>
-        /// Target: A9684863 since W-173 tent row (tent guy ropes and stakes change the tent's flora blob; landmarks unchanged). 1F4C927C since W-173 row 1 (kit quoins out past the wall face, stone house from kit parts). 7ED8D1F1 since W-173 (hall roof boxes and kit chimney feet move flora colliders and perches; 1AC019EC before). F0EF4BD5 since refactor 3.6 (a new field in the flora placement rules, BiomeRock: the blob's bytes moved,
+        /// Target: 1E90DBCF since W-173 kit surfaces (crate battens and lid, counter top board: the flora blob changes; landmarks unchanged). A9684863 since W-173 tent row (tent guy ropes and stakes change the tent's flora blob; landmarks unchanged). 1F4C927C since W-173 row 1 (kit quoins out past the wall face, stone house from kit parts). 7ED8D1F1 since W-173 (hall roof boxes and kit chimney feet move flora colliders and perches; 1AC019EC before). F0EF4BD5 since refactor 3.6 (a new field in the flora placement rules, BiomeRock: the blob's bytes moved,
         /// no placement changed). 83902658 since A-89 row 3 (main's W-122 marsh folk flora species, AEA50DCE on main, plus the PadFrog and
         /// Dragonfly species and the marsh life rows: 120 species). AD7E7781 since A-88 row 2 (the LakeSturgeon species and the sea folk lake fish rows). 706B915E since W-121 (sea folk buoy and raft species; gull perches on buoy masts). 65C95060 since W-120 (4 new sea folk flora species: glow stone, wreck, clam bed, vent field). 2998FA9A since W-119 (FishBoardwalk species, more fishing variants, moved stilt houses). 027CC3FD since W-118 (hazard house layout entries and the drift slope limit change flora data). 8A1979F1 since W-114 (the ribcage's bones and its BoneRemains, GiantRibs and rock props go into the flora
         /// blob; no species change). 90AC5F60 since W-113 (rows 1-3 changed tent, ruin plinth and roof flora, whose colliders and perches go into
@@ -71,7 +71,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint A9684863", line);
+            StringAssert.Contains("fingerprint 1E90DBCF", line);
             yield return null;
         }
 
@@ -261,17 +261,17 @@ namespace Punchy.Tests
         [UnityTest, Order(8)]
         public IEnumerator Place_PropFindsAndFramesWharf()
         {
-            var before = LogWatch.Last("FishWharf found in all");
+            var mark = LogWatch.Mark();
             Game.RunOptions("-place prop:FishWharf@0,0");
             var start = Time.realtimeSinceStartup;
-            while ((Game.Hook<bool>("PropPlacePending") || LogWatch.Last("FishWharf found in all") == before) && Time.realtimeSinceStartup - start < 30f)
+            while ((Game.Hook<bool>("PropPlacePending") || LogWatch.After(mark, "FishWharf found in all") == null) && Time.realtimeSinceStartup - start < 30f)
                 yield return null;
-            var found = LogWatch.Last("FishWharf found in all") ?? "no found line";
+            var found = LogWatch.After(mark, "FishWharf found in all");
             var first = LogWatch.Last("FishWharf #1 at") ?? "no #1 line";
             var framing = LogWatch.Last("framing FishWharf") ?? "no framing line";
             var at = Game.Hook<Vector3>("PlayerPosition");
-            LogWatch.Measure($"place prop: {found}; {first}; player at {at}");
-            Assert.AreNotEqual(before, LogWatch.Last("FishWharf found in all"), "-place prop: logged nothing (#137)");
+            LogWatch.Measure($"place prop: {found ?? "no found line"}; {first}; player at {at}");
+            Assert.IsNotNull(found, "-place prop: logged nothing (#137)");
             StringAssert.Contains("framing FishWharf #1", framing);
             var wharf = ParseAt(first);
             Assert.Less(Vector2.Distance(new Vector2(at.x, at.z), new Vector2(wharf.x, wharf.z)), 30f, "the player wasn't put beside the wharf");

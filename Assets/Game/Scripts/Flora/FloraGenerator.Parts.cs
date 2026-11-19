@@ -195,7 +195,6 @@ namespace Punchy.Flora
             }
         }
 
-        /// <summary>A thin round timber pole from At (its foot) to To (its top), Span.x across (a stall's posts, Z-30 grain). Solid.</summary>
         static void Pole(Grower g, UnitFrame f, UnitPart p)
         {
             var r = f.Span(p).x * 0.5f;
@@ -221,12 +220,17 @@ namespace Punchy.Flora
             g.B.Wood = false;
         }
 
-        /// <summary>A timber counter: a solid box centred on At, Span in size.</summary>
         static void Counter(Grower g, UnitFrame f, UnitPart p)
         {
+            var span = f.Span(p);
             g.B.Family = Timber(g);
-            g.B.Box(f.At(p), f.Span(p), Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
-            SolidBox(g, f.At(p), f.Span(p), Quaternion.identity);
+            if (g.B.TimberFamily == Punchy.Terrain.MaterialFamily.Wood)
+                g.B.Surface = (int)Punchy.Terrain.KitSurface.Planks;
+            g.B.Box(f.At(p), span, Quaternion.identity, g.Bark * 0.8f, FloraPart.Bark);
+            // An overhanging top board gives the counter an edge that reads from the street.
+            g.B.Box(f.At(p) + Vector3.up * (span.y * 0.5f + 0.025f), new Vector3(span.x + 0.08f, 0.05f, span.z + 0.08f), Quaternion.identity, g.Bark * 0.7f, FloraPart.Bark);
+            g.B.Surface = 0;
+            SolidBox(g, f.At(p), span, Quaternion.identity);
         }
 
         /// <summary>

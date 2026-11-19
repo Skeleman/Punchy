@@ -26,14 +26,19 @@ namespace Punchy.Terrain
             parts.Add(new KitPart { Piece = piece, Material = m, Centre = centre, Size = size, Rotation = rotation, Solid = solid });
 
         /// <summary>
-        /// A wooden crate: a cube of <paramref name="size"/> centred on <paramref name="centre"/> and a lid band across
-        /// its top, the band turning with the crate.
+        /// A wooden crate <paramref name="size"/> across centred on <paramref name="centre"/>: a boarded body, corner
+        /// battens and an overhanging lid, all turning with the crate.
         /// </summary>
         internal static void Crate(List<KitPart> parts, Vector3 centre, float size, float yaw, bool solid, float pitch = 0f)
         {
             var q = Quaternion.Euler(pitch, yaw, 0f);
-            Put(parts, KitPiece.Trim, KitMaterial.Wood, centre, new Vector3(size, size, size), q, solid);
-            Put(parts, KitPiece.Trim, KitMaterial.Trim, centre + q * new Vector3(0f, size * 0.5f + 0.01f, 0f), new Vector3(size * 0.9f, 0.03f, 0.1f), q, false);
+            Put(parts, KitPiece.Trim, KitMaterial.Wood, centre + q * new Vector3(0f, -0.055f * size, 0f), new Vector3(size * 0.94f, size * 0.89f, size * 0.94f), q, solid);
+            Put(parts, KitPiece.Trim, KitMaterial.Wood, centre + q * new Vector3(0f, 0.445f * size, 0f), new Vector3(size, size * 0.11f, size), q, false);
+            for (var k = 0; k < 4; k++)
+            {
+                var corner = new Vector3((k & 1) == 0 ? -0.46f : 0.46f, -0.055f, (k & 2) == 0 ? -0.46f : 0.46f) * size;
+                Put(parts, KitPiece.Trim, KitMaterial.Wood, centre + q * corner, new Vector3(size * 0.1f, size * 0.89f, size * 0.1f), q, false);
+            }
         }
 
         /// <summary>
