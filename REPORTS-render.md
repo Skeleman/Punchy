@@ -1037,3 +1037,8 @@ with main d95e7ff1); compiles, no suite run yet.
 - TerrainSource.SampleGround at -628..-622,651: river surface and lake surface are both 56.1953, so `if (level > water)` (TerrainSource.cs ~808) ties and goes either way per point. Where it fails, the lake keeps river.Flow (unit), so the field is salt and pepper 0/1 and the mesh triangles show it.
 - Fix suggestion (world/banks lane): in the lake branch, take the lake when level >= water - 0.01 (or zero the flow whenever the lake is not an outlet). Re-pin water fingerprints after.
 - Lesson: AssetDatabase.Refresh during play resets TerrainSource to the noise fallback (seed 1337); toggle play mode to get v3 back.
+
+## render-2: lake-flow tie fix (PR #678, b/fix-lake-flow-tie aa17257c) - DONE
+- TerrainSource ~808 `level > water` -> `level >= water - 0.01f`; gully flow now 0, streaks gone (shots PunchyMilestones/lake-flow-tie, viewed).
+- WorldTests 22/22. Water truth deep 1 -> 0 re-pinned; landmarks 120 B32C5306 and fauna unchanged.
+- Note: the editor dirtied Water.mat (adds _GoldLiquid/_LatticeField/_UnderRock defaults); left out of the PR.
