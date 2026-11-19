@@ -1233,8 +1233,12 @@ namespace Punchy.Terrain
             var sand = math.lerp(new float3(0.44f, 0.39f, 0.3f), new float3(0.27f, 0.25f, 0.21f), math.saturate((g.WaterDepth - 0.5f) / 1.5f));
             var patch = noise.snoise(g.Position * 0.3f) + 0.5f * noise.snoise(g.Position * 1.1f + 17.3f);
             var shallow = 1f - math.smoothstep(0.5f, 1.4f, g.WaterDepth);
-            var stony = math.max(fast, shallow * math.smoothstep(-0.3f, 0.5f, patch));
-            var silt = (1f - fast) * math.smoothstep(0.7f, 1.3f, g.WaterDepth) * math.smoothstep(-0.2f, 0.4f, -patch);
+            // Inner bends drop fine sand; riffles (fast and shallow) keep only coarse cobbles.
+            var bend = g.PointBar * (1f - fast);
+            var riffle = fast * (1f - 0.5f * math.smoothstep(1f, 2f, g.WaterDepth));
+            var stony = math.max(riffle, shallow * math.smoothstep(-0.3f, 0.5f, patch)) * (1f - bend);
+            var silt = (1f - fast) * math.smoothstep(0.7f, 1.3f, g.WaterDepth) * math.smoothstep(-0.2f, 0.4f, -patch) * (1f - bend);
+            sand = math.lerp(sand, new float3(0.5f, 0.45f, 0.35f), bend);
             var bedColour = math.lerp(math.lerp(sand, gravel, stony), new float3(0.2f, 0.19f, 0.15f), silt) * (1f + 0.4f * noise.snoise(g.Position * 0.9f - 5.1f) * math.max(stony, 0.5f * shallow));
             bed.Albedo = math.lerp(bed.Albedo, bedColour, under);
             bed.Bump = math.lerp(bed.Bump, math.lerp(math.lerp(0.15f, 0.9f, stony), 0.05f, silt), under);

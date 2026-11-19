@@ -608,6 +608,26 @@ Shader "Punchy/Terrain Surface"
                     }
                     albedo *= 1 + grain * 0.5 * (1 - smoothstep(6, 22, distance)) * (1 - input.extra.y) * detailFade;
                 }
+                // W-166: stony river beds (RiverBed's rough bump under water) lie in cobbles with a few big stones.
+                half bedStony = smoothstep(0.55, 0.85, input.bump) * (-input.extra.w > 0.999) * (1 - rockFace) * (1 - saturate(input.extra.y * 2));
+                [branch] if (bedStony > 0.001)
+                {
+                    float bedFoot = 1 / max(pxmR, 1e-3);
+                    const float2x2 bedTurn = float2x2(0.8, -0.6, 0.6, 0.8);
+                    float2 toMid, bedCell;
+                    float bedEdge = PunchyStoneRubble(mul(bedTurn, p) * 0.9, 3.7, toMid, bedCell) / 0.9;
+                    half cobbleOn = bedStony * smoothstep(1.5, 4, 0.25 / bedFoot);
+                    half tone = PunchyStoneHash(bedCell + 9.1);
+                    half gap = 1 - smoothstep(0.004, 0.012 + bedFoot, bedEdge);
+                    half2 lean = mul(toMid, bedTurn) / 0.17 * 0.6 * (1 - gap);
+                    float2 bigMid, bigCell;
+                    float bigEdge = PunchyStoneRubble(mul(bedTurn, p) * 0.25, 8.3, bigMid, bigCell) / 0.25;
+                    half big = bedStony * (PunchyStoneHash(bigCell + 2.2) < 0.15) * smoothstep(0.02, 0.06 + bedFoot, bigEdge - 0.15);
+                    albedo *= lerp(1, lerp(0.55 + 0.9 * tone, 0.3, gap), cobbleOn * (1 - big));
+                    albedo = lerp(albedo, dot(albedo, half3(0.3, 0.5, 0.2)).xxx * (0.5 + 0.5 * PunchyStoneHash(bigCell + 4.4)), big * 0.85);
+                    half2 bigLean = mul(bigMid, bedTurn) / 0.17 * 0.8;
+                    normalWS = normalize(normalWS - half3(lean.x, 0, lean.y) * cobbleOn * (1 - big) - half3(bigLean.x, 0, bigLean.y) * big);
+                }
                 // Paved ground (settlement streets and squares): cobbles up close, fading to plain stone grey before
                 // the gaps could shimmer; the stones' domes catch the light.
                 [branch] if (cobbleFade > 0.001)
