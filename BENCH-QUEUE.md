@@ -856,7 +856,7 @@ Take the queue in this order. Anything not changed here runs as written in its j
   screen-size LOD) and ScarpSkinSystem; ground detail instance counts near the scarps (B leaves a bare margin).
 - Pass (rule 23): B within 0.3 ms GPU of A at each view, or name what to trim (debris LOD0 first).
 
-## Job 86 (2026-11-14, READY 11-17 (2nd): rerun with B = e098ea4d (6290b06e + main merged in, #553 collar fix), A = main 14a8de92; earlier READY 11-17: B = 6290b06e (one fixed-count parallax loop, CobbleHeight inlined once), A = merge-base 5b953a34; earlier BLOCKED 11-16: FXC crashes on the branch's terrain shader when it compiles fresh (q128e.job, see REPORTS-profiler); render lane to fix; earlier INVALID 11-16 x2 (q128b.job: FXC crash; q128c.job: the rebuild reused the crashed shader cache, still no terrain); q128d.job's clean-cache rebuild still reused cached variants (stopped by its guard); rehashed-shader rebuild q128e.job chained last; B = ce3ff5a7, A = its merge-base 5b953a34; UNBLOCKED 11-15: BC1091 fixed on render/cobble-depth ce3ff5a7 (player build succeeds), rerun with B = ce3ff5a7; q128.job ready (q128.job); render lane, R-28 row 2, #312): cobble bevel parallax and stone normals
+## Job 86 (2026-11-14, RUNNING 11-18 as q150.job (desert + paving 80,-352); READY 11-17 (2nd): rerun with B = e098ea4d (6290b06e + main merged in, #553 collar fix), A = main 14a8de92; earlier READY 11-17: B = 6290b06e (one fixed-count parallax loop, CobbleHeight inlined once), A = merge-base 5b953a34; earlier BLOCKED 11-16: FXC crashes on the branch's terrain shader when it compiles fresh (q128e.job, see REPORTS-profiler); render lane to fix; earlier INVALID 11-16 x2 (q128b.job: FXC crash; q128c.job: the rebuild reused the crashed shader cache, still no terrain); q128d.job's clean-cache rebuild still reused cached variants (stopped by its guard); rehashed-shader rebuild q128e.job chained last; B = ce3ff5a7, A = its merge-base 5b953a34; UNBLOCKED 11-15: BC1091 fixed on render/cobble-depth ce3ff5a7 (player build succeeds), rerun with B = ce3ff5a7; q128.job ready (q128.job); render lane, R-28 row 2, #312): cobble bevel parallax and stone normals
 - main 14a8de92 (A) vs `render/cobble-depth` e098ea4d (B). Profile builds, 1920x1080, Medium and High, uncapped,
   12:00, Clear, `-weatherseed 4`, ABBA, 3 rounds, 300 frames each.
 - Views: desert town square `-benchspot -342,560`; town 73 centre `-benchspot 2972,-885`.
@@ -1069,7 +1069,7 @@ Also (branch now at d86dc216, R-30 r2): leaf transmission off vs on at the fores
 - Record: CreatureBrainSystem job ms (worker), the footprint bake ms at load, whole-frame CPU ms.
 - Pass: B within 0.2 ms brain job and no change at (b). Report the numbers otherwise.
 
-## Job 111 (2026-11-16, UNBLOCKED 11-17 and cut to E only: Zach keeps the base clouds, A-D dropped; BC1091 fixed (5939a4e0 merged in); render-2 lane, R-35 r3 #333, branch render/cloud-e 25fbc044, carries #494 = one-surface-5; QUEUED after 109): cloud edge fade by screen size, cost
+## Job 111 (2026-11-16, QUEUED 11-18 as q151.job after q150 (main arm = merge-base 814a4da6); UNBLOCKED 11-17 and cut to E only: Zach keeps the base clouds, A-D dropped; BC1091 fixed (5939a4e0 merged in); render-2 lane, R-35 r3 #333, branch render/cloud-e 25fbc044, carries #494 = one-surface-5; QUEUED after 109): cloud edge fade by screen size, cost
 - Arms (branch build, by `-skyoff` mask): base 0; E off 65536 (cloud edge detail fades in fixed metres, as before E); clouds off 3 (the cloud share, as job 79). Plus main, for the E check. main vs branch base also includes #494's fades; the 0 vs 65536 pair isolates E.
 - Profile build, 1920x1080, Medium and Ultra, uncapped, noon, arms rotated, 3 rounds, 300 frames.
 - Views: job 79's peak (-3460,2425 facing west) in Clear and in Overcast; plus a cumulus-heavy view (PartlyCloudy preset, looking up about 20 degrees from the same peak).
@@ -1140,7 +1140,7 @@ The electricity ribbon now has joint-shared sides and round caps (16 spine segme
 ## Request (2026-11-17, world, W-174 r3 #365, branch world/cave-seam 82caa471): cave-mouth collar and ring-clip cost
 Near chunks round a cave mouth now build collars to the cave walls (BuildChunkMeshJob.Collars, plus DropSpecks: one flood fill per collared chunk), and the cave mesh drops wall vertices onto the mouth ring (CaveSystem.MeshJob.OntoRing, one MouthCutAt per vertex near a mouth). One CPU check vs main: terrain chunk build ms and cave mesh job ms while standing at a cave mouth (-goto -3132,1039) and flying past 3 mouths, High, uncapped, 300 frames. Report only.
 
-## Request (2026-11-17, render-2, R-42, branch render/shore-foam 95153679): shore foam water GPU cost
+## Request (2026-11-17, render-2, R-42, branch render/shore-foam 95153679): shore foam water GPU cost (QUEUED 11-18 as q152.job after q151: merged #552 adc5830a vs first parent 0003a193)
 Compare water GPU ms on render/shore-foam against main at Medium, standing at the beach near (-4038, 1.75, 1077) looking at the shore, noon. Budget is +0.1 ms. The diff only changes constants in the shore-foam term of Water.shader, so the cost should be unchanged.
 
 ## Request (2026-11-17, world, W-153 row 4 #301, branch world/river-lakes 8d1e9937): deep-lake water mesh cost

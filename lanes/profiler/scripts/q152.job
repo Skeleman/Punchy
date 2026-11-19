@@ -1,0 +1,10 @@
+# Request 11-17 (render-2, R-42): shore foam water GPU cost. render/shore-foam merged as #552 (adc5830a, B) vs its first
+# parent 0003a193 (A). Medium (budget +0.1 ms), High for reference. Standing at the beach (-4038,1.75,1077) facing west
+# to the sea, noon, Clear, 3 rounds. The diff only changes constants in Water.shader's shore-foam term.
+Q=q152; TITLE="shore foam"
+BUILDS="adc5830 0003a19"
+VIEWS="beach"
+view() { echo "-goto -4038,1077 -benchstops spot -benchspot -4038,1.75,1077,270 -benchhour 12 -benchweather Clear"; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-adc5830";; A) echo "Profile-0003a19";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.1

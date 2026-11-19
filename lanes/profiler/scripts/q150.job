@@ -1,0 +1,19 @@
+# Job 86 rerun (R-28 r2, #312): cobble bevel parallax. render/cobble-depth e098ea4d (B: 6290b06e + main merged, #553
+# collar fix) vs main 14a8de92 (A); they differ only by R-28. Medium and High, noon, Clear, 3 rounds. Views: the desert
+# town square (-benchspot -342,560, yaw 0) and the paving the render lane found after town 73 moved (-benchspot 80,-352).
+# Whole-frame GPU (no pass split on this laptop). before() stops if the B build logged an FXC crash or compiled no terrain.
+Q=q150; TITLE="job 86 cobble parallax rerun"
+BUILDS="e098ea4 14a8de9"
+VIEWS="desert paving"
+view() { case $1 in
+  desert) echo "-goto -342,560 -benchstops spot -benchspot -342,560,0 -benchhour 12 -benchweather Clear";;
+  paving) echo "-goto 80,-352 -benchstops spot -benchspot 80,-352,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-e098ea4";; A) echo "Profile-14a8de9";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=A; BAR=0.1
+before() {
+  [ -n "${DRY:-}" ] && return
+  local f="$R/build-Profile-e098ea4.log" n c; n=$(grep -ac "Suspected crash in FXC" "$f"); c=$(grep -ac 'Compiling shader "Punchy/Terrain Surface"' "$f")
+  echo "FXC crashes in the B build: $n; terrain shader compiled: $c"
+  [ "$n" = 0 ] || { echo "FXC crashed: not running the games"; exit 1; }
+}
