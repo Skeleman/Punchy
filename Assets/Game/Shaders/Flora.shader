@@ -306,16 +306,7 @@ Shader "Punchy/Flora"
                 }
                 // Moss (W-64): darker, greener clumps and yellower tips, and darker still in the thin cover near the rim.
                 if (part == 13)
-                {
-                    half clump = FloraMossClump(input.moss.yzw);
-                    half fine = FloraMossNoise(input.moss.yzw * 80);
-                    albedo *= lerp(half3(0.42, 0.56, 0.36), half3(1.0, 0.98, 0.62), clump) * (0.8 + 0.4 * fine);
-                    albedo *= lerp(0.75, 1, saturate(input.moss.x * 2));
-                    // W-101 (#80): tiny cushions, each with a bright crown and a dark seam round it, so the sheet reads
-                    // as a mat of tufts rather than a smooth green cloth.
-                    half tuft = FloraMossNoise(input.moss.yzw * 26 + 9.7);
-                    albedo *= lerp(0.5, 1.15, smoothstep(0.25, 0.75, tuft));
-                }
+                    albedo *= PunchyMossMat(input.moss.yzw, input.moss.x, footprint);
                 // Windows: dark glass by day (their colour is the light they give at night, below).
                 half3 windowLight = albedo;
                 if (part == 6)
@@ -336,6 +327,8 @@ Shader "Punchy/Flora"
                 // Rocks on dry ground take the biome's own rock colour (FloraPlacement.RockTint: the ground's alpha at its
                 // top value), keeping their own light and dark (and losing their moss's green) (G-36). Built things: a
                 // band of the ground's colour up their base, like dirt splashed up the walls.
+                half rockMoss = 0;
+                half3 mossBase = albedo;
                 if (part == 0 && wetBase)
                 {
                     half top = wetTop * 0.04 * (0.85 + 0.3 * PunchyValueNoise(float2(input.positionWS.x + input.positionWS.z, input.positionWS.y) * 6.3));
@@ -347,6 +340,8 @@ Shader "Punchy/Flora"
                     half rockLum = max(dot(input.ground.rgb, half3(0.3, 0.59, 0.11)), 0.02);
                     // #609 regression: the wet tint wiped river rocks' moss.
                     half moss = wetRock ? saturate((albedo.g - max(albedo.r, albedo.b)) / max(albedo.g, 0.02) * 4) : 0;
+                    rockMoss = moss;
+                    mossBase = albedo;
                     albedo = lerp(albedo, input.ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85 * (1 - moss));
                     if (wetRock)
                     {
@@ -385,6 +380,16 @@ Shader "Punchy/Flora"
                 {
                     stoneWet = PunchyStoneWetness(wet);
                     PunchyStoneSurface(input.positionWS, footprint, stoneWet, wet, albedo, n, crevice);
+                }
+                // Painted moss read as a flat green stain on river rocks: it grows as a mat of tufts over the stone's grain instead.
+                [branch] if (rockMoss > 0.01)
+                {
+                    half sheet = PunchyMossOnStone(input.positionWS, rockMoss, footprint);
+                    half3 mossCol = lerp(half3(0.2, 0.28, 0.1), mossBase, rockMoss) * PunchyMossMat(input.positionWS, rockMoss, footprint) * lerp(1, 0.7, wet);
+                    albedo = lerp(albedo, mossCol, sheet);
+                    n = normalize(lerp(n, stoneN0, sheet * 0.5));
+                    stoneWet *= 1 - 0.8 * sheet;
+                    crevice *= 1 - sheet;
                 }
 
                 // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them
