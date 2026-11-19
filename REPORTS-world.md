@@ -8943,3 +8943,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Kit variants now each stand for one biome family. Settlement plots and landmark props are remapped to the variant matching the biome at the town centre (volcanic falls back to desert, then temperate). Culture overrides stay. Biome blobs carry Family. Pure remap, no draws move.
 - WorldTests 22/23 (same rain-shot setup timeout), no re-pins.
 - Shot: world/town-roofs/sonoran-town-after.png shows clay roofs. Tundra shots whited out by snow fog, so cold towns were not checked by eye.
+
+
+## 11-19 tundra-roofs: cold-town roofs checked in clear weather (no code change)
+- Both cold-biome towns, (-1966,651) and (-3276,1577), shot with weather forced clear after the goto: world/town-roofs/tundra-t5-clear.png and tundra-t3-clear.png.
+- Halls carry dark slate roofs and houses snow-capped ones; the only warm colour is the market stall awnings. No clay or thatch, so no fix needed.
