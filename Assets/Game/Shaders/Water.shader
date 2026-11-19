@@ -1011,9 +1011,11 @@ Shader "Punchy/Water"
                 // Thick water: an oily rainbow film in the reflection, and pale scum drifting in slow rafts.
                 if (viscous > 0)
                 {
-                    float film = PunchyValueNoise(p * 0.12 + t * 0.01) * 2 + dot(n, v) * 3;
+                    half facing = saturate(dot(n, v));
+                    float film = PunchyValueNoise(p * 0.12 + t * 0.01) * 2 + facing * 1.5;
                     half3 sheen = 0.5 + 0.5 * cos(6.28 * (film + float3(0, 0.33, 0.67)));
-                    color += (sheen - 0.5) * (0.04 + 0.12 * fresnel) * viscous * reflection;
+                    // Faded at grazing angles, where the hue cycled fast along stretched normals into rainbow streaks.
+                    color += (sheen - 0.5) * (0.04 + 0.12 * fresnel) * smoothstep(0.1, 0.4, facing) * viscous * reflection;
                     color += light.color * bubbles.z * 0.03 * viscous;
                     half scum = smoothstep(0.58, 0.72, PunchyValueNoise(p * 0.11 + float2(t * 0.015, t * 0.008)) * 0.75 +
                                                       PunchyValueNoise(p * 0.6) * 0.25);
@@ -1264,7 +1266,8 @@ Shader "Punchy/Water"
                             {
                                 float2 o = float2(cx, cy);
                                 float2 h = float2(PunchyHash(cell + o), PunchyHash(cell + o + 17.3));
-                                float2 d = o + 0.5 + 0.4 * sin(t * 0.9 + 6.2831 * h) - f;
+                                // Points anywhere in their cell, so the web never lines up into a paving grid.
+                                float2 d = o + 0.15 + 0.7 * h + 0.15 * sin(t * 0.9 + 6.2831 * h.yx) - f;
                                 float dd = dot(d, d);
                                 f2 = dd < f1 ? f1 : min(f2, dd);
                                 f1 = min(f1, dd);
@@ -1274,7 +1277,9 @@ Shader "Punchy/Water"
                         // Squared falloff gives a thin core with a soft glow; patches break the web up; strength eases off in strong sun.
                         web *= web * (1 - smoothstep(0.12, 0.25, cellPixel)) * smoothstep(0.2, 0.8, PunchyValueNoise(bedUV * 0.45 + t * 0.15));
                         half sun = dot(light.color, half3(0.2126, 0.7152, 0.0722));
-                        caustic = (behind + 0.04) * (web * bedLight * bedSquash * 0.8) * light.color / (1 + sun);
+                        // Damped on bright beds (ash, pale sand), where the full web read as mud cracks.
+                        half bedBright = smoothstep(0.3, 0.7, dot(behind, half3(0.2126, 0.7152, 0.0722)));
+                        caustic = (behind + 0.04) * (web * bedLight * bedSquash * 0.8 * (1 - 0.6 * bedBright)) * light.color / (1 + sun);
                     }
                     // Added after the blend: the web is focused sunlight, so the surface tint must not wash it out.
                     color = lerp(behind, color, alpha) + caustic;
