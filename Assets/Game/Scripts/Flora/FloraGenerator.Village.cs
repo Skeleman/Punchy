@@ -362,7 +362,17 @@ namespace Punchy.Flora
                 }
             }
 
-            // Collision: a row of cylinders along its length.
+            // W-173 (#399): the player walks on boxes that follow the plinth, walls and roof slopes; the cylinders' flat tops at the eaves sat inside the roof. Creatures keep the cylinders.
+            g.Boxes.Add(Solid(new Vector3(0f, plinth * 0.5f - 0.15f, 0f), new Vector3(half * 2f + 0.4f, plinth + 0.3f, front * 2f + 0.4f), Quaternion.identity));
+            g.Boxes.Add(Solid(new Vector3(0f, (plinth + wall) * 0.5f, 0f), new Vector3(half * 2f, wall - plinth, front * 2f), Quaternion.identity));
+            g.Boxes.Add(Solid(new Vector3(0f, wall + (ridge - wall) * 0.25f, 0f), new Vector3(half * 2f, (ridge - wall) * 0.5f, front), Quaternion.identity));
+            foreach (var z in new[] { -1f, 1f })
+            {
+                var eave = new Vector3(0f, EaveStart(wall, front, 0.9f, ridge + 0.1f, 0.22f), z * (front + 0.9f));
+                var along = new Vector3(0f, ridge + 0.1f, 0f) - eave;
+                var turn = Quaternion.LookRotation(along.normalized, Vector3.up);
+                g.Boxes.Add(Solid(eave + along * 0.5f - turn * Vector3.up * 0.14f, new Vector3(half * 2f + 1.2f, 0.5f, along.magnitude), turn));
+            }
             var count = Mathf.Max(2, Mathf.CeilToInt(half / front));
             for (int k = 0; k < count; k++)
                 g.Colliders.Add(new Vector4(Mathf.Lerp(-half + front * 0.9f, half - front * 0.9f, count == 1 ? 0.5f : k / (count - 1f)), 0f, front * 1.05f, wall));
