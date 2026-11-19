@@ -32,7 +32,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   R-33, shipped PR #579), wet stone (#332, R-34, shipped PR #427), clouds from a reference shader (#333, R-35).** R-26 row 1 audit done; row 2 recessed cave cracks + soft bark Shipped #583 (11-18); row 3 cave wall vs ground detail match Shipped #586 (11-18). R-35 cloud E waits on Job 111.
 - **Sun moves smoothly (R-38, 11-15).** Sun position every 0.1 s as a trial. Shipped (R-38, PRs #409, #423).
 - **Caves.** Shipped: screen-size cave LOD, cave water, dungeon texturing and collision. Shipped: no paddy spikes on slopes (W-172 row 1, PR #384). Shipped: playtest
-  fixes and tunnel variety (W-172 rows 2-6, PR #451). Shipped: cave walls that fit the place (W-172 row 7, PR #507; brighter fungi caps shipped #521; volcanic cave details (basalt, sulphur, ember cracks) and moss only near light or damp Shipped #705 (11-19);
+  fixes and tunnel variety (W-172 rows 2-6, PR #451). Shipped: cave walls that fit the place (W-172 row 7, PR #507; brighter fungi caps shipped #521; volcanic cave details (basalt, sulphur, ember cracks) and moss only near light or damp Shipped #705 (11-19); next:
   glowing fungi deep, carvings near ruins, fossils in sedimentary rock, frost, salt crust, flowstone, tide
   marks, soot near camps, roots under forest). Later: small-animal passages to secret rooms and river-carved
   tunnels (#370).
