@@ -44,4 +44,61 @@ half3 PunchyPlaster(float3 p, half3 n, float footprint, half r)
     return tint * (1 + sweep - crack) * (1 - streak * wall * 0.2);
 }
 
+#define PUNCHY_PLASTER_LIME 0
+#define PUNCHY_PLASTER_DAUB 1
+#define PUNCHY_PLASTER_ADOBE 2
+
+/// Wattle and daub (PlasterKind.Daub): clay pressed on by hand in lumps, straw flecks in it, shrinkage cracks in a
+/// loose net, and the wattle's woven ribs showing faintly through where it is thin.
+half3 PunchyDaub(float3 p, half3 n, float footprint, half r)
+{
+    p += r * 41;
+    float across = dot(p.xz, normalize(float2(-n.z, n.x) + 1e-4));
+    float2 uv = float2(across, p.y);
+    half lump = PunchyValueNoise(uv / 0.11 + 4.1) * 0.6 + PunchyValueNoise(uv / 0.05 + 8.3) * 0.4;
+    half press = (lump - 0.5) * 0.45 * PunchyPlasterFade(0.11, footprint);
+    half2 fleckCell = frac(uv / 0.03) - 0.5;
+    half fleckHash = PunchyCellHash(int2(floor(uv / 0.03)));
+    half fleck = step(0.86, fleckHash) * (1 - smoothstep(0.05, 0.12, abs(dot(fleckCell, half2(0.6, 0.8))))) * PunchyPlasterFade(0.03, footprint);
+    half wattle = (sin(across / 0.16 * 6.2832) * 0.5 + 0.5) * smoothstep(0.6, 0.85, PunchyValueNoise(uv / 1.3 + 21.7));
+    half dry = smoothstep(0.55, 0.75, PunchyValueNoise(uv / 0.9 + 17.3));
+    half f1 = abs(PunchyValueNoise(uv / 0.18 + 61.1) - 0.5);
+    half f2 = abs(PunchyValueNoise(uv / 0.07 + 23.7) - 0.5);
+    half crack = max(1 - smoothstep(0.006, 0.018, f1), (1 - smoothstep(0.008, 0.02, f2)) * 0.6) * dry * 0.4 * PunchyPlasterFade(0.05, footprint);
+    half mottle = (PunchyValueNoise(uv / 1.8 + 13.9) - 0.5) * 0.3 * PunchyPlasterFade(1.8, footprint);
+    half3 c = (1 + press + mottle - crack - wattle * 0.08 * PunchyPlasterFade(0.16, footprint)) * half3(1, 1, 1);
+    return lerp(c, half3(1.3, 1.18, 0.85), fleck * 0.5);
+}
+
+/// Adobe (PlasterKind.Adobe): a sun-baked mud render, smooth-rubbed by hand in broad swirls, the bricks' courses
+/// ghosting through it, pale where the rain has washed it, eroded rough at the foot of the wall.
+half3 PunchyAdobe(float3 p, half3 n, float footprint, half r)
+{
+    p += r * 41;
+    float across = dot(p.xz, normalize(float2(-n.z, n.x) + 1e-4));
+    float2 uv = float2(across, p.y);
+    float2 cell = floor(uv / 0.7);
+    float2 centre = (cell + float2(PunchyCellHash(int2(cell) + int2(5, 9)), PunchyCellHash(int2(cell) + int2(23, 1)))) * 0.7;
+    half swirl = sin(length(uv - centre + 0.5) / 0.16 * 6.2832) * 0.04 * PunchyPlasterFade(0.16, footprint);
+    float br = uv.y / 0.12;
+    float bc = uv.x / 0.36 + frac(floor(br) * 0.5);
+    half joint = max(1 - smoothstep(0.0, 0.06, min(frac(br), 1 - frac(br))), 1 - smoothstep(0.0, 0.03, min(frac(bc), 1 - frac(bc))));
+    half ghost = joint * smoothstep(0.55, 0.8, PunchyValueNoise(uv / 0.9 + 3.3)) * 0.12 * PunchyPlasterFade(0.12, footprint);
+    half wall = 1 - smoothstep(0.35, 0.7, abs(n.y));
+    half wash = smoothstep(0.5, 0.9, PunchyValueNoise(float2(across / 0.6, p.y / 2.5) + 9.9)) * wall * 0.12 * PunchyPlasterFade(0.6, footprint);
+    half mottle = (PunchyValueNoise(uv / 2.4 + 31.7) - 0.5) * 0.2 * PunchyPlasterFade(2.4, footprint);
+    half grit = (PunchyValueNoise(uv / 0.012) - 0.5) * 0.14 * PunchyPlasterFade(0.012, footprint);
+    return (1 + swirl + mottle + grit - ghost) * (1 + wash);
+}
+
+/// The plaster look of a PlasterKind (MaterialLibrary.PlasterKind): lime is PunchyPlaster.
+half3 PunchyPlasterKind(float3 p, half3 n, float footprint, half r, int kind)
+{
+    if (kind == PUNCHY_PLASTER_DAUB)
+        return PunchyDaub(p, n, footprint, r);
+    if (kind == PUNCHY_PLASTER_ADOBE)
+        return PunchyAdobe(p, n, footprint, r);
+    return PunchyPlaster(p, n, footprint, r);
+}
+
 #endif

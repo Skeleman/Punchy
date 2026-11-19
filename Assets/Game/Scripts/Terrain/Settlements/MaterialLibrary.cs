@@ -80,6 +80,14 @@ namespace Punchy.Terrain
         Palm = 3
     }
 
+    /// <summary>The kinds of plaster (W-173): Library.hlsl's plaster kind, drawn by Materials/Plaster.hlsl (PunchyPlasterKind).</summary>
+    public enum PlasterKind
+    {
+        Lime = 0,
+        Daub = 1,
+        Adobe = 2
+    }
+
     // Rides on the bark mark in 0.002 steps, under the wood band; values match the defines in Bark.hlsl.
     public enum BarkKind
     {
@@ -219,6 +227,26 @@ namespace Punchy.Terrain
                 BiomeFamily.Cold => ThatchKind.Heather,
                 BiomeFamily.Arid => ThatchKind.Palm,
                 _ => ThatchKind.Straw
+            }
+        };
+
+        /// <summary>How a plaster kind tints a wall's colour (1 = as built): daub's raw clay, adobe's warm mud.</summary>
+        public static Vector3 PlasterTint(PlasterKind kind) => kind switch
+        {
+            PlasterKind.Daub => new Vector3(0.82f, 0.72f, 0.58f),
+            PlasterKind.Adobe => new Vector3(1.02f, 0.84f, 0.66f),
+            _ => Vector3.one
+        };
+
+        /// <summary>The render a folk's walls take, else the one its biome makes: adobe in the dry, daub in the wet.</summary>
+        public static PlasterKind PlasterFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.Goblin or FolkCulture.Ogre or FolkCulture.MarshFolk => PlasterKind.Daub,
+            _ => biome switch
+            {
+                BiomeFamily.Arid or BiomeFamily.Volcanic => PlasterKind.Adobe,
+                BiomeFamily.Wet => PlasterKind.Daub,
+                _ => PlasterKind.Lime
             }
         };
 
