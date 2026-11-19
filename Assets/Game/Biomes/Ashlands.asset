@@ -35,7 +35,7 @@ MonoBehaviour:
   Rainfall: 0.02
   Stone: 4
   WaterMurk: 0
-  WaterColor: {r: 0.2, g: 0.35, b: 0.2, a: 1}
+  WaterColor: {r: 0.2, g: 0.2, b: 0.18, a: 1}
   WaterGlow: 0
   WaterLava: 0
   Weather:
