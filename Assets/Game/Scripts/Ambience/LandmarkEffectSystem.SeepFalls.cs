@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 
 namespace Punchy.Ambience
 {
-    /// <summary>Each seep's mini fall: a narrow ribbon of the water material (its lava, or the water there) hugging the rock below its lip, built in the fall curtains' vertex (FallCurtain) so the real lava look draws it.</summary>
+    /// <summary>Each seep's mini fall: a narrow ribbon of the water material's lava hugging the rock below its lip, built in the fall curtains' vertex (FallCurtain) so the real lava look draws it.</summary>
     public partial class LandmarkEffectSystem
     {
         const int SeepColumns = 4;

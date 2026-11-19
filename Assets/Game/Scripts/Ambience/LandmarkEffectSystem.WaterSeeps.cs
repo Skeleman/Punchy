@@ -5,7 +5,6 @@ using UnityEngine;
 
 namespace Punchy.Ambience
 {
-    /// <summary>W-142 row 3: water seeps on the lava seeps' spots and mini falls, where groundwater would show: faces above rivers and lakes, mossy scarps in rainy country and cave walls; the rock under each is wet and mossy (SeepStreaks.hlsl).</summary>
     public partial class LandmarkEffectSystem
     {
         const float WaterSeepBankShare = 0.6f;
@@ -84,7 +83,6 @@ namespace Punchy.Ambience
                 var dir = math.normalizesafe(s.Run, new float2(1f, 0f));
                 var reach = math.length(s.Run) * s.Drop;
                 var half = s.Width * 0.6f;
-                // (The fade rides on the run direction's length, so two vectors per streak are enough.)
                 streakLip[n] = new Vector4(s.Lip.x, s.Lip.y, s.Lip.z, half);
                 streakRun[n] = new Vector4(dir.x * fade, dir.y * fade, s.Drop, reach);
                 var grow = half * 4f + 0.5f;

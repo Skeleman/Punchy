@@ -367,8 +367,9 @@ Shader "Punchy/Cave"
                              * smoothstep(0.45, 0.6, dampMask) * wall;
                 float damp = max(smoothstep(0.58, 0.7, dampMask) * saturate(shape.y * 0.8 + 0.5), streak * 0.8) * bare;
                 half seepMoss;
-                damp = max(damp, PunchySeepWet(p, seepMoss) * (1 - terrain));
-                rock = lerp(rock, (dot(s8.rgb, 1) > 0.01 ? s8.rgb : half3(0.24, 0.33, 0.13)) * (0.7 + 0.6 * detail.b), seepMoss * (1 - terrain));
+                half3 seepMossColor;
+                damp = max(damp, PunchySeepWet(p, seepMoss, seepMossColor) * (1 - terrain));
+                rock = lerp(rock, seepMossColor, seepMoss * (1 - terrain));
                 if (dressed > -0.5 && dressed < 0.5)
                 {
                     rock *= lerp(1, 0.6, damp);

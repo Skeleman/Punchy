@@ -501,7 +501,8 @@ Shader "Punchy/Terrain Surface"
                 }
                 shore = max(shore, PunchyFallWet(input.positionWS) * (1 - saturate(input.extra.z * 2)));   // (R-21: fall spray)
                 half seepMoss;
-                half seep = PunchySeepWet(input.positionWS, seepMoss) * (1 - saturate(input.extra.z * 2));
+                half3 seepMossColor;
+                half seep = PunchySeepWet(input.positionWS, seepMoss, seepMossColor) * (1 - saturate(input.extra.z * 2));
                 // Item 22: only level ground pools (under about 10 degrees; the vertex normal, so fine relief can't
                 // tilt a flat into a slope or a slope into a flat).
                 half flatness = smoothstep(0.975, 0.99, normalize(input.normalWS).y);
@@ -765,7 +766,7 @@ Shader "Punchy/Terrain Surface"
                     albedo = lerp(albedo, shingle, bandMix * shore * (1 - input.extra.y));
                 }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
-                albedo = lerp(albedo * lerp(1, 0.45, seep), half3(0.12, 0.22, 0.05), seepMoss);
+                albedo = lerp(albedo * lerp(1, 0.45, seep), seepMossColor, seepMoss);
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 half dryGloss = input.surface.a * (1 - crackOn * max(crackLine, 0.35 * crackTone));
                 surface.smoothness = lerp(lerp(dryGloss, max(dryGloss, 0.45), sheen), 0.92, puddle);
