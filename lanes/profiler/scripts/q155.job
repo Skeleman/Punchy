@@ -1,0 +1,41 @@
+# Triage of the 11-17..11-19 cost requests (about 60, almost all merged as #540-#696): main 814a4da6 (A, 11-18 morning,
+# before #540) vs main feb40161 (B, 11-19 13:42, after #696; #679 fixed the WaterTruth player build). High, 1920x1080
+# uncapped, noon unless noted, Clear, 3 rounds rotated, 300 frames. One view per request spot. A view where B is within the
+# bar clears every change that landed there; only views that show a cost get a per-PR bisect. The world moved a lot between
+# the two (river layout, banks, castles), so B's view isn't the same picture; that is the point of a whole-range check.
+# before(): one -freshisland start per arm for island bake and the world-ready stages (chunks, flora, bays, debris).
+Q=q155; TITLE="11-19 request triage (main before #540 vs now)"
+BUILDS="feb4016 814a4da"
+VIEWS="rapid bank bend lake village volcano cavemouth fall44 caustics mist forest geyser"
+view() { local h=12 s; case $1 in
+  rapid)     s="-1048,-1521,0";;
+  bank)      s="-1170,3570,0";;
+  bend)      s="-1268,637,0";;
+  lake)      s="-1727,-1004,0";;
+  village)   s="2972,-885,0";;
+  volcano)   s="-891,-2021,0";;
+  cavemouth) s="-3132,1039,0";;
+  fall44)    s="-2700.1,181.6,642.9,18";;
+  caustics)  s="-2427.6,-904.3,0"; h=11;;
+  mist)      s="-3612,13,-190,0"; h=6.5;;
+  forest)    s="400,2800,0";;
+  geyser)    s="-2427,2450,0";; esac
+  local g=$(echo $s | awk -F, '{print $1","(NF==4?$3:$2)}')
+  echo "-goto $g -benchstops spot -benchspot $s -benchhour $h -benchweather Clear"; }
+ARMS="B A"
+arm() { case $1 in B) echo "Profile-feb4016";; A) echo "Profile-814a4da";; esac; }
+ROUNDS=3; GFX="High"; REF=A; BAR=1
+before() {
+  [ -n "${DRY:-}" ] && return
+  local a o
+  for a in B A; do o=$(arm $a)
+    BENCHW=1920 BENCHH=1080 runcsv $o $Q-fresh-$a ${o#Profile-} s100 1 -gfx High -fpscap 0 -freshisland -benchstops here -benchlong here 20 -benchhour 12 -benchweather Clear
+    check "$R/q-$Q-fresh-$a-cs100-1.log"
+    echo "fresh $a: $(grep -ah '\[start\]' "$R/q-$Q-fresh-$a-cs100-1.log" | tr '\n' ' ' | cut -c1-900)"
+  done
+}
+after() {
+  [ -n "${DRY:-}" ] && return
+  echo "logs with an unsupported shader: $(grep -al 'shader is not supported' "$R"/q-$Q-*.log | wc -l)"
+  echo "logs with NaN: $(grep -ail 'nan' "$R"/q-$Q-*.log | wc -l)"
+}

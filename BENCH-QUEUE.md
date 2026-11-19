@@ -1112,6 +1112,14 @@ Elf groves now keep their towers when they are the biggest town (no Kit Building
 ## Note (2026-11-16, player-2 lane, #518 tail, branch player/tower-slip fa22d14b): KeepOut per-frame cost
 KitCollision.KeepOut runs once per substep against kit boxes. For each box within reach it now checks the 9-sample wall test at both from and to. It also does one Floor scan of the kit boxes for each probe (up to 3 per blocked move). Worth one CPU check walking inside a walk-in tower and in a kit town against main.
 
+## Note (2026-11-19, profiler): triage for the 11-17..11-19 requests (RUNNING as q155.job)
+About 60 requests are open, and nearly all have merged (#540-#696). Rather than run 60 pairs, q155 runs main before #540
+(814a4da6) against main now (feb40161, which builds again after #679) at High, at 12 of the request spots: rapid -1048,-1521,
+bank -1170,3570, bend -1268,637, lake -1727,-1004, village 2972,-885, volcano -891,-2021, cave mouth -3132,1039, fall 44,
+caustics -2427.6,-904.3 (11:00), river mist -3612,-190 (6:30), forest 400,2800, geyser -2427,2450, plus one fresh island bake per
+arm. Views within the bar clear every change that landed there; the rest get per-PR bisects. Unmerged branches (cave tendrils,
+rock walls, spire bolts) are specced separately afterwards.
+
 ## Request (2026-11-16, world lane, W-178 r1 #523, branch world/cave-tendrils 27879651): cave tendril cost
 ChainSim steps every visible tendril each frame, and each tendril cave adds its own mesh draw. Worth one CPU and GPU check standing in fungal cave 2 (near -2609, 208, 322) against main.
 
