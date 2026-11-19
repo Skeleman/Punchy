@@ -1021,3 +1021,9 @@ with main d95e7ff1); compiles, no suite run yet.
 - Row 3: f is the default, today's clumps behind "-grassproto today" (a-d too), e dropped. Meadow pin 1: f 44.9/74.8/89.3/71.9% hidden at 3/8/15/25 m, today 17.7/40.0/65.6/58.5%; 0 compile errors, NaN 0.
 - Merge waits on BENCH 114 (pinned to 14f86b6d, still has all three arms). Shots: PunchyMilestones/R-31/row3 and R-31/disc.
 - PR #487 left as a draft (I briefly marked it ready, then undid that when told to skip).
+
+### water-film (11-19), render/water-film@e36b5875, PR #671
+- Thick-water film fades out at grazing angles (smoothstep 0.1-0.4 on dot(n,v)). The marsh pose showed no rainbow before or after. The lake-gully streaks (#663, -622,634) are on plain lake water, not thick water, so this row does not cover them. They look like a separate stretched-mesh/flow issue.
+- Caustic web: Voronoi points roam the whole cell (no paving grid), damped up to 60% on bright beds. Ash and temperate read softer.
+- Wake cross-hatch: the cause was speed x time varying per pixel, plus flow turns at long distances from the anchor. Streaks are now read about 6 m cells with a contrast-keeping blend and a constant scroll. No hatch, but the rock wakes read as soft pale sheets; finer streaks could be a follow-up.
+- Shots: PunchyMilestones/water-film/{marsh,ash,temperate,rocks}-{before,after}.png
