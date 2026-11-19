@@ -102,6 +102,7 @@ namespace Punchy.Terrain
                     (drop ??= new List<int>()).Add(pair.Key);
                     continue;
                 }
+                DrawShelves(source, pair.Key, camPos);
                 var build = pair.Value;
                 for (int k = 0; k < CaveWallDetails.Kinds; k++)
                 {
@@ -134,6 +135,7 @@ namespace Punchy.Terrain
                         wallBuilding = null;
                     wallBuilds[cave].Release();
                     wallBuilds.Remove(cave);
+                    DropShelves(cave);
                     for (int k = 0; k < CaveWallDetails.Kinds; k++)
                         wallShown.Remove(cave * CaveWallDetails.Kinds + k);
                 }
@@ -184,6 +186,7 @@ namespace Punchy.Terrain
             wallBuilding = null;
             ReleaseMushrooms();
             ReleaseHangings();
+            ReleaseShelves();
             if (wallMaterials != null)
                 foreach (var mat in wallMaterials)
                     if (mat != null)

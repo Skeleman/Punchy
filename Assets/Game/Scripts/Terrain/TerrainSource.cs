@@ -1271,7 +1271,7 @@ namespace Punchy.Terrain
                 var mid = (lo + hi) * 0.5f;
                 if (CaveDistance(new float3(p.x, mid, p.z)) < 0f) hi = mid; else lo = mid;
             }
-            return hi;
+            return CliffKit.IsCreated ? Punchy.Terrain.CliffKit.CaveDeck(this, p, hi) : hi;
         }
 
         /// <summary>
