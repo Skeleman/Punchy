@@ -41,8 +41,10 @@ half3 PunchyRoofCover(half3 albedo, float3 p, inout half3 n, float footprint, ha
     float u = across / width + (kind == PUNCHY_ROOF_PANTILE ? 0 : frac(c * 0.5 + hc * 0.3));
     half fu = frac(u);
     half h = PunchyCellHash(int2((int)c, (int)floor(u) + 401));
-    half fCourse = PunchyWoodFade(course, footprint);
-    half fUnit = PunchyWoodFade(width * 0.5, footprint);
+    // Fades on whole periods and a few pixels each: the wood fade on half a unit lost the rolls by 6 m.
+    half fCourse = smoothstep(2, 5, course / max(footprint, 1e-4));
+    half fUnit = smoothstep(2, 5, width / max(footprint, 1e-4));
+    half fSeam = smoothstep(2, 5, width * 0.25 / max(footprint, 1e-4));
     half tail = kind == PUNCHY_ROOF_PANTILE ? 0 : (PunchyValueNoise(float2(across / 0.03, c * 7.7)) - 0.5) * 0.08;
     half under = smoothstep(0.66 + tail, 1.0, fr) * 0.42;
     half lip = (1 - smoothstep(0.0, 0.07, fr + tail)) * 0.12;
@@ -54,11 +56,11 @@ half3 PunchyRoofCover(half3 albedo, float3 p, inout half3 n, float footprint, ha
         n = normalize(n + t * (cos(fu * 6.2832) * 0.45 * fUnit));
         half3 fired = lerp(half3(0.82, 0.86, 0.92), half3(1.14, 1.06, 0.98), h);
         half seam = 1 - smoothstep(0.0, 0.08, min(fu, 1 - fu));
-        m = fired * (1 + (s * 0.16 + roll * 0.22 - seam * 0.35) * fUnit) * half3(1.08, 0.96, 0.9);
+        m = fired * (1 + (s * 0.16 + roll * 0.22) * fUnit - seam * 0.35 * fSeam) * half3(1.08, 0.96, 0.9);
     }
     else
     {
-        half joint = (1 - smoothstep(0.012, 0.03, min(fu, 1 - fu) * width)) * fUnit;
+        half joint = (1 - smoothstep(0.012, 0.03, min(fu, 1 - fu) * width)) * fSeam;
         half sheen = (PunchyValueNoise(float2(across, row) / 0.06 + 3.1) - 0.5) * (kind == PUNCHY_ROOF_SLATE ? 0.12 : 0.22);
         half3 tone = kind == PUNCHY_ROOF_SLATE ? lerp(half3(0.85, 0.88, 0.95), half3(1.1, 1.08, 1.05), h)
                                                : lerp(half3(0.86, 0.85, 0.82), half3(1.12, 1.08, 1.0), h);
