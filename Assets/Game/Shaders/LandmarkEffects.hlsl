@@ -158,6 +158,23 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         float2 run = e.outDir;
         float2 side = normalize(abs(run.x) + abs(run.y) > 0.01 ? float2(-run.y, run.x) : float2(0, 1));
         float3 path = normalize(float3(run.x, -1, run.y));
+        // Particle 0 is the glowing trail the beads leave on the rock, so the seep reads from 20 m where a 6 cm bead is a dot.
+        if (k == 0)
+        {
+            float3 sMid = e.position + float3(run.x, -1, run.y) * (e.drop * 0.5);
+            float3 sCam = normalize(GetCameraPositionWS() - sMid);
+            float3 sRight = cross(path, sCam);
+            sRight = length(sRight) > 1e-3 ? normalize(sRight) : UNITY_MATRIX_V[0].xyz;
+            float sAlpha = e.timing.z * (0.65 + 0.15 * sin(_PunchyClock * 0.9 + r * 6.2832));
+            sAlpha *= 1 - smoothstep(max(e.drop, e.shape.y) * _PunchyPlumeReach * 0.8, max(e.drop, e.shape.y) * _PunchyPlumeReach, distance(sMid, GetCameraPositionWS()));
+            float2 sCorner = EffectCorner[vertex];
+            PlumeVertex st;
+            st.positionWS = sMid + sCam * 0.05 + (sRight * sCorner.x * max(e.shape.z * 0.6, 0.035) * (sCorner.y > 0 ? 0.45 : 1) + path * sCorner.y * e.drop * length(float3(run.x, -1, run.y)) * 0.55) * step(0.001, sAlpha);
+            st.uv = float2(sCorner.x, sCorner.y * 0.9);
+            st.alpha = sAlpha;
+            st.age = 8.85;
+            return st;
+        }
         float3 dAt = e.position + float3(side.x, 0, side.y) * (d1 - 0.5) * e.shape.y + float3(run.x, -1, run.y) * down;
         float swell = dAge < hang ? lerp(0.35, 1.0, dAge / hang) : lerp(1.0, 0.6, slide);
         float dSize = e.shape.z * swell * lerp(0.8, 1.2, d2);

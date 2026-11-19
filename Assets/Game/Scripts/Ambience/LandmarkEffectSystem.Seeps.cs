@@ -6,11 +6,7 @@ using Kit = Punchy.Rendering.Effects.PlumeSystem;
 
 namespace Punchy.Ambience
 {
-    /// <summary>
-    /// W-142: lava seeping from rock, glowing beads that swell at a lip and slide down the face, on steep rock in vent
-    /// biomes and on the walls of lava tubes and round cave lava pools. Spots hash world cells and pools, so nothing is
-    /// placed; a spot says what seeps (SeepKind), so a water trickle can take the same spots later.
-    /// </summary>
+    /// <summary>W-142 seeps hash world cells and cave pools so nothing is placed; SeepKind lets a water trickle reuse the spots.</summary>
     public partial class LandmarkEffectSystem
     {
         public enum SeepKind : byte { Lava }
@@ -117,7 +113,7 @@ namespace Punchy.Ambience
             var down = -grad / slope;
             var drop = 1.2f + 2.3f * ((h & 0xFF) / 255f);
             var foot = xz + down * (drop / slope);
-            // (A face that bends away under the lip would leave the beads in the air: shorter, or none.)
+            // A face that bends away under the lip would leave the beads in the air.
             if (math.abs(source.SampleHeight(foot) - (ground.Height - drop)) > 0.3f * drop)
             {
                 drop *= 0.5f;
@@ -182,7 +178,6 @@ namespace Punchy.Ambience
             }
         }
 
-        /// <summary>A seep on the first cave wall out from <paramref name="from"/> along dir, running down to the floor or no lower than <paramref name="lowest"/>.</summary>
         static bool WallSeep(in TerrainSource source, float3 from, float2 dir, float near, float far, float lowest, uint h, out SeepSpot spot)
         {
             spot = default;
@@ -212,7 +207,6 @@ namespace Punchy.Ambience
             return true;
         }
 
-        /// <summary>How far out from a centre (along dir, at height y) the first cave rock is, between near and far.</summary>
         static bool WallAt(in TerrainSource source, float2 centre, float2 dir, float y, float near, float far, out float at)
         {
             const float step = 0.4f;
@@ -251,7 +245,7 @@ namespace Punchy.Ambience
                 Seed = ((s.Hash >> 12) & 0x3FFF) / 16384f,
                 Color = LavaBead,
                 Shape = new float4(0f, s.Width, 0.05f + 0.03f * a, 7f + 6f * b),
-                Timing = new float4(0f, 1f, 1f, 3 + (int)((s.Hash >> 20) % 3u)),
+                Timing = new float4(0f, 1f, 1f, 4 + (int)((s.Hash >> 20) % 3u)),
                 Out = math.any(s.Run != 0f) ? s.Run : new float2(0.001f, 0f),
                 Drop = s.Drop
             };
