@@ -26,6 +26,17 @@ half PunchyBarkCells(float2 uv, int wrap, out float cellTone)
     return (half)(sqrt(d2) - sqrt(d1));
 }
 
+// Value noise that wraps x every wrap cells, so it meets itself round the trunk.
+half PunchyBarkNoise(float2 p, int wrap)
+{
+    int2 i = (int2)floor(p);
+    float2 f = p - i;
+    float2 u = f * f * (3 - 2 * f);
+    int x0 = (int)((uint)(i.x + 64 * wrap) % (uint)wrap), x1 = (int)((uint)(i.x + 1 + 64 * wrap) % (uint)wrap);
+    return lerp(lerp(PunchyCellHash(int2(x0, i.y)), PunchyCellHash(int2(x1, i.y)), u.x),
+                lerp(PunchyCellHash(int2(x0, i.y + 1)), PunchyCellHash(int2(x1, i.y + 1)), u.x), u.y);
+}
+
 // age is the instance's scale, rise the height above the plant's base (m), lush how green the ground is (moss
 // and lichen). crevice: how deep in a furrow or crack the pixel sits (0-1), for the caller's occlusion and sheen.
 void PunchyBark(float3 gp, float3 positionWS, half r, int kind, float age, float rise, half lush, inout half3 albedo, inout half3 n, out half crevice)
@@ -39,8 +50,8 @@ void PunchyBark(float3 gp, float3 positionWS, half r, int kind, float age, float
     float tall = 0.45;
     if (kind == PUNCHY_BARK_PLATED)
     {
-        furrowAmt = 0.25; round_ = 4 + (int)floor(r * 3); tall = 0.4; width = 0.17;
-        depth = 0.62 * lerp(0.8, 1.25, saturate((age - 0.8) / 0.6));
+        furrowAmt = 0.15; round_ = 21 + (int)floor(r * 6); tall = 0.24; width = 0.13;
+        depth = 0.38 * lerp(0.8, 1.25, saturate((age - 0.8) / 0.6));
     }
     else if (kind == PUNCHY_BARK_CHECKED)
     {
@@ -76,20 +87,45 @@ void PunchyBark(float3 gp, float3 positionWS, half r, int kind, float age, float
         uv.y += uv.x * 0.15;
     float px = max(ringStep * round_ * 0.159155, fwidth(gp.y) / tall);
     half cellFade = 1 - smoothstep(width * 0.5, width * 1.6, px);
-    half tone = 0.5;
+    half scaleFade = kind == PUNCHY_BARK_PLATED ? 1 - smoothstep(width * 0.5, width * 1.6, px * 2.6) : 0;
+    half tone = 0.5, weather = 0, rust = 0;
     [branch] if (cellFade > 0.01)
     {
         float cellTone;
-        half edge = PunchyBarkCells(uv, round_, cellTone);
+        float2 cuv = uv;
+        if (kind == PUNCHY_BARK_PLATED)
+            cuv += (float2(PunchyBarkNoise(uv * 3, round_ * 3), PunchyBarkNoise(uv * 3 + float2(0, 17.3), round_ * 3)) - 0.5) * 0.3
+                 + (float2(PunchyBarkNoise(uv * 8, round_ * 8), PunchyBarkNoise(uv * 8 + float2(0, 41.7), round_ * 8)) - 0.5) * 0.1;
+        half edge = PunchyBarkCells(cuv, round_, cellTone);
         tone = cellTone;
         half wide = width * lerp(0.55, 1.5, PunchyValueNoise(uv * float2(0.6, 0.35) + r * 7.0));
+        if (kind == PUNCHY_BARK_PLATED)
+            wide *= lerp(0.75, 1.5, PunchyBarkNoise(uv * 6, round_ * 6));
         half crack = 1 - smoothstep(wide * 0.1, wide * 1.1, edge);
-        // Plates break cleanly; checks open only on some cell walls, so the trunk isn't caged.
+        // Checks open only on some cell walls, so the trunk isn't caged.
         if (kind != PUNCHY_BARK_PLATED)
             crack *= smoothstep(0.35, 0.6, PunchyValueNoise(uv * float2(1.3, 0.7) + r * 31.0));
+        else
+        {
+            half rim = smoothstep(wide * 0.1, wide * 1.1, edge) * (1 - smoothstep(wide * 1.1, wide * 2.6, edge));
+            half scale = 0, flake = 0;
+            [branch] if (scaleFade > 0.01)
+            {
+                float scaleTone;
+                half e2 = PunchyBarkCells(cuv * float2(2, 2.6), round_ * 2, scaleTone);
+                scale = (1 - smoothstep(0.02, 0.09, e2)) * smoothstep(0.4, 0.6, PunchyBarkNoise(cuv * float2(4, 3), round_ * 8)) * scaleFade;
+                flake = smoothstep(0.8, 0.86, scaleTone) * scaleFade;
+            }
+            scale *= 1 - crack;
+            flake *= 1 - crack;
+            h += scale * 0.35 + flake * 0.25;
+            shade *= 1 - scale * 0.25;
+            weather = (1 - crack) * (1 - flake) * (0.65 + 0.35 * tone) * cellFade;
+            rust = max(rim * 0.45, flake * 0.8) * cellFade;
+        }
         if (kind == PUNCHY_BARK_CHECKED)
             shade *= lerp(1, 0.55, (1 - smoothstep(0.0, 0.05, abs(frac(uv.y * 0.5 + tone) - 0.5) - 0.42)) * step(0.7, tone) * cellFade);
-        h = crack * cellFade;
+        h = h * cellFade + crack * cellFade;
         half plate = 1 + (tone - 0.5) * (kind == PUNCHY_BARK_PLATED ? 0.3 : 0.1);
         shade *= lerp(1, (1 - crack * depth * 0.55) * plate + depth * width * 0.5, cellFade);
         crevice = max(crevice, crack * cellFade * saturate(depth * 1.6));
@@ -102,6 +138,9 @@ void PunchyBark(float3 gp, float3 positionWS, half r, int kind, float age, float
     n = normalize(abs(det) * n + grad * depth * 0.12);
 
     albedo *= shade * lerp(half3(0.9, 0.94, 0.98), half3(1.08, 1.02, 0.92), PunchyValueNoise(float2(rise * 0.6, r * 41.0)));
+    half lum = dot(albedo, half3(0.3, 0.59, 0.11));
+    albedo = lerp(albedo, lum * 2.2 * half3(1.08, 1, 0.88), weather);
+    albedo = lerp(albedo, albedo * half3(1.25, 0.92, 0.7) + half3(0.05, 0.025, 0.01), rust);
     // Moss and lichen keep to the shaded (north) side, moss low on the trunk and down in the cracks.
     half north = saturate(n0.z * 0.8 + 0.3);
     half lichenPatch = PunchyValueNoise(uv * float2(1.6, 1.1) + r * 13.0) * 0.6 + PunchyValueNoise(uv * 5.3 - r * 5.0) * 0.4;
