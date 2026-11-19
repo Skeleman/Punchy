@@ -339,3 +339,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #654 W-166 (#336): darker, glossier wet band along river waterlines; mud patches back on steep banks up to 3 m.
 - #655 (#301): river water clears onto the bed at the bank with no seam; thin broken lapping crest in wind.
 - #656 W-166 (#336): river beds vary by flow: cobbles in riffles, sand on inner bends, silt in pools.
+- #658 W-181 r4 (#534): cave shelves look like the wall rock (chipped lip, taper); hang, shimmy and climb up a shelf.
