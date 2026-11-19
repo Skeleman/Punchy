@@ -1258,3 +1258,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 FYI #686 (W-182 bark): plated pine trunks do 2 extra cell lookups and ~7 noise taps up close (scale layer fades by screen size).
 
 - 11-19 world: b/fix-kit-tile@c64d6dce (PR #688): roof-cover details (Tile.hlsl) now stay drawn further out (2-5 px fades on whole periods). Please check flora frame cost in towns against main.
+- 11-19 FYI #689 (draft): bake step DropPuddles (one flood fill over lake cells, after SettleLakeRivers); 18 small lakes drained; sheet pins steep 44, pits 0. No bench needed unless island bake time moves.

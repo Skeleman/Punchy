@@ -99,3 +99,9 @@
 - Falls 140 -> 151; steep 118 -> 69, pits 22 -> 19; tilt 17 -> 15, step 125 -> 108; walls 4 -> 4. Dry feet 0, landmark hash unchanged, WorldTests 23/23.
 - Shots: PunchyMilestones/water/cascades/before and /after (fall95-foot, fall63-rapids, fall133-foot).
 - Row 2 (pit fill) is next, as its own PR.
+
+## 11-19 W-181 row 2 (#301): puddle lakes go dry - PR #689 (draft, stacks on #687), banks/water-pits@64019e86
+- After the last lake pass, a riverless lake of 1-2 cells under 1 m deep is drained; it stood over the ground round it, so its sheet dived into the ground.
+- Steep 69 -> 44, pits 19 -> 0. WaterTruth, falls 151, dry feet 0 and landmark hash unchanged. WorldTests 23/23.
+- Trade-off: 18 of 65 lakes go dry (small ponds; -1988,-1091 had moss rocks and cattails). The cheaper alternative is to keep them and fix the rim in BuildWater (materials lane). That is why the PR is a draft.
+- Shots: PunchyMilestones/water/pits/before and /after (puddle-1988).
