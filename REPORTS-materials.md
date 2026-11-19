@@ -407,3 +407,10 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - BiomeData.RiverBed: sand, bend sand and silt keep their brightness but take 60% of the biome ground's hue (new BedTone helper). Gravel was already biome-tinted. Colour values only.
 - Verified: compiles clean; Ashlands bed goes greyer, poison swamp bed purple-grey. Subtle in shots because the water tint and caustics dominate. Crop-pair: PunchyMilestones/river-audit/crop-pair-bed.jpg. Can raise to 0.8 if wanted.
 - BENCH-QUEUE: none (a few float ops per surface sample at mesh build).
+
+## 11-19 materials/house-surfaces row 1: thatch kinds (a613477f, W-173 #399)
+- Shader entry: `PunchyThatchKind(p, nOS, footprint, kind)` in Materials/Thatch.hlsl, albedo multiplier; kinds `PUNCHY_THATCH_STRAW 0` (old PunchyThatch, so callers are unchanged), `REED 1` (dressed stem-end stipple), `HEATHER 2` (wiry clumps, moss in hollows), `PALM 3` (chevron fronds, lapped). Library.hlsl family 4 now passes its kind.
+- Tint hook (MaterialLibrary.cs): `enum ThatchKind {Straw, Reed, Heather, Palm}`, `ThatchTint(kind)` (multiplies the roof colour, like StoneTint), `ThatchFor(FolkCulture, BiomeFamily)` (marsh reed, dwarf/snow heather, fish/sea palm, else wet reed, cold heather, arid palm, straw).
+- World wiring: Flora.shader look 3 still calls PunchyThatch; swap to PunchyThatchKind with a kind on the mark when the kit is ready (Flora/StructureKit untouched).
+- Verified: ShaderHasError False, no script errors; probe swatch through Colossus library path (near and 14 m rows): PunchyMilestones/house-surfaces/thatch-swatch.jpg.
+- BENCH-QUEUE: none until wired (straw path unchanged; other kinds cost about the same noise count).
