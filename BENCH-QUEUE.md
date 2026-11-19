@@ -1241,3 +1241,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - #665 W-173: fauna fingerprint 7ED8D1F1 -> 1F4C927C (kit quoins out past the wall face); landmarks unchanged 120 B32C5306. No cost check needed.
 - 11-19 render-2: render/flow-foam@aa759b55: 4 extra scene-depth taps (with clip transforms) plus 2 PunchyValueNoise per fragment of rushing river water (rapids >= 0.2, near view only). Check GPU water pass at the rocks pose (cam -2622.4,238.9,726.9 looking -2607.7,231.9,738.9) main vs branch.
 - 11-19 banks: banks/fall-ground@e5302ff2 (#668): debris blocks 1111 -> 956; each flank block now takes up to 5 SampleHeight calls per sink step (at most 5 steps). Check the scarp debris job time against main.
+- #670 (W-173 tents): Fauna_Fingerprint re-pinned 1F4C927C -> A9684863; guy ropes dropped at far LOD. FYI only.
