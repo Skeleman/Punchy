@@ -1004,7 +1004,8 @@ Shader "Punchy/Water"
                 // The first half metre stays clear so the bed shows through (#631).
                 half clearShallow = lerp(0.35, 1, smoothstep(0.1, 0.6, thickness));
                 half bodyAlpha = 1 - exp(-thickness * _Opacity * clearShallow * (1 + murk * 12));
-                half alpha = saturate(bodyAlpha + fresnel * lerp(0.5, 1, clearShallow) + glint + glitter + lanternGlint);
+                // Shore blend (#301): the sky's reflection thins out over the last ~0.8 m, so the edge clears onto the bed with no seam.
+                half alpha = saturate(bodyAlpha + fresnel * lerp(0.5, 1, clearShallow) * lerp(0.15, 1, smoothstep(0.0, 0.8, thickness)) + glint + glitter + lanternGlint);
 
                 // Thick water: an oily rainbow film in the reflection, and pale scum drifting in slow rafts.
                 if (viscous > 0)
@@ -1087,6 +1088,11 @@ Shader "Punchy/Water"
                 // sheets below carry the white there instead.
                 foam *= 1 - steep;
                 foam *= lerp(rimBreak.y, 1, seaShore);
+                // Lapping line (#301): a thin broken crest that runs up and draws back in phase with the shore lift, only where wind waves reach in.
+                half lapPhase = sin(t * 0.7 + PunchyValueNoise(p * 0.23 + 9.3) * 6.2831853) * 0.5 + 0.5;
+                half lapLine = exp(-abs(thickness - (0.03 + 0.09 * lapPhase)) / 0.025) * smoothstep(0.45, 0.7, foamNoise) * lerp(0.4, 1, lapPhase)
+                             * saturate(0.4 + _PunchyWind) * (1 - seaShore) * (1 - inDeep) * (1 - steep) * (1 - viscous) * (1 - _PunchyUnderground) * 0.9;
+                foam = max(foam, lapLine);
                 // White water: the churned (steepest) parts of the flowing ripples turn to foam on rapids, broken into
                 // flecks, never a flat sheet (G-28; not gated by the streaks, whose direction turns sharply at the river
                 // mesh's corners and drew zigzags), and flecks ride the flow lines' crests on fast water.
@@ -1242,6 +1248,8 @@ Shader "Punchy/Water"
                     }
                     // Added after the blend: the web is focused sunlight, so the surface tint must not wash it out.
                     color = lerp(behind, color, alpha) + caustic;
+                    // A faint, broken dark contact line where the water meets the bank.
+                    color *= 1 - 0.3 * smoothstep(0.0, 0.01, bedDepth) * (1 - smoothstep(0.04, 0.15, bedDepth)) * (0.5 + 0.5 * foamNoise) * (1 - lava) * (1 - steep) * (1 - murk);
                     alpha = 1;
                 }
                 return half4(color, alpha);
