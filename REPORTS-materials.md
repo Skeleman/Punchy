@@ -440,3 +440,8 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 
 ## materials: moss sheet (PR #677)
 - DONE: moss on wet river/bank rocks is a textured mat (Materials/Moss.hlsl, shared with part-13 moss sheets), screen-size fades (rule 20). Shader files only. Before/after: PunchyMilestones/moss-sheet/. Related #336. No BENCH line (a few noise evals on mossy rock pixels only).
+
+## 11-19 W-181 row 1 (#301) - DONE, PR #681 (materials/water-pits 228e6f9d)
+- WaterTruth.Sheet counts steep water (surface drop >0.3 m/m, away from falls) and pits (steep triangles diving into the ground) on the built mesh.
+- Water_SheetSlopes pins steep 118 / pits 22 at -2729,546, -490,546 and -2018,-1070 (only 3 of 9 sampled spots had any). WaterTruthBaseline untouched. WorldTests 23/23.
+- No BENCH line (debug probe only). Next: W-182 bark plates, then row 4.
