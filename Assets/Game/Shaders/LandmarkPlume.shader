@@ -122,7 +122,7 @@ Shader "Punchy/Landmark Plume"
                     half sunLit = leafSun.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS)) * (abs(dot(n, leafSun.direction)) * 0.75 + 0.25);
                     half3 tone = lerp(e.color.rgb, half3(0.42, 0.24, 0.04), step(0.72, EffectHash(lr * 7.7)) * lerp(0.5, 0.9, EffectHash(lr * 3.1)));
                     tone *= (0.8 + 0.4 * EffectHash(lr * 5.3)) * (1 - 0.3 * (1 - smoothstep(0.02, 0.07, abs(q.x))));
-                    half3 leafLit = tone * PunchyEffectLight(e, input.positionWS, n, leafSun.color * sunLit, SampleSH(half3(0, 1, 0)));
+                    half3 leafLit = tone * PunchyEffectLight(e, input.positionWS, n, leafSun.color * sunLit, SampleSH(half3(0, 1, 0))) + tone * e.color.a;
                     return half4(PunchyAtmosphere(leafLit, input.positionWS), leafAlpha);
                 }
                 float soft = saturate(1 - dot(input.uv, input.uv));

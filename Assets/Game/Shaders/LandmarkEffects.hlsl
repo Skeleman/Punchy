@@ -187,7 +187,7 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         float t = leafAge * leafLife;
         float sway = sin(t * (1.6 + l3) + r * 6.2832);
         float2 swayDir = float2(cos(l2 * 6.2832 + 1.3), sin(l2 * 6.2832 + 1.3));
-        float2 leafDrift = _PunchyWindDirection * (0.2 + _PunchyWind) * t * 0.35 + swayDir * sway * 0.45;
+        float2 leafDrift = (_PunchyWindDirection * (0.2 + _PunchyWind) * t * 0.35 + swayDir * sway * 0.45) * (1 - 0.85 * e.underRock);
         float start = e.shape.x * l3;
         float3 leafAt = e.position + float3(leafSpot.x + leafDrift.x, start - (start + e.drop) * leafAge + abs(sway) * 0.12, leafSpot.y + leafDrift.y);
         float spin = t * (2.0 + 3.0 * l1) + r * 6.2832;
@@ -199,7 +199,7 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
         leafAlpha *= 1 - smoothstep(0.8, 1, distance(leafAt, GetCameraPositionWS()) / max(e.shape.z * _PunchyPlumeReach, 1e-3));
         float2 leafCorner = EffectCorner[vertex];
         PlumeVertex f;
-        f.positionWS = leafAt + (leafRight * leafCorner.x * 0.6 + leafUp * leafCorner.y) * e.shape.z * lerp(0.8, 1.25, l3) * step(0.001, leafAlpha);
+        f.positionWS = leafAt + (leafRight * leafCorner.x * (e.fall.x > 0 ? e.fall.x : 0.6) + leafUp * leafCorner.y) * e.shape.z * lerp(0.8, 1.25, l3) * step(0.001, leafAlpha);
         f.uv = leafCorner;
         f.alpha = leafAlpha;
         f.age = 2 + r;

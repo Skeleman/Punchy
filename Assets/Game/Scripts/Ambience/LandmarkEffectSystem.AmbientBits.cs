@@ -7,7 +7,7 @@ using Kit = Punchy.Rendering.Effects.PlumeSystem;
 namespace Punchy.Ambience
 {
     /// <summary>
-    /// Leaves fall from tall broadleaf crowns and wisps rise from vents. Every pick hashes a tree or a world cell, so the
+    /// Leaves fall from tall broadleaf crowns, needles from tall conifers, flakes from giant mushroom caps, and wisps rise from vents. Every pick hashes a tree or a world cell, so the
     /// same spots show on every visit without placing anything in the world.
     /// </summary>
     public partial class LandmarkEffectSystem
@@ -17,6 +17,16 @@ namespace Punchy.Ambience
         const int LeafParticles = 18;
         const float LeafSize = 0.13f;
         static readonly Color[] Autumn = { new Color(0.86f, 0.66f, 0.18f), new Color(0.8f, 0.42f, 0.12f), new Color(0.62f, 0.7f, 0.2f) };
+        static readonly Color[] DeadNeedles = { new Color(0.78f, 0.5f, 0.2f), new Color(0.88f, 0.64f, 0.3f), new Color(0.7f, 0.46f, 0.22f) };
+        static readonly Color[] CapFlakes = { new Color(0.92f, 0.9f, 0.82f), new Color(0.85f, 0.8f, 0.7f) };
+        const float GiantCap = 8f;
+
+        struct FallSpec
+        {
+            public Color A, B;
+            public Color[] Tint;
+            public float Size, Width, Glow, Share, Spread, Below;
+        }
         const float VentCell = 12f;
         const float VentShare = 0.07f;
         const float GeoVentShare = 0.35f;
@@ -27,7 +37,7 @@ namespace Punchy.Ambience
 
         readonly object ventOwner = new object();
         readonly HashSet<Punchy.Flora.FloraSpecies> tallSpecies = new HashSet<Punchy.Flora.FloraSpecies>();
-        readonly Dictionary<Punchy.Flora.FloraSpecies, (Color a, Color b)> foliageOf = new Dictionary<Punchy.Flora.FloraSpecies, (Color, Color)>();
+        readonly Dictionary<Punchy.Flora.FloraSpecies, FallSpec> fallOf = new Dictionary<Punchy.Flora.FloraSpecies, FallSpec>();
         readonly HashSet<Punchy.Flora.FloraSpecies> oneSpecies = new HashSet<Punchy.Flora.FloraSpecies>();
         readonly List<(float3 foot, float3 top, float height, float crown, int seed)> leafTrees = new List<(float3, float3, float, float, int)>();
         readonly List<Kit.Plume> leaves = new List<Kit.Plume>(), ventSmoke = new List<Kit.Plume>(), ventSteam = new List<Kit.Plume>();
@@ -46,12 +56,14 @@ namespace Punchy.Ambience
                 ambientFrom = palette;
                 AmbientTables(palette);
                 SeepTables(palette);
+                CeilingTables(palette);
                 leavesAt = new float3(float.MaxValue);
                 ventCellAt = new int2(int.MinValue);
             }
             FallingLeaves(eye);
             Vents(source, palette, eye);
             Seeps(source, eye);
+            CeilingFalls(source, eye);
             RiverSpray(source, eye);
             RiverMist(source, eye);
             RiverLeaves(source, palette, eye);
@@ -60,7 +72,7 @@ namespace Punchy.Ambience
         void AmbientTables(BiomePalette palette)
         {
             tallSpecies.Clear();
-            foliageOf.Clear();
+            fallOf.Clear();
             ventBiome = new bool[palette.Biomes.Length];
             for (int b = 0; b < palette.Biomes.Length; b++)
             {
@@ -71,10 +83,10 @@ namespace Punchy.Ambience
                 foreach (var f in biome.Flora)
                 {
                     var s = f.Species;
-                    if (s != null && (s.Form == Punchy.Flora.FloraForm.BroadleafTree || s.Form == Punchy.Flora.FloraForm.HiveTree) && s.Height.y >= TallTree)
+                    if (s != null && FallOf(s) is { } spec)
                     {
                         tallSpecies.Add(s);
-                        foliageOf[s] = (s.Foliage, s.FoliageVariation);
+                        fallOf[s] = spec;
                     }
                 }
             }
@@ -91,6 +103,39 @@ namespace Punchy.Ambience
                         break;
                     }
             }
+        }
+
+        static FallSpec? FallOf(Punchy.Flora.FloraSpecies s)
+        {
+            var spec = new FallSpec { A = s.Foliage, B = s.FoliageVariation, Tint = Autumn, Size = LeafSize, Share = LeafTreeShare, Spread = 0.8f, Below = 0.35f };
+            switch (s.Form)
+            {
+                case Punchy.Flora.FloraForm.BroadleafTree:
+                case Punchy.Flora.FloraForm.HiveTree:
+                    return s.Height.y >= TallTree ? spec : null;
+                case Punchy.Flora.FloraForm.Conifer:
+                    if (s.Height.y < TallTree)
+                        return null;
+                    spec.Tint = DeadNeedles;
+                    spec.Size = 0.16f;
+                    spec.Width = 0.3f;
+                    spec.Share = 0.4f;
+                    // A cone's tiers widen downward and hide needles shed from inside its crown.
+                    spec.Spread = 1.3f;
+                    return spec;
+                case Punchy.Flora.FloraForm.Mushroom:
+                    if (s.Height.y < GiantCap)
+                        return null;
+                    spec.Tint = CapFlakes;
+                    spec.Size = 0.07f;
+                    spec.Width = 0.9f;
+                    spec.Share = 0.8f;
+                    spec.Spread = 0.6f;
+                    spec.Below = 0.12f;
+                    spec.Glow = s.Finish == Punchy.Flora.FoliageFinish.Glowing ? 1.5f : 0f;
+                    return spec;
+            }
+            return null;
         }
 
         void FallingLeaves(Vector3 eye)
@@ -115,27 +160,28 @@ namespace Punchy.Ambience
                 oneSpecies.Add(species);
                 leafTrees.Clear();
                 flora.TreesNear(((float3)eye).xz, range, oneSpecies, leafTrees);
-                var (fa, fb) = foliageOf[species];
+                var spec = fallOf[species];
                 foreach (var t in leafTrees)
                 {
                     var h = Scramble((uint)t.seed ^ 0x1EAF5u);
-                    if ((h & 0xFFFF) / 65536f >= LeafTreeShare || t.height < TallTree * 0.7f)
+                    if ((h & 0xFFFF) / 65536f >= spec.Share || t.height < species.Height.y * 0.5f)
                         continue;
                     var r = Scramble(h);
-                    var crown = math.max(t.crown * 0.8f, 1.5f);
-                    var below = t.height * 0.35f;
-                    var green = Color.Lerp(fa, fb, (r & 0xFF) / 255f);
+                    var crown = math.max(t.crown * spec.Spread, 1.5f);
+                    var below = t.height * spec.Below;
+                    var green = Color.Lerp(spec.A, spec.B, (r & 0xFF) / 255f);
                     // Leaves in the canopy's own green vanish against it, so each tree sheds a warmer tint.
-                    var col = Color.Lerp(green, Autumn[(h >> 22) % (uint)Autumn.Length], 0.45f + 0.4f * ((r >> 20) & 0xF) / 15f).linear;
+                    var col = Color.Lerp(green, spec.Tint[(h >> 22) % (uint)spec.Tint.Length], 0.45f + 0.4f * ((r >> 20) & 0xF) / 15f).linear;
                     count++;
                     leaves.Add(new Kit.Plume
                     {
                         Position = t.top - new float3(0f, below, 0f),
                         Seed = ((r >> 8) & 0xFFFF) / 65536f,
-                        Color = new float4(col.r, col.g, col.b, 0f),
-                        Shape = new float4(below * 0.6f, crown, LeafSize * (0.85f + 0.3f * ((r >> 24) & 0xF) / 15f), 8f + 4f * ((r >> 28) & 0xF) / 15f),
+                        Color = new float4(col.r, col.g, col.b, spec.Glow),
+                        Shape = new float4(below * 0.6f, crown, spec.Size * (0.85f + 0.3f * ((r >> 24) & 0xF) / 15f), 8f + 4f * ((r >> 28) & 0xF) / 15f),
                         Timing = new float4(0f, 0f, 0.95f, LeafParticles - (int)((h >> 16) % 6u)),
-                        Drop = t.height - below + 0.3f
+                        Drop = t.height - below + 0.3f,
+                        Fall = new float4(spec.Width, 0f, 0f, 0f)
                     });
                 }
             }
@@ -220,6 +266,7 @@ namespace Punchy.Ambience
             ClearRiverMist();
             ClearRiverLeaves();
             ClearSeeps();
+            ClearCeilingFalls();
             leavesAt = new float3(float.MaxValue);
             ventCellAt = new int2(int.MinValue);
         }
