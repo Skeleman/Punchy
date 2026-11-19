@@ -1278,3 +1278,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 FYI #698 (R-31 snow grain): TerrainSurface snow pixels get one more branch (4 value-noise taps, a sin/cos, a pow for glitter); non-snow ground unchanged. Bench tundra views after 16:30 merge.
 - 11-19 FYI #700 (W-154 toxic pools): Water frag gets a toxic branch (absolute tint, 3 value-noise taps for the crust bands) only on green glowing water, plus 2 sparse swamp shore flora species. Fold a swamp pond view into a later water bench; no new job needed.
 - 11-19 FYI #701 (R-31 frost): TerrainSurface frag adds a branch on glacier-ice ground only: 4 value-noise taps, 1 Specks, 1 pow glint per pixel. Nothing elsewhere.
+- 11-19 FYI #704 (shared glint): refactor only, same math per pixel; no cost change expected.

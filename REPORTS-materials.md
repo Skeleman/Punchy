@@ -486,3 +486,7 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - TerrainSurface.shader: a frost mask (smooth, blue, snowless, low bump) turns off the dirt grain and discs. It adds rime mottle, sparse crystals and sun glints, all faded by screen size and zero mean.
 - Left-slope means: 3 m 165.3/177.4/180.1 -> 164.0/176.2/179.0, 20 m 164.6/174.8/178.9 -> 165.2/175.3/179.5. Shots in PunchyMilestones/R-31-frost.
 - Merges clean with main and with #698. Hold for the freeze (after 16:30).
+
+## 11-19 shared glint - DONE, PR #704
+- Rule 33: new Materials/Glint.hlsl (PunchyGlint, PunchyGlintLight, PunchyCellHash). Snow glitter (#698) and frost glints (#701) both call it with their own constants; TerrainSurface Grain uses the shared hash. Shader net -8 lines, compiles clean.
+- No look change: matched 1/3/20 m before/after at the IceCrag spot (frost left, snow right), ROI means within 0.4/255; remaining pixel diffs are swaying tufts and far rims. Shots in PunchyMilestones/shared-glint/.
