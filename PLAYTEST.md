@@ -333,3 +333,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #649 W-166/#336: grassland river banks show mud and stone patches with pebbles instead of a flat sand band (materials, 11-18)
 - #650 W-159 row 4/#322: no more long painted-on white river bars; broken foam clumps on strong rapids, glinting ridges on fast water (render-2, 11-18)
 - #641 W-153/#301: driftwood flood heaps on river bar heads and outer bends, about 60 m apart; Fauna_Fingerprint repinned 1AC019EC (banks, 11-18)
+- #651 W-181 r3 (#534): 33 climbable cliff kit shelves in natural caves, stand on them; world ledges feed the ledge-hang list (grade 2 in caves, grade 3 cliffs stay out of reach).
