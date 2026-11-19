@@ -68,3 +68,9 @@
 - Landmarks 120 B32C5306 and fingerprint 1AC019EC are unchanged. WorldTests 21/22: Setup_SpawnRainAndShot timed out in the full run and passes alone.
 - Shots: D:/Unity/PunchyMilestones/water/bay-mask/{before,after}/bay.png. I viewed both: the stair-stepped bay tongue east of the pond is gone, leaving one clean edge.
 - Gotcha: changing TerrainSource's struct size hangs the open editor on a Burst SharedStatic error. Commit first, then restart through EditorApplication.Exit.
+
+## #301 W-153 fall flanks (PR #659): banks/fall-flanks@19432b20
+- The ScarpDebris kit now also does falls: outcrops sit half-embedded up both flanks of every fall, with boulders at the lip and foot. They take the flank's steep-rock tone. Each fall gets 2 draw groups (big casts shadow, small does not), drawn by DetailPolicy.ScreenSize. Draw only, no collision.
+- Debris blocks went from 377 to 4963. Landmarks 120 B32C5306, fingerprint 1AC019EC, walls 11 and dry fall feet 0 are all unchanged. WorldTests 22/22.
+- Shots: D:/Unity/PunchyMilestones/water/fall-flanks/{before,after}/ at a small fall (#68, 4 m drop) and a tall one (#44, 26 m drop). I viewed the tall-wide pair: the straight cut beside the sheet is now broken by stacked outcrops. The rock reads a little darker than the sandstone around it.
+- Gotcha: a shot-list run can hold the editor main thread for minutes, so evals 504 in the meantime. shoot.sh now waits up to about 19 min before it leaves play mode.

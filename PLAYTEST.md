@@ -341,3 +341,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #656 W-166 (#336): river beds vary by flow: cobbles in riffles, sand on inner bends, silt in pools.
 - #658 W-181 r4 (#534): cave shelves look like the wall rock (chipped lip, taper); hang, shimmy and climb up a shelf.
 - #657 W-172 bay mask (#365): lake bays fill or stay dry whole; no stair-stepped water tongues beside ponds (-goto -2018,-1070).
+- #660 W-166 (#336): dry-sand shingle no longer a 17 cm checker; uses the shared rubble cells (11-18).

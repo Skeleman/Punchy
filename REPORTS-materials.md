@@ -368,3 +368,9 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Shots: D:/Unity/PunchyMilestones/river-bed2/ (riffle-pair.jpg, over-pair.jpg). Change is subtle: the water tint/opacity mutes the bed (Water.shader not mine).
 - Pre-existing ~0.5 m checker on riffle shallows/margin (in before too, likely caustics) - not mine.
 - BENCH-QUEUE: two 3x3 Voronoi (PunchyStoneRubble) passes per stony underwater bed pixel in TerrainSurface; BiomeData adds no noise.
+
+## materials/sand-checker (W-166, #336) - DONE df6c17a9
+- Cause: the shore wet band's shingle toned by Grain(p * 6) (axis-aligned 17 cm squares), from my wet-margin card. Found with screen-band toggles: the checker is not micro relief, not grain, not normals, and it does show in albedo.
+- Fix: shingle uses Stone.hlsl's PunchyStoneRubble (turned, hash-jittered cells, dark joints) on the shared path.
+- Shots: D:/Unity/PunchyMilestones/sand-checker/ (riffle-pair.jpg, crop-pair.jpg viewed). Both on current main (#655 water).
+- BENCH-QUEUE: one 3x3 Voronoi (PunchyStoneRubble) per shore-band pixel in TerrainSurface, replacing one integer hash.
