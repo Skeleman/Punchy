@@ -141,6 +141,8 @@ MonoBehaviour:
     Density: 20
   - Species: {fileID: 11400000, guid: 61c354ba10c8440b9ce034affd2f8689, type: 2}
     Density: 10
+  - Species: {fileID: 11400000, guid: f4e0030e8f294bda89925c7b7f4735cc, type: 2}
+    Density: 25
   - Species: {fileID: 11400000, guid: 7f9ea1c46076428aa1f4b509a75940ae, type: 2}
     Density: 30
   - Species: {fileID: 11400000, guid: fdf9a9b1d8f6491c9449b90d4fd43496, type: 2}

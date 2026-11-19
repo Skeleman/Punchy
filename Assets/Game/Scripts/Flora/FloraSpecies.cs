@@ -163,7 +163,8 @@ namespace Punchy.Flora
         [Tooltip("The bank top at the lip of an outer bend, over a drop to the water (a Boulder there is an undercut turf lip " +
                  "with roots hanging under it).")] Undercut,
         [Tooltip("Across a narrow fast riffle with low banks, one reach in many (a Boulder there is a row of 3-6 flat stones).")] Riffle,
-        [Tooltip("In a rapids reach, one spot in some (a Boulder there is a big rock the spray gives a foam tail).")] Splash
+        [Tooltip("In a rapids reach, one spot in some (a Boulder there is a big rock the spray gives a foam tail).")] Splash,
+        [Tooltip("A bar head or the waterline of a sharp outer bend, in one reach in a few (driftwood there is a heap of 4-7 logs).")] Heap
     }
 
     public enum FoliageFinish : byte
