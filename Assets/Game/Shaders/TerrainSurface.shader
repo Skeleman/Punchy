@@ -359,6 +359,16 @@ Shader "Punchy/Terrain Surface"
                 return (h >> 22) / 1023.0 - 0.5;
             }
 
+            half2 Specks(float2 g, float scale, float offset, half rarity)
+            {
+                float2 gt = float2(g.x * 0.866 - g.y * 0.5, g.x * 0.5 + g.y * 0.866) * scale + offset;
+                float2 sc = floor(gt);
+                half pick = Grain(sc + 5);
+                half r = 0.18 + Grain(sc + 13) * 0.14;
+                half speck = (1 - smoothstep(r, r + 0.1, length(gt - sc - 0.5 - Grain(sc + 9) * 0.3))) * (abs(pick) > rarity) * sign(pick);
+                return half2(speck, Grain(gt));
+            }
+
             // Grass ground's blade strokes: a turned, staggered lattice of short streaks (size: across, along), each its own tone.
             half BladeStrokes(float2 p, float angle, float2 size)
             {
@@ -616,19 +626,16 @@ Shader "Punchy/Terrain Surface"
                 // R-31: bare ground is speckled and grassy ground streaked, so the two differ by more than colour; every
                 // pattern fades from 4 to 2 pixels of its own size (DetailPolicy.ScreenSize) to the same average tone.
                 half bare = detailMask * (1 - rockFace) * (1 - input.extra.y);
-                half grainFine = saturate(pxmR / 37 * 0.5 - 1), grainCoarse = saturate(pxmR / 15 * 0.5 - 1);
-                [branch] if (bare * grainCoarse > 0.001)
+                half grainFine = saturate(pxmR / 37 * 0.5 - 1), grainCoarse = saturate(pxmR / 15 * 0.5 - 1), grainClod = saturate(pxmR / 4 * 0.5 - 1);
+                [branch] if (bare * grainClod > 0.001)
                 {
                     float2 gq[3] = { input.positionWS.zy, p, input.positionWS.xy };
                     half grain = 0;
                     [unroll] for (int gi = 0; gi < 3; gi++)
                     {
                         float2 g = gq[gi];
-                        float2 gt = float2(g.x * 0.866 - g.y * 0.5, g.x * 0.5 + g.y * 0.866) * 15 + 11.3;   // turned: no grid
-                        float2 sc = floor(gt);
-                        half pick = Grain(sc + 5);
-                        half speck = (1 - smoothstep(0.2, 0.3, length(gt - sc - 0.5 - Grain(sc + 9) * 0.3))) * (abs(pick) > 0.38) * sign(pick);
-                        grain += (Grain(g * 37) * 0.6 * grainFine + (Grain(gt) * 0.4 + speck * 0.6) * grainCoarse) * triW[gi];
+                        half2 fine = Specks(g, 15, 11.3, 0.38), clod = Specks(g, 4, 2.9, 0.22);
+                        grain += (Grain(g * 37) * 0.6 * grainFine + (fine.y * 0.4 + fine.x * 0.6) * grainCoarse + clod.x * 1.4 * grainClod) * triW[gi];
                     }
                     albedo *= 1 + grain * 0.5 * bare;
                 }
