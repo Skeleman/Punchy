@@ -683,7 +683,7 @@ Shader "Punchy/Terrain Surface"
                 half dryGloss = input.surface.a * (1 - crackOn * max(crackLine, 0.35 * crackTone));
                 surface.smoothness = lerp(lerp(dryGloss, max(dryGloss, 0.45), sheen), 0.92, puddle);
                 // (Wet stone brings its own shine below, in place of rain's sheen.)
-                surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle));
+                surface.smoothness = lerp(surface.smoothness, input.surface.a, stoneOn * stoneWet * (1 - puddle) * PunchyStoneSteepDamp(stoneN0));
                 surface.metallic = input.extra.x;
                 surface.occlusion = 1;
                 // ---- W-174 row 3: mouth collar band weight (world lane; begin) ----
