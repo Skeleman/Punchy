@@ -8928,3 +8928,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - x=-622: z 634/630 ground 54.6 under 56.2 water, z 626 55.8/56.2, z 622 dry. Water truth walls 4 -> 3 (pin updated), step 125, deep 0. LandmarkHash 120 B32C5306 unchanged. WorldTests 23/23.
 - Shot: PunchyMilestones/world/lake-gully/gully-after.png (before: world/walls-zero/lake-gully.png).
 - Next: StormShelterHouse tile play shot (b/fix-kit-tile only if no courses show).
+
+## 11-19 kit-tile check: BUG, fixed (PR #688, b/fix-kit-tile@c64d6dce)
+- Clay roofs read flat because Tile.hlsl faded the pantile rolls on half a unit through the wood fade, so they were gone by about 6 m. Mesh marks were right (Sonoran hall = Hall v0 ClayTile).
+- Fix: courses, units and seams fade on their whole period at 2-5 px. Tile.hlsl only.
+- Shots: world/kit-tile/hall0-5m-fixed.png, hall0-15m-fixed.png (before: door9-roof-play.png, sonoran-roof-5m.png).
+- Open: the roof kind comes from a hashed biome per variant, so desert towns get slate roofs (Hall v1/v3). Not changed.

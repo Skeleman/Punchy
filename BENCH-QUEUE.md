@@ -1256,3 +1256,5 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 world #685 (W-173 lake gully): BuildBayMask now floods up to 8 rounds instead of once. Please compare island bake time (the [bays] bake) main vs world/lake-gully@2699ffb2 when convenient.
 - 11-19 FYI #687 (W-181 r3 cascade pools): falls 140 -> 151 (more fall walls and spray emitters); pins sheet slopes 69/19, water truth tilt 15 / step 108; landmark hash unchanged.
 - 11-19 FYI #686 (W-182 bark): plated pine trunks do 2 extra cell lookups and ~7 noise taps up close (scale layer fades by screen size).
+
+- 11-19 world: b/fix-kit-tile@c64d6dce (PR #688): roof-cover details (Tile.hlsl) now stay drawn further out (2-5 px fades on whole periods). Please check flora frame cost in towns against main.
