@@ -8896,3 +8896,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - WorldTests 22/22. Fauna repinned 1F4C927C -> A9684863 (tent flora blob). LandmarkHash 120 B32C5306 and water truth unchanged.
 - Before/after at the goblin-camp poses: PunchyMilestones/world/kit-tent.
 - Next: Stall, then Inn/Smithy/Hall; surface wiring (#669, with a Tile slot) is its own row.
+
+## 11-19 W-173 kit-stall DONE (#672)
+- Stall poles and counter now solid (KitBox, W-67); three kit crates stacked beside the counter (rule 33).
+- Guy-rope summary removed (rule 35). Fingerprint unchanged, so no repin and no profiler FYI.
+- WorldTests 21/22: Place_Prop wharf fails only on repeat runs in one session (identical log line). Village density flaked once.
+- Shots: PunchyMilestones/world/kit-stall (before/after, wide and close).
