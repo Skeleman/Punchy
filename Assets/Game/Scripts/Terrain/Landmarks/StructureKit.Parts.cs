@@ -25,10 +25,6 @@ namespace Punchy.Terrain
         static void Put(List<KitPart> parts, KitPiece piece, KitMaterial m, Vector3 centre, Vector3 size, Quaternion rotation, bool solid) =>
             parts.Add(new KitPart { Piece = piece, Material = m, Centre = centre, Size = size, Rotation = rotation, Solid = solid });
 
-        /// <summary>
-        /// A wooden crate <paramref name="size"/> across centred on <paramref name="centre"/>: a boarded body, corner
-        /// battens and an overhanging lid, all turning with the crate.
-        /// </summary>
         internal static void Crate(List<KitPart> parts, Vector3 centre, float size, float yaw, bool solid, float pitch = 0f)
         {
             var q = Quaternion.Euler(pitch, yaw, 0f);

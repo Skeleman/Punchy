@@ -24,6 +24,43 @@ namespace Punchy.Terrain
             return parts;
         }
 
+        /// <summary>A long timber hall on a stone plinth, ridge along X, outer faces at x = ±<paramref name="half"/> and z = ±<paramref name="front"/>; the caller hangs the door.</summary>
+        public static List<KitPart> Hall(CultureTrim t, float half, float front, float plinth, float wall, float ridge)
+        {
+            var parts = new List<KitPart>();
+            const float eave = 0.9f, slab = 0.22f, steps = 5f;
+            Add(parts, KitPiece.Platform, KitMaterial.Stone, new Vector3(0f, plinth * 0.5f - 0.15f, 0f), new Vector3(half * 2f + 0.4f, plinth + 0.3f, front * 2f + 0.4f), 0f, true);
+            Add(parts, KitPiece.Platform, KitMaterial.Stone, new Vector3(0f, plinth * 0.29f, front + 0.75f), new Vector3(3.2f, plinth * 0.75f, 0.8f), 0f, true);
+            Add(parts, KitPiece.Wall, KitMaterial.Wood, new Vector3(0f, (plinth + wall) * 0.5f, 0f), new Vector3(half * 2f, wall - plinth, front * 2f), 0f, true);
+            var posts = Mathf.Max(2, Mathf.RoundToInt(half / 1.6f));
+            for (int k = 0; k <= posts; k++)
+                foreach (var z in new[] { -1f, 1f })
+                    Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(Mathf.Lerp(-half, half, k / (float)posts), (plinth + wall) * 0.5f, z * (front + 0.06f)), new Vector3(0.28f, wall - plinth, 0.2f), 0f, true);
+            Add(parts, KitPiece.Beam, KitMaterial.Trim, new Vector3(0f, wall - 0.12f, 0f), new Vector3(half * 2f + 0.12f, 0.25f, front * 2f + 0.12f), 0f, true);
+
+            var rise = ridge - wall;
+            var tan = rise / front;
+            var pitch = Mathf.Atan(tan) * Mathf.Rad2Deg;
+            var run = front + eave;
+            foreach (var side in new[] { -1f, 1f })
+                Add(parts, KitPiece.Roof, KitMaterial.Roof, new Vector3(0f, wall + rise * 0.5f - eave * tan * 0.5f + slab, side * run * 0.5f),
+                    new Vector3(half * 2f + 1.2f, slab, run / Mathf.Cos(pitch * Mathf.Deg2Rad)), 0f, true, side * pitch);
+            Add(parts, KitPiece.Trim, KitMaterial.Roof, new Vector3(0f, ridge + slab * 1.2f, 0f), new Vector3(half * 2f + 1.3f, 0.22f, 0.3f), 0f, false);
+            foreach (var x in new[] { -1f, 1f })
+            {
+                for (int k = 0; k < steps; k++)
+                    Add(parts, KitPiece.Wall, KitMaterial.Wood, new Vector3(x * (half - Thick * 0.5f), wall + (k + 0.5f) * rise / steps, 0f),
+                        new Vector3(Thick, rise / steps + 0.01f, front * 2f * (1f - (k + 0.5f) / steps)), 0f, true);
+                foreach (var z in new[] { -1f, 1f })
+                {
+                    var a = new Vector3(x * (half + 0.6f), wall + rise * 0.55f, z * front * 0.55f);
+                    var d = new Vector3(x * (half + 0.6f), ridge + 1.1f, -z * 0.5f) - a;
+                    Add(parts, KitPiece.Beam, KitMaterial.Trim, a + d * 0.5f, new Vector3(0.18f, d.magnitude, 0.22f), 0f, true, Mathf.Atan2(d.z, d.y) * Mathf.Rad2Deg);
+                }
+            }
+            return parts;
+        }
+
         /// <summary>A round thatched hut, <paramref name="radius"/> to the wall face, its porch door (width, height) facing +Z at radius * 1.05.</summary>
         public static List<KitPart> RoundHut(uint seed, CultureTrim t, float radius, float wall, float height, float ladderPick, bool windows, out Vector2 door)
         {
