@@ -8881,3 +8881,6 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Kit fix: quoins stood buried inside the wall and now stand out past it, so every quoined kit house changes.
 - Tests: WorldTests 22/22. Fauna fingerprint repinned to 1F4C927C. Landmarks 120 B32C5306 unchanged. No StoneHouse is placed now, so before/after shots of v0-3 come from Model Lab: PunchyMilestones/world/kit-stonehouse.
 - Next: Hut + MudHut (a new ring wall and cone roof kit part). Materials' house surfaces get wired in once they merge.
+
+- World W-173 placement count (seed world, probe, 6 towns, 388 plots): Tent 24, Hut+MudHut 8 (7 goblin MudHuts, 1 hermit Hut), Stall 5, Inn 3, Smithy 3, Hall+StoneHall 3, Tower 2, Stable 1, OgreLodge 1, Forum 1, StoneHouse 0.
+- New order: Hut+MudHut (row 2, now), Inn, Hall+StoneHall, Tower, Stable, OgreLodge, Forum. Tent, Stall and Smithy are already library-part units from W-175, so they only get trim checks at the end.
