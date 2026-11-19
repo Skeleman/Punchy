@@ -109,7 +109,6 @@ Land later: player/p46 fb9bc62c (P-46 row 2, temple sockets out of walls + pin) 
 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 - render/water-seeps (W-142 row 3, #262): PR #699, rule-35 trim + moss texture pending.
-- banks/water-pits (W-181 row 2, #301): banks lane WIP, PR when verified.
 | Branch | Card | Owner | Note |
 |---|---|---|---|
 | render/cloud-e | R-35 r3 E #333 | render-2 | Built 25fbc044; waits on BENCH job 111 and shots. |
@@ -135,6 +134,7 @@ Land later: player/p46 fb9bc62c (P-46 row 2, temple sockets out of walls + pin) 
 b/bench, b/bench-lod, b/bench-stress, b/bench-job84, b/bench-job92b1.
 
 ## Stale, archive once Zach OKs
+- banks/water-pits (PR #689 closed; replaced by pond bowls #693, its drain pass would undo them).
 - b/clouds (one-line header comment, 11-17; nothing to land).
 tmp/animal-slot6, test/playtest-1108, render/ssao-source, rc/v0.10.0, rc/v0.14.0.
 
