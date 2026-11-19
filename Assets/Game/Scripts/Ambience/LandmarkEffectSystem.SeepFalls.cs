@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 
 namespace Punchy.Ambience
 {
-    /// <summary>Each seep's mini fall: a narrow ribbon of the water material's lava hugging the rock below its lip, built in the fall curtains' vertex (FallCurtain) so the real lava look draws it.</summary>
+    /// <summary>Each seep's mini fall: a narrow ribbon of the water material (its lava, or the water there) hugging the rock below its lip, built in the fall curtains' vertex (FallCurtain) so the real lava look draws it.</summary>
     public partial class LandmarkEffectSystem
     {
         const int SeepColumns = 4;
@@ -30,9 +30,13 @@ namespace Punchy.Ambience
                 var rows = math.clamp((int)math.ceil(Punchy.Settings.DetailPolicy.ScreenSize(s.Drop, distance, perMetre) * detail / FallCurtain.RowPixels), 3, 16);
                 // (Built per seep cell, so the fade steps every few metres across the last quarter of the reach.)
                 var fade = 1f - math.smoothstep(0.75f, 1f, distance / math.max(range, 1f));
-                SeepRibbon(source, s, rows, fade);
+                var look = SeepLavaLook;
+                var glow = new float2(0f, 1f);
+                if (s.Kind == SeepKind.Water)
+                    look = WaterSeepLook(source, s, out glow);
+                SeepRibbon(source, s, rows, fade, look, glow);
                 if (s.UnderRock)
-                    SeepPuddle(s, fade);
+                    SeepPuddle(s, fade, look, glow);
             }
             if (seepMesh == null)
             {
@@ -51,11 +55,13 @@ namespace Punchy.Ambience
             seepMesh.RecalculateBounds();
         }
 
-        void SeepRibbon(in TerrainSource source, in SeepSpot s, int rows, float fade)
+        void SeepRibbon(in TerrainSource source, in SeepSpot s, int rows, float fade, float4 look, float2 glow)
         {
             var dir = math.normalizesafe(s.Run, new float2(1f, 0f));
             var across = new float3(-dir.y, 0f, dir.x);
             var start = seepVertices.Count;
+            // A water trickle is a thin glassy film: slow and shallow, or the fall shading turns it to a white rope.
+            var data = s.Kind == SeepKind.Water ? new float4(dir * 0.05f, 0.15f, 0f) : new float4(dir * 0.8f, 1.2f, 0f);
             for (int r = 0; r <= rows; r++)
             {
                 var t = r / (float)rows;
@@ -78,9 +84,9 @@ namespace Punchy.Ambience
                     seepVertices.Add(new FallCurtain.Vertex
                     {
                         Position = centre + across * ((u - 0.5f) * width + wander),
-                        Data = new float4(dir * 0.8f, 1.2f, 0f),
-                        Look = SeepLavaLook,
-                        Glow = new float2(0f, 1f),
+                        Data = data,
+                        Look = look,
+                        Glow = glow,
                         Fall = new float2(1f, FallCurtain.CurtainMin + (1f - FallCurtain.CurtainMin) * edge * along * fade)
                     });
                 }
@@ -94,7 +100,7 @@ namespace Punchy.Ambience
                 }
         }
 
-        void SeepPuddle(in SeepSpot s, float fade)
+        void SeepPuddle(in SeepSpot s, float fade, float4 look, float2 glow)
         {
             const int sides = 8;
             var foot = s.Lip + new float3(s.Run.x, -1f, s.Run.y) * s.Drop + new float3(0f, 0.03f, 0f);
@@ -102,7 +108,7 @@ namespace Punchy.Ambience
             var centre = seepVertices.Count;
             seepVertices.Add(new FallCurtain.Vertex
             {
-                Position = foot, Data = new float4(0f, 0f, 0.2f, 0f), Look = SeepLavaLook, Glow = new float2(0f, 1f),
+                Position = foot, Data = new float4(0f, 0f, 0.2f, 0f), Look = look, Glow = glow,
                 Fall = new float2(0f, FallCurtain.CurtainMin + (1f - FallCurtain.CurtainMin) * fade)
             });
             for (int k = 0; k < sides; k++)
@@ -111,8 +117,8 @@ namespace Punchy.Ambience
                 var reach = radius * (0.7f + 0.5f * Wobble(s.Hash ^ 0xA7u, k * 0.9f));
                 seepVertices.Add(new FallCurtain.Vertex
                 {
-                    Position = foot + new float3(math.cos(a), 0f, math.sin(a)) * reach, Data = new float4(0f, 0f, 0.2f, 0f), Look = SeepLavaLook,
-                    Glow = new float2(0f, 1f), Fall = new float2(0f, FallCurtain.CurtainMin)
+                    Position = foot + new float3(math.cos(a), 0f, math.sin(a)) * reach, Data = new float4(0f, 0f, 0.2f, 0f), Look = look,
+                    Glow = glow, Fall = new float2(0f, FallCurtain.CurtainMin)
                 });
                 seepIndices.Add(centre); seepIndices.Add(centre + 1 + (k + 1) % sides); seepIndices.Add(centre + 1 + k);
             }

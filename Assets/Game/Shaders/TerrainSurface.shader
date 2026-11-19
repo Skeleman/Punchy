@@ -50,6 +50,7 @@ Shader "Punchy/Terrain Surface"
             #define PUNCHY_SURFACE_GLOW_WORLD
             #define PUNCHY_SURFACE_REAL_LIGHTS
             #include "Surface.hlsl"
+            #include "SeepStreaks.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
             // The shared fine detail CaveSystem makes (rg a normal, b a height): grain on rock faces up close.
@@ -499,6 +500,8 @@ Shader "Punchy/Terrain Surface"
                     shore = smoothstep(shoreEdge - 0.05, shoreEdge + 0.05, saturate(-input.extra.w)) * (1 - saturate(input.extra.z * 2));
                 }
                 shore = max(shore, PunchyFallWet(input.positionWS) * (1 - saturate(input.extra.z * 2)));   // (R-21: fall spray)
+                half seepMoss;
+                half seep = PunchySeepWet(input.positionWS, seepMoss) * (1 - saturate(input.extra.z * 2));
                 // Item 22: only level ground pools (under about 10 degrees; the vertex normal, so fine relief can't
                 // tilt a flat into a slope or a slope into a flat).
                 half flatness = smoothstep(0.975, 0.99, normalize(input.normalWS).y);
@@ -519,7 +522,7 @@ Shader "Punchy/Terrain Surface"
                     float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
                     puddle *= saturate((2.3 * ppm / max(distance, 0.01) - 2) / 2);
                 }
-                half sheen = max(wet * (1 - 0.85 * porosity), shore) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet * (1 - 0.85 * porosity), max(shore, seep)) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = 0.2 * (1 - puddle);   // (the octaves' fades are already in micro)
                 // Stronger or uncapped, the summed octaves tilt away from the sun into sky-lit spots on wet banks (#666).
@@ -720,7 +723,7 @@ Shader "Punchy/Terrain Surface"
                 {
                     float ppmS = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
                     stoneOn = rockFace;
-                    half realWet = max(wet, shore);
+                    half realWet = max(max(wet, shore), seep);
                     stoneWet = PunchyStoneWetness(realWet);
                     half3 stoneAlbedo = albedo, stoneN = normalWS;
                     PunchyStoneSurface(input.positionWS, max(distance, 0.01) / ppmS, stoneWet, realWet, stoneAlbedo, stoneN, stoneCrevice);
@@ -762,6 +765,7 @@ Shader "Punchy/Terrain Surface"
                     albedo = lerp(albedo, shingle, bandMix * shore * (1 - input.extra.y));
                 }
                 albedo *= lerp(1, 0.55, shore * (1 - 0.4 * input.extra.y));
+                albedo = lerp(albedo * lerp(1, 0.45, seep), half3(0.12, 0.22, 0.05), seepMoss);
                 surface.albedo = lerp(albedo, albedo * 0.6, puddle);
                 half dryGloss = input.surface.a * (1 - crackOn * max(crackLine, 0.35 * crackTone));
                 surface.smoothness = lerp(lerp(dryGloss, max(dryGloss, 0.45), sheen), 0.92, puddle);
