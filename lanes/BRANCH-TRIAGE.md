@@ -22,6 +22,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - world/fall-pools -> #633
 - materials/driftwood -> #634
 - world/fall-notch -> #635
+- banks/stepping-stones -> #636
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
 - banks/overhangs -> #614

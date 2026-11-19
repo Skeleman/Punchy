@@ -318,3 +318,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #633 #301: every river fall lands in a carved plunge pool (dry fall feet 120 -> 0); landmarks 120 E811A278 (lone inn moves 6 m, new cave entrance near -2239,-428).
 - #634 W-166 (#336): driftwood bleaches silver-grey; trunks and logs in the bank wet band get a dark wet line. Look at log ends at the water.
 - #635 #269 + #301: cliffs beside waterfalls start late, lean and pause on ledges; uneven pool rims, talus at the wall foot. Landmark pin 120 B32C5306.
+- #636 #301: stepping-stone rows across narrow riffles, splash boulders with foam tails in rapids. Fauna pin 785BB213.

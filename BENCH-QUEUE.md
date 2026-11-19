@@ -1218,3 +1218,4 @@ CaveSystem MeshJob's OntoRing now solves BuildChunkMeshJob.MouthFoot for each wa
 - 11-18 banks: banks/river-logs@ae15d970: RiverSampling.Query adds island work (Isle blend, a 5-point Lake check when Isle > 0) and Consider calls Isle per segment; report-only terrain chunk build time near the island at -1427,-1323, main vs branch.
 
 - materials/driftwood: Flora.shader adds one PunchyValueNoise per part-0 fragment of wet-band trunks/logs; check flora frame cost at a river.
+- 11-18 banks: banks/stepping-stones@9aa8dbde: two new flora species in every land biome raise each layer 1-2 cell's density bound (more cells run the full fit). Riffle/Splash spots sample the river (WetEdge steps, SampleGround) per candidate cell near rapids; the spray adds up to 2 plumes per nearby splash boulder. Check flora chunk build time and the effects pass near -1396,585, main vs branch.
