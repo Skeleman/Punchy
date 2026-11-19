@@ -144,6 +144,7 @@ namespace Punchy.Terrain
             }
             ClearWaterRegions(true);
             DestroyFarMeshes();
+            DestroyIsland();
             foreach (var pooled in meshPool)
                 Object.Destroy(pooled.mesh);
             loaded.Clear();
@@ -210,6 +211,7 @@ namespace Punchy.Terrain
                 ? Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail : -1f);
             RefreshWaterRegions(focus, config.ChunkSize);
             UpdateFarRing(config, source, focus);
+            UpdateFarIsland(config, source, focus);
 
             // The focus's speed since the last batch started (batches can be frames apart), smoothed over about half a
             // second (a teleport reads as briefly fast).
@@ -316,10 +318,11 @@ namespace Punchy.Terrain
             }
             config.Lod0Distance *= appliedView;
             config.ViewRadiusChunks = math.max(2, (int)math.round(config.ViewRadiusChunks * appliedView));
-            // The camera reaches past the farthest chunk, or the far ring's farthest tile, and never short of its own far
-            // plane (at View 1 that already covers the disc). R-15: set from its own plane each time, here only, so it
-            // comes back in when the View or the ring goes down (it was only ever pushed out).
+            // The camera reaches past the farthest chunk, the far ring's farthest tile or the far island's sea edge, and never
+            // short of its own far plane (at View 1 that already covers the disc). R-15: set from its own plane each time,
+            // here only, so it comes back in when the View or the ring goes down (it was only ever pushed out).
             var reach = math.max((config.ViewRadiusChunks + 1.5f) * config.ChunkSize, ApplyFarRing(config, appliedView));
+            reach = math.max(reach, ApplyFarIsland());
             var cam = Camera.main;
             if (cam != farCamera)
             {
@@ -339,6 +342,7 @@ namespace Punchy.Terrain
                 CancelBuild();
                 UnloadAll();
                 UnloadAllFarTiles();
+                UnloadIsland();
                 var material = config.Material.Value;
                 materialId = material != null ? graphics.RegisterMaterial(material) : BatchMaterialID.Null;
                 if (material == null)
@@ -350,6 +354,7 @@ namespace Punchy.Terrain
             {
                 CancelBuild();
                 FlagFarTilesForRebuild();
+                UnloadIsland();
                 // Same layout, new shape: flag every chunk for rebuild. Nearest ones are rebuilt first.
                 scratchCoords.Clear();
                 scratchCoords.AddRange(loaded.Keys);
@@ -672,6 +677,7 @@ namespace Punchy.Terrain
                 if (region.Entity != Entity.Null && region.Merged)
                     Sort(region.Entity, true);
             SortFarTiles(Sort);
+            SortIslandTiles(Sort);
             EntityManager.AddComponent<DisableRendering>(toHide.AsArray());
             EntityManager.RemoveComponent<DisableRendering>(toShow.AsArray());
             toHide.Dispose();
