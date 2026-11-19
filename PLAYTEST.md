@@ -354,3 +354,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - #668 rivers (#301): waterfall debris blocks sit on the ground (no floating slabs); wet stones at small falls' lips and feet.
 - #670 W-173 (#399): tents get guy ropes and stakes (shared library part).
 - #671 rivers (#301): no caustic grid on bright beds, no rainbow film at grazing angles, no cross-hatched rock wakes.
+- #672 W-173 (#399): market stalls are solid (can't walk through poles/counter) and have stacked crates.

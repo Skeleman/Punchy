@@ -57,6 +57,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - banks/fall-ground -> #668
 - world/kit-tent -> #670
 - render/water-film -> #671
+- world/kit-stall -> #672
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
