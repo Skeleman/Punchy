@@ -71,6 +71,15 @@ namespace Punchy.Terrain
         Copper = 1
     }
 
+    /// <summary>The kinds of thatch (W-173): Library.hlsl's thatch kind, drawn by Materials/Thatch.hlsl (PunchyThatchKind).</summary>
+    public enum ThatchKind
+    {
+        Straw = 0,
+        Reed = 1,
+        Heather = 2,
+        Palm = 3
+    }
+
     // Rides on the bark mark in 0.002 steps, under the wood band; values match the defines in Bark.hlsl.
     public enum BarkKind
     {
@@ -186,6 +195,31 @@ namespace Punchy.Terrain
             StoneKind.Shale => new Vector3(0.84f, 0.85f, 0.88f),
             StoneKind.Tuff => new Vector3(1.05f, 1f, 0.9f),
             _ => Vector3.one
+        };
+
+        /// <summary>How a thatch kind tints a roof's straw colour (1 = as built), as StoneTint does rock.</summary>
+        public static Vector3 ThatchTint(ThatchKind kind) => kind switch
+        {
+            ThatchKind.Reed => new Vector3(0.9f, 0.86f, 0.74f),
+            ThatchKind.Heather => new Vector3(0.6f, 0.5f, 0.48f),
+            ThatchKind.Palm => new Vector3(1.02f, 0.97f, 0.78f),
+            _ => Vector3.one
+        };
+
+        /// <summary>The thatch a folk roofs with, else the one its biome grows: reed in the wet, heather in the cold,
+        /// palm in the dry.</summary>
+        public static ThatchKind ThatchFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.MarshFolk => ThatchKind.Reed,
+            FolkCulture.Dwarf or FolkCulture.SnowFolk => ThatchKind.Heather,
+            FolkCulture.FishFolk or FolkCulture.SeaFolk => ThatchKind.Palm,
+            _ => biome switch
+            {
+                BiomeFamily.Wet => ThatchKind.Reed,
+                BiomeFamily.Cold => ThatchKind.Heather,
+                BiomeFamily.Arid => ThatchKind.Palm,
+                _ => ThatchKind.Straw
+            }
         };
 
         public static uint WetLineSteps(in GroundSample ground, float seaLevel)

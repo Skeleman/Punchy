@@ -4,7 +4,7 @@
 // W-166 row 4: one call into the material library for shaders that carry a family per vertex instead of their own
 // decode (Colossus.shader: colossi, the salt tower; later the items on the ground). The family numbers are
 // MaterialFamily's (MaterialLibrary.cs); the kind is the family's own row (WoodKind for wood; for stone 0 natural rock,
-// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide; for wood, plus 16 x the grain's axis when it isn't up). Each family's look comes from its include, so an upgrade there
+// 1 cut courses, 2 rubble; for cloth 0 linen, 1 hide; for thatch the ThatchKind; for wood, plus 16 x the grain's axis when it isn't up). Each family's look comes from its include, so an upgrade there
 // reaches these callers too (rule 33). Every family fades its detail by its own on-screen size (rules 20, 25).
 // Needs Sky.hlsl (the noise) first, and _PunchyCaveDetail / sampler_PunchyCaveDetail declared (stone reads them).
 // p, n and v are in the caller's pattern frame: for a body that moves, its own scaled object space, so the pattern
@@ -65,7 +65,7 @@ half3 PunchyLibraryAlbedo(int family, int kind, float3 p, inout half3 n, float3 
             }
             break;
         case PUNCHY_FAMILY_THATCH:
-            result = albedo * PunchyThatch(p, n, footprint);
+            result = albedo * PunchyThatchKind(p, n, footprint, kind);
             break;
         case PUNCHY_FAMILY_PLASTER:
             result = albedo * PunchyPlaster(p, n, footprint, r);
