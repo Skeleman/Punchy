@@ -1047,3 +1047,8 @@ with main d95e7ff1); compiles, no suite run yet.
 - New partial LandmarkEffectSystem.Seeps.cs: hashed spots (no world/bake files). Steep vent-biome rock plus lava-tube walls (main has no lava pools, so the cave seeps run along tube nodes). Beads go through the Sparks family (new seep branch in BuildPlume, age 8..9). The 6 nearest spots ask for a Fire glow (40 had taken all 16 slots). Range is by screen size, capped at the 40 nearest. SeepKind is ready for a water trickle.
 - Shots PunchyMilestones/lava-seep: cave-before/after, slope-before/after (viewed). Before shots taken with the seeps switched off at runtime.
 - WorldTests 21/22: Village_CreatureDensity 52 (known flaky), passed alone. No fingerprint change. BENCH line added.
+
+## 11-19 render-2: W-142 seep streak (#262 follow-up) - PR #684
+- render/seep-streak@16e34e80. Particle 0 of each seep plume is a thin tapered glowing streak from the lip down the drop, so the trickle reads from about 20 m; beads take particles 1+. Seeps.cs summaries cut to reason lines (rule 35).
+- Shots PunchyMilestones/seep-streak: slope-before (the #683 shot) / slope-after at 4 m, far-before / far-after at 20 m (viewed).
+- WorldTests 23/23. Cost: one more quad per seep; BENCH line folded into the #683 run.
