@@ -480,3 +480,9 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Matched shots at 3 m and 20 m in PunchyMilestones/R-31-snow-grain; means 173.9->173.6 (3 m), 180.3->180.6 (20 m).
 - The pale blue tundra slope near the camera has snow near 0, so it's unchanged (still has clods); full snow carries the new detail.
 - Hold the merge until after the 16:30 freeze. BENCH FYI added.
+
+## 11-19 R-31 frost - DONE, PR #701
+- Cause: the pale blue tundra slope is the Glacier biome's GlacierIce slope layer (over 14 deg: smoothness 0.85, snow 0). The data is as designed, so the fix is shader only.
+- TerrainSurface.shader: a frost mask (smooth, blue, snowless, low bump) turns off the dirt grain and discs. It adds rime mottle, sparse crystals and sun glints, all faded by screen size and zero mean.
+- Left-slope means: 3 m 165.3/177.4/180.1 -> 164.0/176.2/179.0, 20 m 164.6/174.8/178.9 -> 165.2/175.3/179.5. Shots in PunchyMilestones/R-31-frost.
+- Merges clean with main and with #698. Hold for the freeze (after 16:30).

@@ -383,3 +383,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #698 R-31 (#325): snow grain (wind ripples, sastrugi, blue-grey hollows, sun glitter); dirt clods kept off snow.
 - 11-19 #700 W-154 row 3 (#303): swamp ponds as toxic pools (yellow-green, froth, banded crust rim, dry bank, dead reeds, bleached sticks); fauna pin 01766C0A.
 - 11-19 #699 W-142 row 3 (#262): water seeps (thin trickle ribbons on river, lake, scarp and cave faces) with wet rock and shared moss sheet.
+- 11-19 #701 R-31 (#325): rime frost on snowless glacier ice (mottle, crystals, sun glints; no dirt grain).
