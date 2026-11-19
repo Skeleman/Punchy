@@ -69,8 +69,8 @@
 - Shots: D:/Unity/PunchyMilestones/water/bay-mask/{before,after}/bay.png. I viewed both: the stair-stepped bay tongue east of the pond is gone, leaving one clean edge.
 - Gotcha: changing TerrainSource's struct size hangs the open editor on a Burst SharedStatic error. Commit first, then restart through EditorApplication.Exit.
 
-## #301 W-153 fall flanks (PR #659): banks/fall-flanks@19432b20
-- The ScarpDebris kit now also does falls: outcrops sit half-embedded up both flanks of every fall, with boulders at the lip and foot. They take the flank's steep-rock tone. Each fall gets 2 draw groups (big casts shadow, small does not), drawn by DetailPolicy.ScreenSize. Draw only, no collision.
-- Debris blocks went from 377 to 4963. Landmarks 120 B32C5306, fingerprint 1AC019EC, walls 11 and dry fall feet 0 are all unchanged. WorldTests 22/22.
-- Shots: D:/Unity/PunchyMilestones/water/fall-flanks/{before,after}/ at a small fall (#68, 4 m drop) and a tall one (#44, 26 m drop). I viewed the tall-wide pair: the straight cut beside the sheet is now broken by stacked outcrops. The rock reads a little darker than the sandstone around it.
-- Gotcha: a shot-list run can hold the editor main thread for minutes, so evals 504 in the meantime. shoot.sh now waits up to about 19 min before it leaves play mode.
+## #301 W-153 fall flanks (PR #659): banks/fall-flanks@00c4fbd1 (redo)
+- ScarpDebris now handles falls too. Each side of a fall gets a few big ledged blocks with 1-3 small stones under them, plus single small stones. Most sit near the lip and the foot, with gaps mid-face and sideways scatter, so they never form a column. There is a boulder at the lip and one at the foot. 2 draw groups per fall, LOD by DetailPolicy.ScreenSize, draw only.
+- Look: a new ScarpBlock.Own weight gives the blocks the face's own rock (tone and strata, sandstone at the tall fall) with no moss and lighter grime. The gloss came from PunchyFallWet: its band reaches 3 m either side of the sheet. Blocks now sit outside that band except near the foot, so only stones in the spray look wet. No shader change.
+- Debris blocks: 377 on main, 4963 in the first pass, 1111 now. Landmarks 120 B32C5306, fingerprint 1AC019EC, walls 11 and dry fall feet 0 are all unchanged. WorldTests 22/22.
+- Shots in D:/Unity/PunchyMilestones/water/fall-flanks/{before,after}/. I viewed the tall-wide and small-wide pairs. At the tall fall, sandstone ledges now break the cut with no bands. At the small fall the change is subtle: a few stones near the lip.
