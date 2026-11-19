@@ -374,3 +374,25 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Fix: shingle uses Stone.hlsl's PunchyStoneRubble (turned, hash-jittered cells, dark joints) on the shared path.
 - Shots: D:/Unity/PunchyMilestones/sand-checker/ (riffle-pair.jpg, crop-pair.jpg viewed). Both on current main (#655 water).
 - BENCH-QUEUE: one 3x3 Voronoi (PunchyStoneRubble) per shore-band pixel in TerrainSurface, replacing one integer hash.
+
+## materials/river-audit (W-166) - BLOCKED 11-18 23:50
+- Scan (TerrainSource.SampleGround, +-12 km grid): no river cell in any arid biome (Dunes, Sonoran, SaltFlat, MesaCanyonlands, GlassDesert; River mask max 0.00 with weight >= 0.5, and none >= 0.5 touching them at >= 0.25 weight). The desert shots cannot exist on this layout; I would use Ashlands (-1200,-1440) as the dry stand-in.
+- Bank poses picked: temperate -60,2940; FoggyMarsh -1680,-120; PoisonSwamp -60,300; Ashlands -1200,-1440 (list in PunchyMilestones/river-audit/shots.txt, mid 45 m + close 12 m).
+- Blocker: editor 98392 wedged in "Compiling Scripts" after leaving play mode. Log: Burst "Unable to create a SharedStatic for this key ... the editor needs to be restarted", plus Hub IPC write time-outs. Eval times out, so EditorApplication.Exit cannot run; per the rule I have not killed it. Needs a restart (Zach or the supervisor). No shots, no code changes; the branch is clean at 9d7eb6cf.
+
+## river-audit: code read while the editor is down (risks for the shots to confirm)
+Note: Ashlands is the dry stand-in. These are code risks only; nothing seen yet.
+1. Flat colour / wrong hue, all non-temperate biomes (BiomeData.RiverBed): bed sand, point-bar sand and silt are fixed beige/brown constants; only the gravel follows the biome. Likely look: beige sand in Ashlands (ash ground) and in PoisonSwamp/FoggyMarsh (dark mud), with a hard hue jump at the waterline. Top suspect. The fix belongs in BiomeData, which is outside my strict list, so I'll ask before editing it.
+2. Seam, all biomes (TerrainSurface ~612): bedStony gates on `-extra.w > 0.999`, a hard step on a per-vertex value. So the cobble/plain-bed edge should follow triangle edges near the waterline, and may jump at chunk LOD borders. A shader-only fix (smoothstep 0.97..1) is in my files.
+3. Flat colour at mid range under water (TerrainSurface 597-630): cobbles fade out by screen size, and grain is gone by 22 m. Past that, the non-stony bed is the vertex colour plus micro only, so 20-60 m shots may show smooth flat patches. Worst in temperate clear water. Swamp murk probably hides it.
+4. Flat stripe on the bank, Ashlands and swamps (TerrainSurface 721-732): the shore band is albedo*0.55 everywhere. On dark ash it goes near-black. The shingle greys toward luma*1.35, which can look like foreign grey gravel in the marsh. bandMix patches are about 5 m, so the band may still read as an even stripe at mid range.
+5. Gloss, all biomes: the shore sheen is max(dryGloss, 0.45) at full strength out to 120 m. Expect a uniform glossy ribbon on the banks at mid range, and stronger on matte ash.
+Plan once the editor is back: shoot the list in D:/Unity/PunchyMilestones/river-audit/shots.txt and confirm or drop each risk. If 1 is the worst, I'll ask before touching BiomeData; otherwise I'll fix 2 or 4 in TerrainSurface.
+
+## river-audit: shots 11-19 (D:/Unity/PunchyMilestones/river-audit/before/sheet.jpg; temperate, FoggyMarsh, PoisonSwamp, Ashlands as the dry biome)
+3 worst material reads:
+1. Caustic web looks like mud cracks or paving on light beds (Ashlands close, also temperate shallows). In a still frame the 0.45 m Voronoi cells (Water.shader, caustic block ~1223-1248) read as a fixed polygon grid of tan lines. It is the strongest wrong read on the beige beds. Water.shader is read-only for me, so this needs an ask or the water owner.
+2. Flat colour on the swamp mud banks (PoisonSwamp mid foreground, FoggyMarsh close): smooth brown slopes with no grain or mottling at 10-30 m. This one is in TerrainSurface (bare-ground variation fades too soon or is too weak on dark mud), so it's my next fix.
+3. The beige bed and bank sand ignores the biome (BiomeData.RiverBed constants): a tan band along the banks and bed in Ashlands and the swamps (code risk 1 confirmed). Fixing it means editing BiomeData, so it needs an ask.
+Also: the FoggyMarsh mid pose is blocked by a canopy (to reshoot), and the marsh water has dense white streak flecks (Water.shader, for the water owner).
+Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing that cracks caused read 1. The crop-pair (river-audit/crop-pair.jpg) shows the same web, so it is the caustics. No commit.

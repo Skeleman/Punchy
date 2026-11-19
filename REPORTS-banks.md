@@ -74,3 +74,7 @@
 - Look: a new ScarpBlock.Own weight gives the blocks the face's own rock (tone and strata, sandstone at the tall fall) with no moss and lighter grime. The gloss came from PunchyFallWet: its band reaches 3 m either side of the sheet. Blocks now sit outside that band except near the foot, so only stones in the spray look wet. No shader change.
 - Debris blocks: 377 on main, 4963 in the first pass, 1111 now. Landmarks 120 B32C5306, fingerprint 1AC019EC, walls 11 and dry fall feet 0 are all unchanged. WorldTests 22/22.
 - Shots in D:/Unity/PunchyMilestones/water/fall-flanks/{before,after}/. I viewed the tall-wide and small-wide pairs. At the tall fall, sandstone ledges now break the cut with no bands. At the small fall the change is subtle: a few stones near the lip.
+
+## banks/fall-ground (WIP)
+- Blocked: the render-tree editor (PID 288352) hung on exit after the W-153 tests and holds the lockfile. Code for the fix is written but not compiled. I need someone to close that editor, or an OK for a forced stop.
+- I waited 20 minutes and the editor was still hung. I pushed the uncompiled code as WIP commit 587ac208 on banks/fall-ground. The shot folder water/fall-ground is ready. Once the editor is freed I resume with a baseline probe and before-shots on the main code, then the after run.
