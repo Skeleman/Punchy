@@ -382,3 +382,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 Released v0.17.0 (https://github.com/Skeleman/Punchy/releases/tag/v0.17.0), smoke clean ~100 fps; checklist release/checklist-v0.17.md.
 - 11-19 #698 R-31 (#325): snow grain (wind ripples, sastrugi, blue-grey hollows, sun glitter); dirt clods kept off snow.
 - 11-19 #700 W-154 row 3 (#303): swamp ponds as toxic pools (yellow-green, froth, banded crust rim, dry bank, dead reeds, bleached sticks); fauna pin 01766C0A.
+- 11-19 #699 W-142 row 3 (#262): water seeps (thin trickle ribbons on river, lake, scarp and cave faces) with wet rock and shared moss sheet.

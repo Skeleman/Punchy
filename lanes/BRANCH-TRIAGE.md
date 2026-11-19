@@ -84,6 +84,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - release/v0.17.0 -> #697
 - materials/r31-snow-grain -> #698
 - banks/toxic-pools -> #700
+- render/water-seeps -> #699
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
@@ -108,7 +109,6 @@ world-pack #407, swimmer-splash #408, render/playtest-1114 #409 (R-38 rows 0-4; 
 Land later: player/p46 fb9bc62c (P-46 row 2, temple sockets out of walls + pin) is local only, not pushed, and conflicts with main. The fishing lane rebases and pushes it when resumed.
 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
-- render/water-seeps (W-142 row 3, #262): PR #699, rule-35 trim + moss texture pending.
 | Branch | Card | Owner | Note |
 |---|---|---|---|
 | render/cloud-e | R-35 r3 E #333 | render-2 | Built 25fbc044; waits on BENCH job 111 and shots. |
