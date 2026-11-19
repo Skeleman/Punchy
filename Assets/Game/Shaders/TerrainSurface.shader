@@ -476,10 +476,12 @@ Shader "Punchy/Terrain Surface"
                 // stores it as a negative skirt drop (surface vertices leave that channel 0; skirts are positive).
                 half shore = 0;
                 [branch] if (input.extra.w < -0.001)
-                    // (W-43b: a broad wander as well as the fine one, so the band's edge breaks up along a whole reach.)
-                    shore = smoothstep(0.2, 0.75, saturate(-input.extra.w) + (PunchyValueNoise(p * 0.8) - 0.5) * 0.35
-                                                + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.5)
-                          * (1 - saturate(input.extra.z * 2));
+                {
+                    // W-166: a crisp, ragged top edge between about 0.3 and 0.8 m above the water.
+                    half shoreEdge = 0.69 + (PunchyValueNoise(p * 0.13 + 2.9) - 0.5) * 0.35 + (PunchyValueNoise(p * 0.8) - 0.5) * 0.25
+                                   + (PunchyValueNoise(p * 3.1 + 7.7) - 0.5) * 0.12;
+                    shore = smoothstep(shoreEdge - 0.05, shoreEdge + 0.05, saturate(-input.extra.w)) * (1 - saturate(input.extra.z * 2));
+                }
                 shore = max(shore, PunchyFallWet(input.positionWS) * (1 - saturate(input.extra.z * 2)));   // (R-21: fall spray)
                 // Item 22: only level ground pools (under about 10 degrees; the vertex normal, so fine relief can't
                 // tilt a flat into a slope or a slope into a flat).
@@ -501,7 +503,7 @@ Shader "Punchy/Terrain Surface"
                     float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
                     puddle *= saturate((2.3 * ppm / max(distance, 0.01) - 2) / 2);
                 }
-                half sheen = max(wet * (1 - 0.85 * porosity), shore * 0.6) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet * (1 - 0.85 * porosity), shore) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
 
                 half relief = 0.45 * (1 - puddle);   // (the octaves' fades are already in micro)
                 normalWS = normalize(normalWS - (half3)microSlope * relief);

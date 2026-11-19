@@ -1153,6 +1153,7 @@ namespace Punchy.Terrain
         public static void FallSpray(ref SurfaceProps s, in GroundContext g)
         {
             WaterlineWet(ref s, g);
+            BankMud(ref s, g);
             if (g.Spray <= 0f || g.WaterDepth > 0.3f) return;
             var wet = g.Spray * (1f - math.saturate(s.Snow)) * (1f - 0.4f * math.saturate(s.Grass));
             s.Albedo *= math.lerp(1f, 0.5f, wet);
@@ -1170,6 +1171,24 @@ namespace Punchy.Terrain
             s.Albedo *= math.lerp(1f, math.lerp(0.78f, 0.62f, math.saturate(s.Porosity)), wet);
             s.Smoothness = math.lerp(s.Smoothness, math.max(s.Smoothness, 0.6f), wet);
         }
+
+        // The rock pass paints steep bank faces as scree; their mud patches come back over it.
+        static void BankMud(ref SurfaceProps s, in GroundContext g)
+        {
+            if (g.Inland <= 0f || g.WaterDepth < -3f || g.WaterDepth > 0.3f) return;
+            var mud = (1f - BankShingleMask(g)) * BankBare(s, g);
+            if (mud <= 0f) return;
+            s.Albedo = math.lerp(s.Albedo, new float3(0.25f, 0.2f, 0.15f) * (1f + 0.12f * g.ColorNoise), mud);
+            s.Pebbles = math.lerp(s.Pebbles, 0.2f, mud);
+            s.Bump = math.lerp(s.Bump, 0.25f, mud);
+            s.Smoothness = math.lerp(s.Smoothness, 0.35f, mud);
+        }
+
+        static float BankBare(in SurfaceProps s, in GroundContext g) =>
+            g.Inland * (1f - math.saturate(s.Snow)) * (1f - math.saturate(s.Grass * 1.5f)) * (1f - math.smoothstep(2.2f, 3f, -g.WaterDepth));
+
+        static float BankShingleMask(in GroundContext g) =>
+            math.smoothstep(0.05f, 0.25f, noise.snoise(g.Position * 0.5f + 41.7f) + 0.3f * noise.snoise(g.Position * 1.7f - 8.3f));
 
         static void DampBank(ref SurfaceProps s, StoneKind stone, in GroundContext g)
         {
@@ -1193,9 +1212,9 @@ namespace Punchy.Terrain
         // River banks: bare ground splits into patches of mud and the biome's stone, not one flat sand band.
         static void BankShingle(ref SurfaceProps s, StoneKind stone, in GroundContext g)
         {
-            var bare = g.Inland * (1f - math.saturate(s.Snow)) * (1f - math.saturate(s.Grass * 1.5f)) * (1f - math.smoothstep(2.2f, 3f, -g.WaterDepth));
+            var bare = BankBare(s, g);
             if (bare <= 0f) return;
-            var shingle = math.smoothstep(0.05f, 0.25f, noise.snoise(g.Position * 0.5f + 41.7f) + 0.3f * noise.snoise(g.Position * 1.7f - 8.3f));
+            var shingle = BankShingleMask(g);
             float3 tint = MaterialLibrary.StoneTint(stone);
             var stoneColour = new float3(0.56f, 0.55f, 0.52f) * tint * (1f + 0.15f * g.ColorNoise);
             var mud = new float3(0.25f, 0.2f, 0.15f) * (1f + 0.12f * g.ColorNoise);
