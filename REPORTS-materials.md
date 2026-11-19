@@ -355,3 +355,9 @@ Castle builder authors collision: exact blocks for walkway/passage (plinths, bod
 - Branch materials/bank-slopes: TerrainSurface micro relief + grain now triplanar by vertex normal (TriplanarWeights shared with the cave grain); slopes get grain, not top-down streaks.
 - Shots: PunchyMilestones/bank-slopes/{before,after}, over-pair.jpg, bend-pair.jpg (time 11, Clear). Viewed bend pair: streaks gone.
 - BENCH-QUEUE: slopes now run up to 3x MicroDetail (planes under 2% weight skipped); flat ground unchanged in cost.
+
+## 2026-11-18 materials/wet-margin (W-166, #336) DONE
+- Wet margin: ragged band ~0.3-0.8 m above water in TerrainSurface, from the mesh's height-above-water channel (extra.w); darker + glossier.
+- Pale bend face was the V3 rock pass (scree 28-38 deg, rock 38-45 deg) over BankShingle mud, not beach sand. BankMud (post-pass in FallSpray) restores mud patches up to 3 m; taller faces stay rock-pass geology by design.
+- Shots: PunchyMilestones/wet-margin (before = bank-slopes/after, same code as main). bend-pair viewed.
+- BENCH-QUEUE: BankMud adds 2 snoise per bank vertex in the surface post-pass; shader shore band adds 3 value-noise taps on shore pixels.
