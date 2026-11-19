@@ -21,7 +21,9 @@ namespace Punchy.Terrain
         /// <summary>Standing water in a built piece (troughs, basins): flat by design, not a family's include.</summary>
         Water = 11,
         /// <summary>Painted trim and accents (buoy floats, trim boards): a smooth coat, a little chipped (Materials/Paint.hlsl).</summary>
-        Paint = 12
+        Paint = 12,
+        /// <summary>Roof covers (W-173): shingles, pantiles, slate and slabs in lapped courses (Materials/Tile.hlsl).</summary>
+        Tile = 13
     }
 
     /// <summary>The kinds of wood (W-166): rows of MaterialLibrary.Wood, read by Shaders/Materials/Wood.hlsl.
@@ -69,6 +71,41 @@ namespace Punchy.Terrain
     {
         Iron = 0,
         Copper = 1
+    }
+
+    /// <summary>The kinds of thatch (W-173): Library.hlsl's thatch kind, drawn by Materials/Thatch.hlsl (PunchyThatchKind).</summary>
+    public enum ThatchKind
+    {
+        Straw = 0,
+        Reed = 1,
+        Heather = 2,
+        Palm = 3
+    }
+
+    /// <summary>The kinds of dressed framing timber (W-173): Library.hlsl's wood kind plus 64 x this, drawn by Wood.hlsl's PunchyTimberFrame.</summary>
+    public enum TimberKind
+    {
+        Rough = 0,
+        Hewn = 1,
+        Sawn = 2,
+        Tarred = 3
+    }
+
+    /// <summary>The kinds of roof cover (W-173): Library.hlsl's tile kind (plus 16 x the WoodKind for shingles), drawn by Materials/Tile.hlsl.</summary>
+    public enum RoofKind
+    {
+        WoodShingle = 0,
+        ClayTile = 1,
+        Slate = 2,
+        StoneSlab = 3
+    }
+
+    /// <summary>The kinds of plaster (W-173): Library.hlsl's plaster kind, drawn by Materials/Plaster.hlsl (PunchyPlasterKind).</summary>
+    public enum PlasterKind
+    {
+        Lime = 0,
+        Daub = 1,
+        Adobe = 2
     }
 
     // Rides on the bark mark in 0.002 steps, under the wood band; values match the defines in Bark.hlsl.
@@ -187,6 +224,97 @@ namespace Punchy.Terrain
             StoneKind.Tuff => new Vector3(1.05f, 1f, 0.9f),
             _ => Vector3.one
         };
+
+        /// <summary>How a thatch kind tints a roof's straw colour (1 = as built), as StoneTint does rock.</summary>
+        public static Vector3 ThatchTint(ThatchKind kind) => kind switch
+        {
+            ThatchKind.Reed => new Vector3(0.9f, 0.86f, 0.74f),
+            ThatchKind.Heather => new Vector3(0.6f, 0.5f, 0.48f),
+            ThatchKind.Palm => new Vector3(1.02f, 0.97f, 0.78f),
+            _ => Vector3.one
+        };
+
+        /// <summary>The thatch a folk roofs with, else the one its biome grows: reed in the wet, heather in the cold,
+        /// palm in the dry.</summary>
+        public static ThatchKind ThatchFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.MarshFolk => ThatchKind.Reed,
+            FolkCulture.Dwarf or FolkCulture.SnowFolk => ThatchKind.Heather,
+            FolkCulture.FishFolk or FolkCulture.SeaFolk => ThatchKind.Palm,
+            _ => biome switch
+            {
+                BiomeFamily.Wet => ThatchKind.Reed,
+                BiomeFamily.Cold => ThatchKind.Heather,
+                BiomeFamily.Arid => ThatchKind.Palm,
+                _ => ThatchKind.Straw
+            }
+        };
+
+        /// <summary>How a plaster kind tints a wall's colour (1 = as built): daub's raw clay, adobe's warm mud.</summary>
+        public static Vector3 PlasterTint(PlasterKind kind) => kind switch
+        {
+            PlasterKind.Daub => new Vector3(0.82f, 0.72f, 0.58f),
+            PlasterKind.Adobe => new Vector3(1.02f, 0.84f, 0.66f),
+            _ => Vector3.one
+        };
+
+        /// <summary>The render a folk's walls take, else the one its biome makes: adobe in the dry, daub in the wet.</summary>
+        public static PlasterKind PlasterFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.Goblin or FolkCulture.Ogre or FolkCulture.MarshFolk => PlasterKind.Daub,
+            _ => biome switch
+            {
+                BiomeFamily.Arid or BiomeFamily.Volcanic => PlasterKind.Adobe,
+                BiomeFamily.Wet => PlasterKind.Daub,
+                _ => PlasterKind.Lime
+            }
+        };
+
+        /// <summary>A roof cover's base colour before the biome tint: shingles take their wood's, clay fires orange, slate is blue-grey.</summary>
+        public static Vector3 RoofTint(RoofKind kind) => kind switch
+        {
+            RoofKind.ClayTile => new Vector3(0.78f, 0.42f, 0.28f),
+            RoofKind.Slate => new Vector3(0.36f, 0.39f, 0.44f),
+            RoofKind.StoneSlab => new Vector3(0.58f, 0.56f, 0.52f),
+            _ => Vector3.one
+        };
+
+        /// <summary>The roof a folk covers with, else the one its biome makes: clay in the dry, slate in the cold, slabs on volcanic stone.</summary>
+        public static RoofKind RoofFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.Dwarf => RoofKind.StoneSlab,
+            FolkCulture.Elf => RoofKind.WoodShingle,
+            _ => biome switch
+            {
+                BiomeFamily.Arid => RoofKind.ClayTile,
+                BiomeFamily.Cold => RoofKind.Slate,
+                BiomeFamily.Volcanic => RoofKind.StoneSlab,
+                _ => RoofKind.WoodShingle
+            }
+        };
+
+        /// <summary>The Library kind for a roof cover: the RoofKind, plus 16 x the WoodKind for shingles.</summary>
+        public static int RoofLibraryKind(RoofKind kind, int woodKind) => (int)kind + 16 * woodKind;
+
+        /// <summary>How a timber kind tints its wood (1 = as grown): tar cooler (the shader darkens it), sawn a little paler.</summary>
+        public static Vector3 TimberTint(TimberKind kind) => kind switch
+        {
+            TimberKind.Sawn => new Vector3(1.06f, 1.04f, 1.0f),
+            TimberKind.Tarred => new Vector3(0.8f, 0.72f, 0.66f),
+            _ => Vector3.one
+        };
+
+        /// <summary>How a folk dresses its framing, else how its biome does: tarred against wet and salt, else hewn.</summary>
+        public static TimberKind TimberFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.Goblin or FolkCulture.Ogre => TimberKind.Rough,
+            FolkCulture.FishFolk or FolkCulture.SeaFolk => TimberKind.Tarred,
+            FolkCulture.Dwarf or FolkCulture.Elf => TimberKind.Sawn,
+            _ => biome == BiomeFamily.Wet ? TimberKind.Tarred : TimberKind.Hewn
+        };
+
+        /// <summary>The Library wood kind for a framing piece: the WoodKind, 16 x the grain's axis (0 up, 1 x, 3 z), 64 x the TimberKind.</summary>
+        public static int TimberLibraryKind(TimberKind kind, int woodKind, int axis) => woodKind + 16 * axis + 64 * (int)kind;
 
         public static uint WetLineSteps(in GroundSample ground, float seaLevel)
         {
