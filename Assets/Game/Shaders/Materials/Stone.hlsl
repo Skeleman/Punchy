@@ -87,6 +87,12 @@ void PunchyStoneSurface(float3 p, float footprint, half wet, half rainWet, inout
     PunchyStoneSurface(p, footprint, wet, rainWet, albedo, n, crevice, smoothstep(0.1, 0.3, dot(albedo, half3(0.3, 0.59, 0.11))));
 }
 
+// Spray-wet cliffs read damp and dark, not streaked: steep faces keep a third of the glint, flat rims all of it.
+half PunchyStoneSteepDamp(half3 n)
+{
+    return 1 - 0.7 * smoothstep(0.3, 0.8, 1 - abs(n.y));
+}
+
 // The wet stone's two specular lobes from one light (times the light's colour and shadow): a broad one on the relief's
 // normal, a tight one on that normal bent further out from the face (n0: the face's own normal), so the tight glints
 // sit on the ridges' flanks. Nothing when dry.
@@ -95,7 +101,7 @@ half PunchyStoneSpec(half3 n, half3 n0, half3 v, half3 l, half crevice, half wet
     half3 h = SafeNormalize(l + v);
     half3 bent = normalize(n + (n - n0) * 0.8);
     half broad = pow(saturate(dot(n, h)), 12) * 0.22;
-    half sharp = pow(saturate(dot(bent, h)), 90) * 1.1;
+    half sharp = pow(saturate(dot(bent, h)), 90) * 1.1 * PunchyStoneSteepDamp(n0);
     return (broad + sharp) * saturate(dot(n, l) * 4) * (1 - 0.8 * crevice) * wet;
 }
 
@@ -103,7 +109,7 @@ half PunchyStoneSpec(half3 n, half3 n0, half3 v, half3 l, half crevice, half wet
 // direction). Nothing when dry.
 half PunchyStoneFresnel(half3 n, half3 v, half crevice, half wet)
 {
-    return (0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5)) * 0.5 * (1 - 0.8 * crevice) * wet;
+    return (0.02 + 0.98 * pow(1 - saturate(dot(n, v)), 5)) * 0.5 * (1 - 0.8 * crevice) * wet * PunchyStoneSteepDamp(n);
 }
 
 // W-166 row 3: built stone (MaterialFamily.Stone), the one look for cut and rubble stone laid on top of the surface
