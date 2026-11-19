@@ -1245,3 +1245,4 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 render-2: render/water-film@e36b5875 (#671): riffle/wake streaks are now 4 cell reads x 2 PunchyValueNoise per fragment where rapids > 0.2 (was 1-4 reads), plus a few ALU on caustics and film. Check GPU water pass at the rocks pose (cam -2622.4,238.9,726.9 looking -2607.7,231.9,738.9) main vs branch.
 - FYI #673 Water.shader: +1 noise read per rapids cell where rapids > 0.2 (depth taps still 4). Fold into the next water bench.
 - FYI #676: water truth pin walls 7 -> 4, steps 129 -> 125 (no fingerprint change).
+- 11-19 render-2: render/wake-streaks@a15d6f9a (#673, merged): one extra noise per streak cell (4 cells) where rapids > 0.2; depth taps still 4; FlowFoam constants only. Check GPU water pass at the rocks pose (cam -2622.4,238.9,726.9 looking -2607.7,231.9,738.9) main vs #671.

@@ -1027,3 +1027,13 @@ with main d95e7ff1); compiles, no suite run yet.
 - Caustic web: Voronoi points roam the whole cell (no paving grid), damped up to 60% on bright beds. Ash and temperate read softer.
 - Wake cross-hatch: the cause was speed x time varying per pixel, plus flow turns at long distances from the anchor. Streaks are now read about 6 m cells with a contrast-keeping blend and a constant scroll. No hatch, but the rock wakes read as soft pale sheets; finer streaks could be a follow-up.
 - Shots: PunchyMilestones/water-film/{marsh,ash,temperate,rocks}-{before,after}.png
+
+### wake-streaks (11-19), render/wake-streaks@a15d6f9a, PR #673 (merged)
+- Rock wakes are thin downstream streaks that taper and break up with distance; no cross-hatch. Same rocks pose before/after.
+- Shots: PunchyMilestones/wake-streaks/rocks{down,side,up}-{before,after} at -100,1824.
+
+### lake-gully streaks (11-19), no PR: cause is outside Water.shader
+- The streaks are the river flow lines (wakeSlope flowLines term) drawn on lake water that carries river flow. Probe: n and wakeSlope show the streaks, the flow-line term alone shows them, the rest is clean.
+- TerrainSource.SampleGround at -628..-622,651: river surface and lake surface are both 56.1953, so `if (level > water)` (TerrainSource.cs ~808) ties and goes either way per point. Where it fails, the lake keeps river.Flow (unit), so the field is salt and pepper 0/1 and the mesh triangles show it.
+- Fix suggestion (world/banks lane): in the lake branch, take the lake when level >= water - 0.01 (or zero the flow whenever the lake is not an outlet). Re-pin water fingerprints after.
+- Lesson: AssetDatabase.Refresh during play resets TerrainSource to the noise fallback (seed 1337); toggle play mode to get v3 back.
