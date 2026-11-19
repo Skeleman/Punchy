@@ -8805,3 +8805,8 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 ## 11-18 W-181 #534 cave climbs (world/cave-climb@33f5cf70 on origin)
 - Rebased locally onto main f6ba1c3a (only cave files differ, so origin's 33f5cf70 should merge cleanly; force-push was refused, so the remote keeps the older base).
 - Bake on new main: 4 assisted climbs in 2 of 24 caves (17-67 m), caves 0 pits / 0 ledges, hash 120 B32C5306, dry 0, Fauna fingerprint 377B279B (main's current pin, unchanged; 59A4BFD3 was the old pin before #636). Shot: PunchyMilestones/world/W-181/after/climb18.png (viewed: strands down the shaft, dark). WorldTests not rerun (free RAM under 10 GB, editor closed). Open: 66.6 m climb may want a cap.
+
+## 11-18 W-181 r2 #534 cave climbs (world/cave-climb-2@7ddcd21a, one commit on main 727299fc)
+- Rule 35: the added summaries are gone; only the two reason lines you kept, plus one for the cap.
+- Cap: shafts taller than about 30 m get no climb and no strands (skipped, no rest pin). That leaves 3 climbs in 2 caves: 17.3, 18.2 and 30.0 m; the 66.6 m one is gone, so there is no climb66 shot.
+- Hash 120 B32C5306, dry 0, fingerprint 377B279B, truth 83,0,0,0,0,0,0,49,1,17,142,0,0, WorldTests 22/22. Supersedes world/cave-climb.
