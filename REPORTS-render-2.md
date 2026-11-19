@@ -467,7 +467,7 @@ Fixes: bark: varied width, soft edges, analytic slope normal into the crack (~10
 - LandmarkEffects.hlsl: a negative drop marks a floating leaf (drift or eddy ring, yaw spin, bob).
 - Shots: D:/Unity/PunchyMilestones/river-leaves/eddy-pair.jpg (before | after, SparklingForest reach -2390,-842 at 10:00; 8 float, 6 eddy, 3 tree plumes). WorldTests 21/21.
 
-## River caustics (#262, #631) - render/river-caustics 0096c8ba
-- Water.shader: a moving caustic web on sunlit shallow river bed (two drifting _PunchyCaveDetail height reads, near/mid refraction tier, -waterdetail gated). It fades by about 1 m vertical depth, at the waterline sliver, on steep bed, in shade, at low sun and in murk.
+## River caustics (#262, #631) - render/river-caustics c561e953
+- Water.shader: a moving caustic web on sunlit shallow river bed (animated, wobbled 3x3 Voronoi cell borders, lines at least 2 px, faded under ~4 px cells; near/mid refraction tier, -waterdetail gated). c561e953 replaced the first texture-difference web, which was sub-pixel speckle at play distance. It fades by about 1 m vertical depth, at the waterline sliver, on steep bed, in shade, at low sun and in murk.
 - The first ~0.5 m is clearer: body alpha x0.35 and fresnel x0.5 at thin water, so the new bed patches show through.
-- Shots: D:/Unity/PunchyMilestones/river-caustics/riffle-pair.jpg (before | after, -2427.6,-904.3 hour 11 Clear). The change is subtle at this view; thin-edge ripple glints now show where the foam haze was. WorldTests 21/21.
+- Shots: D:/Unity/PunchyMilestones/river-caustics/riffle-pair.jpg (before | after, -2427.6,-904.3 hour 11 Clear). Thin bright web lines read clearly in the 0.1-0.5 m margins; crop riffle-crop.jpg. Flow drift was dropped (large clock x varying flow smeared cells into stripes). WorldTests 21/21 at 0096c8ba (shader-only since).
