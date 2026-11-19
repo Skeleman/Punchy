@@ -95,49 +95,59 @@ namespace Punchy.Terrain
             var dirs = new[] { new int2(1, 0), new int2(-1, 0), new int2(0, 1), new int2(0, -1) };
 
             var level = new float[n];
+            var cap = new float[n];
+            for (int i = 0; i < n; i++) cap[i] = float.MaxValue;
             var queue = new Queue<int>();
-            for (int i = 0; i < n; i++)
-            {
-                level[i] = lakeLevel[i];
-                if (lakeLevel[i] > float.MinValue) queue.Enqueue(i);
-            }
-            while (queue.Count > 0)
-            {
-                var i = queue.Dequeue();
-                var f = Fine(i);
-                foreach (var d in dirs)
-                {
-                    var j = Index(f + d);
-                    if (j < 0 || lakeLevel[j] > float.MinValue || height[j] + 0.05f >= level[i] || level[j] >= level[i]) continue;
-                    level[j] = level[i];
-                    queue.Enqueue(j);
-                }
-            }
-
             var seen = new bool[n];
             var pocket = new List<int>();
             int kept = 0, dropped = 0, wet = 0;
-            for (int s = 0; s < n; s++)
+            // A higher lake's flood can reach a lower lake's shore and swallow its pockets into one open pocket; capping the
+            // dropped cells below that level and flooding again lets the lower lake keep its own closed pockets.
+            for (int round = 0, open = 1; round < 8 && open > 0; round++)
             {
-                if (seen[s] || lakeLevel[s] > float.MinValue || level[s] == float.MinValue) continue;
-                pocket.Clear();
-                pocket.Add(s);
-                seen[s] = true;
-                var open = false;
-                for (int p = 0; p < pocket.Count; p++)
+                open = 0;
+                kept = wet = 0;
+                for (int i = 0; i < n; i++)
                 {
-                    var f = Fine(pocket[p]);
+                    level[i] = lakeLevel[i];
+                    seen[i] = false;
+                    if (lakeLevel[i] > float.MinValue) queue.Enqueue(i);
+                }
+                while (queue.Count > 0)
+                {
+                    var i = queue.Dequeue();
+                    var f = Fine(i);
                     foreach (var d in dirs)
                     {
                         var j = Index(f + d);
-                        if (j < 0) { open = true; continue; }
-                        if (seen[j] || lakeLevel[j] > float.MinValue || level[j] != level[s]) continue;
-                        seen[j] = true;
-                        pocket.Add(j);
+                        if (j < 0 || lakeLevel[j] > float.MinValue || height[j] + 0.05f >= level[i] || level[j] >= level[i] || level[i] >= cap[j]) continue;
+                        level[j] = level[i];
+                        queue.Enqueue(j);
                     }
                 }
-                if (open) { dropped++; foreach (var i in pocket) level[i] = float.MinValue; }
-                else { kept++; wet += pocket.Count; }
+                for (int s = 0; s < n; s++)
+                {
+                    if (seen[s] || lakeLevel[s] > float.MinValue || level[s] == float.MinValue) continue;
+                    pocket.Clear();
+                    pocket.Add(s);
+                    seen[s] = true;
+                    var leaks = false;
+                    for (int p = 0; p < pocket.Count; p++)
+                    {
+                        var f = Fine(pocket[p]);
+                        foreach (var d in dirs)
+                        {
+                            var j = Index(f + d);
+                            if (j < 0) { leaks = true; continue; }
+                            if (seen[j] || lakeLevel[j] > float.MinValue || level[j] != level[s]) continue;
+                            seen[j] = true;
+                            pocket.Add(j);
+                        }
+                    }
+                    if (leaks) { open++; foreach (var i in pocket) { cap[i] = math.min(cap[i], level[i]); level[i] = float.MinValue; } }
+                    else { kept++; wet += pocket.Count; }
+                }
+                dropped += open;
             }
 
             var used = new int[blocks];
