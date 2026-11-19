@@ -26,6 +26,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - banks/splash-round -> #638
 - world/fall-flank -> #639
 - materials/boulder-flecks -> #640
+- world/cave-climb-2 -> #642 (supersedes world/cave-climb)
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615

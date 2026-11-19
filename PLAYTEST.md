@@ -323,3 +323,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #638 banks/splash-round (#301): the pillar rock in the rapids is now a low worn block; splash boulders are rounder.
 - 11-18 #639 world/fall-flank (#301): waterfall flank steps start 2.5-4 m from the sheet; the first ~2.5 m is still a straight cut (partial).
 - 11-18 #640 materials/boulder-flecks (W-166, #336): white squares on rocks are gone; specks are soft round dots, fainter on dark rock.
+- 11-18 #642 world/cave-climb-2 (W-181, #534): roots, vines or a rope to climb out of cave shafts up to 30 m; 3 climbs in 2 caves.
