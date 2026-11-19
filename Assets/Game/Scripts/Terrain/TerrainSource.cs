@@ -803,7 +803,8 @@ namespace Punchy.Terrain
                         var ramp = math.lerp(riverLevel, lakeSurface, math.smoothstep(0f, 1f, lake));
                         level = math.lerp(lakeSurface, ramp, riverClaim);
                     }
-                    if (level > water)
+                    // (A river through a lake at the lake's own level ties here; taking the river at random points speckled its flow over the lake.)
+                    if (level >= water - 0.01f)
                     {
                         var outlet = level < lakeSurface - 0.01f;
                         water = level;
