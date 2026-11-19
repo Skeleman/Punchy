@@ -82,6 +82,15 @@ namespace Punchy.Terrain
         Palm = 3
     }
 
+    /// <summary>The kinds of dressed framing timber (W-173): Library.hlsl's wood kind plus 64 x this, drawn by Wood.hlsl's PunchyTimberFrame.</summary>
+    public enum TimberKind
+    {
+        Rough = 0,
+        Hewn = 1,
+        Sawn = 2,
+        Tarred = 3
+    }
+
     /// <summary>The kinds of roof cover (W-173): Library.hlsl's tile kind (plus 16 x the WoodKind for shingles), drawn by Materials/Tile.hlsl.</summary>
     public enum RoofKind
     {
@@ -286,6 +295,26 @@ namespace Punchy.Terrain
 
         /// <summary>The Library kind for a roof cover: the RoofKind, plus 16 x the WoodKind for shingles.</summary>
         public static int RoofLibraryKind(RoofKind kind, int woodKind) => (int)kind + 16 * woodKind;
+
+        /// <summary>How a timber kind tints its wood (1 = as grown): tar cooler (the shader darkens it), sawn a little paler.</summary>
+        public static Vector3 TimberTint(TimberKind kind) => kind switch
+        {
+            TimberKind.Sawn => new Vector3(1.06f, 1.04f, 1.0f),
+            TimberKind.Tarred => new Vector3(0.8f, 0.72f, 0.66f),
+            _ => Vector3.one
+        };
+
+        /// <summary>How a folk dresses its framing, else how its biome does: tarred against wet and salt, else hewn.</summary>
+        public static TimberKind TimberFor(FolkCulture culture, BiomeFamily biome) => culture switch
+        {
+            FolkCulture.Goblin or FolkCulture.Ogre => TimberKind.Rough,
+            FolkCulture.FishFolk or FolkCulture.SeaFolk => TimberKind.Tarred,
+            FolkCulture.Dwarf or FolkCulture.Elf => TimberKind.Sawn,
+            _ => biome == BiomeFamily.Wet ? TimberKind.Tarred : TimberKind.Hewn
+        };
+
+        /// <summary>The Library wood kind for a framing piece: the WoodKind, 16 x the grain's axis (0 up, 1 x, 3 z), 64 x the TimberKind.</summary>
+        public static int TimberLibraryKind(TimberKind kind, int woodKind, int axis) => woodKind + 16 * axis + 64 * (int)kind;
 
         public static uint WetLineSteps(in GroundSample ground, float seaLevel)
         {

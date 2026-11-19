@@ -159,6 +159,54 @@ half3 PunchyWoodAlongAxis(half3 albedo, float3 p, half axisCode, float footprint
     return PunchyWoodAlongAxis(albedo, p, axisCode, footprint, kind, 0);
 }
 
+#define PUNCHY_TIMBER_ROUGH 0
+#define PUNCHY_TIMBER_HEWN 1
+#define PUNCHY_TIMBER_SAWN 2
+#define PUNCHY_TIMBER_TARRED 3
+
+/// Drying checks: a few long dark cracks running with the grain, s the distance round the piece.
+half PunchyTimberChecks(float along, float s, float footprint, half seed)
+{
+    float q = s / 0.06 + (PunchyValueNoise(float2(along * 0.9, seed * 31)) - 0.5) * 0.6;
+    half d = abs(frac(q) - 0.5) * 0.06;
+    half run = smoothstep(0.55, 0.75, PunchyValueNoise(float2(along / 0.7, floor(q) + seed * 13)));
+    return (1 - smoothstep(0.0015, 0.005, d)) * run * PunchyWoodFade(0.01, footprint);
+}
+
+/// Dressed framing timber (MaterialLibrary.TimberKind) on a piece with its grain along an object axis: rough is the plain
+/// grain (PunchyWoodAlongAxis); hewn adds adze scallops across the grain and drying checks along it; sawn, the pit saw's
+/// slanting kerf lines and finer checks; tarred, a dark patchy coat the grain only ghosts through.
+half3 PunchyTimberFrame(half3 albedo, float3 p, half axisCode, float footprint, int woodKind, float seed, int kind)
+{
+    half3 c = PunchyWoodAlongAxis(albedo, p, axisCode, footprint, woodKind, seed);
+    int axis = (int)round(axisCode * 4);
+    float along = (axis == 1 ? p.x : axis == 2 ? p.y : p.z) + seed * 17;
+    float2 across = axis == 1 ? p.yz : axis == 2 ? p.xz : p.xy;
+    float s = across.x + across.y;
+    half m = 1;
+    if (kind == PUNCHY_TIMBER_HEWN)
+    {
+        int band = (int)floor(s / 0.07 + PunchyValueNoise(float2(along / 0.25, seed * 5)) * 0.8);
+        float a = along / lerp(0.08, 0.14, PunchyCellHash(int2(band, 72))) + PunchyCellHash(int2(band, 71)) * 0.9;
+        half f = frac(a);
+        half bite = PunchyCellHash(int2((int)floor(a), band + (int)(seed * 97)));
+        half scallop = ((f - 0.5) * 0.11 - (1 - smoothstep(0.0, 0.1, f)) * 0.08) * lerp(0.4, 1.2, bite);
+        m = 1 + scallop * PunchyWoodFade(0.07, footprint) - PunchyTimberChecks(along, s, footprint, seed) * 0.5;
+    }
+    else if (kind == PUNCHY_TIMBER_SAWN)
+    {
+        half kerf = sin((along + s * 0.18) / 0.02 * 6.2832) * 0.07 * PunchyWoodFade(0.02, footprint);
+        m = 1 + kerf - PunchyTimberChecks(along, s * 1.6, footprint, seed) * 0.3;
+    }
+    else if (kind == PUNCHY_TIMBER_TARRED)
+    {
+        half patch = (PunchyValueNoise(float2(along / 0.3, s / 0.2) + seed * 9) - 0.5) * 0.3 * PunchyWoodFade(0.3, footprint);
+        half drip = smoothstep(0.6, 0.9, PunchyValueNoise(float2(s / 0.03, along / 0.5))) * 0.15 * PunchyWoodFade(0.03, footprint);
+        c = lerp(c, albedo * 0.35, 0.92) * (1 + patch - drip);
+    }
+    return c * m;
+}
+
 /// A per-piece seed (0..1) from a piece's vertex colour, which its builder varies piece to piece.
 float PunchyWoodPieceSeed(half3 key)
 {
