@@ -324,3 +324,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-18 #639 world/fall-flank (#301): waterfall flank steps start 2.5-4 m from the sheet; the first ~2.5 m is still a straight cut (partial).
 - 11-18 #640 materials/boulder-flecks (W-166, #336): white squares on rocks are gone; specks are soft round dots, fainter on dark rock.
 - 11-18 #642 world/cave-climb-2 (W-181, #534): roots, vines or a rope to climb out of cave shafts up to 30 m; 3 climbs in 2 caves.
+- 11-18 #643 W-174 (#365 tail): mouths 21 and 23 seams closed; all 24 cave mouths 0 holes, 0 problems.
