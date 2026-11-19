@@ -2,6 +2,25 @@
 
 Newest first.
 
+## Job 111 (R-35 r3 #333): cloud E, NO RESULT: the branch build drew no sky or clouds; rebuilding (q151b)
+
+q151 ran all 72 games (render/cloud-e 25fbc044 base / E `-skyoff 65536` / off `-skyoff 3`, and main 814a4da6; Medium and
+Ultra; clear, overcast and cumulus at the -3460,2425 peak). Every branch game logged `Shader Punchy/Sky shader is not supported`
+and `Hidden/Punchy/CloudsLowRes ... not supported`, so base, E and off all ran without sky or clouds and came out equal
+(within ±0.3 ms everywhere). Main's 18 games had no such error.
+
+Not the branch's fault, as far as I can tell. The 25fbc04 player build logged `Couldn't open include file 'LowResEffect.hlsl'`
+(Sky.shader:21, CloudsLowRes.shader:18), 'Materials/Stone.hlsl' (SunkenTemple.shader:46) and 'Materials/Library.hlsl'
+(Colossus.shader:48), but all three files are in 25fbc044. No other build tonight (e098ea4, adc5830, 0003a19, 814a4da,
+8d1e993) logged that error, and those commits have the same files. The tree wasn't switched during this build (checked the
+reflog). Most likely the Library was left stale by the earlier build that hung. If SunkenTemple or Colossus look wrong in
+any other test of 25fbc044, this is why.
+
+Main's numbers for reference (GPU ms, mean of 3): Medium clear 10.17, overcast 10.70, cumulus 10.83; Ultra clear 14.60,
+overcast 14.83, cumulus 15.30. Several Ultra rounds, in every arm, had one frame over 5 s and were dropped from the means.
+
+Requeued as q151b: same spec, a fresh build of 25fbc04 into a new folder (the broken one is kept). It refuses to run the games
+if the build logs an include error again. It runs after Job 86 (q150b).
 ## Profiler note 11-19: two lost builds were the profiler's own dry runs (job.sh trap), now requeued
 
 Job 111's first retry build (25fbc044, 22:54) hung 90 min on "Could not read file Assets/Tests/PlayMode/Punchy.Tests.PlayMode.asmdef",

@@ -1,0 +1,30 @@
+# Job 111 rerun. q151's 25fbc04 build compiled without three include files (Sky, CloudsLowRes, SunkenTemple, Colossus:
+# "Couldn't open include file LowResEffect.hlsl / Materials/*.hlsl", though the files are in the commit), so the branch arms
+# ran with no sky or clouds ("Punchy/Sky shader is not supported" in every base/E/off log). Same spec, fresh build of 25fbc04
+# into Profile-25fbc04r (the broken build is kept); before() refuses to run if that build logs include errors.
+# Job 111 (R-35 r3 #333, cut to pick E): cloud edge fade by screen size. render/cloud-e 25fbc044 (carries #494 =
+# one-surface-5 with the BC1091 fix) by -skyoff mask: base (no flag); E 65536 (edge detail fades in fixed metres, as before
+# E); off 3 (clouds off, the cloud share as job 79). main = the branch's merge-base with main, 814a4da6 (main vs base also
+# includes #494's fades; base vs E isolates E). Medium and Ultra, noon, 3 rounds rotated. Views: job 79's peak
+# (-3460,2425 facing west) in Clear and Overcast, and in PartlyCloudy looking up about 20 degrees (-benchpitch -20).
+Q=q151b; TITLE="job 111 cloud E"
+BUILDS="25fbc04 814a4da"; OUT_25fbc04=Profile-25fbc04r
+VIEWS="clear overcast cumulus"
+view() { case $1 in
+  clear)    echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchhour 12 -benchweather Clear";;
+  overcast) echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchhour 12 -benchweather Overcast";;
+  cumulus)  echo "-goto -3460,2425 -benchstops spot -benchspot -3460,2425,270 -benchpitch -20 -benchhour 12 -benchweather PartlyCloudy";; esac; }
+ARMS="base E off main"
+arm() { case $1 in base) echo "Profile-25fbc04r";; E) echo "Profile-25fbc04r -skyoff 65536";;
+  off) echo "Profile-25fbc04r -skyoff 3";; main) echo "Profile-814a4da";; esac; }
+ROUNDS=3; GFX="Medium Ultra"; REF=base; BAR=0.5
+before() {
+  [ -n "${DRY:-}" ] && return
+  local n; n=$(grep -ac "Couldn't open include file" "$R/build-Profile-25fbc04r.log")
+  echo "include errors in the branch build: $n"
+  [ "$n" = 0 ] || { echo "branch build broken again: not running the games"; exit 1; }
+}
+after() {
+  [ -n "${DRY:-}" ] && return
+  echo "logs with an unsupported shader: $(grep -al 'shader is not supported' "$R"/q-$Q-*.log | wc -l)"
+}
