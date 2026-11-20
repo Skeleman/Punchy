@@ -307,18 +307,18 @@ half3 PunchyAtmosphere(half3 color, float3 positionWS)
         return color + PunchyUnderwaterShafts(camera, dir, distance);
     }
     color = PunchyHazeFromLut(color, positionWS.xz - _PunchyHazeOrigin.xz, distance);
-    float haze = 1 - exp(-pow(distance * _PunchyHazeDensity, 2));
-    if (haze < 0.01)
+    // Kept as clear air (1 - haze) so FXC's optimizer converges: the haze form took 7-9 minutes per variant.
+    float far = distance * _PunchyHazeDensity;
+    float clearAir = exp(-far * far);
+    if (clearAir > 0.99)
         return color;
     // Fully clear, sunny days (feedback 11-08 item 30): the haze stays thin further out and closes in near the edge of
     // the streamed terrain (distance cubed instead of squared, scaled to the same ~98% at that edge, so the edge stays
     // hidden), so distant land isn't greyed. Not in cold lands (_PunchyAurora), cloud or weather (WeatherSystem).
     half clearDay = _PunchyHazeClear * (1 - _PunchyAurora);
     if (clearDay > 0)
-    {
-        float far = distance * _PunchyHazeDensity;
-        haze = lerp(haze, 1 - exp(-far * far * far / 1.98), clearDay);
-    }
+        clearAir = lerp(clearAir, exp(-far * far * far / 1.98), clearDay);
+    float haze = 1 - clearAir;
 
     // Haze towards exactly what the sky shows just above the horizon in this direction: the horizon colour with the
     // sun's glow, seen through the same rain and dust the skybox looks through. Hazing to the bare horizon colour
