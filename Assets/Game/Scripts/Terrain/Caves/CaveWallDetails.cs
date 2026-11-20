@@ -64,7 +64,7 @@ namespace Punchy.Terrain
         };
         /// <summary>The light of a glowing fungus cluster (rgb, w reach in m).</summary>
         public static readonly Vector4 GlowLight = new Vector4(0.25f, 0.85f, 0.75f, 5f);
-        public static readonly Vector4 EmberLight = new Vector4(1f, 0.38f, 0.1f, 3.5f);
+        public static readonly Vector4 EmberLight = new Vector4(1f, 0.38f, 0.1f, 7f);
 
         public static void Colours(CaveWallKind kind, out Color rock, out Color dark)
         {
