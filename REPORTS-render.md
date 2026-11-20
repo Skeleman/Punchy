@@ -1082,3 +1082,4 @@ with main d95e7ff1); compiles, no suite run yet.
 - #494 R-23 r4-5 (render/one-surface-5@fef37e5f): main merged; Flora/TerrainSurface conflicts take main's pxm fades. Reference-distance hooks stay only on 3 fades that main still keeps in metres (terrain sheen 120-450, cobble 30-80, flora sheenFar 30-120). 0 errors, NaN 0. Shots R-23/r45-main/on match main (mean diff 3-4/255). Job 109 never ran.
 - cloud-e R-35 r3 (render/cloud-e@7760775b): clean merge of the above (delta Sky.hlsl + SkyCommon.hlsl). Compiles, shaders 0 errors, not play-checked. No PR exists (#461 is a merged world PR). Job 111 passed 11-19.
 - No cost change from me (one NativeArray), so no BENCH line. Editor closed.
+- PR #710 R-35 r3 (render/cloud-e@90faf5b6): main merged again (9560e1d4), 0 errors. Ridge view noon + dusk: NaN 0 (360 frames), clouds and aurora look right; shots PunchyMilestones/R-35/r3-main. Pick E only; job 111 passed. No cost change.
