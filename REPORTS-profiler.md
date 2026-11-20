@@ -4693,5 +4693,5 @@ uncapped, `-hitchms 200`, 2 rounds of the route and of `-spin 90` at the town sp
 
 So #722/#723 didn't touch the laptop's present waits or the long stalls, as expected if those are the laptop's present
 path (q161/q162). The main PC's town-spot count of 0.35-0.55 s frames is still the open question: none there, and these
-are laptop-only. **News for the old bisect:** the laptop can build main again, so the forest/village bisect (q157)
-can use local midpoint builds once Job 115 is settled.
+are laptop-only. **For the old bisect:** current main builds cleanly on the laptop (661e155: 0 FXC crashes), but the
+#609 midpoint still crashes FXC 24 times, so q157's midpoints in #540-#609 still need main-PC shelf builds.
