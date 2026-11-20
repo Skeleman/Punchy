@@ -1284,3 +1284,10 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 
 ## Request (2026-11-19, supervisor, R-22 r1 #298, branch render/far-island 3e2a988d, draft PR #482): air cost split
 Job 107 flights failed by +3-5 ms GPU, multi-second frames on High at 1000 m. Split the air cost at 300 m and 1000 m on High: island mesh build (CPU) vs island draw vs island shadow casting, island on vs off. Render-2 changes nothing until this lands.
+
+## Note (2026-11-19, supervisor): helping the queue
+- Zach asked to speed up the profiler queue. Banks lane paused to free the main PC.
+- Shelf build of main 64453e51 (#494, after #696-#707) building now on the main PC with the #679 guard; uploads as Profile-64453e5.zip on bench-builds when done.
+- Need other arms built (814a4da6 before-arm, branch heads)? Add a line here naming the commits; the supervisor builds them on the main PC.
+- Lanes: no new report-only FYI lines; only real per-frame risks get a request.
+- The FXC crashes / 30-min TerrainSurface and Water ForwardLit compiles go to a lane card (compile time, no look change).
