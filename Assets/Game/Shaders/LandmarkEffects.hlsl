@@ -16,7 +16,7 @@ struct LandmarkEmitter
     float2 outDir;   // waterfall: horizontal direction the water travels
     float drop;      // waterfall: height of the fall
     float underRock; // 1 for a cave's waterfall: no sun, a trace of sky, lit by the lantern and glowing things
-    float4 fall;     // waterfall: lip skew, lip bow (m), cascade 0..1, what it lands on (FallLanding)
+    float4 fall;     // waterfall: lip skew, lip bow (m), cascade 0..1, what it lands on (FallLanding); puff: y > 0 a vent wisp's stretch
 };
 
 StructuredBuffer<LandmarkEmitter> _LandmarkEmitters;
@@ -258,6 +258,14 @@ PlumeVertex BuildPlume(uint vertex, uint instance)
     alpha *= (1 - smoothstep(plumeReach * 0.8, plumeReach, camDist)) * smoothstep(size, size * 3, camDist);
 
     float3 right = UNITY_MATRIX_V[0].xyz, up = UNITY_MATRIX_V[1].xyz;
+    if (e.fall.y > 0)
+    {
+        float2 lean = _PunchyWindDirection * (0.3 + _PunchyWind) * 0.5;
+        float3 axis = normalize(float3(lean.x, 1, lean.y));
+        right = normalize(cross(axis, centre - GetCameraPositionWS())) * lerp(0.45, 0.85, age);
+        up = axis * (1.1 + 1.1 * age) * e.fall.y;
+        alpha *= 1 - 0.6 * age;
+    }
     float2 corner = EffectCorner[vertex];
     PlumeVertex o;
     o.positionWS = centre + (right * corner.x + up * corner.y) * size * step(0.001, alpha);

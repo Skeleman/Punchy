@@ -59,6 +59,7 @@ Shader "Punchy/Terrain Surface"
             SAMPLER(sampler_PunchyCaveDetail);
             float _PunchyCaveDetailReady;
             #include "Materials/RockWall.hlsl"
+            #include "Materials/Glint.hlsl"
             // Weather globals (WeatherSystem), for the far grass's gusts: wind direction (xz) and strength 0..1.
             float2 _PunchyWindDirection;
             half _PunchyWind;
@@ -352,13 +353,10 @@ Shader "Punchy/Terrain Surface"
                 return slope;
             }
 
-            // -0.5..0.5 per cell of p (an integer hash: far from the origin a sin hash breaks up).
+            // -0.5..0.5 per cell of p.
             half Grain(float2 p)
             {
-                uint2 cell = (uint2)(int2)floor(p);
-                uint h = cell.x * 73856093u ^ cell.y * 19349663u;
-                h = (h ^ (h >> 13)) * 1274126177u;
-                return (h >> 22) / 1023.0 - 0.5;
+                return PunchyCellHash(p);
             }
 
             half2 Specks(float2 g, float scale, float offset, half rarity)
@@ -658,10 +656,7 @@ Shader "Punchy/Terrain Surface"
                     half crystal = max(Specks(rp, 14, 8.1, 0.4).x, 0) - 0.02;   // bright only, less its mean cover
                     half rime = (PunchyValueNoise(p * 60) - 0.5) * 0.4 * rimeFine + (PunchyValueNoise(p * 16 + 3.3) - 0.5) * 0.25 * rimeMid + crystal * 0.5 * rimeCoarse + (PunchyValueNoise(p * 1.3 + 2.9) - 0.5) * 0.25 * rimePatch;
                     albedo *= 1 + rime * frost;
-                    float2 gq = p * 12, gc = floor(gq);
-                    half3 facet = normalize(normalWS + half3(Grain(gc + 3.1), Grain(gc + 5.3), Grain(gc + 7.7)) * 1.2);
-                    half glintDot = 1 - smoothstep(0.06, 0.14, length(gq - gc - 0.5));
-                    frostGlint = (Grain(gc + 1.3) > 0.46) * glintDot * pow(saturate(dot(facet, normalize(inputData.viewDirectionWS + lit.sun.direction))), 120)
+                    frostGlint = PunchyGlint(p * 12, float4(1.3, 3.1, 5.3, 7.7), 1.2, 0, half2(0.06, 0.14), 0.04, normalWS, inputData.viewDirectionWS, lit.sun.direction)
                                * frost * saturate(pxmR * 0.05 * 0.5 - 1);
                 }
                 half grassy = input.extra.y * (input.extra.w <= 0.01) * (1 - rockFace) * triW.y;
@@ -694,11 +689,8 @@ Shader "Punchy/Terrain Surface"
                     inputData.normalWS = normalWS;
                     [branch] if (glitterOn > 0.001)
                     {
-                        float2 gp = p * 12, gc = floor(gp);
-                        half3 gh = half3(Grain(gc + 1.7), Grain(gc + 4.1), Grain(gc + 8.3));
-                        half dotOn = 1 - smoothstep(0.08, 0.2, length(gp - gc - 0.5 - gh.xy * 0.5));
-                        float3 facet = normalize(normalWS + float3(gh.x, 0, gh.z) * 1.6);
-                        glitter = pow(saturate(dot(facet, normalize(inputData.viewDirectionWS + lit.sun.direction))), 120) * dotOn * glitterOn * snowy;
+                        glitter = PunchyGlint(p * 12, float4(0, 1.7, 4.1, 8.3), half3(1.6, 0, 1.6), 0.5, half2(0.08, 0.2), 1, normalWS, inputData.viewDirectionWS, lit.sun.direction)
+                                * glitterOn * snowy;
                     }
                 }
                 // W-166: stony river beds (RiverBed's rough bump under water) lie in cobbles with a few big stones.
@@ -847,7 +839,7 @@ Shader "Punchy/Terrain Surface"
                 surface.alpha = 1;
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
-                color.rgb += lit.sun.color * lit.sun.shadowAttenuation * glitter * 1.5;   // snow glitter rides the real sun
+                color.rgb += PunchyGlintLight(lit.sun, glitter);
                 [branch] if (stoneOn * stoneWet > 0.01)
                 {
                     Light stoneSun = GetMainLight(inputData.shadowCoord);
@@ -878,7 +870,7 @@ Shader "Punchy/Terrain Surface"
                     color.rgb = lerp(color.rgb, film, puddle);
                 }
 
-                color.rgb += lit.sun.color * lit.sun.shadowAttenuation * frostGlint * 1.5;
+                color.rgb += PunchyGlintLight(lit.sun, frostGlint);
                 // Cloud shadows and, past the real shadows, the wide cached ones of the huge things (R-5): dim the share
                 // of the light that comes straight from the sun. The wide shadow takes the darker of itself and the real
                 // shadow where they overlap, so it never doubles (Surface.hlsl).

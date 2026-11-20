@@ -351,17 +351,19 @@ Shader "Punchy/Cave"
                         gloss = lerp(gloss, lerp(0.08, 0.6, gutter), roadShare);
                     }
                 }
+                float dampMask = PunchyValueNoise(p.xz * 0.11 + p.y * 0.05 + 211) * 0.7 + PunchyValueNoise(p.xz * 0.43 - 17) * 0.3;
                 if (s7.w > 0)
                 {
                     float clump = PunchyValueNoise(p.xz * 0.6 + p.y * 0.3 + 71) * 0.7 + detail.b * 0.3;
                     float moss = smoothstep(0.55, 0.7, clump + s7.w * 0.35 + openness * 0.25) * saturate(shape.y * 1.6 + 0.2) * s7.w * (1 - roadShare * 0.85);
+                    // W-172: moss grows only where light or damp reaches it (mouths, damp patches, seeps, pools).
+                    moss *= saturate(openness * 3 + smoothstep(0.5, 0.64, dampMask) * 1.3);
                     rock = lerp(rock, s8.rgb * (0.7 + 0.6 * detail.b), moss);
                     gloss *= 1 - moss;
                 }
                 // A-91: all in albedo and gloss, no extra pass or texture.
                 float dressed = _Dressed;
                 float bare = (1 - terrain) * (1 - slick) * (1 - openness * 0.8);
-                float dampMask = PunchyValueNoise(p.xz * 0.11 + p.y * 0.05 + 211) * 0.7 + PunchyValueNoise(p.xz * 0.43 - 17) * 0.3;
                 float wall = 1 - abs(shape.y);
                 float streak = smoothstep(0.7, 0.8, PunchyValueNoise(float2((p.x - p.z) * 2.3, p.y * 0.16 + 5)))
                              * smoothstep(0.45, 0.6, dampMask) * wall;

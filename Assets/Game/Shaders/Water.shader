@@ -508,31 +508,57 @@ Shader "Punchy/Water"
                 return lerp(c, half3(4.5, 2.6, 0.9), smoothstep(0.8, 1.0, heat));
             }
 
-            half3 LavaMelt(float2 home, float t, float tk, float ppm, float edge, float stir, float3 heave, half3 ambient, Light light, half shadow)
+            // #303: from afar the crust breaks into big plates whose cracks glow, drawn about 1.5 px wide at any distance;
+            // S is the plate size in metres.
+            half2 LavaFarCracks(float2 home, float2 warp, float tk, float ppm, float S)
+            {
+                float2 c = LavaCells(home / S + warp * 0.35 + 37, tk * 0.01);
+                float wc = clamp(1.5 / (S * ppm), 0.03, 0.25);
+                return half2(smoothstep(wc, wc * 0.35, c.x), c.y);
+            }
+
+            half3 LavaMelt(float2 home, float t, float tk, float ppm, float edge, float stir, float3 heave, half3 ambient, Light light, half shadow, float3 v)
             {
                 float shimmer = smoothstep(15, 60, ppm);
                 home += (float2(LavaNoise(home * 2.2 + t * 1.6), LavaNoise(home * 2.2 - t * 1.25 + 5.1)) - 0.5) * 0.07 * shimmer;
                 float rough = smoothstep(25, 90, ppm);
                 float fine = smoothstep(30, 80, ppm);
-                float2 bump = LavaGradient(home * 2.4) * 0.35 * rough;
-                float3 n = normalize(heave + float3(-bump.x, 0, -bump.y));
-                half grit = lerp(1, 0.55 + 0.9 * LavaNoise(home * 5.3), rough);
-                half3 rock = half3(0.03, 0.026, 0.024) * grit * (ambient + light.color * shadow * saturate(dot(n, light.direction)));
+                float farW = smoothstep(12, 4, ppm);
                 float2 warp = (float2(LavaNoise(home * 0.21 + tk * 0.004), LavaNoise(home * 0.21 + 9.3 - tk * 0.003)) - 0.5) * 2.2;
                 float2 w = home * 0.22 + warp * 0.3 - tk * 0.006;
                 float raft = LavaNoise(w) * 0.6 + LavaNoise(w * 2.1 + 4.2) * 0.28 + LavaNoise(w * 4.7 + 8.1) * 0.12 * fine;
-                float cover = 0.33 - 0.25 * stir;
-                float crust = smoothstep(cover - 0.015, cover + 0.015, raft + edge * 0.5);
+                // (Far off the open melt shrinks to channels and its edge widens to the pixel, so it neither swims nor floods.)
+                float cover = 0.33 - 0.25 * stir - 0.1 * farW;
+                float soft = max(0.015, 0.25 / ppm);
+                float crust = smoothstep(cover - soft, cover + soft, raft + edge * 0.5);
                 float2 c = LavaCells((home + warp) / 0.9 + 11, tk * 0.04);
                 crust *= lerp(1, smoothstep(0.02, 0.06, c.x), crust * smoothstep(cover + 0.15, cover, raft) * fine);
+                // Coarse crust normals: rafts round down into the melt, plates tilt each their own way, lumps between.
+                float above = raft + edge * 0.5 - cover;
+                float2 bevel = LavaGradient(w) * 0.13 * 3 * smoothstep(0.14, 0.0, above) * step(0, above);
+                float2 tilt = (frac(c.y * float2(13.7, 41.3)) - 0.5) * 0.6 * fine * crust * smoothstep(cover + 0.25, cover + 0.05, raft);
+                float2 lump = LavaGradient(home * 0.5) * 0.3 * smoothstep(8, 30, ppm);
+                float2 bump = LavaGradient(home * 2.4) * 0.35 * rough + bevel + tilt + lump;
+                float3 n = normalize(heave + float3(-bump.x, 0, -bump.y));
+                half grit = lerp(1, 0.55 + 0.9 * LavaNoise(home * 5.3), rough);
+                half3 sun = light.color * shadow;
+                half3 rock = half3(0.045, 0.039, 0.035) * grit * (ambient + sun * saturate(dot(n, light.direction)));
+                rock += sun * pow(saturate(dot(n, normalize(light.direction + v))), 24) * 0.2;
                 float skin = LavaNoise(float2(dot(home, float2(0.9, 0.4)), dot(home, float2(-0.4, 0.9)) * 3.5) * 0.6 - tk * 0.03);
                 half heat = (1 - crust) * lerp(0.35, 0.8, skin);
                 half rim = smoothstep(cover + 0.12, cover, raft);
-                float far = smoothstep(2, 7, ppm);
-                heat = lerp(0.12, heat, far);
-                rim = lerp(0.25, rim, far);
                 half3 lit = lerp(rock, rock + LavaHeat(0.2) * 0.25, rim);
-                return lerp(lit, LavaHeat(heat), smoothstep(0.0, 0.2, heat));
+                half3 color = lerp(lit, LavaHeat(heat), smoothstep(0.0, 0.2, heat));
+                [branch] if (ppm < 30)
+                {
+                    half2 k = LavaFarCracks(home, warp, tk, ppm, 6);
+                    [branch] if (ppm < 1.5)
+                        k = lerp(LavaFarCracks(home, warp, tk, ppm, 24), k, smoothstep(0.5, 1.5, ppm));
+                    half plate = lerp(1, 0.7 + 0.6 * k.y, farW);
+                    half glow = k.x * crust * saturate(1 - edge) * smoothstep(30, 10, ppm);
+                    color = lerp(color * plate, LavaHeat(0.35 + 0.35 * LavaNoise(home * 0.4 + 3.3)), glow);
+                }
+                return color;
             }
 
             // Slow bubbles in thick water: here and there a dome swells up, then pops (xy slope, z = bubble mask).
@@ -1262,7 +1288,7 @@ Shader "Punchy/Water"
                         float2 heaved = wakeSlope * LavaHeave;
                         float stir = saturate(length(heaved));
                         float3 heave = normalize(float3(-heaved.x, 1, -heaved.y));
-                        lavaColor = LavaMelt(home, t, tk, pixelsPerMetre, edge, stir, heave, ambient, light, shadow);
+                        lavaColor = LavaMelt(home, t, tk, pixelsPerMetre, edge, stir, heave, ambient, light, shadow, v);
                     }
                     color = lerp(color, lavaColor, lava);
                     alpha = lerp(alpha, 1, lava);
