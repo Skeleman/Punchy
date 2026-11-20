@@ -8958,3 +8958,9 @@ The 4-day-old world/cave-climbs (W-144, 1160 lines, unmerged) becomes records re
 - Row 1 (86e5f540): natural Ashlands caves get basalt column clusters, sulphur crust and ember floor cracks (AmbientGlow lights via LightBudget). Cave 3 has basalt 3, sulphur 3, ember 4; before this, volcanic caves had no details.
 - Row 2 (dbfd580e): Cave.shader moss masked by openness + damp mask (mouths, damp, seeps, pools). This world has no Limestone or Fungal caves, so the change is barely visible in the Rock cave shots.
 - Shots: PunchyMilestones/world/w172-tail volc3m/volc20m/moss3m/moss20m _before/_after. WorldTests 23/23.
+
+
+### M-07 r2b (#260) - no PR, already shipped in #504 (11-19)
+- WIP branch had nothing left over main: PaintedEdits bake, cache hash and the overlap warning all landed in #504 (7b7dd49d).
+- Rule 11 checked in play: no edits file gives sig E8FCB7B2 (unchanged, edits off); a 15 m test mound (8 tiles) gives 0B854A0B, and the warning names 2 tiles on the cave 14 socket (correct).
+- Shots: PunchyMilestones/world/m07-edits mound_before/mound_after. Test file removed; WorldTests 23/23.
