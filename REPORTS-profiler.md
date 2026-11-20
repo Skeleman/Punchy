@@ -2,6 +2,38 @@
 
 Newest first.
 
+## Triage 11-19 (q155b): main before #540 vs main at #676, 12 request spots. Forest +2.8 ms and village +3.4 ms GPU; the rest no cost
+
+Main 814a4da6 (A, 11-18 morning, before #540) vs main 9f792c3c (B, #676, the main PC's shelf build; the laptop can't build
+feb40161, see the FXC note). This covers 136 of the 155 merges since A, which is most of the open 11-17..11-19 cost requests.
+High, 1920x1080 uncapped, Clear, 3 rounds alternated, 300 frames. Laptop GTX 1060 Max-Q. Spec q155b.job. No unsupported
+shaders, no NaN lines. Yaw 0 at every spot (most requests gave none).
+
+| spot | requests it stands for | A GPU | B GPU | B vs A |
+|---|---|---|---|---|
+| forest 400,2800 | #578 bark, #583 furrows, #604 leaves plume, #576 roots, #630 river leaves | 19.97 | 22.80 (1 clean round) | **+2.83 FAIL** |
+| village 2972,-885 | #580/#582 fields and crops, #565/#571 plumes, #573 wood, #569 iron kit, #599 stone courses | 19.00 | 22.35 | **+3.35 FAIL** (CPU 63.8 -> 80.7 ms) |
+| cave mouth -3132,1039 | #553/#563 collars, #572 chip, #577 collar foot, #586 mouth detail, #600/#620 mouth patch | 17.27 | 17.80 | +0.53 |
+| geyser -2427,2450 | #565 steam/smoke | 20.47 | 20.35 | −0.12 |
+| volcano -891,-2021 | #571 sparks, #601 lava | 19.30 | 17.57 | −1.73 |
+| caustics -2427.6,-904.3 (11:00) | #647 caustics | 27.20 | 25.23 | −1.97 |
+| fall 44 | #662 fall foot, #659 flanks | 24.03 | 20.95 | −3.08 |
+| bend -1268,637 | #614 overhangs, #626 point bars | 26.65 | 23.03 | −3.62 |
+| river mist -3612,-190 (6:30) | #627 mist | 27.60 | 22.83 | −4.77 |
+| lake -1727,-1004 | #610/#611 foam | 32.23 | 25.10 | −7.13 |
+| rapid -1048,-1521 | #608 spray, #610 foam, #613, #615, #616 | stalled every round (29 in its one bracketed round) | 22.07 | B lower |
+| bank -1170,3570 | #653 caustic soften, #655 shore blend | every round had a frame over 5 s (28-41) | 20.95 | B lower |
+
+- These are whole-range totals. The river layout and banks changed a lot between the two builds, so at the river spots B isn't
+  showing the same picture. "B lower" there means the sum of everything at that spot costs nothing on this card, not that each PR
+  is free.
+- Forest and village need a split. Next: bisect main between 814a4da6 and 9f792c3c at those two spots, starting from the
+  midpoint.
+- Island bake (one -freshisland start per arm): A 53.4 s, B 60.2 s (+6.8 s, one sample). World ready 61.2 / 69.3 s.
+- In both arms, most views have a ~500 ms frame pair (1 s apart, every 4-5 s); that's where the 1.9 fps lows come from. It's not
+  the laptop (the 11-15 build 3eeb72d at its old town view still runs 22-30 ms worst frames) and not the freeze sampler (same
+  frames with it off). It's view-dependent and was already in some 11-15 builds at towns. A Profiler capture (q156) is running to
+  name it.
 ## Profiler note 11-19: main feb40161 won't build on the laptop: Terrain Surface and Water crash FXC after ~30 min each
 
 The laptop's player build of main feb40161 (#696) timed out at 90 min. Its log:

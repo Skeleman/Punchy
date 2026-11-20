@@ -1,0 +1,26 @@
+# What makes the ~500 ms frames (in pairs 1 s apart, every 4-5 s) seen at the forest 400,2800 and the village in q155b, in
+# both main 814a4da6 and main 9f792c3c? Not the laptop: the 11-15 build 3eeb72d at its old town view still runs 22-30 ms worst
+# frames. Not freezesample.sh: same frames with it off. One Profiler-captured game on the #676 shelf build at the forest spot,
+# High, analysed for every main-thread frame over 300 ms (BProfileTools.Analyze, top markers).
+Q=q156; TITLE="500 ms frame pairs, profiler capture"
+BUILDS="9f792c3"
+VIEWS="forest"
+view() { echo "-goto 400,2800 -benchstops spot -benchspot 400,2800,0 -benchhour 12 -benchweather Clear"; }
+ARMS="P"
+arm() { echo "Profile-9f792c3"; }
+ROUNDS=1; GFX="High"; REF=P; BAR=1
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-9f792c3 t=$Q-prof-P-cs100-1
+  BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-P 9f792c3 s100 1 -gfx High -fpscap 0 $(view forest) \
+    -profiler-enable -profiler-log-file "$W/q-$t.raw" -profiler-maxusedmemory 1073741824
+  check "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3000 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$t.txt")" -over 300 -logFile "$W/analyze-$t.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$t.txt" ] && rm -f "$R/q-$t.raw"
+  echo "== $t"; head -80 "$R/$t.txt"
+}

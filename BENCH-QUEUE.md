@@ -1112,7 +1112,7 @@ Elf groves now keep their towers when they are the biggest town (no Kit Building
 ## Note (2026-11-16, player-2 lane, #518 tail, branch player/tower-slip fa22d14b): KeepOut per-frame cost
 KitCollision.KeepOut runs once per substep against kit boxes. For each box within reach it now checks the 9-sample wall test at both from and to. It also does one Floor scan of the kit boxes for each probe (up to 3 per blocked move). Worth one CPU check walking inside a walk-in tower and in a kit town against main.
 
-## Note (2026-11-19, profiler): triage for the 11-17..11-19 requests (RUNNING as q155b.job with the shelf build of main 9f792c3c #676; q155's laptop build of feb40161 timed out on FXC crashes, see REPORTS-profiler)
+## Note (2026-11-19, profiler): triage for the 11-17..11-19 requests (REPORTED 11-19, q155b: forest +2.8 and village +3.4 ms GPU fail, 10 other spots no cost; see REPORTS-profiler; ran with the shelf build of main 9f792c3c #676; q155's laptop build of feb40161 timed out on FXC crashes, see REPORTS-profiler)
 About 60 requests are open, and nearly all have merged (#540-#696). Rather than run 60 pairs, q155 runs main before #540
 (814a4da6) against main now (feb40161, which builds again after #679) at High, at 12 of the request spots: rapid -1048,-1521,
 bank -1170,3570, bend -1268,637, lake -1727,-1004, village 2972,-885, volcano -891,-2021, cave mouth -3132,1039, fall 44,
