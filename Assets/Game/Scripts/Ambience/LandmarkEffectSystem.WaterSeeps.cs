@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Punchy.Terrain;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -18,43 +19,18 @@ namespace Punchy.Ambience
         static readonly int SeepCountId = Shader.PropertyToID("_PunchySeepCount");
         static readonly int SeepRectId = Shader.PropertyToID("_PunchySeepRect");
 
-        float[] seepWet = System.Array.Empty<float>();
         readonly Vector4[] streakLip = new Vector4[SeepStreakCount], streakRun = new Vector4[SeepStreakCount];
         readonly List<int> streakOrder = new List<int>();
 
         void WaterSeepTables(BiomePalette palette)
         {
-            seepWet = new float[palette.Biomes.Length];
+            seepWet = new NativeArray<float>(palette.Biomes.Length, Allocator.Persistent);
             for (int b = 0; b < palette.Biomes.Length; b++)
             {
                 var biome = palette.Biomes[b];
                 if (biome != null && !biome.HasTag(BiomeTags.Vents) && biome.WaterLava < 0.5f && biome.Cold < 0.75f)
                     seepWet[b] = biome.Rainfall;
             }
-        }
-
-        float SeepWetness(in BiomeWeights biomes)
-        {
-            var w = 0f;
-            for (int k = 0; k < 4; k++)
-                if (biomes.Weights[k] > 0f && biomes.Ids[k] >= 0 && biomes.Ids[k] < seepWet.Length)
-                    w += biomes.Weights[k] * seepWet[biomes.Ids[k]];
-            return w;
-        }
-
-        bool WaterSeepSite(in TerrainSource source, in GroundSample ground, float2 foot, float2 down, uint h)
-        {
-            var wet = SeepWetness(ground.Biomes);
-            if (wet <= 0.05f)
-                return false;
-            var roll = ((h >> 16) & 0xFF) / 255f;
-            for (var reach = 1f; reach <= 7f; reach += 3f)
-            {
-                var below = source.SampleGround(foot + down * reach);
-                if (below.HasWater && below.WaterSurface > below.Height + 0.05f)
-                    return roll < WaterSeepBankShare;
-            }
-            return roll < WaterSeepMossShare * math.saturate((wet - 0.45f) / 0.35f);
         }
 
         static float4 WaterSeepLook(in TerrainSource source, in SeepSpot s, out float2 glow)

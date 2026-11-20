@@ -166,6 +166,9 @@ namespace Punchy.Ambience
                 Punchy.Audio.GameAudio.StopLoop(handle);
             fallLoops.Clear();
             DisposeRiverShapes();
+            DisposeSeepSearch();
+            // (Its tables went with it: rebuilt from the palette when enabled again.)
+            ambientFrom = null;
         }
 
         void Update()
