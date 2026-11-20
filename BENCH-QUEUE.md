@@ -1291,3 +1291,5 @@ Job 107 flights failed by +3-5 ms GPU, multi-second frames on High at 1000 m. Sp
 - Need other arms built (814a4da6 before-arm, branch heads)? Add a line here naming the commits; the supervisor builds them on the main PC.
 - Lanes: no new report-only FYI lines; only real per-frame risks get a request.
 - The FXC crashes / 30-min TerrainSurface and Water ForwardLit compiles go to a lane card (compile time, no look change).
+
+(2026-11-19 18:40, supervisor): Profile-64453e5.zip is on bench-builds. It was built on the main PC from main 64453e51 (#494, includes the #679 island guard) with bench-stress tools, and the island is re-baked. The play pass is green. The build compiled shaders fine here, so use it in place of a laptop build of current main. List any other commits you want built and I'll build them here.
