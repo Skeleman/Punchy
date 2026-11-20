@@ -11,6 +11,12 @@ One system per kind of thing (rule 33): every entry below extends an existing sy
 Status words: **Shipped** (on main), **In flight** (a card or branch is working on it), **Next** (carded or
 asked, not started), **Later** (idea only). Updated 11-15 against main and merged PRs.
 
+## v0.17 playtest focus (Zach 11-19)
+- After the hitches (#712): rivers and waterfalls (#717), caves (#715), bark and wood (#713), ground texture (#714),
+  falling details, lava, castle (#254), farms, house collision and seamless interiors (#721), piers (#255), Ashlands embers,
+  distant clouds. Also: shadows (#716), underwater audio (#718), mid-LOD light flicker (#719), kit audit + lab viewer (#720).
+  Status: **Next** (development paused for profiling).
+
 ## World and far view
 - **Far views (#298).** The whole island in sight: ground to the horizon, far forest, far life. Shipped: far
   terrain ring to about 3 km (W-131), tree and shrub impostors (R-7, R-11), far herds (A-108 row 2, PR #428), one population (A-110, PR #430). Next: R-22 (whole-island ground,

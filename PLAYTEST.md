@@ -395,3 +395,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #709 (#365 tail, #705): Ashlands cave embers now glow from 20 m (picked by screen size) and light reaches farther; the sulphur gets a faint warm tint. Check: inside an Ashlands cave from 20 m.
 - 11-19 #711 (materials, compile time): the shared haze math is rewritten so the shader compiler finishes; each terrain and water shader variant compiles in under a minute instead of 7-9. Look unchanged (mean difference 0.4/255). Check: a fresh build no longer takes about 30 minutes on shaders.
 - 11-19 #710 (R-35 r3, #333): cloud detail fades by screen size (rule 20); cloud look unchanged up close. Check: distant clouds stay soft, no shimmer.
+- 11-19 Zach's v0.17 playtest list filed as #713-#721 (bark, ground, caves, shadows, water, underwater audio, light flicker, kit audit, seamless interiors); hitches stay on #712 first.

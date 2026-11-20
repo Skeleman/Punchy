@@ -15,6 +15,8 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - Do: play normally for 10 min (walk, sprint, a town, a forest, a cave mouth) with `-hitchms 200`, and capture the Unity
   Profiler (or `-profiler-enable -profiler-log-file`) around at least three hitches over 1 s. Name the top markers in each
   hitch (main thread and the job worker it waits on), and whether it is GC, a sync point, shader compile/upload or streaming.
+- Keep the camera moving: fast mouse turns and pans while walking and standing (or `-spin 90` for a steady turn); Zach
+  suspects culling. Note whether hitches follow turns. Also try uncapped (`-fpscap 0`) and exclusive fullscreen like Zach.
 - Report to REPORTS-profiler.md as soon as the first hitch is explained; keep going until three are. The supervisor runs
   the same hunt on the main PC; compare notes there.
 
