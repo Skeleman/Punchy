@@ -4675,3 +4675,23 @@ shows the same band.
 894e8ce, and count frames of 0.35-0.55 s. None there means it's laptop-only. Some there, and it's a lead for Zach's
 standing-still hitches (q159 dates it to 11-14..11-17, half of it to #509's cap).
 The laptop waits for the 661e155 shelf build (#722 + #723) for the card's rebench; none on the shelf yet.
+
+## Job 115 q163: main 661e155 (#722 + #723) still has the laptop's 0.5 s present waits and the ~58 s stalls (13:50)
+The laptop built 661e155 itself this time (no FXC crash; Profile build succeeded, all games ran), against 894e8ce, High,
+uncapped, `-hitchms 200`, 2 rounds of the route and of `-spin 90` at the town spot. Frames over 200 ms per stop:
+- **661e155 route:** townwalk 11 / 17, town 11 / 14, nearly all in the **0.35-0.55 s band** (9 / 17 and 10 / 14).
+  Both games then hit long stalls and were killed: an 11.8 s and a **57.2 s** frame (round 1, forest) and a **58.5 s**
+  (townwalk) and 20.9 s (forest) in round 2. Neither got past forest.
+- **894e8ce route:** round 1 ran the whole route: townwalk 15, dash 29, stormshore 17, caveapproach 46, run 29, glide 28;
+  the band is there at every stop and the over-0.56 s frames sit in the busy legs (caveapproach worst 2.7 s, run 1.7 s).
+  Round 2 hit a **58.1 s** stall at town.
+- **Spin at the town spot:** 661e155 9 then **0**; 894e8ce 6 (plus a 58.1 s stall) then **0**. Both round-2 games were
+  clean (worst 152 ms, 1% low 7.3 / 6.0 fps), back to back. So on the laptop it comes and goes from game to game, and a
+  2-game count can't rank two builds.
+- Route GPU means: 661e155 21.6 ms, 894e8ce 32.0 ms, but the 661e155 games died before the heavy legs, so that isn't a
+  win. Spin GPU 19.5 vs 21.8 ms.
+
+So #722/#723 didn't touch the laptop's present waits or the long stalls, as expected if those are the laptop's present
+path (q161/q162). The main PC's town-spot count of 0.35-0.55 s frames is still the open question: none there, and these
+are laptop-only. **News for the old bisect:** the laptop can build main again, so the forest/village bisect (q157)
+can use local midpoint builds once Job 115 is settled.
