@@ -52,6 +52,8 @@ namespace Punchy.Terrain
         /// where the water has no face of its own to hide.
         /// </summary>
         public float ClipBack;
+        /// <summary>River falls only: and up to this far in front of the lip line (m), where its face meets the pool.</summary>
+        public float ClipAhead;
 
         /// <summary>Where the middle of the sheet lands.</summary>
         public float3 Foot => Lip + new float3(Out.x, 0f, Out.y) * Run - new float3(0f, Drop, 0f);
@@ -168,6 +170,8 @@ namespace Punchy.Terrain
             }
             shape.Cascade = math.saturate((measured - thrown) / math.max(shape.Drop, 1f));
             shape.ClipBack = 1.5f;
+            // #301: past the face the water is the pool the sheet lands in, so leaving it out there opened holes.
+            shape.ClipAhead = FaceEnd(source, shape, shape.Lip.y - 0.05f);
 
             // What it lands on.
             var landing = source.SampleGround(shape.Lip.xz + o * shape.Run);
@@ -182,6 +186,29 @@ namespace Punchy.Terrain
             else
                 shape.Landing = FallLanding.Pool;
             return shape;
+        }
+
+        static float FaceEnd(in TerrainSource source, in FallShape shape, float top)
+        {
+            var across = new float2(shape.Out.y, -shape.Out.x);
+            var ahead = 0f;
+            for (int k = -3; k <= 3; k++)
+            {
+                var column = shape.Lip.xz + across * (k / 3f * math.max(shape.Width * 0.5f - 0.5f, 0f));
+                var start = FaceStart(source, column, shape.Out, top, -6f, 10f);
+                if (math.isnan(start))
+                    continue;
+                for (float s = start; s < 10f; s += 0.25f)
+                {
+                    var w = source.SampleGround(column + shape.Out * s).WaterSurface;
+                    if (w < top - 0.45f && w - source.SampleGround(column + shape.Out * (s + 0.5f)).WaterSurface < 0.15f)
+                    {
+                        ahead = math.max(ahead, s - start + 0.3f);
+                        break;
+                    }
+                }
+            }
+            return ahead > 0f ? math.min(ahead + 0.25f, shape.Run + 1.5f) : shape.Run + 1.5f;
         }
 
         /// <summary>A cave's fall: from its notch (or its chute's lip) into its pool, as the cave bake placed it.</summary>

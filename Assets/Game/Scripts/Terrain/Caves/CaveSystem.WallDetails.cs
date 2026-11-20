@@ -127,8 +127,9 @@ namespace Punchy.Terrain
                         foreach (var glow in build.Glows)
                             Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, glow, CaveWallDetails.GlowLight);
                     if (k == (int)CaveWallKind.Ember)
+                        // Hot rock as the lava seeps: an ambient glow's slot ends near 16 m and no far glow map takes over underground.
                         foreach (var ember in build.Embers)
-                            Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.AmbientGlow, ember, CaveWallDetails.EmberLight);
+                            Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fire, ember, CaveWallDetails.EmberLight);
                 }
             }
             if (drop != null)
