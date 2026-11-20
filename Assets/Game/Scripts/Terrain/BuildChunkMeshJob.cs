@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -86,6 +87,14 @@ namespace Punchy.Terrain
     [BurstCompile]
     partial struct BuildChunkMeshJob : IJobParallelFor
     {
+        // BENCH ONLY (Job 115): where a chunk build spends its time, per phase and per LOD.
+        static readonly ProfilerMarker MLod0 = new ProfilerMarker("Chunk.Lod0"), MLod1 = new ProfilerMarker("Chunk.Lod1"),
+            MLod2 = new ProfilerMarker("Chunk.Lod2"), MLod3 = new ProfilerMarker("Chunk.Lod3"), MLod4 = new ProfilerMarker("Chunk.Lod4");
+        static readonly ProfilerMarker MContacts = new ProfilerMarker("Chunk.Contacts"), MPatch = new ProfilerMarker("Chunk.Patch"),
+            MGrid = new ProfilerMarker("Chunk.Grid"), MPost = new ProfilerMarker("Chunk.Post"), MCollars = new ProfilerMarker("Chunk.Collars"),
+            MWater = new ProfilerMarker("Chunk.Water");
+        static void LodBegin(int l) { if (l <= 0) MLod0.Begin(); else if (l == 1) MLod1.Begin(); else if (l == 2) MLod2.Begin(); else if (l == 3) MLod3.Begin(); else MLod4.Begin(); }
+        static void LodEnd(int l) { if (l <= 0) MLod0.End(); else if (l == 1) MLod1.End(); else if (l == 2) MLod2.End(); else if (l == 3) MLod3.End(); else MLod4.End(); }
         [NativeDisableParallelForRestriction] public Mesh.MeshDataArray Meshes;
         [ReadOnly] public NativeArray<ChunkBuildRequest> Requests;
         [ReadOnly] public NativeArray<VertexAttributeDescriptor> WaterLayout;
@@ -113,6 +122,7 @@ namespace Punchy.Terrain
         public void Execute(int index)
         {
             var request = Requests[index];
+            LodBegin(request.Lod);
             var mesh = Meshes[index];
             var verts = mesh.GetVertexData<TerrainVertex>();
             var indices = mesh.GetIndexData<uint>();
@@ -140,6 +150,7 @@ namespace Punchy.Terrain
             // W-136: darkening where trunks, rocks, walls and props meet the ground, multiplied into the albedo.
             var shaded = Flora.IsCreated && Contacts.IsCreated;
             var shade = new NativeArray<float>(shaded ? v * v : 1, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            MContacts.Begin();
             if (shaded)
             {
                 for (int i = 0; i < shade.Length; i++)
@@ -147,12 +158,16 @@ namespace Punchy.Terrain
                 GroundContacts.Rasterise(ref Flora.Value, ref Contacts.Value, Source, request.Origin, v, step, request.Near,
                                          ContactPixelsPerMetre, ContactStrength, ContactReach, shade);
             }
+            MContacts.End();
 
             var patchMin = (int2)math.floor(request.Origin / MouthPatch.Cell) - 1;
             var patchSize = (int)(ChunkSize / MouthPatch.Cell) + 2;
             var patch = new NativeArray<bool>(request.Lod <= MouthPatch.MaxLod ? patchSize * patchSize : 1, Allocator.Temp);
+            MPatch.Begin();
             var patched = request.Lod <= MouthPatch.MaxLod && MouthPatch.Fill(Source, patchMin, patchSize, patch);
+            MPatch.End();
             var rims = new NativeArray<bool>(patched ? v * v : 1, Allocator.Temp);
+            MGrid.Begin();
 
             for (int z = 0; z < v; z++)
             for (int x = 0; x < v; x++)
@@ -260,6 +275,8 @@ namespace Punchy.Terrain
                 glows[z * v + x] = glow;
             }
 
+            MGrid.End();
+            MPost.Begin();
             // W-174 r3 (#365): stray specks of the mouth cut (a lone hole beside a mouth, a scrap of ground inside one)
             // are dropped here, at the grid's own resolution: each flipped vertex takes back its cut without the entrance.
             if (collared)
@@ -357,8 +374,11 @@ namespace Punchy.Terrain
                 indices[t++] = b; indices[t++] = sa; indices[t++] = sb;
             }
 
+            MPost.End();
+            MCollars.Begin();
             if (collared)
                 Collars(ref mesh, verts, worlds, templeCut, request, step, depth, ref minY, ref maxY);
+            MCollars.End();
             templeCut.Dispose();
             patch.Dispose();
 
@@ -371,11 +391,14 @@ namespace Punchy.Terrain
             worlds.Dispose();
 
             HeightRanges[index] = new float2(minY - depth, maxY);
+            MWater.Begin();
             WaterRanges[index] = BuildWater(Meshes[Requests.Length + index], water, rapids, looks, glows, q, step, request.Origin);
             water.Dispose();
             rapids.Dispose();
             looks.Dispose();
             glows.Dispose();
+            MWater.End();
+            LodEnd(request.Lod);
         }
 
         /// <summary>
