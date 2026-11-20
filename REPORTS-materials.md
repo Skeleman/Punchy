@@ -501,3 +501,10 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Shots: PunchyMilestones/ember-reach before/after 3m, 20m (#705 framing), m3m, m20m (mouth).
 - 20 m in cave: mean luma 5.5 -> 8.1, warm pixels 1.1% -> 2.3%. Mouth view unchanged. The cave stays dark.
 - Sulphur catches only a faint warm tint (squared falloff at 6-8 m). A stronger catch would need a sulphur material response; not done.
+
+## 11-19 compile-time - DONE, PR #711
+- Cause: FXC's optimizer did not converge on PunchyAtmosphere's haze-then-clearDay block. Every surface inlines it via PunchySurfaceFinish, so each Terrain/Water ForwardLit variant took 7-9 min.
+- Fix: the same math kept as clear air (1 - haze). One file, 6 lines, no keyword, loop or settings change.
+- fxc per variant: Terrain 441 -> 25-29 s, Water 541 -> 43-55 s. Three keyword sets checked; no convergence warnings left. Instruction counts within 0.1%.
+- Shots: PunchyMilestones/compile-time/{before,after,diff-x8}.png, held with MatchedShot at noon, Sunny/Clear. Mean difference 0.4/255. before-compiling.png shows the old shaders still compiling in play.
+- Not verified: a full player build pass and the profiler laptop's FXC crash. Both are worth a bench build.
