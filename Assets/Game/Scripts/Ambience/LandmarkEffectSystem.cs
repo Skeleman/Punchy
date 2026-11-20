@@ -165,6 +165,7 @@ namespace Punchy.Ambience
             foreach (var handle in fallLoops.Values)
                 Punchy.Audio.GameAudio.StopLoop(handle);
             fallLoops.Clear();
+            DisposeRiverShapes();
         }
 
         void Update()
@@ -181,6 +182,7 @@ namespace Punchy.Ambience
             {
                 lastSource = source;
                 lastNearby.Clear();
+                BeginRiverShapes(source);
                 nextCheck = 0f;
             }
             if (Time.unscaledTime >= nextCheck)
@@ -504,7 +506,7 @@ namespace Punchy.Ambience
             }
             // River waterfalls (version 2 rivers) while they look big enough, the nearest MaxRiverCurtains, as
             // -(RiverFallBase + index), and their spray while they look bigger, as -(RiverSprayBase + index).
-            if (source.Rivers.IsCreated && source.RiverSettings.FallDrop > 0f)
+            if (source.Rivers.IsCreated && source.RiverSettings.FallDrop > 0f && RiverShapesReady())
             {
                 ref var riverFalls = ref source.Rivers.Value.Falls;
                 riverNear.Clear();
@@ -568,9 +570,8 @@ namespace Punchy.Ambience
                 {
                     // A near river waterfall's spray (R-21 row 2): mist and foam where it lands and white water thrown
                     // off its lip, each as wide as the measured sheet, the mist rising higher off a taller drop.
-                    var rf = source.Rivers.Value.Falls[-i - RiverSprayBase];
-                    var seed = math.frac((-i - RiverSprayBase + RiverFallBase) * 0.618f);
-                    var shape = FallShape.River(source, rf, seed);
+                    var shape = riverShapes[-i - RiverSprayBase];
+                    var seed = shape.Seed;
                     var (lip, drop, width, foot) = (shape.Lip, shape.Drop, shape.Width, shape.Foot);
                     Spray(new Emitter
                     {
@@ -608,8 +609,7 @@ namespace Punchy.Ambience
                     // A river waterfall (R-21): one curved sheet from the water's real lip down to its pool, over the
                     // face the river's surface leaves out; its foot whitens in the shader, and up close its spray is
                     // added (-(RiverSprayBase + index), above).
-                    var rf = source.Rivers.Value.Falls[-i - RiverFallBase];
-                    AddFall(FallShape.River(source, rf, math.frac(-i * 0.618f)), new float4(0.55f, 0.68f, 0.72f, 0f), 1.1f, 1.8f, 0.92f, ref min, ref max);
+                    AddFall(riverShapes[-i - RiverFallBase], new float4(0.55f, 0.68f, 0.72f, 0f), 1.1f, 1.8f, 0.92f, ref min, ref max);
                     continue;
                 }
                 if (i < 0)
