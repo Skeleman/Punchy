@@ -272,7 +272,8 @@ namespace Punchy.Ambience
                 Position = new float3(xz.x, height - 0.1f, xz.y),
                 Seed = ((s >> 18) & 0x3FFF) / 16384f,
                 Shape = new float4(VentRise * (0.6f + 0.8f * a), 0.25f + 0.35f * b, 0.45f + 0.4f * a, 4f + 3f * b),
-                Timing = new float4(intermittent ? 9f + 8f * b : 0f, 0.45f, steam ? 0.4f : 0.45f, 7 + (int)((s >> 24) % 4u))
+                Timing = new float4(intermittent ? 9f + 8f * b : 0f, 0.45f, steam ? 0.4f : 0.45f, 7 + (int)((s >> 24) % 4u)),
+                Fall = new float4(0f, 1f, 0f, 0f)
             };
             if (steam)
             {
