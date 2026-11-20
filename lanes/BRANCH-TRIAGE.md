@@ -4,6 +4,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 
 ## Merged 11-15 (catch-up)
 - b/fix-river-fall-shapes -> #722
+- b/fix-seep-search -> #723
 - materials/river-mouths -> #619
 - world/perched-lake -> #617
 - world/mouth-tint -> #618

@@ -22,6 +22,7 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - Main PC found and fixed one (#722, on main b864fed6): ~1.5 s frames every ~2 s while moving, all in
   LandmarkEffectSystem.Gather re-measuring river falls (FallShape.River). Run leg worst 1555 -> 93 ms. Rebuild from main
   b864fed6 and keep hunting: the frames still left (50-90 ms, ~8 per 5 s), anything over 200 ms standing still, turns.
+- Desktop update (11-19): #722 fixed the 1.5 s river-fall stalls and #723 the ~100 ms seep-search stall each second. Leftover 15-20 ms spikes come from FaunaDirector.Update, CaveSystem.Update and worker meshing. Rebench on main after #723.
 
 ## Standing rule: never idle (Zach, 2026-11-10)
 - When no job is QUEUED or RUNNING, take the next open part of job 47 (LOD range sweep), one kind per session, and report it like
