@@ -19,6 +19,9 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
   suspects culling. Note whether hitches follow turns. Also try uncapped (`-fpscap 0`) and exclusive fullscreen like Zach.
 - Report to REPORTS-profiler.md as soon as the first hitch is explained; keep going until three are. The supervisor runs
   the same hunt on the main PC; compare notes there.
+- Main PC found and fixed one (#722, on main b864fed6): ~1.5 s frames every ~2 s while moving, all in
+  LandmarkEffectSystem.Gather re-measuring river falls (FallShape.River). Run leg worst 1555 -> 93 ms. Rebuild from main
+  b864fed6 and keep hunting: the frames still left (50-90 ms, ~8 per 5 s), anything over 200 ms standing still, turns.
 
 ## Standing rule: never idle (Zach, 2026-11-10)
 - When no job is QUEUED or RUNNING, take the next open part of job 47 (LOD range sweep), one kind per session, and report it like
