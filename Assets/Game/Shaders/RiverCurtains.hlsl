@@ -15,6 +15,8 @@
 float4 _PunchyRiverCurtainLip[PUNCHY_RIVER_CURTAINS];
 float4 _PunchyRiverCurtainPour[PUNCHY_RIVER_CURTAINS];
 float4 _PunchyRiverCurtainFoot[PUNCHY_RIVER_CURTAINS];
+// How far in front of the lip line each fall's water is left out (m): to where its face meets the pool.
+float _PunchyRiverCurtainAhead[PUNCHY_RIVER_CURTAINS];
 float _PunchyRiverCurtainCount;
 float4 _PunchyRiverCurtainRect;
 
@@ -78,7 +80,7 @@ bool PunchyWaterUnderCurtain(float3 p, float side)
         float across = dot(d, float2(b.y, -b.x));
         float along = dot(d, b.xy) - PunchyFallLipShift(c, across, a.w - 1);
         // (Well under the lip's level: the water above the lip dips by up to a quarter of a metre, PunchyFallWater.)
-        if (along > -c.z - side && along < b.z + side && abs(across) < a.w + side && p.y < a.y - 0.45 && p.y > b.w + 0.15)
+        if (along > -c.z - side && along < _PunchyRiverCurtainAhead[k] + side && abs(across) < a.w + side && p.y < a.y - 0.45 && p.y > b.w + 0.15)
             return true;
     }
     return false;

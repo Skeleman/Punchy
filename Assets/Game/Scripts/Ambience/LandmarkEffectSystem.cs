@@ -117,11 +117,13 @@ namespace Punchy.Ambience
         const int MaxRiverCurtains = 32;
         readonly Vector4[] curtainLip = new Vector4[MaxRiverCurtains], curtainPour = new Vector4[MaxRiverCurtains],
             curtainFoot = new Vector4[MaxRiverCurtains];
+        readonly float[] curtainAhead = new float[MaxRiverCurtains];
         readonly List<(int index, float distance)> riverNear = new List<(int, float)>();
         int curtainCount;
         static readonly int CurtainLipId = Shader.PropertyToID("_PunchyRiverCurtainLip");
         static readonly int CurtainPourId = Shader.PropertyToID("_PunchyRiverCurtainPour");
         static readonly int CurtainFootId = Shader.PropertyToID("_PunchyRiverCurtainFoot");
+        static readonly int CurtainAheadId = Shader.PropertyToID("_PunchyRiverCurtainAhead");
         static readonly int CurtainCountId = Shader.PropertyToID("_PunchyRiverCurtainCount");
         static readonly int CurtainRectId = Shader.PropertyToID("_PunchyRiverCurtainRect");
         /// <summary>Nearby landmarks' flames (position, size; seed, palette), handed to FireSystem every frame.</summary>
@@ -426,6 +428,7 @@ namespace Punchy.Ambience
                     curtainLip[curtainCount] = a;
                     curtainPour[curtainCount] = new Vector4(s.Out.x, s.Out.y, s.Run + 1.5f, s.Lip.y - s.Drop);
                     curtainFoot[curtainCount] = new Vector4(s.Skew, s.Bow, s.ClipBack, s.Seed);
+                    curtainAhead[curtainCount] = s.ClipAhead;
                     curtainShapes.Add(s);
                     var r = a.w + s.Run + 3f + math.abs(s.Skew) + math.abs(s.Bow);
                     rect = curtainCount == 0
@@ -436,6 +439,7 @@ namespace Punchy.Ambience
             Shader.SetGlobalVectorArray(CurtainLipId, curtainLip);
             Shader.SetGlobalVectorArray(CurtainPourId, curtainPour);
             Shader.SetGlobalVectorArray(CurtainFootId, curtainFoot);
+            Shader.SetGlobalFloatArray(CurtainAheadId, curtainAhead);
             Shader.SetGlobalFloat(CurtainCountId, curtainCount);
             Shader.SetGlobalVector(CurtainRectId, rect);
             FallCells.Set(curtainLip, curtainPour, curtainFoot, curtainCount);
