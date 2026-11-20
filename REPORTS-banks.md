@@ -130,3 +130,5 @@
 - WorldTests 23/23, sparkleprobe NaN 0 (fall 138, hot 17). Shots: PunchyMilestones/water/fall-shelf/before and after (falls 138, 20 and 37 at 10 m and 40 m); the holes and panes at the feet are gone.
 - Risk: a grey lip-water pane left of fall 20's sheet shows in both before and after (not this fix). Cost: one array read per clipped water pixel.
 - Shares: extended the FallShape -> RiverCurtains clip box; no parallel found.
+
+- 11-19 paused for bench builds: nothing in flight; fall shelf is done and pushed (PR #708). Resume: wait for the next card.
