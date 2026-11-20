@@ -4722,3 +4722,16 @@ behind them. Most of those chunks are far LODs (25-289 vertices), so ~21 ms a ch
 **q166 (queued after q165):** bench-only 2f4bbc1 = 661e155 + profiler markers in the job per LOD and per phase
 (contacts, mouth patch, grid, post, collars, water), profiled 60 s stand from spawn. The user has given the
 profiler authority to change main for playability (supervisor paused), so a fix follows if the split shows one.
+
+## q166: 94% of the post-spawn terrain meshing is ground-contact shading, almost all of it on far chunks (15:05)
+Bench-only 2f4bbc1 (661e155 + markers), profiled 60 s stand from spawn at the town spot, worker ms per frame (median / mean):
+- whole `BuildChunkMeshJob`: 43.5 / 80.0
+- **Chunk.Contacts (`GroundContacts.Rasterise`): 40.8 / 75.7**
+- Grid (every vertex's terrain samples): 0.7 / 3.8; Water 0.2 / 0.4; Post 0.0 / 0.1
+- by LOD (mean): Lod3 37.1, Lod4 23.3, Lod2 13.6, Lod1 4.6, Lod0 1.5. The far chunks (256-1024 m+, 16 m vertex
+  spacing) cost the most, and there a trunk's contact shadow can't be seen.
+
+Fix (next, on main): gate the natural plants' contacts by their own footprint width at the chunk's distance, so far
+chunks only place cells that could be a town's buildings or a landmark's props. Expect the ~45 s of post-spawn
+meshing to mostly go, and chunk re-LODs while moving to get much cheaper. It'll be checked for a visible change at
+the LOD boundaries and benched against the Rule 23 bars.
