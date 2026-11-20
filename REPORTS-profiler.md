@@ -4565,3 +4565,23 @@ q158 route game, shelf build 894e8ce, laptop, High, 1920x1080, `-hitchms 200`:
 - Code check: the only Thread.Sleep in game code is DebugControls.Flight's flycave hitch test (off unless that test runs).
 - For the main PC: if Zach's hitches are also fixed-length (about 0.5, 1.0, 1.5 s...), it's this; a GPU capture
   (PIX/Nsight GPU trace) over one is what names the pass, the CPU Profiler can't.
+
+## Job 115: the q158 Profiler captures; both hitch kinds are the present wait, not game work (22:20)
+Three 60 s captures standing still (894e8ce, High, laptop), every main-thread frame over 500 ms:
+- **Town: 10 frames of 502-537 ms; oak grove: 7 (500-539 ms) then one of 61.5 s; forest spot 400,2800: 9 (501-530 ms)
+  then one of 53.6 s.** In every one, 466-519 ms (and the 61.5 s and 53.6 s) is self time in
+  `DXGI.WaitOnSwapChain < WaitForLastPresentation < TimeUpdate.WaitForLastPresentationAndUpdateTime`, at the top of the
+  player loop. All the game's own work in those frames is 1-20 ms (TerrainStreamingSystem 15-20 ms in a few; the rest is
+  CreatureRenderSystem, FloraSystem.LateUpdate and ColossusWalker at 1-5 ms). No GC, no shader compile, no streaming spike.
+- **During the long ones the GPU is idle** (freezesample: 0% at the 1063 MHz idle clock for the whole minute), the game
+  uses ~0 CPU, and the window isn't responding. It ended when freezestall's cdb attach fired (21:33:48 for the grove;
+  the stall began 21:32:46). The route game's cave stall had no attach and ran past 150 s until the kill.
+- That is exactly **the Job 41 stall (REPORTS 11-09): the swapchain's frame-latency wait never signals until something
+  disturbs the process.** The 500 ms frames look like the same missed wakeup, caught by the wait's ~0.5 s give-up: the
+  GPU isn't busy either (the GPU ms around them is 21-24 ms). The 11-05 runner bug left the same 510-523 ms band when
+  `FrameTimingManager.CaptureFrameTimings()` ran more than once a frame; the runner calls it once, and game code calls it
+  only under `-framelog` (DunesColossus) and the shots perf log, both off here.
+- So the CPU Profiler has said all it can: what's left is why presentation misses its signal, which it can't see. q159
+  (running) times the 0.5 s frames on 3eeb72d / 9a1694e / 814a4da / 894e8ce to find the range they began in. Job 42's flags
+  are worth a rerun once there's a reliable trigger: `-maxqueued 3` (+14% fps, Job 42) and `-vsync 1`.
+- Main PC: if Zach's hitches are near 0.5 s multiples or end when the window is touched or alt-tabbed, it's this.
