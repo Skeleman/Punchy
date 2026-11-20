@@ -29,7 +29,7 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
 - **Shadows (#286 closed; bias #354 closed 11-15: no visible difference, stays 0.1/0.5).** Shipped: one shadow darkness (R-16), steady near and high-preset sun shadows (R-20 row 1,
   R-32), blue moon shadows (R-32), no sun or cloud shadow through cave roofs (R-36), smooth cloud shadow reads (R-20 row 4, PR #410).
 - **Stylized realism (#304, R-26), foliage (#323, R-30), grass fields (#325, R-31), salt-flat cracks (#331,
-  R-33, shipped PR #579), wet stone (#332, R-34, shipped PR #427), clouds from a reference shader (#333, R-35).** R-26 row 1 audit done; row 2 recessed cave cracks + soft bark Shipped #583 (11-18); row 3 cave wall vs ground detail match Shipped #586 (11-18). R-35 cloud E waits on Job 111.
+  R-33, shipped PR #579), wet stone (#332, R-34, shipped PR #427), clouds from a reference shader (#333, R-35).** R-26 row 1 audit done; row 2 recessed cave cracks + soft bark Shipped #583 (11-18); row 3 cave wall vs ground detail match Shipped #586 (11-18). R-35 cloud E (screen-size fade) Shipped #710 (11-19).
 - **Sun moves smoothly (R-38, 11-15).** Sun position every 0.1 s as a trial. Shipped (R-38, PRs #409, #423).
 - **Caves.** Shipped: screen-size cave LOD, cave water, dungeon texturing and collision. Shipped: no paddy spikes on slopes (W-172 row 1, PR #384). Shipped: playtest
   fixes and tunnel variety (W-172 rows 2-6, PR #451). Shipped: cave walls that fit the place (W-172 row 7, PR #507; brighter fungi caps shipped #521; volcanic cave details (basalt, sulphur, ember cracks) and moss only near light or damp Shipped #705 (11-19); embers glow by screen size and reach the sulphur #709 (11-19); next:
@@ -115,7 +115,7 @@ Foliage realism (Zach 11-14): crowns as leaf clusters (cut-out cards, layering, 
 - 11-14 (Zach): caked, cracked dry ground on salt flats and cracked bark (R-33 #331, W-163 row 3).
 - 11-14 (Zach): wet-stone look trial on in-game stone (R-34 #332). Shipped: wet stone is the base rock (PR #427).
 - Reference shaders Zach sent (wood grain, cracked plates, wet stone, grass, clouds): D:/Unity/PunchyReferences (local, README lists licence and card).
-- 11-14 (Zach): explore a reference cumulus shader for cheaper or better clouds: R-35, #333. Zach 11-16: the base clouds look best, so keep them; the A-D looks stay off unless one saves frame time. Next (render-2, when resumed): land only the screen-size fade (E, rule 20) and drop the looks.
+- 11-14 (Zach): explore a reference cumulus shader for cheaper or better clouds: R-35, #333. Zach 11-16: the base clouds look best, so keep them; the A-D looks stay off unless one saves frame time. Shipped #710 (11-19): only the screen-size fade (E, rule 20); looks dropped.
 - 11-14 (Zach): farm fields outside towns, crops for every biome, e.g. snow potatoes, agave-like ferns (W-165, #335).
 - 11-16 (Zach): harvestable parts on real plants (fruit, flowers, petals, bark, parasitic growths); a picked part vanishes and the plant stays; regrows after a few in-game days, kept in day buckets, not per item (#492). Later: after P-35 ids and W-175 parts.
 - 11-14 (Zach): one material library: every built piece states what it is made of, families share look rules, kinds vary colour (W-166, #336).
