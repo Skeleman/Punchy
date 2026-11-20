@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Punchy.Terrain;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using Kit = Punchy.Rendering.Effects.PlumeSystem;
@@ -39,7 +40,6 @@ namespace Punchy.Ambience
 
         readonly object seepOwner = new object();
         readonly List<SeepSpot> seeps = new List<SeepSpot>();
-        bool[] lavaStyle = System.Array.Empty<bool>();
         readonly List<Kit.Plume> seepBeads = new List<Kit.Plume>();
         int2 seepCellAt = new int2(int.MinValue);
         float seepRangeAt;
@@ -49,19 +49,16 @@ namespace Punchy.Ambience
             var gone = Kit.Sparks.Effect != null ? Kit.Sparks.Effect.GonePixels : 16.8f;
             var range = math.min(Punchy.Settings.DetailPolicy.ExtraReach(SeepSize, gone), SeepMaxRange);
             var cell = (int2)math.floor(((float3)eye).xz / SeepCell);
-            if (!math.all(cell == seepCellAt) || math.abs(range - seepRangeAt) >= SeepCell)
+            if (seepSearching)
+            {
+                if (seepJob.IsCompleted)
+                    EndSeepSearch(source);
+            }
+            else if (!math.all(cell == seepCellAt) || math.abs(range - seepRangeAt) >= SeepCell)
             {
                 seepCellAt = cell;
                 seepRangeAt = range;
-                FindSeeps(source, eye, range, seeps);
-                seepBeads.Clear();
-                foreach (var s in seeps)
-                    if (s.Kind == SeepKind.Lava)
-                        seepBeads.Add(SeepPlume(s));
-                LastSeeps = seeps.Count;
-                Kit.Sparks.Set(seepOwner, seepBeads);
-                SeepFallMesh(source, eye, range);
-                SeepStreaks(eye, range);
+                BeginSeepSearch(source, eye, range, cell);
             }
             DrawSeepFalls();
             var t = Time.time;
@@ -75,119 +72,6 @@ namespace Punchy.Ambience
                 var light = SeepLight * (0.8f + 0.2f * Mathf.Sin(t * 0.7f + (s.Hash & 255)));
                 light.w = SeepLight.w * (0.8f + 0.4f * s.Width);
                 Punchy.Settings.LightBudget.AddStill(Punchy.Settings.LightKind.Fire, (Vector3)(s.Lip - new float3(0f, s.Drop * 0.4f, 0f)), light);
-            }
-        }
-
-        void FindSeeps(in TerrainSource source, Vector3 eye, float range, List<SeepSpot> into)
-        {
-            into.Clear();
-            var at = ((float3)eye).xz;
-            var n = (int)math.ceil(range / SeepCell);
-            for (int z = -n; z <= n; z++)
-            for (int x = -n; x <= n; x++)
-            {
-                var c = seepCellAt + new int2(x, z);
-                var h = Scramble(math.hash(new int3(c, 0x5EE9)));
-                if ((h & 0xFFFF) / 65536f >= SeepShare)
-                    continue;
-                var r = Scramble(h ^ 0x9E3779B9u);
-                var xz = ((float2)c + new float2((r & 0xFFFF) / 65536f, (r >> 16) / 65536f)) * SeepCell;
-                if (math.distancesq(xz, at) > range * range)
-                    continue;
-                if (SurfaceSeep(source, xz, Scramble(r), out var spot))
-                    into.Add(spot);
-            }
-            if (source.Caves.IsCreated)
-                CaveSeeps(source, (float3)eye, range, into);
-            if (into.Count > MaxSeeps)
-            {
-                into.Sort((a, b) => math.distancesq(a.Lip, (float3)eye).CompareTo(math.distancesq(b.Lip, (float3)eye)));
-                into.RemoveRange(MaxSeeps, into.Count - MaxSeeps);
-            }
-        }
-
-        bool SurfaceSeep(in TerrainSource source, float2 xz, uint h, out SeepSpot spot)
-        {
-            spot = default;
-            var ground = source.SampleGround(xz);
-            var lava = VentBiome(ground.Biomes);
-            if (ground.HasWater && ground.WaterSurface > ground.Height - 0.5f)
-                return false;
-            const float e = 0.75f;
-            var grad = new float2(source.SampleHeight(xz + new float2(e, 0f)) - source.SampleHeight(xz - new float2(e, 0f)),
-                                  source.SampleHeight(xz + new float2(0f, e)) - source.SampleHeight(xz - new float2(0f, e))) / (2f * e);
-            var slope = math.length(grad);
-            if (slope < SeepSteep)
-                return false;
-            var down = -grad / slope;
-            var drop = 1.2f + 2.3f * ((h & 0xFF) / 255f);
-            var foot = xz + down * (drop / slope);
-            // A face that bends away under the lip would leave the beads in the air.
-            if (math.abs(source.SampleHeight(foot) - (ground.Height - drop)) > 0.3f * drop)
-            {
-                drop *= 0.5f;
-                foot = xz + down * (drop / slope);
-                if (math.abs(source.SampleHeight(foot) - (ground.Height - drop)) > 0.3f * drop)
-                    return false;
-            }
-            if (!lava && !WaterSeepSite(source, ground, foot, down, h))
-                return false;
-            var lift = 0.08f * math.sqrt(1f + slope * slope);
-            spot = new SeepSpot
-            {
-                Lip = new float3(xz.x, ground.Height + lift, xz.y),
-                Run = down / slope,
-                Drop = drop,
-                Width = (0.3f + 0.5f * (((h >> 8) & 0xFF) / 255f)) * (lava ? 1f : 0.5f),
-                Kind = lava ? SeepKind.Lava : SeepKind.Water,
-                Hash = h
-            };
-            return true;
-        }
-
-        void CaveSeeps(in TerrainSource source, float3 eye, float range, List<SeepSpot> into)
-        {
-            ref var set = ref source.Caves.Value;
-            for (int c = 0; c < set.Caves.Length; c++)
-            {
-                ref var cave = ref set.Caves[c];
-                if (cave.Style <= 0 || cave.Style > lavaStyle.Length)
-                    continue;
-                var lava = lavaStyle[cave.Style - 1];
-                var kind = lava ? SeepKind.Lava : SeepKind.Water;
-                if (math.any(eye + range < cave.Min) || math.any(eye - range > cave.Max))
-                    continue;
-                for (int n = cave.FirstNode; n < cave.FirstNode + cave.NodeCount; n++)
-                {
-                    var node = set.Nodes[n];
-                    if (math.distance(node.Position, eye) > range + node.Radius)
-                        continue;
-                    var h = Scramble(math.hash(new int2(n, 0x5EE9)));
-                    if ((h & 0xFFFF) / 65536f >= (lava ? TubeSeepShare : WaterTubeSeepShare))
-                        continue;
-                    var next = set.Nodes[n + 1 < cave.FirstNode + cave.NodeCount ? n + 1 : math.max(n - 1, cave.FirstNode)].Position;
-                    var along = math.normalizesafe((next - node.Position).xz, new float2(1f, 0f));
-                    var dir = ((h >> 16) & 1u) == 0u ? new float2(-along.y, along.x) : new float2(along.y, -along.x);
-                    var y = node.Position.y + node.Radius * (0.1f + 0.4f * (((h >> 17) & 0xFF) / 255f));
-                    if (WallSeep(source, new float3(node.Position.x, y, node.Position.z), dir, 0f, node.Radius * 3f, node.Position.y - node.Radius * 2f, kind, Scramble(h), out var spot) &&
-                        math.distance(spot.Lip, eye) <= range)
-                        into.Add(spot);
-                }
-                for (int i = cave.FirstPool; i < cave.FirstPool + cave.PoolCount; i++)
-                {
-                    var pool = set.Pools[i];
-                    if (pool.Lava > 0.5f != lava || math.distance(pool.Centre, eye) > range + pool.Radius + 20f)
-                        continue;
-                    for (int k = 0; k < (lava ? PoolSeeps : WaterPoolSeeps); k++)
-                    {
-                        var h = Scramble(math.hash(new int2(i, k + 0x5EE9)));
-                        var angle = (h & 0xFFFF) / 65536f * 6.2832f;
-                        var y = pool.Centre.y + 1.2f + 2.3f * (((h >> 16) & 0xFF) / 255f);
-                        if (WallSeep(source, new float3(pool.Centre.x, y, pool.Centre.z), new float2(math.cos(angle), math.sin(angle)), pool.Radius * 0.5f, pool.Radius + 25f, pool.Centre.y, kind, Scramble(h), out var spot) &&
-                            math.distance(spot.Lip, eye) <= range)
-                            into.Add(spot);
-                    }
-                }
             }
         }
 
@@ -267,16 +151,23 @@ namespace Punchy.Ambience
 
         void SeepTables(BiomePalette palette)
         {
+            DisposeSeepSearch();
             var styles = CaveStyleTable.Collect(palette.Landmarks);
-            lavaStyle = new bool[styles.Count];
+            lavaStyle = new NativeArray<bool>(styles.Count, Allocator.Persistent);
             for (int i = 0; i < styles.Count; i++)
                 lavaStyle[i] = styles[i] != null && styles[i].LavaPools;
+            seepVents = new NativeArray<bool>(ventBiome, Allocator.Persistent);
             WaterSeepTables(palette);
             seepCellAt = new int2(int.MinValue);
         }
 
         void ClearSeeps()
         {
+            if (seepSearching)
+            {
+                seepJob.Complete();
+                seepSearching = false;
+            }
             Kit.Sparks.Set(seepOwner, null);
             seeps.Clear();
             ClearSeepFalls();
