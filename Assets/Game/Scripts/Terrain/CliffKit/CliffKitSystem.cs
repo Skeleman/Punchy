@@ -195,6 +195,9 @@ namespace Punchy.Terrain
             for (int i = 0; i < set.Pieces.Length; i++)
             {
                 var piece = set.Pieces[i];
+                // Cave shelves are drawn by the cave, in its light.
+                if (piece.Face == CliffKit.CaveFace)
+                    continue;
                 var key = (int2)math.floor(piece.Position.xz / RegionSize);
                 if (!byKey.TryGetValue(key, out var r))
                 {

@@ -104,6 +104,45 @@ namespace Punchy.CameraRig
 
         void LateUpdate()
         {
+            UpdateView();
+            HoldOnSky();
+        }
+
+        /// <summary>P-37 row 1 (#369): the start view looks this far up (degrees; the sky fills the frame).</summary>
+        const float SkyPitch = -85f;
+        /// <summary>Real seconds the view takes to tilt down from the sky once the world is in.</summary>
+        const float SkyRelease = 1.4f;
+        /// <summary>1 while held on the sky, easing to 0 as the view tilts down to the player.</summary>
+        float sky = 1f;
+        static ThirdPersonCamera live;
+
+        /// <summary>P-37: the camera is still on the sky or tilting down from it (the shot tool waits).</summary>
+        public static bool SkyHeld => live != null && live.sky > 0f;
+
+        void OnEnable() => live = this;
+        void OnDisable()
+        {
+            if (live == this)
+                live = null;
+        }
+
+        /// <summary>
+        /// P-37 row 1 (#369, Zach 11-14: no loading screen for now). While the world round the start or a joined
+        /// client's spawn streams in (LoadVeil's "load", now watched but not painted) the view looks straight up at the
+        /// sky, which has nothing that streams, so nobody sees a half-built world; then it tilts down to the player.
+        /// Local and cosmetic: this machine's camera only.
+        /// </summary>
+        void HoldOnSky()
+        {
+            sky = LoadVeil.FirstLoad ? 1f : Mathf.MoveTowards(sky, 0f, Time.unscaledDeltaTime / SkyRelease);
+            if (sky <= 0f)
+                return;
+            var up = Quaternion.Euler(SkyPitch, yaw, 0f);
+            transform.rotation = Quaternion.Slerp(transform.rotation, up, Mathf.SmoothStep(0f, 1f, sky));
+        }
+
+        void UpdateView()
+        {
             HandleCursor();
             if (!TryGetPlayerPosition(out var playerPosition))
                 return;
@@ -579,8 +618,9 @@ namespace Punchy.CameraRig
 
         void HandleCursor()
         {
-            // The main menu (Esc or Start) needs the mouse; take it back once it closes.
-            if (Punchy.UI.Overlay.AnyOpen)
+            // The main menu (Esc or Start) needs the mouse; take it back once it closes. (Not the in-world menu: the
+            // player still walks and looks around with it up.)
+            if (Punchy.UI.Overlay.Frozen)
             {
                 if (Cursor.lockState == CursorLockMode.Locked)
                     SetCursorCaptured(false);

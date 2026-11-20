@@ -171,6 +171,12 @@ namespace Punchy.Fauna
             var armSwing = 1f + CreatureBlob.Trait(id, 2) * 0.45f;
             var bounce = 1f + CreatureBlob.Trait(id, 3) * 0.5f;
             var twist = 1f + CreatureBlob.Trait(id, 4) * 0.6f;
+            // A-124 row 2: their gait style (even, heavy, brisk, ambling, a limp) scales those; its stride is the legs'.
+            var gait = GaitStyle.Of(ref b, id);
+            armSwing *= gait.Arms;
+            bounce *= gait.Bob;
+            twist *= gait.Twist;
+            var gaitLean = gait.Lean * move;
             var headTilt = new float3(CreatureBlob.Trait(id, 6) * 0.1f, 0f, CreatureBlob.Trait(id, 7) * 0.07f);
 
             // Past a run, folk sprint: leaning well in, and lifting clear of the ground between steps.
@@ -189,6 +195,9 @@ namespace Punchy.Fauna
                 pitch += sprint * (b.Bounds ? 0.12f : 0.07f) * math.sin(2f * math.PI * s.Phase);
             var bobs = math.lerp(b.BobsPerCycle.x, b.BobsPerCycle.y, run);
             var bob = math.lerp(b.Bob.x, b.Bob.y, run) * bounce * move * scale * (0.5f - 0.5f * math.cos(2f * math.PI * bobs * s.Phase));
+            // A limper rises over the good leg and comes down onto the sore one (less so running).
+            if (gait.Limps)
+                bob += gait.Rise(ref b, s.Phase, sprint) * move * (1f - 0.5f * run) * scale;
             pitch += b.RunRock * run * move * math.sin(2f * math.PI * s.Phase);
 
             // Posture: lying lowers the body onto its belly; a bow or a lowered head tips the chest down.
@@ -428,6 +437,7 @@ namespace Punchy.Fauna
                 partHidden.Add(hidden);
                 var torso = b.Upright && part.Parent < 0 && part.Role != LimbRole.Leg;
                 var amplitude = part.Role == LimbRole.Arm ? armSwing : torso ? twist : 1f;
+                var legStride = gait.LegStride(ref part, run);   // (as CreatureMotion poses it, so planted feet stay put)
 
                 // Legs hanging beneath the body fold up when it lies down (front legs half-fold for a play bow);
                 // splayed legs (lizards, spiders) keep their feet planted and bend at the knees instead.
@@ -533,7 +543,7 @@ namespace Punchy.Fauna
                         var pose = math.lerp(extended, gathered, gather);
                         if (!hind && j == 0)
                             pose.z += part.Side * 0.3f * gather;
-                        a = math.lerp(b.LegAngles(seg, jointPhase, gaitMove, run, sprint), pose, leap);
+                        a = math.lerp(b.LegAngles(seg, jointPhase, gaitMove, run, sprint, legStride), pose, leap);
                     }
                     else if (part.Role == LimbRole.Leg && sprint > 0f)
                     {
@@ -547,7 +557,7 @@ namespace Punchy.Fauna
                             a = idle + (b.Angles(seg, jointPhase, gaitMove, run) - idle) * (1f - 0.35f * sprint);
                         }
                         else
-                            a = b.LegAngles(seg, jointPhase, gaitMove, run, sprint);
+                            a = b.LegAngles(seg, jointPhase, gaitMove, run, sprint, legStride);
                         if (jointPhase >= 0.5f && b.Upright)
                         {
                             var swing = math.sin((jointPhase - 0.5f) * 2f * math.PI);
@@ -556,7 +566,7 @@ namespace Punchy.Fauna
                         }
                     }
                     else
-                        a = b.Angles(seg, jointPhase, gaitMove, run);
+                        a = b.LegAngles(seg, jointPhase, gaitMove, run, 0f, legStride);
                     // A sprinter's arms pump hard, elbows bent.
                     if (part.Role == LimbRole.Arm && sprint > 0f)
                     {
@@ -578,7 +588,7 @@ namespace Punchy.Fauna
                     if (part.Role == LimbRole.Arm && s.Action == IdleAction.Carry)
                         a = math.lerp(a, b.Poses[seg * CreatureBlob.PoseCount + CreatureBlob.Idle], act);
                     if (torso && j == 0)
-                        a.x += lean;
+                        a.x += lean + gaitLean;
                     if (part.Role == LimbRole.Head && j == 0)
                         a += headTilt + new float3(0.2f * leap * gather, 0f, 0f);
                     // A guard's right arm: bent to hold its weapon upright at its side once it's drawn, or raised forward

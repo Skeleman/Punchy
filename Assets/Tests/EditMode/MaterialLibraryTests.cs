@@ -23,9 +23,72 @@ namespace Punchy.Tests
 
         // Forms that are all timber but for small fittings: their wood must draw as wood.
         static readonly string[] TimberForms = { "Stable", "Pen", "Stall", "HitchRail", "Signpost", "Palisade", "RailFence", "MineFrame" };
-        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166): TerrainSurface.shader
-        // (render's) reaches stone through the old Shaders/Stone.hlsl forwarder.
-        static readonly (string include, string shader)[] Pending = { ("Stone.hlsl", "TerrainSurface.shader") };
+        // Shaders that still draw a family their own way, waiting on their owners (handed off from W-166). Empty since
+        // Creature.shader draws its coats through Materials/Coat.hlsl; kept so a future hand-off has a place to go.
+        static readonly (string include, string shader)[] Pending = { };
+
+        [Test]
+        public void StranglerRootsAreStableAndLeaveTheFarLevelAlone()
+        {
+            var species = AssetDatabase.LoadAssetAtPath<ScriptableObject>("Assets/Game/Flora/Bogwood.asset");
+            var field = species.GetType().GetField("Strangler");
+            var grow = Game.GetType("Punchy.Flora.FloraGenerator").GetMethod("Grow", BindingFlags.Public | BindingFlags.Static);
+            int[] Count()
+            {
+                var counts = new List<int>();
+                for (int v = 0; v < 4; v++)
+                {
+                    var model = grow.Invoke(null, new object[] { species, v, false });
+                    var lods = (Mesh[])model.GetType().GetField("Lods").GetValue(model);
+                    counts.AddRange(lods.Select(m => m != null ? m.triangles.Length : 0));
+                }
+                return counts.ToArray();
+            }
+            var keep = (float)field.GetValue(species);
+            try
+            {
+                var on = Count();
+                Assert.AreEqual(on, Count(), "roots differ between two builds");
+                field.SetValue(species, 0f);
+                var off = Count();
+                for (int i = 2; i < on.Length; i += 3)
+                    Assert.AreEqual(off[i], on[i], "roots reached the far level");
+                Assert.Greater(on.Sum(), off.Sum(), "no variant grew roots");
+            }
+            finally { field.SetValue(species, keep); }
+        }
+
+        // W-163 row 3: Flora.shader decodes kind * 0.002 under the wood band, so the mark must stay below 0.009.
+        [Test]
+        public void BarkKindReachesTheMark()
+        {
+            var species = AssetDatabase.LoadAssetAtPath<ScriptableObject>("Assets/Game/Flora/Birch.asset");
+            var field = species.GetType().GetField("BarkKind");
+            var grow = Game.GetType("Punchy.Flora.FloraGenerator").GetMethod("Grow", BindingFlags.Public | BindingFlags.Static);
+            var barkPart = (int)Enum.Parse(Game.GetType("Punchy.Flora.FloraPart", true), "Bark");
+            int Marked(int kind)
+            {
+                var model = grow.Invoke(null, new object[] { species, 0, false });
+                var mesh = ((Mesh[])model.GetType().GetField("Lods").GetValue(model))[0];
+                var uv = new List<Vector4>();
+                mesh.GetUVs(0, uv);
+                return uv.Count(u => Mathf.RoundToInt(u.y) == barkPart && Mathf.Abs(u.y - barkPart - kind * 0.002f) < 0.0005f);
+            }
+            var keep = field.GetValue(species);
+            Assert.AreEqual("Checked", keep.ToString(), "birch should have fine checks");
+            try
+            {
+                Assert.Greater(Marked(2), 0, "no birch bark carries the checked mark");
+                field.SetValue(species, Enum.ToObject(field.FieldType, 0));
+                Assert.AreEqual(0, Marked(2), "the mark stayed after the kind went back to furrowed");
+            }
+            finally { field.SetValue(species, keep); }
+            Assert.Less((Enum.GetValues(field.FieldType).Length - 1) * 0.002f, 0.009f, "bark kinds would reach the wood band");
+            var text = File.ReadAllText(Path.Combine(Application.dataPath, "Game", "Shaders", "Materials", "Bark.hlsl"));
+            foreach (var name in Enum.GetNames(field.FieldType))
+                StringAssert.Contains("#define PUNCHY_BARK_" + name.ToUpperInvariant() + " " + (int)Enum.Parse(field.FieldType, name), text,
+                    name + " has no matching define in Bark.hlsl");
+        }
 
         [Test]
         public void EveryBuiltPieceHasAMaterial()
@@ -83,6 +146,7 @@ namespace Punchy.Tests
             Assert.That(used.Any(u => u.Item1 == "Brick"), "brick has no slot");
             Assert.That(used.Any(u => u.Item1 == "Ice"), "ice has no slot");
             Assert.That(used.Any(u => u.Item1 == "Stone"), "built stone has no slot");
+            Assert.That(used.Any(u => u.Item1 == "Paint"), "paint has no slot");
         }
 
         // Each family's include: what defining its look by hand looks like, what drawing it looks like, and which
@@ -95,10 +159,100 @@ namespace Punchy.Tests
             ("Metal.hlsl", @"\w*Metal(Shade|Glint)\w*", @"PunchyMetal\w*\s*\(", new[] { "Flora.shader", "Creature.shader" }),
             ("Plaster.hlsl", @"\w*Plaster\w*", @"PunchyPlaster\w*\s*\(", new[] { "Flora.shader" }),
             ("Brick.hlsl", @"\w*Brick\w*", @"PunchyBrick\w*\s*\(", new[] { "Flora.shader" }),
+            ("Paint.hlsl", @"\w*Paint\w*", @"PunchyPaint\w*\s*\(", new[] { "Flora.shader" }),
             ("Ice.hlsl", @"\w*Ice(Block|Depth|Joint)\w*", @"PunchyIce\w*\s*\(", new[] { "Flora.shader" }),
-            ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader" }),
+            ("Stone.hlsl", @"\w*(Stone(Surface|Blocks|Course|Rubble|Spec)|Ashlar)\w*", @"PunchyStone\w*\s*\(", new[] { "Flora.shader", "Cave.shader", "SunkenTemple.shader", "TerrainSurface.shader" }),
             ("Bone.hlsl", @"\w*Bone(Pit|Line|Ivory)\w*", @"PunchyBone\w*\s*\(", new[] { "Creature.shader" }),
+            ("Coat.hlsl", @"\w*Coat(Fur|Feathers|Scales|Skin|Chitin)\w*", @"PunchyCoat\w*\s*\(", new[] { "Creature.shader" }),
         };
+
+        // Coverings (W-166 #336): one library row per creature coat kind, so the look in Materials/Coat.hlsl and
+        // Fauna.CoatKind cannot drift apart, and each row is usable (a pattern size and a highlight power above 0).
+        [Test]
+        public void EveryCoatKindHasARow()
+        {
+            var coatKind = Game.GetType("Punchy.Fauna.CoatKind", true);
+            var library = Game.GetType("Punchy.Terrain.MaterialLibrary", true);
+            var rows = (Array)library.GetField("Coat").GetValue(null);
+            var max = (int)library.GetField("MaxCoatKinds").GetValue(null);
+            var kinds = Enum.GetValues(coatKind).Length;
+            Assert.AreEqual(kinds, rows.Length, "MaterialLibrary.Coat needs one row per CoatKind");
+            Assert.LessOrEqual(kinds, max, "Coat.hlsl holds at most MaxCoatKinds rows");
+            var problems = new List<string>();
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var row = rows.GetValue(i);
+                var size = (float)row.GetType().GetField("Size").GetValue(row);
+                var power = (float)row.GetType().GetField("SpecPower").GetValue(row);
+                if (size <= 1e-3f || power <= 1e-3f)
+                    problems.Add($"{Enum.GetName(coatKind, i)}: size {size}, spec power {power} (0 reads as an unpushed row)");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        // Cloth and metal (#336): one row per kind, none zero where Cloth.hlsl or Metal.hlsl divides or raises by it.
+        [TestCase("ClothKind", "Cloth", "MaxClothKinds", "Size", "Contrast")]
+        [TestCase("MetalKind", "Metal", "MaxMetalKinds", "SpecPower", "GlintPower")]
+        public void EveryClothAndMetalKindHasARow(string kindName, string table, string maxName, string first, string second)
+        {
+            var kind = Game.GetType("Punchy.Terrain." + kindName, true);
+            var library = Game.GetType("Punchy.Terrain.MaterialLibrary", true);
+            var rows = (Array)library.GetField(table).GetValue(null);
+            var max = (int)library.GetField(maxName).GetValue(null);
+            var kinds = Enum.GetValues(kind).Length;
+            Assert.AreEqual(kinds, rows.Length, $"MaterialLibrary.{table} needs one row per {kindName}");
+            Assert.LessOrEqual(kinds, max, $"{table}.hlsl holds at most {maxName} rows");
+            var problems = new List<string>();
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var row = rows.GetValue(i);
+                var a = (float)row.GetType().GetField(first).GetValue(row);
+                var b = (float)row.GetType().GetField(second).GetValue(row);
+                if (a <= 1e-3f || b <= 1e-3f)
+                    problems.Add($"{Enum.GetName(kind, i)}: {first} {a}, {second} {b} (0 reads as an unpushed row)");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        // Stone (W-166 row 2): a plain scarp bakes exactly as before stone came in (no shape change, zero paint offsets),
+        // and every biome names a real row of MaterialLibrary.Stone, so its scarps and river notches have a rock to be.
+        [Test]
+        public void PlainStoneLeavesAScarpAlone()
+        {
+            var scarp = Game.GetType("Punchy.Terrain.Scarp", true);
+            var kind = Game.GetType("Punchy.Terrain.StoneKind", true);
+            var stone = Game.GetType("Punchy.Terrain.ScarpBake", true).GetMethod("Stone");
+            var sc = Activator.CreateInstance(scarp);
+            foreach (var (f, v) in new[] { ("Crack", 1.3f), ("Push", 2.1f), ("Setback", 0.7f) }) scarp.GetField(f).SetValue(sc, v);
+            var args = new object[] { Enum.ToObject(kind, 0), sc };
+            stone.Invoke(null, args);
+            sc = args[1];
+            float F(string f) => (float)scarp.GetField(f).GetValue(sc);
+            Assert.AreEqual(1.3f, F("Crack"), 1e-5f);
+            Assert.AreEqual(2.1f, F("Push"), 1e-5f);
+            Assert.AreEqual(0.7f, F("Setback"), 1e-5f);
+            foreach (var f in new[] { "Beds", "Joints", "Polish", "Gully", "Chimneys" }) Assert.AreEqual(0f, F(f), 1e-6f, f);
+            var tint = scarp.GetField("Tint").GetValue(sc);
+            foreach (var c in new[] { "x", "y", "z" }) Assert.AreEqual(0f, (float)tint.GetType().GetField(c).GetValue(tint), 1e-6f, "Tint." + c);
+        }
+
+        [Test]
+        public void EveryBiomeNamesAStone()
+        {
+            var kind = Game.GetType("Punchy.Terrain.StoneKind", true);
+            var biome = Game.GetType("Punchy.Terrain.BiomeDefinition", true);
+            var rows = (Array)Game.GetType("Punchy.Terrain.MaterialLibrary", true).GetField("Stone").GetValue(null);
+            var problems = new List<string>();
+            var guids = AssetDatabase.FindAssets("t:" + biome.Name);
+            Assert.IsNotEmpty(guids, "no biome assets found");
+            foreach (var guid in guids)
+            {
+                var asset = AssetDatabase.LoadAssetAtPath(AssetDatabase.GUIDToAssetPath(guid), biome);
+                var value = Convert.ToInt32(biome.GetField("Stone").GetValue(asset));
+                if (!Enum.IsDefined(kind, value) || value >= rows.Length) problems.Add($"{asset.name}: stone {value}");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
 
         // Gear (W-166 row 3): every creature gear material maps to a family, and Creature.shader is a user of that family's
         // include in the table above, so SegmentMaterial and the library cannot drift apart.
@@ -132,7 +286,7 @@ namespace Punchy.Tests
             {
                 var defines = new Regex(@"^\s*(half3|half|float3|float)\s+" + definesName + @"\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase);
                 var draws = new Regex(drawsName);
-                var quoted = $"\"Materials/{include}\"";
+                var family = Path.GetFullPath(Path.Combine(root, "Materials", include));
                 foreach (var path in files)
                 {
                     var name = Path.GetFileName(path);
@@ -141,17 +295,76 @@ namespace Punchy.Tests
                     var pending = Pending.Contains((include, name));
                     if (!inMaterials && !pending && defines.IsMatch(text))
                         problems.Add($"{name} defines its own {include} look ({defines.Match(text).Value.Trim()}): draw it through Materials/{include}");
-                    if (!inMaterials && !pending && name != include && draws.IsMatch(text) && !text.Contains(quoted))
+                    if (!inMaterials && !pending && name != include && draws.IsMatch(text) && !Includes(path, root).Contains(family))
                         problems.Add($"{name} draws {include}'s family without including Materials/{include}");
                 }
                 foreach (var name in users)
                 {
-                    var text = File.ReadAllText(Path.Combine(root, name));
-                    if (!text.Contains(quoted) || !draws.IsMatch(text))
+                    var path = Path.Combine(root, name);
+                    var reached = Includes(path, root);
+                    // The draw may sit in a shared include on the way (Cave and TerrainSurface reach Stone through
+                    // Materials/RockWall.hlsl), so the shader's own text and everything it pulls in short of the family count.
+                    var drawn = reached.Where(p => p != family).Prepend(Path.GetFullPath(path)).Any(p => draws.IsMatch(File.ReadAllText(p)));
+                    if (!reached.Contains(family) || !drawn)
                         problems.Add($"{name} should draw its {include} family through Materials/{include}");
                 }
             }
             Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        // W-163 row 1: the one wood grain keeps its layers (a domain warp, darker dirt bands, a seed per piece of
+        // timber), each detail fades by on-screen size (rule 20), and the shaders that draw wood still compile.
+        [Test]
+        public void WoodGrainKeepsItsLayers()
+        {
+            var text = File.ReadAllText(Path.Combine(Application.dataPath, "Game", "Shaders", "Materials", "Wood.hlsl"));
+            var grain = Regex.Match(text, @"half3 PunchyWoodGrain\(.*?\n}", RegexOptions.Singleline).Value;
+            Assert.IsNotEmpty(grain, "PunchyWoodGrain is missing");
+            StringAssert.Contains("q += shift", grain, "the ring noise should be read through a warped coordinate");
+            StringAssert.Contains("smoothstep(0.5, 0.9, dirt)", grain, "dirt should come in darker bands");
+            foreach (var fade in new[] { "fRing", "fPore", "fKnot", "fDirt" })
+                Assert.IsTrue(Regex.IsMatch(grain, fade + @" = PunchyWoodFade\("), fade + " should fade by on-screen size");
+            StringAssert.Contains("PunchyWoodAlongAxis(albedo, p, axisCode, footprint, kind, PunchyWoodPieceSeed(key))", text,
+                "posts and beams should each get their own seed");
+        }
+
+        [Test]
+        public void WoodShadersCompile()
+        {
+            var problems = new List<string>();
+            foreach (var name in new[] { "Punchy/Flora", "Punchy/Cave", "Punchy/Creature" })
+            {
+                var shader = Shader.Find(name);
+                if (shader == null) { problems.Add(name + " not found"); continue; }
+                foreach (var m in ShaderUtil.GetShaderMessages(shader))
+                    if (m.severity == UnityEditor.Rendering.ShaderCompilerMessageSeverity.Error)
+                        problems.Add($"{name}: {m.message} ({m.file}:{m.line})");
+            }
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        static readonly Regex IncludeLine = new(@"^\s*#include(_with_pragmas)?\s+""([^""]+)""", RegexOptions.Multiline);
+
+        /// <summary>Every project shader file a file reaches through #include, followed through chains (a family
+        /// include reached via another include counts). Paths resolve next to the including file, then under Shaders;
+        /// package includes don't resolve and are skipped.</summary>
+        static HashSet<string> Includes(string path, string root)
+        {
+            var seen = new HashSet<string>();
+            var todo = new Stack<string>();
+            todo.Push(Path.GetFullPath(path));
+            while (todo.Count > 0)
+            {
+                var file = todo.Pop();
+                foreach (Match m in IncludeLine.Matches(File.ReadAllText(file)))
+                {
+                    var rel = m.Groups[2].Value;
+                    var found = new[] { Path.Combine(Path.GetDirectoryName(file), rel), Path.Combine(root, rel) }
+                        .Select(Path.GetFullPath).FirstOrDefault(File.Exists);
+                    if (found != null && seen.Add(found)) todo.Push(found);
+                }
+            }
+            return seen;
         }
     }
 }

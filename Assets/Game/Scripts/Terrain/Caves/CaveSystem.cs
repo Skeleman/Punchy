@@ -36,11 +36,6 @@ namespace Punchy.Terrain
         [Tooltip("Grid spacing for building cave walls, in metres.")]
         [Range(0.25f, 1.5f)] public float Voxel = 0.5f;
 
-        [Header("Lantern")]
-        public Color LanternColor = new Color(1f, 0.78f, 0.5f);
-        public float LanternIntensity = 6f;
-        public float LanternRange = 15f;
-
         /// <summary>0 above ground, 1 deep in a cave (from the camera). Weather and ambience read it.</summary>
         public static float Underground { get; private set; }
 
@@ -70,7 +65,7 @@ namespace Punchy.Terrain
             }
         }
 
-        class Built
+        partial class Built
         {
             public Mesh Mesh;
             public JobHandle Job;
@@ -78,6 +73,8 @@ namespace Punchy.Terrain
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
             public NativeList<float4> Data;
+            /// <summary>W-162: rgb the country rock round a mouth, a its share (UV1, see MeshJob.Look).</summary>
+            public NativeList<float4> Rock;
             public NativeList<int> Indices;
             public bool Pending;
             /// <summary>Whether its walls cast sun shadows: only chunks reaching up near the surface can shade anything the sun lights.</summary>
@@ -137,8 +134,10 @@ namespace Punchy.Terrain
                 if (Positions.IsCreated) Positions.Dispose();
                 if (Normals.IsCreated) Normals.Dispose();
                 if (Colors.IsCreated) Colors.Dispose();
+                if (Rock.IsCreated) Rock.Dispose();
                 if (Indices.IsCreated) Indices.Dispose();
                 if (Mesh != null) Destroy(Mesh);
+                DisposePatch(true);
             }
         }
 
@@ -181,14 +180,6 @@ namespace Punchy.Terrain
         World queryWorld;
         EntityQuery terrainQuery, playerQuery;
         TerrainSource lastSource;
-        Light lantern;
-        float lanternLevel;
-
-        // Other players carry lanterns too (lit from where their bodies are; nothing extra is sent).
-        class OtherLantern { public Light Light; public float Level; public bool Seen; }
-        readonly Dictionary<Entity, OtherLantern> otherLanterns = new Dictionary<Entity, OtherLantern>();
-        readonly List<Entity> goneLanterns = new List<Entity>();
-        EntityQuery othersQuery;
 
         static readonly int UndergroundId = Shader.PropertyToID("_PunchyUnderground");
         static readonly int StylesId = Shader.PropertyToID("_PunchyCaveStyles");
@@ -207,6 +198,7 @@ namespace Punchy.Terrain
         void OnEnable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing += ReleaseWorld;
+            RenderPipelineManager.beginCameraRendering += DrawSkippedOnCut;
             // Quitting (or leaving play mode) frees the TerrainSource blobs before this is disabled, and the surface
             // glow's far scan job may still be reading them: finish every job first, while they are intact.
             Application.quitting += ReleaseWorld;
@@ -304,6 +296,7 @@ namespace Punchy.Terrain
         void OnDisable()
         {
             Punchy.Net.GameBootstrap.WorldsReplacing -= ReleaseWorld;
+            RenderPipelineManager.beginCameraRendering -= DrawSkippedOnCut;
             Application.quitting -= ReleaseWorld;
             Release();
         }
@@ -431,7 +424,7 @@ namespace Punchy.Terrain
         // ------------------------------------------------------------------------------------------- pools
 
         /// <summary>A lava pool's glow (rgb linear x intensity; its reach is set by its size).</summary>
-        static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.42f * 2.2f, 0.1f * 2.2f, 0f);
+        static readonly Vector4 LavaLight = new Vector4(1f * 2.2f, 0.27f * 2.2f, 0.025f * 2.2f, 0f);
 
         /// <summary>
         /// Hands this frame's light requests (lava pools, glowing plants, wall torches, room lights, lit windows here, and
@@ -1697,6 +1690,7 @@ namespace Punchy.Terrain
                 if (ShardProbe)
                     LogShards(b);
                 mesh.SetUVs(0, b.Data.AsArray());
+                mesh.SetUVs(1, b.Rock.AsArray());
                 mesh.SetIndices(b.Indices.AsArray(), MeshTopology.Triangles, 0);
                 var min = (float3)key * chunkSize;
                 // Room for the apron and the skirts (each within two of its voxels outside the chunk).
@@ -1721,7 +1715,9 @@ namespace Punchy.Terrain
                 if (b.Opens)
                     b.OpeningBounds = new Bounds((b.Opening[0] + b.Opening[1]) * 0.5f, b.Opening[1] - b.Opening[0]);
                 b.OpeningSeen = false;
+                FinishPatch(b);
             }
+            b.DisposePatch(false);
             b.Field.Dispose();
             b.CaveField.Dispose();
             b.Surface.Dispose();
@@ -1730,6 +1726,7 @@ namespace Punchy.Terrain
             b.Normals.Dispose();
             b.Colors.Dispose();
             b.Data.Dispose();
+            b.Rock.Dispose();
             b.Indices.Dispose();
             b.Opening.Dispose();
             b.Gap.Dispose();
@@ -1947,6 +1944,7 @@ namespace Punchy.Terrain
                 Positions = new NativeList<float3>(Allocator.Persistent),
                 Normals = new NativeList<float3>(Allocator.Persistent),
                 Colors = new NativeList<float4>(Allocator.Persistent),
+                Rock = new NativeList<float4>(Allocator.Persistent),
                 Indices = new NativeList<int>(Allocator.Persistent),
                 Opening = new NativeArray<float3>(2, Allocator.Persistent),
                 Gap = new NativeArray<float>(1, Allocator.Persistent),
@@ -1956,16 +1954,19 @@ namespace Punchy.Terrain
             };
             // W-128: the skin follows the ground as the near terrain draws it (its LOD0 grid), so it meets the terrain's edge.
             var gridStep = configQuery.IsEmpty ? 0f : configQuery.GetSingleton<TerrainConfig>().ChunkSize / configQuery.GetSingleton<TerrainConfig>().Lod0Quads;
-            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
-                .Schedule(points.x * points.z, 64);
+            var patchJob = StartPatch(source, key, b, gridStep);
+            var columnJob = new ColumnJob { Source = source, Origin = origin, Points = points, Voxel = voxel, GridStep = gridStep, Surface = b.Surface, SurfaceScale = b.SurfaceScale,
+                Patch = b.Patch, PatchMin = PatchMin(key) }.Schedule(points.x * points.z, 64, patchJob);
             var field = new FieldJob { Source = source, Origin = origin, Points = points, Voxel = voxel, Field = b.Field, CaveField = b.CaveField, Surface = b.Surface, SurfaceScale = b.SurfaceScale }
                 .Schedule(points.y * points.z, 4, columnJob);
             b.Job = new MeshJob
             {
                 Source = source, Origin = origin, Cells = cells, Voxel = voxel, Skirt = voxel * SkirtVoxels,
                 Field = b.Field, CaveField = b.CaveField, ShardProbe = ShardProbe,
-                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Indices = b.Indices,
+                Surface = b.Surface, SurfaceScale = b.SurfaceScale, GridStep = gridStep,
+                Positions = b.Positions, Normals = b.Normals, Colors = b.Colors, Data = b.Data, Rock = b.Rock, Indices = b.Indices,
                 Opening = b.Opening, Gap = b.Gap, Contacts = b.Contacts,
+                Patch = b.Patch, PatchMin = PatchMin(key), PatchVerts = b.PatchVerts, PatchIndices = b.PatchIndices, PatchFlips = b.PatchFlips,
                 ContactStrength = ContactShade.Strength, ContactReach = ContactShade.ReachScale
             }.Schedule(field);
             JobHandle.ScheduleBatchedJobs();
@@ -1987,16 +1988,16 @@ namespace Punchy.Terrain
             /// between its corners, so the skin round a mouth stays under the drawn ground. 0: the exact height.</summary>
             public float GridStep;
             [WriteOnly] public NativeArray<float> Surface, SurfaceScale;
+            [ReadOnly] public NativeArray<bool> Patch;
+            public int2 PatchMin;
 
             public void Execute(int i)
             {
                 var xz = (float2)(Origin.xz + new int2(i % Points.x, i / Points.x)) * Voxel;
                 var h = GridStep > 0f ? Source.MeshHeight(xz, GridStep) : Source.SampleHeight(xz);
-                const float e = 0.5f;
-                var slope = new float2(Source.SampleHeight(xz + new float2(e, 0f)) - Source.SampleHeight(xz - new float2(e, 0f)),
-                                       Source.SampleHeight(xz + new float2(0f, e)) - Source.SampleHeight(xz - new float2(0f, e))) / (2f * e);
-                Surface[i] = h;
-                SurfaceScale[i] = math.rsqrt(1f + math.lengthsq(slope));
+                var scale = Source.AcrossSlope(xz);
+                Surface[i] = PatchSurface(Source, xz, h, scale, Patch, PatchMin);
+                SurfaceScale[i] = scale;
             }
         }
 
@@ -2029,7 +2030,7 @@ namespace Punchy.Terrain
                     // Air is above the surface or in the cave; a smooth union, so a lip of rock thinner than about half
                     // a metre between them (a thin roof at a mouth) opens up instead of hanging as a floating slab. The
                     // terrain cuts its own surface from this same field (TerrainSource.MouthCut), so the two agree.
-                    Field[i] = -CaveSampling.SmoothMin(-((p.y - Surface[column]) * SurfaceScale[column] + CaveSampling.SkinGap), cave, CaveSampling.MouthBlend);
+                    Field[i] = CaveSampling.WallField(p.y, Surface[column], SurfaceScale[column], cave);
                 }
             }
         }
@@ -2060,7 +2061,7 @@ namespace Punchy.Terrain
         }
 
         [BurstCompile]
-        struct MeshJob : IJob
+        partial struct MeshJob : IJob
         {
             public TerrainSource Source;
             /// <summary>Global grid index of the first point (world position = index × Voxel).</summary>
@@ -2069,9 +2070,12 @@ namespace Punchy.Terrain
             public int3 Cells;
             public float Voxel;
             [ReadOnly] public NativeArray<float> Field, CaveField;
+            /// <summary>W-174 row 3: the columns' drawn surface and slope (ColumnJob), and the near grid's step (0: no patch).</summary>
+            [ReadOnly] public NativeArray<float> Surface, SurfaceScale;
+            public float GridStep;
             public NativeList<float3> Positions, Normals;
             public NativeList<float4> Colors;
-            public NativeList<float4> Data;
+            public NativeList<float4> Data, Rock;
             public NativeList<int> Indices;
             /// <summary>"-caveshards": walls no cave owns drawn magenta (the grey shards at cave mouths, style 0).</summary>
             public bool ShardProbe;
@@ -2122,6 +2126,8 @@ namespace Punchy.Terrain
                     cellVertex[i] = -1;
                 // Which vertices lie in the outermost cells the quads use (0 and Cells - 2 on any axis): the chunk's edge.
                 var edge = new NativeList<bool>(Allocator.Temp);
+                var columns = new NativeHashMap<int2, int>(64, Allocator.Temp);
+                var raw = new NativeHashMap<int, float3>(64, Allocator.Temp);
                 Opening[0] = new float3(float.MaxValue);
                 Opening[1] = new float3(float.MinValue);
 
@@ -2139,7 +2145,7 @@ namespace Punchy.Terrain
                         if (Field[i] < 0f) rock++;
                         nearCave |= CaveField[i] < WallReach;
                     }
-                    if (rock == 0 || rock == 8 || !nearCave)
+                    if (rock == 0 || rock == 8 || !nearCave && !PatchColumn(x, z))
                         continue;
 
                     var sum = float3.zero;
@@ -2162,16 +2168,21 @@ namespace Punchy.Terrain
                     var p = ((float3)(Origin + new int3(x, y, z)) + sum / crossings) * Voxel;
                     // Room corners kept square, so the destination chambers' tiles cover the rock (W-115).
                     p = CaveSampling.OutOfRooms(ref Source.Caves.Value, p);
-                    cellVertex[Cell(x, y, z)] = Positions.Length;
+                    var normal = Gradient(p);
+                    var shared = Snap(ref p, ref normal, x, y, z, columns, raw);
+                    cellVertex[Cell(x, y, z)] = shared >= 0 ? shared : Positions.Length;
+                    if (shared >= 0)
+                        continue;
                     edge.Add(x == 0 || y == 0 || z == 0 || x >= Cells.x - 2 || y >= Cells.y - 2 || z >= Cells.z - 2);
                     Positions.Add(p);
-                    Normals.Add(Gradient(p));
-                    var color = Look(p, out var data, out var open);
+                    Normals.Add(normal);
+                    var color = Look(p, out var data, out var open, out var country);
                     // W-135 row 4: darkened round the things standing here (through the rib shade; openness left alone).
                     if (Contacts.Length > 0 && !ShardProbe)
                         data.w = SeamRib(data.w, SeamShade(p));
                     Colors.Add(color);
                     Data.Add(data);
+                    Rock.Add(country);
                     // Walls the sky can see (the terrain cut away above them, generously): only through these can
                     // anyone outside see into the cave.
                     if (open > 0f)
@@ -2198,6 +2209,9 @@ namespace Punchy.Terrain
                         Quad(cellVertex, Cell(x - 1, y - 1, z), Cell(x, y - 1, z), Cell(x, y, z), Cell(x - 1, y, z), a);
                 }
                 cellVertex.Dispose();
+                SplitPatch(raw, edge);
+                columns.Dispose();
+                raw.Dispose();
                 if (Skirt > 0f)
                     Skirts(edge);
                 edge.Dispose();
@@ -2244,25 +2258,9 @@ namespace Punchy.Terrain
                     Normals.Add(Normals[v]);
                     Colors.Add(Colors[v]);
                     Data.Add(Data[v]);
+                    Rock.Add(Rock[v]);
                 }
                 return skirtOf[v];
-            }
-
-            void Quad(NativeArray<int> cellVertex, int c0, int c1, int c2, int c3, bool flip)
-            {
-                int v0 = cellVertex[c0], v1 = cellVertex[c1], v2 = cellVertex[c2], v3 = cellVertex[c3];
-                if (v0 < 0 || v1 < 0 || v2 < 0 || v3 < 0)
-                    return;
-                if (flip)
-                {
-                    Indices.Add(v0); Indices.Add(v2); Indices.Add(v1);
-                    Indices.Add(v0); Indices.Add(v3); Indices.Add(v2);
-                }
-                else
-                {
-                    Indices.Add(v0); Indices.Add(v1); Indices.Add(v2);
-                    Indices.Add(v0); Indices.Add(v2); Indices.Add(v3);
-                }
             }
 
             float RockAt(float3 p) => math.max(p.y - Source.SampleHeight(p.xz) + CaveSampling.SkinGap, -CaveSampling.Distance(ref Source.Caves.Value, p, out _));
@@ -2275,109 +2273,6 @@ namespace Punchy.Terrain
                     RockAt(p + new float3(e, 0f, 0f)) - RockAt(p - new float3(e, 0f, 0f)),
                     RockAt(p + new float3(0f, e, 0f)) - RockAt(p - new float3(0f, e, 0f)),
                     RockAt(p + new float3(0f, 0f, e)) - RockAt(p - new float3(0f, 0f, e))), new float3(0f, 1f, 0f));
-            }
-
-            /// <summary>
-            /// A road tunnel's floor (its road's level) under p: along the nearest of its passages; axis is the point
-            /// on that passage's centre line (xz) nearest p.
-            /// </summary>
-            static float TunnelFloor(ref CaveSetBlob set, in CaveData c, float3 p, out float2 axis)
-            {
-                var best = 1e9f;
-                var floor = p.y;
-                axis = p.xz;
-                for (int s = c.FirstSegment; s < c.FirstSegment + c.SegmentCount; s++)
-                {
-                    var a = set.Nodes[set.Segments[s].A];
-                    var b = set.Nodes[set.Segments[s].B];
-                    var ab = b.Position.xz - a.Position.xz;
-                    var t = math.saturate(math.dot(p.xz - a.Position.xz, ab) / math.max(math.lengthsq(ab), 1e-6f));
-                    var d = math.distancesq(p.xz, a.Position.xz + ab * t);
-                    if (d < best)
-                    {
-                        best = d;
-                        floor = math.lerp(a.Position.y, b.Position.y, t) - math.lerp(a.Radius, b.Radius, t) * c.Profile.y * 0.45f;
-                        axis = a.Position.xz + ab * t;
-                    }
-                }
-                return floor;
-            }
-
-            /// <summary>
-            /// rgb the terrain's colour at this spot; alpha how much daylight reaches (the entrance and near the
-            /// surface). Data: x how much to look like the terrain (1 at the surface, fading out a few metres
-            /// underground), y a slight brightness tint for the cave rock, z the cave's style slot, w how much darker
-            /// (negative: lighter) ribs make it here. In a road tunnel z also carries 32 x a tunnel code (1 + paved +
-            /// 2 if built, see Cave.shader) and w the road's share of the floor here (negative: a fallen stone's share).
-            /// </summary>
-            float4 Look(float3 p, out float4 data, out float open)
-            {
-                var surface = Source.SampleHeight(p.xz);
-                // Daylight from the mouth of whichever cave this wall belongs to.
-                ref var set = ref Source.Caves.Value;
-                CaveSampling.Distance(ref set, p, out var cave);
-                var fromMouth = cave >= 0 ? math.saturate(1f - (math.distance(p, set.Caves[cave].Mouth) - 3f) / 14f) : 0f;
-                // A road tunnel (W-110) has a portal at each end: daylight comes in at both.
-                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
-                {
-                    var far = FarPortal(ref set, set.Caves[cave]);
-                    fromMouth = math.max(fromMouth, math.saturate(1f - (math.distance(p, far) - 3f) / 14f));
-                }
-                var nearSurface = math.saturate(1f - (surface - p.y - 1f) / 3f);
-                // Open to the sky (the terrain is cut away above: a trench or crater at a mouth): it's outside ground,
-                // so it takes the land's look and daylight however far below the uncut surface height it lies. Generous
-                // (up to 2 m of clearance): the terrain's cut is interpolated between its vertices, and wherever the
-                // terrain stays it hides this skin anyway.
-                open = math.saturate((2f - Source.CaveClearance(p.xz, surface)) / 1.5f);
-                var ground = Source.SampleGround(p.xz);
-                var albedo = Source.SampleSurface(p.xz, ground, Source.SampleNormal(p.xz, 1f)).Albedo;
-                // A road tunnel's floor carries its road through (W-110): the road's own colour, as painted on the
-                // centre line outside, so it reads as the same road from portal to portal. W-138 row 4b: no longer
-                // taken as the terrain look (that shaded it as daylit ground, a pale smear deep inside); the shader
-                // draws it as its own surface (cobbles or packed grit) in the cave's light, and fallen stones in their
-                // own pale grey.
-                var tunnelCode = 0;
-                var tunnelFloor = 0f;
-                if (cave >= 0 && set.Caves[cave].Tunnel != 0)
-                {
-                    var floorY = TunnelFloor(ref set, set.Caves[cave], p, out var axis);
-                    if (p.y < floorY + 1.2f)
-                    {
-                        var props = new SurfaceProps { Albedo = albedo };
-                        if (Source.TunnelRoadSurface(axis, ref props) > 0f)
-                        {
-                            // Never brighter than worn stone: a pale road paint would glare under a lamp.
-                            var lum = math.dot(props.Albedo, new float3(0.3f, 0.59f, 0.11f));
-                            albedo = props.Albedo * math.min(1f, 0.32f / math.max(lum, 1e-3f));
-                            tunnelFloor = 1f - math.smoothstep(floorY + 0.35f, floorY + 0.8f, p.y);
-                        }
-                        tunnelCode = 1 + (props.Paving > 0.4f ? 1 : 0);
-                    }
-                    else
-                        tunnelCode = 1;
-                    if (set.Caves[cave].Tunnel >= 2)
-                        tunnelCode += 2;
-                    var stone = 1f - math.smoothstep(0.05f, 0.25f, CaveSampling.StoneDistance(ref set, p));
-                    tunnelFloor = tunnelFloor * (1f - stone) - stone;
-                }
-                // Ribbed caves: how much darker the hollow between two ribs is (crests a touch lighter), applied to
-                // every look the wall takes, so the ribs read even in the flat light of a shallow ice cave; none where
-                // the cave opens to the sky, so mouths still match the terrain.
-                var ribShade = 0f;
-                if (cave >= 0 && set.Caves[cave].Wall.z > 0f)
-                {
-                    var rib = CaveSampling.Rib(set.Caves[cave], p);
-                    ribShade = (0.55f - 0.75f * rib * rib) * set.Caves[cave].Wall.z * (1f - open);
-                }
-                data = new float4(math.max(math.saturate(1f - (surface - p.y - 0.3f) / 2.5f), open),
-                                  0.85f + 0.3f * (noise.snoise(p * 0.15f) * 0.5f + 0.5f),
-                                  (cave >= 0 ? set.Caves[cave].Style : 0) + 32 * tunnelCode, tunnelCode > 0 ? tunnelFloor : ribShade);
-                if (ShardProbe && cave < 0)
-                {
-                    data.x = 1f;
-                    return new float4(1f, 0f, 1f, 1f);
-                }
-                return new float4(albedo, math.max(math.max(fromMouth, nearSurface), open));
             }
         }
 
@@ -2409,6 +2304,7 @@ namespace Punchy.Terrain
         {
             openingsInView.Clear();
             openingRects.Clear();
+            NoteGathered(cam);
             GeometryUtility.CalculateFrustumPlanes(cam, viewPlanes);
             var ppm = DetailPolicy.Current.Data.PixelsPerMetre > 0f ? DetailPolicy.Current.Data.PixelsPerMetre
                 : DetailPolicy.PixelsPerMetreAt(cam.fieldOfView);
@@ -2554,12 +2450,14 @@ namespace Punchy.Terrain
                 GeometryUtility.CalculateFrustumPlanes(cam, statPlanes);
             }
             var skip = outside && !NoSurfaceSkip && !NoRoomCull && cam != null;
+            skippedChunks.Clear();
             if (skip)
                 GatherOpenings(camPos, cam);
             if (CountReveals && cam != null)
                 GeometryUtility.CalculateFrustumPlanes(cam, revealPlanes);
             foreach (var b in chunks.Values)
             {
+                DrawPatch(b);
                 if (b.Mesh == null)
                     continue;
                 if (CountStats)
@@ -2575,6 +2473,8 @@ namespace Punchy.Terrain
                 if (b.LastSeen >= 0 && b.LastSeen != seen)
                     Counts.SkipFlips++;
                 b.LastSeen = seen;
+                if (seen < 2)
+                    skippedChunks.Add(b);   // drawn after all if the camera cuts before the render (CutGuard)
                 if (CountReveals)
                     CountReveal(b, seen == 2 && cam != null && GeometryUtility.TestPlanesAABB(revealPlanes, b.Mesh.bounds));
                 if (seen == 0 || seen == 1 && !b.CastsShadows)
@@ -2597,106 +2497,6 @@ namespace Punchy.Terrain
                     receiveShadows = true
                 };
                 Graphics.RenderMesh(rp, b.Mesh, 0, Matrix4x4.identity);
-            }
-        }
-
-        // ------------------------------------------------------------------------------------------- lantern
-
-        void UpdateLantern(in TerrainSource source)
-        {
-            if (!playerQuery.TryGetSingleton<Unity.Transforms.LocalTransform>(out var player))
-                return;
-            lanternLevel = Mathf.MoveTowards(lanternLevel, LanternWanted(source, player.Position), Time.deltaTime * 1.2f);
-            if (lantern == null)
-                lantern = CreateLantern("Lantern");
-            PlaceLantern(lantern, player, lanternLevel, 0.5f, LocalLanternId);
-            // The flora shader has no light loop (it would cost every plant on the surface), so cave plants get the
-            // lantern as one cheap term from these.
-            var at = lantern.transform.position;
-            Shader.SetGlobalVector(LanternId, new Vector4(at.x, at.y, at.z, lantern.enabled ? lantern.intensity * 0.2f : 0f));
-            Shader.SetGlobalVector(LanternColorId, new Vector4(LanternColor.r, LanternColor.g, LanternColor.b, LanternRange));
-        }
-
-        static readonly int LanternId = Shader.PropertyToID("_PunchyLantern");
-        /// <summary>The local player's lantern's id in LightBudget (other players' are their entity's index).</summary>
-        const int LocalLanternId = -1;
-        static readonly int LanternColorId = Shader.PropertyToID("_PunchyLanternColor");
-
-        /// <summary>How lit someone's lantern should be: in a cave and away from the daylight at the entrance.</summary>
-        static float LanternWanted(in TerrainSource source, float3 feet)
-        {
-            source.FloorUnder(feet, out var inCave);
-            var depth = source.SampleHeight(feet.xz) - feet.y;
-            if (!inCave)
-                return 0f;
-            return math.saturate((depth - 1f) / 3f);
-        }
-
-        Light CreateLantern(string name)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(transform, false);
-            var light = go.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.shadows = LightShadows.None;
-            return light;
-        }
-
-        /// <summary>
-        /// Places someone's lantern and asks LightBudget for its real light (refactor 3.1): it's lit as far as the budget
-        /// grants (fading), and when it loses the budget the same light goes in a glow slot instead (about as bright,
-        /// a little shorter: the glow's fall-off is squared).
-        /// </summary>
-        void PlaceLantern(Light light, in Unity.Transforms.LocalTransform holder, float level, float flickerSeed, int id)
-        {
-            light.color = LanternColor;
-            light.range = LanternRange;
-            var flicker = 0.92f + 0.08f * Mathf.PerlinNoise(Time.time * 3f, flickerSeed);
-            var forward = math.mul(holder.Rotation, new float3(0f, 0f, 1f));
-            var at = holder.Position + new float3(0f, 1.6f, 0f) + forward * 0.4f;
-            light.transform.position = at;
-            if (level > 0.01f)
-            {
-                var glow = (Vector4)LanternColor * (LanternIntensity * 0.27f * level * flicker);
-                glow.w = LanternRange * 0.7f;
-                Punchy.Settings.LightBudget.AddReal(Punchy.Settings.LightKind.Carried, id, at, glow);
-            }
-            var real = level * Punchy.Settings.LightBudget.RealLevel(Punchy.Settings.LightKind.Carried, id);
-            light.enabled = real > 0.01f;
-            light.intensity = LanternIntensity * real * flicker;
-        }
-
-        void UpdateOtherLanterns(in TerrainSource source, Vector3 camera)
-        {
-            if (othersQuery.IsEmpty && otherLanterns.Count == 0)
-                return;
-            foreach (var l in otherLanterns.Values)
-                l.Seen = false;
-            var em = queryWorld.EntityManager;
-            var entities = othersQuery.ToEntityArray(Allocator.Temp);
-            foreach (var e in entities)
-            {
-                if (em.HasComponent<Unity.NetCode.GhostOwnerIsLocal>(e) && em.IsComponentEnabled<Unity.NetCode.GhostOwnerIsLocal>(e))
-                    continue;
-                var t = em.GetComponentData<Unity.Transforms.LocalTransform>(e);
-                // (No range of its own: LightBudget caps how many are real lights; the rest glow or go out.)
-                if (math.lengthsq(t.Position) < 1e-6f)
-                    continue;
-                if (!otherLanterns.TryGetValue(e, out var l))
-                    otherLanterns[e] = l = new OtherLantern { Light = CreateLantern("Lantern (other player)") };
-                l.Seen = true;
-                l.Level = Mathf.MoveTowards(l.Level, LanternWanted(source, t.Position), Time.deltaTime * 1.2f);
-                PlaceLantern(l.Light, t, l.Level, 1.5f + (e.Index % 7), e.Index);
-            }
-            entities.Dispose();
-            goneLanterns.Clear();
-            foreach (var pair in otherLanterns)
-                if (!pair.Value.Seen)
-                    goneLanterns.Add(pair.Key);
-            foreach (var e in goneLanterns)
-            {
-                if (otherLanterns[e].Light != null) Destroy(otherLanterns[e].Light.gameObject);
-                otherLanterns.Remove(e);
             }
         }
     }

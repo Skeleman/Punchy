@@ -34,6 +34,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
+            #include "ScreenSize.hlsl"
             #include "Flora.hlsl"
             #include "Materials/Stone.hlsl"
             #include "Grounding.hlsl"
@@ -42,8 +43,11 @@ Shader "Punchy/Flora"
             #include "Materials/Cloth.hlsl"
             #include "Materials/Metal.hlsl"
             #include "Materials/Plaster.hlsl"
+            #include "Materials/Tile.hlsl"
             #include "Materials/Brick.hlsl"
             #include "Materials/Ice.hlsl"
+            #include "Materials/Paint.hlsl"
+            #include "Materials/Bark.hlsl"
             #include "Glow.hlsl"
             #include "SharedClock.hlsl"
             #define PUNCHY_SURFACE_GLOW_WORLD
@@ -54,6 +58,7 @@ Shader "Punchy/Flora"
             /// How much of a detail octave of this period (m) to keep, given how many metres one pixel covers: all of it
             /// while a period spans eight pixels or more, none once it's down to three (where it would shimmer).
             float _PunchyFloraDetailOff;
+            float _PunchyTerrainDetailPpm;
 
             // A-115: the nearest town street lights a lamplighter hasn't lit yet (or has put out): xyz the light, w how
             // lit (LampRoutes.Tick). Count 0 by day and once the rounds are done.
@@ -126,7 +131,8 @@ Shader "Punchy/Flora"
                 // Items 27-28: 1 on a model that moves (a living plant: its Bark is bark), 0 on FLORA_STATIC ones (rocks, logs).
                 nointerpolation half living : TEXCOORD10;
                 // R-30: the species' leaf thinness (FloraSpecies.LeafThinness), for the light through its leaves.
-                nointerpolation half thin : TEXCOORD11;
+                nointerpolation half thin : TEXCOORD12;
+                nointerpolation float2 plantXZ : TEXCOORD11;
             };
 
             Varyings Vert(FloraAttributes input)
@@ -141,6 +147,7 @@ Shader "Punchy/Flora"
                 uint g = v.plant.ground;
                 o.ground = half4(g & 255, (g >> 8) & 255, (g >> 16) & 255, g >> 24) / 255.0;
                 o.baseHeight = float2(v.positionWS.y - v.plant.position.y, v.plant.scale);
+                o.plantXZ = v.plant.position.xz;
                 o.extra = float4(input.data.y, v.fade, v.plant.snow, v.plant.random);
                 o.grainPos = input.positionOS;
                 o.grainAxis = input.color.a;
@@ -165,10 +172,19 @@ Shader "Punchy/Flora"
                 // A rock tint (ground alpha at its top value) or a built thing's dirt band (any other non-zero alpha).
                 bool rockTint = input.ground.a > 0.998;
                 // Item 13: a plant on grassy ground, its leaves leaning to the ground's green (FloraPlacement.GreenTint: alpha 254).
-                bool greenTint = input.ground.a > 0.99 && !rockTint;
-                bool built = input.ground.a > 0 && !rockTint && !greenTint;
+                bool greenTint = input.ground.a > 0.994 && !rockTint;
+                half wetTop = input.ground.a * 255 - 224;
+                bool wetRock = wetTop > -0.5 && !greenTint && !rockTint;
+                // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
+                bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
+                // Wet-band wood keeps its colour; only the wet line rises.
+                bool wetBase = wetRock && (input.living > 0.5 || wood);
+                rockTint = rockTint || (wetRock && !wetBase);
+                bool built = input.ground.a > 0 && !rockTint && !greenTint && !wetBase;
                 bool leafy = part == 1 || part == 2 || part == 5;
                 bool metal = part == 4;
+                // Phase B (#336): the metal's kind rides on the part as + kind * 0.1 (FloraMeshBuilder.MetalKind); frac() wrapped an interpolated 3.99999 to kind 10.
+                int metalKind = metal ? clamp((int)round((input.extra.x - part) * 10), 0, 4) : PUNCHY_METAL_IRON;
                 // Thin tapered strands (roots, stems) can end in a degenerate normal; a NaN there blooms into a bright fleck.
                 half3 n = SafeNormalize(input.normalWS);
                 float3 v = GetWorldSpaceNormalizeViewDir(input.positionWS);
@@ -193,8 +209,6 @@ Shader "Punchy/Flora"
                     n = dot(facet, v) < 0 ? -facet : facet;
                 // The facet in the plant's own frame (W-99's surfaces and weave are laid out there).
                 float3 facetOS = normalize(cross(ddy(input.grainPos), ddx(input.grainPos)) + 1e-9);
-                // Timber (marked Bark + 0.02) and its look (W-99: FloraMeshBuilder.Surface, riding on the grain code).
-                bool wood = part == 0 && frac(input.extra.x) > 0.01 && frac(input.extra.x) < 0.035;
                 int look = wood ? (int)round((input.grainAxis - round(input.grainAxis * 4) * 0.25) / 0.02) : 0;
                 int woodKind = wood ? (int)round((frac(input.extra.x) - 0.015) / 0.0025) : 0;
                 // Built things (those with a dirt band) and banded rock: weathering that stays at every range
@@ -202,33 +216,45 @@ Shader "Punchy/Flora"
                 bool strata = part == 0 && frac(input.extra.x) > 0.06 && frac(input.extra.x) < 0.09;
                 // W-166 row 3: built families with their own include ride on the bark mark (FloraMeshBuilder.FamilyMark).
                 bool plaster = part == 0 && frac(input.extra.x) > 0.095 && frac(input.extra.x) < 0.105;
+                bool tile = part == 0 && frac(input.extra.x) > 0.0903 && frac(input.extra.x) < 0.0947;
                 bool brick = part == 0 && frac(input.extra.x) > 0.11 && frac(input.extra.x) < 0.12;
                 bool ice = part == 0 && frac(input.extra.x) > 0.125 && frac(input.extra.x) < 0.135;
                 // Built stone: cut at 0.142, rubble at 0.144 (FloraMeshBuilder.Rubble), both drawn by Materials/Stone.hlsl.
                 bool builtStone = part == 0 && frac(input.extra.x) > 0.137 && frac(input.extra.x) < 0.147;
                 bool rubble = builtStone && frac(input.extra.x) > 0.143;
+                // #550: rope and netting (Cloth on bark, 0.053): twisted fibre (Materials/Cloth.hlsl), not stone.
+                bool rope = part == 0 && frac(input.extra.x) > 0.048 && frac(input.extra.x) < 0.058;
+                // Painted trim and accents (Paint on bark, 0.041): a smooth chipped coat (Materials/Paint.hlsl), not stone.
+                bool paint = part == 0 && frac(input.extra.x) > 0.036 && frac(input.extra.x) < 0.046;
                 // (Refactor 3.5, measuring a bake: "-nofloradetail" sets _PunchyFloraDetailOff and skips the procedural
                 // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
                 bool detail = _PunchyFloraDetailOff < 0.5;
                 if (detail && plaster)
-                    albedo *= PunchyPlaster(input.positionWS, n, footprint, r);
+                    albedo *= PunchyPlasterKind(input.positionWS, n, footprint, r, (int)round((frac(input.extra.x) - 0.1) / 0.002));
+                else if (detail && tile)
+                    albedo = PunchyRoofCover(albedo, input.positionWS, n, footprint, r, 1 + (int)round((frac(input.extra.x) - 0.091) / 0.0015), 0);
                 else if (detail && brick)
                     albedo *= PunchyBrick(input.positionWS, n, v, footprint, r);
                 else if (detail && ice)
                     albedo *= PunchyIce(input.positionWS, n, v, footprint, r);
                 else if (detail && builtStone)
                     albedo *= PunchyStoneBlocks(input.positionWS, n, footprint, rubble, r);
+                else if (detail && rope)
+                    albedo *= PunchyRope(input.grainPos, facetOS, footprint);
+                else if (detail && paint)
+                    albedo *= PunchyPaint(input.positionWS, n, footprint, r);
                 else if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
                 // W-166: wood draws through Materials/Wood.hlsl, its kind riding on the wood mark (FloraMeshBuilder.WoodKind).
                 if (detail && wood)
-                    albedo = look == 3 ? albedo * PunchyThatch(input.grainPos, facetOS, footprint)
+                    albedo = look == 3 ? albedo * PunchyThatchKind(input.grainPos, facetOS, footprint, woodKind)
                                        : PunchyWoodSurface(albedo, look, input.grainPos, input.grainAxis, facetOS, footprint, input.color.rgb, woodKind);
                 // Cloth: a linen weave (W-99).
-                // Hide (Cloth + 0.45, W-113): leather instead.
+                // Hide (Cloth + 0.45, W-113): leather instead. Felt (Cloth + 0.48, a bedroll): matted wool.
                 if (detail && part == 10)
-                    albedo *= input.extra.x > 10.42 ? PunchyHide(input.grainPos, facetOS, footprint)
+                    albedo *= input.extra.x > 10.465 ? PunchyFelt(input.grainPos, facetOS, footprint)
+                            : input.extra.x > 10.42 ? PunchyHide(input.grainPos, facetOS, footprint)
                                                     : PunchyLinen(input.grainPos, facetOS, footprint);
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
@@ -244,17 +270,20 @@ Shader "Punchy/Flora"
                 // Built things keep it much further (W-23): faded by 45 m, a thatch roof turned into a smooth, plain cone
                 // whose few facets showed, across the 30-55 m where huts also change LOD. Few of them, and the texture's
                 // mips keep the far relief from shimmering.
-                float detailFade = distance(input.positionWS, GetCameraPositionWS());
-                float near = built ? 1 - smoothstep(60, 140, detailFade) : 1 - smoothstep(18, 45, detailFade);
+                float pxm = (_PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935) / max(distance(input.positionWS, GetCameraPositionWS()), 0.01);
+                float near = built ? smoothstep(6.7, 15.6, pxm) : smoothstep(20.8, 52, pxm);
                 // Timber keeps only a trace of the rock's relief (W-99: it gave the fishing huts' boards a plaster's depth).
                 near *= wood ? (look == 3 ? 0.35 : 0.15) : 1;
                 // A living plant's bark (items 27-28): the rock relief read as lumpy wet clay on trunks. Only a trace of
                 // it stays; the bark's own grain (below) does the work.
                 bool bark = part == 0 && !built && !rockTint && !wood && !strata && input.living > 0.5;
                 near *= bark ? 0.35 : 1;
+                // Paint and ice are smooth; plaster and brick keep a little of the rock's grit under their own look.
+                near *= (rope || paint || ice) ? 0 : (plaster || brick || tile) ? 0.3 : 1;
                 // R-34 row 2: boulders and built stone (not timber, not living plants) draw their surface from the shared
                 // stone (Materials/Stone.hlsl) in place of the relief here; built stone's blocks are laid above (W-166).
-                bool stone = part == 0 && !wood && input.living < 0.5 && _PunchyCaveDetailReady > 0;
+                // Plaster, brick, ice and paint have their own looks above, so they never take the stone's.
+                bool stone = part == 0 && !wood && !rope && !paint && !plaster && !tile && !brick && !ice && input.living < 0.5 && _PunchyCaveDetailReady > 0;
                 if (part == 0 && near > 0.01 && _PunchyCaveDetailReady > 0 && !stone)
                 {
                     float3 q = input.positionWS * 0.9;
@@ -268,28 +297,11 @@ Shader "Punchy/Flora"
                     half2 bump = (detail.rg - 0.5) * 0.9 * near;
                     n = normalize(n + float3(0, bump.x, bump.y) * w.x + float3(bump.x, 0, bump.y) * w.y + float3(bump.x, bump.y, 0) * w.z);
                 }
-                // Bark grain (item 28): furrows running up the trunk between raised plates, with fine fibres along them,
-                // laid out round the plant's own upright axis (its frame: the angle round it, and the height). Whole
-                // numbers of furrows round, so no seam; their path wanders with height. Fades by screen size alone (rule 20):
-                // out once a furrow would be under a few pixels wide, from its own pixel footprint, so no fixed metres.
+                half barkCrevice = 0;
                 if (detail && bark)
-                {
-                    float3 gp = input.grainPos;
-                    float ang = atan2(gp.z, gp.x);
-                    float2 ring = float2(cos(ang), sin(ang));
-                    float furrows = 5 + floor(r * 4);
-                    half wander = PunchyValueNoise(ring * 1.7 + float2(gp.y * 0.8, r * 17.0)) - 0.5;
-                    float phase = ang * furrows + wander * 3.0 + gp.y * 0.12;
-                    half furrow = 1 - smoothstep(0.0, 0.5, abs(sin(phase)));
-                    half fibre = 0.5 + 0.5 * sin(phase * 4 + PunchyValueNoise(float2(gp.y * 6.0, ang * 0.5 + r * 9.0)) * 4.0);
-                    // Plates break across now and then, so the ridges aren't endless rails.
-                    half crack = smoothstep(0.78, 0.92, PunchyValueNoise(ring * 3.1 + float2(gp.y * 3.3, 4.7)));
-                    half grainFade = (1 - smoothstep(0.35, 0.9, length(fwidth(ring)) * furrows));
-                    albedo *= lerp(1, (1 - max(furrow, crack) * 0.5) * (0.92 + 0.16 * fibre), grainFade);
-                    // The furrows' sides catch the light: lean the normal round the trunk with the ridge's slope.
-                    float3 around = normalize(float3(-n.z, 0, n.x) + 1e-5);
-                    n = normalize(n + around * cos(phase) * sign(sin(phase)) * 0.35 * grainFade);
-                }
+                    PunchyBark(input.grainPos, input.positionWS, r, frac(input.extra.x) < 0.009 ? (int)round(frac(input.extra.x) / 0.002) : 0,
+                               input.baseHeight.y, input.baseHeight.x, saturate((input.ground.g - max(input.ground.r, input.ground.b)) / max(input.ground.g, 0.02) * 4),
+                               albedo, n, barkCrevice);
                 if (part == 1)
                 {
                     albedo *= lerp(half3(0.95, 1.0, 1.06), half3(1.1, 1.04, 0.82), r);
@@ -297,21 +309,12 @@ Shader "Punchy/Flora"
                     // with distance, where the crown reads as one mass anyway).
                     float3 q = (input.positionWS - frac(r * 7.3) * 10) * 2.2;
                     half leafNoise = PunchyValueNoise(q.xz + q.y * 0.7) * 0.6 + PunchyValueNoise(q.zy * 2.3 + 5.1) * 0.4;
-                    half leafNear = 1 - smoothstep(40, 90, distance(input.positionWS, GetCameraPositionWS()));
+                    half leafNear = smoothstep(10.4, 23.4, pxm);
                     albedo *= lerp(1, lerp(half3(0.62, 0.66, 0.7), half3(1.25, 1.22, 1.0), leafNoise), leafNear * 0.85);
                 }
                 // Moss (W-64): darker, greener clumps and yellower tips, and darker still in the thin cover near the rim.
                 if (part == 13)
-                {
-                    half clump = FloraMossClump(input.moss.yzw);
-                    half fine = FloraMossNoise(input.moss.yzw * 80);
-                    albedo *= lerp(half3(0.42, 0.56, 0.36), half3(1.0, 0.98, 0.62), clump) * (0.8 + 0.4 * fine);
-                    albedo *= lerp(0.75, 1, saturate(input.moss.x * 2));
-                    // W-101 (#80): tiny cushions, each with a bright crown and a dark seam round it, so the sheet reads
-                    // as a mat of tufts rather than a smooth green cloth.
-                    half tuft = FloraMossNoise(input.moss.yzw * 26 + 9.7);
-                    albedo *= lerp(0.5, 1.15, smoothstep(0.25, 0.75, tuft));
-                }
+                    albedo *= PunchyMossMat(input.moss.yzw, input.moss.x, footprint);
                 // Windows: dark glass by day (their colour is the light they give at night, below).
                 half3 windowLight = albedo;
                 if (part == 6)
@@ -332,11 +335,39 @@ Shader "Punchy/Flora"
                 // Rocks on dry ground take the biome's own rock colour (FloraPlacement.RockTint: the ground's alpha at its
                 // top value), keeping their own light and dark (and losing their moss's green) (G-36). Built things: a
                 // band of the ground's colour up their base, like dirt splashed up the walls.
-                if (part == 0 && rockTint)
+                half rockMoss = 0;
+                half3 mossBase = albedo;
+                if (part == 0 && wetBase)
+                {
+                    half top = wetTop * 0.04 * (0.85 + 0.3 * PunchyValueNoise(float2(input.positionWS.x + input.positionWS.z, input.positionWS.y) * 6.3));
+                    wet = max(wet, (1 - smoothstep(top - 0.03, top + 0.02, input.baseHeight.x)) * (1 - snow));
+                }
+                else if (part == 0 && rockTint)
                 {
                     half lum = dot(albedo, half3(0.3, 0.59, 0.11));
                     half rockLum = max(dot(input.ground.rgb, half3(0.3, 0.59, 0.11)), 0.02);
-                    albedo = lerp(albedo, input.ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85);
+                    // #609 regression: the wet tint wiped river rocks' moss.
+                    half moss = wetRock ? saturate((albedo.g - max(albedo.r, albedo.b)) / max(albedo.g, 0.02) * 4) : 0;
+                    rockMoss = moss;
+                    mossBase = albedo;
+                    albedo = lerp(albedo, input.ground.rgb * clamp(lum / rockLum, 0.45, 1.6), 0.85 * (1 - moss));
+                    if (wetRock)
+                    {
+                        half ragged = PunchyValueNoise(float2(input.positionWS.x + input.positionWS.z, input.positionWS.y) * 6.3);
+                        half top = wetTop * 0.04 * (0.85 + 0.3 * ragged);
+                        uint3 low = (uint3)round(input.ground.rgb * 255) & 3;
+                        half facing = 0;
+                        if (low.z & 2)
+                        {
+                            float a = (low.x | ((low.z & 1) << 2)) * (PI / 4);
+                            facing = dot(normalize(input.positionWS.xz - input.plantXZ + 1e-4), -float2(cos(a), sin(a)));
+                            // Flow piles up against a rock's upstream face and splashes higher there.
+                            top += lerp(-0.04, 0.3 * (0.7 + 0.6 * ragged), saturate(facing * 0.5 + 0.5));
+                        }
+                        wet = max(wet, (1 - smoothstep(top - 0.03, top + 0.02, input.baseHeight.x)) * (1 - snow));
+                        half algae = (1 - smoothstep(0.03, 0.07, abs(input.baseHeight.x - top + 0.06))) * (1 - saturate(facing)) * (1 - snow) * (0.6 + 0.4 * ragged);
+                        albedo = lerp(albedo, half3(0.11, 0.13, 0.06), 0.7 * algae);
+                    }
                 }
                 else if (part == 0 && !greenTint)
                     albedo = PunchyDirt(albedo, input.ground, input.baseHeight.x, input.baseHeight.y, wet, input.positionWS);
@@ -350,13 +381,23 @@ Shader "Punchy/Flora"
                     albedo = lerp(albedo, input.ground.rgb * clamp(lum / groundLum, 0.2, 1.6), 0.6 * green);
                 }
                 // Wet darkens. Bark and leaves (items 27-28) soak it up, so they darken more and shine far less (below).
-                albedo *= lerp(1, bark ? 0.5 : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
+                albedo *= lerp(1, bark ? 0.5 - 0.15 * barkCrevice : part == 0 ? 0.62 : leafy ? 0.7 : 0.82, wet);
                 half stoneWet = 0, crevice = 0;
                 half3 stoneN0 = n;
                 if (stone)
                 {
                     stoneWet = PunchyStoneWetness(wet);
                     PunchyStoneSurface(input.positionWS, footprint, stoneWet, wet, albedo, n, crevice);
+                }
+                // Painted moss read as a flat green stain on river rocks: it grows as a mat of tufts over the stone's grain instead.
+                [branch] if (rockMoss > 0.01)
+                {
+                    half sheet = PunchyMossOnStone(input.positionWS, rockMoss, footprint);
+                    half3 mossCol = lerp(half3(0.2, 0.28, 0.1), mossBase, rockMoss) * PunchyMossMat(input.positionWS, rockMoss, footprint) * lerp(1, 0.7, wet);
+                    albedo = lerp(albedo, mossCol, sheet);
+                    n = normalize(lerp(n, stoneN0, sheet * 0.5));
+                    stoneWet *= 1 - 0.8 * sheet;
+                    crevice *= 1 - sheet;
                 }
 
                 // Past the real shadows the wide cached ones of the huge things (R-5) take over, never doubling them
@@ -368,6 +409,7 @@ Shader "Punchy/Flora"
                 PunchySurface ps = PunchySurfaceAt(input.positionWS, n);
                 ps.wideNormalWS = half3(0, 1, 0);
                 ps.sunReach = (1 - _PunchyUnderground) * (1 - _FloraInCave);
+                ps.caveAir = _FloraInCave; // W-179: cave plants sit in the cave's air, surface plants never
                 ps.skyReach = lerp(1, 0.06, max(_PunchyUnderground, _FloraInCave * 0.75));
                 // Past the far map: the island's static glow and distant towns' light (R-10 row 4), not in caves
                 // (profiler pricing: -floraglowworld 0 skips it).
@@ -393,17 +435,17 @@ Shader "Punchy/Flora"
                 // Darker towards the ground and on downward faces (leaves and petals: towards the ground only), per pixel:
                 // worked out at the vertices it smeared the tight band at the ground over a whole face, so a building's
                 // foundation exposed on a slope (a metre or two of skirt) showed it stretched down its length (Z-12, G-22).
-                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under);
+                half ao = input.color.a * PunchyGrounding(input.baseHeight.x, n.y, part == 1 || part == 2 || part == 5 ? 0 : 1 - under) * (1 - barkCrevice * 0.6);
 
                 // Metal leaves: dim diffuse, the colour mostly comes from tinted reflections.
-                half3 color = albedo * (light.color * shadow * diffuse * lerp(0.6, 1, ao) + sky * ao) * (metal ? 0.45 : 1);
+                half3 color = albedo * (light.color * shadow * diffuse * lerp(0.6, 1, ao) + sky * ao) * (metal ? PunchyMetalDiffuse(metalKind) : 1);
                 // Light through the leaves (R-30 row 2, Flora.hlsl), its own soft self-shadow; thinner deep in the crown.
                 if (leafy && !metal)
                     color += albedo * FloraLeafTransmission(albedo, n, v, light.direction, light.color, light.shadowAttenuation, (1 - lit.wide) * (1 - lit.cloud) * ps.sunReach, lerp(0.5, 1, ao) * input.thin);
                 // Tinted reflections of the sky, a sharp sun highlight, and glints that twinkle as the leaves move and
                 // the view changes (shared with creature gear: Metal.hlsl).
                 if (metal)
-                    color += PunchyMetalShade(albedo, n, v, input.positionWS, light.color, light.direction, shadow, ao, _PunchyUnderground);
+                    color += PunchyMetalShade(albedo, n, v, input.positionWS, light.color, light.direction, shadow, ao, _PunchyUnderground, metalKind);
                 // Bark and rock take a faint reflection of the sky at grazing angles, as the terrain does (its
                 // surfaces have a little smoothness), so rocks fade into the same sky-tinted haze as the land. Metal
                 // and crystal too: dark ones (obsidian) otherwise stay black specks on a distant hazy slope. Up close
@@ -413,8 +455,8 @@ Shader "Punchy/Flora"
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
-                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
-                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
+                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()))));
+                    color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * (1 - barkCrevice) * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 }
 
                 // Glass (crystals): a dark clear body lit faintly from inside, a bright rim where the surface turns
@@ -499,7 +541,7 @@ Shader "Punchy/Flora"
                 if (part == 5)
                 {
                     // A steady glow beyond 100 m, where the shimmer can't be seen.
-                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, distance(input.positionWS, GetCameraPositionWS())));
+                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()))));
                     float pulse = 1 + amount * sin(_PunchyClock * 0.55 + r * 40 + input.positionWS.y * 0.7);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
@@ -535,13 +577,13 @@ Shader "Punchy/Flora"
                     float2 hexB = fmod(abs(q + float2(0.866, 0.5)), float2(1.732, 1)) - float2(0.866, 0.5);
                     float2 h2 = dot(hexA, hexA) < dot(hexB, hexB) ? hexA : hexB;
                     float rim = max(abs(h2.y), dot(abs(h2), float2(0.866, 0.5)));
-                    half cellNear = 1 - smoothstep(4, 10, distance(input.positionWS, GetCameraPositionWS()));
+                    half cellNear = 1 - smoothstep(4, 10, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS())));
                     color *= 1 - smoothstep(0.38, 0.47, rim) * 0.35 * cellNear;
                 }
                 // Items 27-28: wet bark and leaves are rough and absorbent: a faint, broad damp sheen, not the sharp
                 // highlight of wet stone or planks (on them it read as shiny plastic and showed up the evergreens' facets).
                 bool damp = bark || leafy;
-                half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5);
+                half gloss = part == 3 ? 0.35 : part == 8 ? 0.55 : wet * (damp ? 0.07 : 0.5) * (1 - barkCrevice);
                 if (stone && stoneWet > 0.01)
                 {
                     // Wet stone's own two lobes, from the sun and the lantern, in place of the wet gloss.
@@ -847,7 +889,7 @@ Shader "Punchy/Flora"
                 FloraDither(input.positionCS, input.fade, input.positionWS);
                 FloraMossClip(input.moss);
                 // Leaves are double-sided: the back face's normal points the other way.
-                half3 n = NormalizeNormalPerPixel(input.normalWS);
+                half3 n = SafeNormalize(input.normalWS);
                 outNormalWS = half4(front ? n : -n, 0);
             #ifdef _WRITE_RENDERING_LAYERS
                 outRenderingLayers = EncodeMeshRenderingLayer();

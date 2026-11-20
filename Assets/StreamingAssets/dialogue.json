@@ -480,10 +480,11 @@
       "To add a line: append a string, or an object with text and any of the keys below. A line fits only when every key it has matches; a line with more keys is likelier, and a line that names the folk's state (tired, hungry, the weather) wins over one that doesn't, so how-are-you is honest.",
       "Traits (each low, mid or high, or a list): warmth (cold to kind), trust, curiosity, courage, pride, beasts (fears animals to loves them).",
       "state: tired, busy, hungry, thirsty, lonely, scared, hurt, weather (a list; !busy for not). weather: Hot, Dry, Cold, Rain, Snow, Storm, Bright, Wind. mood: Cheerful, Plain, Grumpy (its temper today). stance: Kin, Warm, Rival, Wary, Annoyed. trade: a job (Smith, Baker, Farmer...) or task. when: day, night, dawn, morning, afternoon, evening.",
-      "true or false: home (lives in a town), job (has one), need (wants a quest done), willing (will do a favour: trust and warmth against stance and how often it was asked lately), pestered (asked twice in the last few minutes: never willing then).",
+      "true or false: home (lives in a town), job (has one), need (wants a quest done), willing (will do a favour: trust and warmth against stance and how often it was asked lately), pestered (asked twice in the last few minutes: never willing then), wronged (its household holds a theft against the player, A-134: never willing then).",
       "gesture: an emote it makes (Wave, Bow, Cheer, Dance, Pet, LookAround...) or a word the talk window shows. offer: quest, item:<item name>, directions, rumour:<what about>, discount:<percent>, refuses. ends: true closes the talk. weight: default 1.",
       "family (A-105): kin is the household member a line is about, by what it is to the speaker: partner, child, parent, grandparent, grandchild, sibling, inlaw (one or a list), or none for a folk with nobody else at home. {kin_name} and {kin_word} name that member and what the speaker calls it (daughter, husband, grandmother). gone: true for a member who has died (the line misses them), false or left out for the living. A line with a kin slot and no kin key is about anyone living in the house.",
-      "options (A-131): a line can give the player 1 to 4 replies, each { \"say\": the player's words (slots allowed), \"then\": a topic whose lines answer it (left out: back to the topic list), \"do\": accept or decline (the line's quest or item offer), end, or gesture:<emote> }. A topic with lines and no label in topics is reply-only: it never shows in the list. Any line key on a reply (traits, state, stance, mood, trade...) is a condition on showing it. Replies go three deep at most. A quest or item offer with no replies gets Accept and Decline."
+      "options (A-131): a line can give the player 1 to 4 replies, each { \"say\": the player's words (slots allowed), \"then\": a topic whose lines answer it (left out: back to the topic list), \"do\": accept or decline (the line's quest or item offer), end, or gesture:<emote> }. A topic with lines and no label in topics is reply-only: it never shows in the list. Any line key on a reply (traits, state, stance, mood, trade...) is a condition on showing it. Replies go three deep at most. A quest or item offer with no replies gets Accept and Decline.",
+      "thefts (A-134): theftOwner is what one of a household says to a player it saw take from its house, the first time they meet; theftGuard what the guard sent to the door says on getting there. Both are reply-only (never in the list). {item} is what was taken. One is picked at random by weight; other keys are not checked."
     ],
     "quests": {
       "_readme": "A quest put in a few words, for {quest} in a line (when quests.json gives the quest no \"talk\" of its own). find: a lost thing; clear: beasts to drive off; bring / bringMany: things to fetch (one, or {count}); other: anything else. Slots: {item}, {items} (plural), {creature}, {creatures}, {count}.",
@@ -668,10 +669,13 @@
         { "text": "Somebody's been taking more than their share of firewood. I have my suspicions.", "curiosity": "high", "trust": "low" }
       ],
       "favour": [
-        { "text": "Sorry, I can't help you.", "willing": false, "pestered": false, "offer": "refuses" },
-        { "text": "Help yourself. Somewhere else.", "willing": false, "pestered": false, "warmth": "low", "offer": "refuses" },
-        { "text": "I don't do favours for strangers.", "willing": false, "pestered": false, "trust": "low", "offer": "refuses" },
-        { "text": "I... no, I'd better not.", "willing": false, "pestered": false, "courage": "low", "offer": "refuses" },
+        { "text": "Sorry, I can't help you.", "willing": false, "pestered": false, "wronged": false, "offer": "refuses" },
+        { "text": "Help yourself. Somewhere else.", "willing": false, "pestered": false, "wronged": false, "warmth": "low", "offer": "refuses" },
+        { "text": "I don't do favours for strangers.", "willing": false, "pestered": false, "wronged": false, "trust": "low", "offer": "refuses" },
+        { "text": "I... no, I'd better not.", "willing": false, "pestered": false, "wronged": false, "courage": "low", "offer": "refuses" },
+        { "text": "You've got some nerve, asking me for anything after what you took.", "wronged": true, "offer": "refuses" },
+        { "text": "Favours? From us? Put back what you stole first.", "wronged": true, "warmth": ["low", "mid"], "offer": "refuses" },
+        { "text": "I know what you did. No.", "wronged": true, "trust": "low", "offer": "refuses" },
         { "text": "You again? No.", "pestered": true, "offer": "refuses" },
         { "text": "I've given you all I can spare, friend. Come back another day.", "pestered": true, "warmth": "high", "offer": "refuses" },
         { "text": "Ask someone else for a while.", "pestered": true, "mood": "Grumpy", "offer": "refuses" },
@@ -687,6 +691,17 @@
         { "text": "Here, this scarf's yours. Keeps the wind off your neck.", "willing": true, "warmth": "high", "offer": "item:Scarf", "weight": 0.2 },
         { "text": "You look cold. Take this old cloak, it's done me well.", "willing": true, "warmth": "high", "offer": "item:Cloak", "weight": 0.1 },
         { "text": "A spare tunic. Better than what you've got on.", "willing": true, "trade": ["Trader", "Merchant", "Tanner"], "offer": "item:Tunic", "weight": 0.2 }
+      ],
+      "theftOwner": [
+        "Hey! That {item} was ours!",
+        "You! You took our {item}. Thief!",
+        "I saw you. Our {item}, out of our own house.",
+        "Thief! Somebody fetch the guard!"
+      ],
+      "theftGuard": [
+        "Halt! A theft was reported here.",
+        "Stay where you are. Someone's been in that house.",
+        "Thieves in my streets? Not on my watch."
       ],
       "help": [
         { "text": "No, I'm all right, thanks.", "need": false },
@@ -737,6 +752,13 @@
         { "text": "My {kin_word} {kin_name} asks a hundred questions a day. I answer about ten.", "kin": "grandchild" },
         { "text": "My {kin_word} {kin_name} and I get on. Mostly. On good days.", "kin": "inlaw" },
         { "text": "My {kin_word} {kin_name} borrowed my boots. That was a year ago.", "kin": "sibling" },
+        { "text": "My {kin_word} {kin_name} and I share a roof and a temper. Loudly.", "kin": "sibling" },
+        { "text": "My {kin_word} {kin_name} hides my pipe and blames the cat.", "kin": "grandchild" },
+        { "text": "{kin_name}, my {kin_word}, sleeps by my bed when the wind is up. Says it's for my sake.", "kin": "grandchild", "warmth": ["mid", "high"] },
+        { "text": "My {kin_word} {kin_name} rearranged the pots again. I'll find them by spring.", "kin": "inlaw" },
+        { "text": "My {kin_word} {kin_name} came with the wedding. Like the debts.", "kin": "inlaw", "mood": "Grumpy" },
+        { "text": "Only me under my roof. I talk to the kettle.", "kin": "none" },
+        { "text": "No one at home but me. I lock the door and the quiet keeps me company.", "kin": "none" },
         { "text": "Seen my {kin_word} {kin_name} about? Tell them supper's on.", "kin": "partner" },
         { "text": "Our {pet_kind} {pet_name} rules the house, really. We just live in it.", "pet": true },
         { "text": "There's us, and there's {pet_name}, our {pet_kind}. Don't tell the others, but {pet_name}'s my favourite.", "pet": true, "warmth": ["mid", "high"] },

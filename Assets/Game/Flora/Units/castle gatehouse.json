@@ -1,0 +1,170 @@
+{
+    "Id": "castle gatehouse",
+    "DepthOfWidth": 1.0,
+    "WidthOfHeight": 0.0,
+    "Host": "StoneHall",
+    "Size": {
+        "x": 12.0,
+        "y": 11.0,
+        "z": 9.0
+    },
+    "PartStreams": true,
+    "Parts": [
+        {
+            "Part": "gatehouse",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 10.0,
+                "y": 9.0,
+                "z": 7.0
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        },
+        {
+            "Part": "portcullis",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 0.0,
+                "y": 2.0,
+                "z": 2.3
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 3.6,
+                "y": 4.6,
+                "z": 0.1
+            },
+            "Yaw": 0.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        },
+        {
+            "Part": "door",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": -5.02,
+                "y": 6.0,
+                "z": 0.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 1.2,
+                "y": 2.2,
+                "z": 0.14
+            },
+            "Yaw": -90.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        },
+        {
+            "Part": "door",
+            "At": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "AtMetres": {
+                "x": 5.02,
+                "y": 6.0,
+                "z": 0.0
+            },
+            "To": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "ToMetres": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "Span": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "SpanMetres": {
+                "x": 1.2,
+                "y": 2.2,
+                "z": 0.14
+            },
+            "Yaw": 90.0,
+            "Mirror": false,
+            "Bounds": false,
+            "Seed": 0,
+            "Unit": "",
+            "Wear": 0.0
+        }
+    ]
+}

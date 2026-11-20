@@ -23,6 +23,8 @@ namespace Punchy.Terrain
         /// <summary>0 fresh and sharp, 1 old and rounded.</summary>
         public float Age;
         public uint Seed;
+        /// <summary>Cut after settlement plots are levelled (a river notch's bank, W-153).</summary>
+        public bool Late;
     }
 
     /// <summary>

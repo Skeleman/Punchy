@@ -828,15 +828,19 @@ namespace Punchy.Items
 
         // ------------------------------------------------------------------ rods to be had (P-41)
 
-        /// <summary>Seeded rods: one on the deck of most fishing villages' wharves (RodBase + the landmark's index) and one
-        /// by a hut door in some (RodBase + HutRods + the index). Laid by the host (or solo) as added items, so a joined
-        /// client is sent them like any drop, and laid once per world, so a taken one stays taken.</summary>
-        const int RodBase = 1_500_000, HutRods = 100_000;
+        /// <summary>Seeded rods: one on the deck of most fishing villages' wharves (uid from the landmark's record) and one
+        /// by a hut door in some (from the door's record; WorldIds, P-35 r3 row 5). Laid by the host (or solo) as added
+        /// items, so a joined client is sent them like any drop, and laid once per world, so a taken one stays taken.</summary>
         BlobAssetReference<AnchorSetBlob> rodsFor;
         int rodsLaid;
 
         /// <summary>The start pack (P-41): every player begins with a rod in the inventory, an item like any other.</summary>
-        void StartPack() => slots[0] = (ItemTable.Rod, 1);
+        void StartPack()
+        {
+            slots[0] = ItemStack.Of(ItemTable.Rod, 1);
+            // P-37 row 2 (Zach 11-14): characters don't light the dark themselves; every new one starts with a torch.
+            slots[1] = ItemStack.Of(ItemTable.Torch, 1);
+        }
 
         /// <summary>
         /// Once per world, on the host or solo: a rod on the deck of two fishing villages' wharves in three (the Nets spot,
@@ -879,7 +883,7 @@ namespace Punchy.Items
                 var h = Scramble(inst.Key ^ 0x0D0C4u);
                 villages[i] = h;
                 if (h % 3 != 0)   // (two villages in three)
-                    LayRod(RodBase + i, deck);
+                    LayRod(WorldIds.Seeded(SeedFamily.Rod, WorldIds.Record(RecordKind.Landmark, inst.Position), 0), deck);
             }
             // By a hut door: one village in three, the door picked from its doors by the same seed.
             ref var anchors = ref terrain.Anchors.Value.Anchors;
@@ -892,7 +896,8 @@ namespace Punchy.Items
                 // (Not a stilt hut's door, up off the ground: the rod would lie under the floor.)
                 if (anchors[a].Position.y > terrain.SampleHeight(anchors[a].Position.xz) + 0.8f)
                     continue;
-                var dh = Scramble(vh ^ (uint)a * 0x9E3779B9u);
+                // (From the door's record, not its index: the same door if the world reorders its anchors.)
+                var dh = Scramble(vh ^ WorldIds.Record(RecordKind.Door, anchors[a].Position));
                 if (!pick.TryGetValue(hit.Instance, out var was) || dh < was.best)
                     pick[hit.Instance] = (a, dh);
             }
@@ -902,7 +907,7 @@ namespace Punchy.Items
                 var dh = kv.Value.best;
                 var angle = (dh & 0xFFFF) / 65535f * math.PI * 2f;
                 var xz = door.Position.xz + new float2(math.cos(angle), math.sin(angle)) * (2f + (dh >> 16 & 0xFF) / 255f * 2f);
-                LayRod(RodBase + HutRods + kv.Key, new float3(xz.x, terrain.SampleHeight(xz), xz.y));
+                LayRod(WorldIds.Seeded(SeedFamily.Rod, WorldIds.Record(RecordKind.Door, door.Position), 0), new float3(xz.x, terrain.SampleHeight(xz), xz.y));
             }
             Debug.Log($"Items: {rodsLaid} rods laid ({villages.Count} fishing villages with a wharf, {pick.Count} by hut doors)");
         }

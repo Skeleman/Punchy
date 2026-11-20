@@ -138,6 +138,19 @@ namespace Punchy.Flora
                         Punchy.Terrain.StructureKit.RoofLadder(parts, seed, trim, width, depth, storeys, g.Variant);
                     break;
             }
+            // P-37 r3 row 1 (#369): a house walked into (StructureKit.WalkIn). Its ground door swings and lets you through,
+            // and its floor holds you. Its door step goes up to StructureKit.WalkInStep so both rises are climbable.
+            var walkIn = !ruined && Punchy.Terrain.StructureKit.WalkIn(shape);
+            if (walkIn)
+                for (int i = 0; i < parts.Count; i++)
+                    if (parts[i].Piece == Punchy.Terrain.KitPiece.Trim && parts[i].Material == Punchy.Terrain.KitMaterial.Stone &&
+                        Mathf.Abs(parts[i].Size.y - 0.16f) < 0.01f && parts[i].Centre.y < 0.1f)
+                    {
+                        var step = parts[i];
+                        step.Size.y = Punchy.Terrain.StructureKit.WalkInStep;
+                        step.Centre.y = Punchy.Terrain.StructureKit.WalkInStep * 0.5f;
+                        parts[i] = step;
+                    }
             var house = Punchy.Terrain.StructureKit.HouseLike(shape) && shape != Punchy.Terrain.KitShape.SlabShelter ||   // a slab shelter is walked into
                         shape == Punchy.Terrain.KitShape.Igloo || shape == Punchy.Terrain.KitShape.ShellDome;
 
@@ -165,23 +178,28 @@ namespace Punchy.Flora
                 if (small && g.Lod >= 2)
                     continue;
                 var lit = house && !ruined && p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
+                if (walkIn && p.Piece == Punchy.Terrain.KitPiece.Door && p.Centre.y - p.Size.y * 0.5f < 0.3f)
+                {
+                    WalkInDoor(g, p, trim);
+                    top = Mathf.Max(top, p.Centre.y + p.Size.y * 0.5f);
+                    continue;
+                }
                 if (!DrawKitPart(g, parts, i, trim, looks, ruined, lit, seed, contacts))
                     continue;
                 var high = p.Centre.y + p.Size.y * 0.5f;
                 top = Mathf.Max(top, high);
                 // W-67 (#79): every part is a solid box unless it's decor (moss, trim, windows, lamps and runes): the
                 // collision is the art. Only LOD 0 keeps them (that's the one FloraModel copies).
-                var decor = p.Piece == Punchy.Terrain.KitPiece.Moss || p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Ladder ||
-                            p.Piece == Punchy.Terrain.KitPiece.Window || p.Material == Punchy.Terrain.KitMaterial.Lamp || p.Material == Punchy.Terrain.KitMaterial.Flame ||
-                            p.Material == Punchy.Terrain.KitMaterial.Rune || p.Material == Punchy.Terrain.KitMaterial.Moss;
+                var decor = KitDecor(p);
                 // W-113 (item 10): a ruin's plinth course (trim, but a 0.5 m slab under the whole floor) is solid too, so a
                 // body walks up onto the platform rather than sinking to the ground through it. The door step (a low, small
                 // ground trim) is solid with it, so the climb is two rises under KitStep.
-                if (ruined && p.Piece == Punchy.Terrain.KitPiece.Trim && p.Centre.y - p.Size.y * 0.5f < 0.05f && (p.Size.x * p.Size.z > 4f || p.Size.y < 0.3f))
+                // P-37 r3: a walk-in house's plinth and door step are solid the same way: they are its floor.
+                if ((ruined || walkIn) && p.Piece == Punchy.Terrain.KitPiece.Trim && p.Centre.y - p.Size.y * 0.5f < 0.05f && (p.Size.x * p.Size.z > 4f || p.Size.y < 0.3f))
                     decor = false;
                 if (g.Lod == 0 && !decor)
                     g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
-                if (p.Solid)
+                if (p.Solid && !walkIn)   // (P-37 r3: a walk-in house's kit boxes are its walls; circles would fill the room)
                 {
                     var r = Mathf.Max(p.Size.x, p.Size.z) * 0.55f;
                     if (ruined)
@@ -217,7 +235,7 @@ namespace Punchy.Flora
                     perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
             b.Shell = false;
-            if (!ruined && house)   // the inside: one fat cylinder so nothing walks through the middle of the house
+            if (!ruined && house && !walkIn)   // the inside: one fat cylinder so nothing walks through the middle of the house
             {
                 var inner = Mathf.Min(width, depth) * 0.45f;
                 // W-64 (#38): an igloo's door stands well inside the dome now; the cylinder stops 0.4 m short of it.
@@ -256,7 +274,7 @@ namespace Punchy.Flora
                         Grade = Punchy.Terrain.StructureKit.LadderGrade
                     });
                 }
-            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.82f : c);   // darker footing
+            b.DarkenBelow(first, 0.5f, 0.82f);   // darker footing
             if (ruined && g.Lod < 2)
                 RuinSand(g, parts, width, depth, seed);
             b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
@@ -270,14 +288,37 @@ namespace Punchy.Flora
                 g.Width = Mathf.Max(g.Width, reach * 2f);
             }
             // (A dock or a shore cluster is walked on and round, not a trunk to bump into.)
-            g.TrunkRadius = house ? Mathf.Max(width, depth) * 0.55f : 0f;
+            // (P-37 r3: a walk-in house has no trunk circle either: it would fill the room.)
+            g.TrunkRadius = house && !walkIn ? Mathf.Max(width, depth) * 0.55f : 0f;
         }
 
         /// <summary>
-        /// Draws one structure-kit part in its trim colour (a little per-part jitter), its folk's wall or roof look,
-        /// lit window glass when <paramref name="lit"/>, and contact bands where it meets other parts. Shared by
-        /// KitStructure and the inn (W-128). False for a moss cap (drawn as a sheet: no box, no collision).
+        /// P-37 r3 row 1 (#369): a walk-in house's ground door, at the kit's own door part (DoorBay, so the house's
+        /// layout decides where it stands). The leaf is hung on its left edge so Flora.hlsl swings it (FloraDoors), as a
+        /// timber house's door is. There is no dark panel behind it: the room is there. It is solid only while shut:
+        /// FloraSystem adds its DoorBox to the kit boxes while FloraDoors says it is shut. Its family comes from
+        /// MaterialLibrary like every other kit part (W-166).
         /// </summary>
+        static void WalkInDoor(Grower g, Punchy.Terrain.KitPart p, in Punchy.Terrain.CultureTrim trim)
+        {
+            var b = g.B;
+            b.Surface = (int)Punchy.Terrain.KitSurface.Plain;
+            b.Family = Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, Punchy.Terrain.KitSurface.Plain, b.TimberFamily);
+            b.Rubble = false;
+            b.Unfounded = p.Afloat;
+            var leaf = b.VertexCount;
+            b.Box(p.Centre, p.Size, p.Rotation, Punchy.Terrain.StructureKit.Colour(trim, p.Material), FloraPart.Bark);
+            b.Hinge(leaf, p.Centre + p.Rotation * new Vector3(-p.Size.x * 0.5f, -p.Size.y * 0.5f, 0f), p.Rotation * Vector3.right, p.Rotation.eulerAngles.y * Mathf.Deg2Rad);
+            if (g.Lod == 0)
+                g.DoorBoxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
+        }
+
+        static Color Tinted(Color c, Vector3 tint) => new Color(c.r * tint.x, c.g * tint.y, c.b * tint.z, c.a);
+
+        static bool Crated(in Punchy.Terrain.KitPart p) =>
+            p.Material == Punchy.Terrain.KitMaterial.Wood && p.Piece == Punchy.Terrain.KitPiece.Trim &&
+            Mathf.Min(p.Size.x, Mathf.Min(p.Size.y, p.Size.z)) > 0.8f * Mathf.Max(p.Size.x, Mathf.Max(p.Size.y, p.Size.z));
+
         static bool DrawKitPart(Grower g, List<Punchy.Terrain.KitPart> parts, int i, in Punchy.Terrain.CultureTrim trim,
                                 (Punchy.Terrain.KitSurface Wall, Punchy.Terrain.KitSurface Roof) looks, bool ruined, bool lit, uint seed, List<float> contacts)
         {
@@ -297,20 +338,46 @@ namespace Punchy.Flora
                 DrawLadder(g, p, trim, jitter);
                 return true;
             }
+            if (p.Material == Punchy.Terrain.KitMaterial.Fish)
+            {
+                HungFish(g, p, seed ^ (uint)i * 0x27D4EB2Fu);   // #550: a real fish, hung head down by its tail
+                return true;
+            }
             // W-99: planks, shingles or thatch on the folk's timber walls and roofs, fine grain on bare timber.
             var look = ruined ? Punchy.Terrain.KitSurface.Plain : p.Material == Punchy.Terrain.KitMaterial.Wall ? looks.Wall :
-                       p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof : Punchy.Terrain.KitSurface.Plain;
-            b.Surface = (int)look;
+                       p.Material == Punchy.Terrain.KitMaterial.Roof ? looks.Roof :
+                       Crated(p) ? Punchy.Terrain.KitSurface.Planks : Punchy.Terrain.KitSurface.Plain;
+            // Stone timber (elves) drops the plank/shingle wood mark: their roof courses are slate.
+            b.Surface = b.TimberFamily != Punchy.Terrain.MaterialFamily.Wood && look is Punchy.Terrain.KitSurface.Planks or Punchy.Terrain.KitSurface.Shingles ? 0 : (int)look;
+            var tiled = !ruined && p.Material == Punchy.Terrain.KitMaterial.Roof && b.TimberFamily == Punchy.Terrain.MaterialFamily.Wood &&
+                        (look is Punchy.Terrain.KitSurface.Shingles or Punchy.Terrain.KitSurface.Planks && b.RoofKind != Punchy.Terrain.RoofKind.WoodShingle ||
+                         look == Punchy.Terrain.KitSurface.Plain && b.RoofKind == Punchy.Terrain.RoofKind.StoneSlab);
+            if (tiled)
+            {
+                var t = Punchy.Terrain.MaterialLibrary.RoofTint(b.RoofKind);
+                c = Color.Lerp(new Color(t.x, t.y, t.z, c.a), c, 0.25f) * Mathf.Lerp(0.94f, 1.08f, jitter);
+                b.Surface = 0;
+            }
+            else if (b.Surface == (int)Punchy.Terrain.KitSurface.Thatch)
+                c = Tinted(c, Punchy.Terrain.MaterialLibrary.ThatchTint(b.ThatchKind));
             // W-166: each part states its family; a ruin's bare walls are old stone, not plaster.
             // W-166 row 3: standing stone chimneys are laid in brick (Materials/Brick.hlsl); rune and trim stacks keep their own.
-            b.Family = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
+            // A boat's painted strakes are timber under the paint (its hull reads as wood); a buoy's float is painted.
+            b.Family = tiled ? Punchy.Terrain.MaterialFamily.Tile
+                     : ruined && p.Material == Punchy.Terrain.KitMaterial.Wall ? Punchy.Terrain.MaterialFamily.Stone
+                     : p.Afloat && p.Material == Punchy.Terrain.KitMaterial.Trim ? Punchy.Terrain.MaterialFamily.Wood
+                     : p.Piece == Punchy.Terrain.KitPiece.Trim && p.Material == Punchy.Terrain.KitMaterial.Roof && Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look) == Punchy.Terrain.MaterialFamily.Plaster ? Punchy.Terrain.MaterialFamily.Paint
                      : !ruined && p.Piece == Punchy.Terrain.KitPiece.Chimney && p.Material == Punchy.Terrain.KitMaterial.Stone ? Punchy.Terrain.MaterialFamily.Brick
-                     : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look);
+                     // Copper trim (rod fins, straps, marsh paint) is a painted copper coat: Metal has no bark mark and fell back to stone.
+                     : p.Material == Punchy.Terrain.KitMaterial.Copper ? Punchy.Terrain.MaterialFamily.Paint
+                     : Punchy.Terrain.MaterialLibrary.FamilyOf(p.Material, look, b.TimberFamily);
+            if (b.Family == Punchy.Terrain.MaterialFamily.Plaster && p.Material == Punchy.Terrain.KitMaterial.Wall)
+                c = Tinted(c, Punchy.Terrain.MaterialLibrary.PlasterTint(b.PlasterKind));
             b.Rubble = ruined && p.Material == Punchy.Terrain.KitMaterial.Wall;   // W-166 row 3: a ruin's walls are packed rubble
             b.Unfounded = p.Afloat;
             if (ruined && g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Wall && p.Material == Punchy.Terrain.KitMaterial.Wall)
                 RuinBricks(b, p, c, seed ^ (uint)i * 0x9E3779B9u);   // W-94 (#80): old coursed blocks up close
-            else if (g.Lod == 0 && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
+            else if (g.Lod == 0 && !tiled && p.Piece == Punchy.Terrain.KitPiece.Roof && (look == Punchy.Terrain.KitSurface.Shingles || look == Punchy.Terrain.KitSurface.Thatch))
                 RoofCourses(b, p, c, look == Punchy.Terrain.KitSurface.Thatch, seed ^ (uint)i * 0x85EBCA77u);
             else if (lit)
             {
@@ -322,6 +389,16 @@ namespace Punchy.Flora
                     outward = -outward;
                 g.Windows.Add(new Vector4(p.Centre.x, p.Centre.y, p.Centre.z, Mathf.Atan2(outward.z, outward.x)));
             }
+            else if (p.Material == Punchy.Terrain.KitMaterial.Copper && p.Piece == Punchy.Terrain.KitPiece.Column)
+            {
+                // Phase B (#336): a copper rod or stake (storm houses) is drawn as copper metal. Small copper trim is
+                // painted (Paint family above): the same material colours gull bills and marsh totems.
+                b.MetalKind = Punchy.Terrain.MetalKind.Copper;
+                b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Metal);
+                b.MetalKind = Punchy.Terrain.MetalKind.Iron;
+            }
+            else if (p.Material == Punchy.Terrain.KitMaterial.Iron)
+                b.Box(p.Centre, p.Size, p.Rotation, c, FloraPart.Metal);   // wrought iron fittings: Iron metal (MetalKind stays Iron)
             else if (g.Lod < 2 && Contacts(parts, i, contacts))
                 b.BandedBox(p.Centre, p.Size, p.Rotation, c, FloraPart.Bark, contacts, Mathf.Min(0.5f, p.Size.y * 0.3f), 0.7f);
             else
@@ -350,10 +427,14 @@ namespace Punchy.Flora
             var foot = p.Centre - up * (p.Size.y * 0.5f);
             var rail = rope ? 0.035f : 0.06f;
             var half = p.Size.x * 0.5f - 0.03f;
-            b.Wood = true;
+            // #550: rope cords are twisted fibre (Cloth), not wood; wood rails and the rungs keep the grain.
+            b.Wood = !rope;
+            b.Family = rope ? Punchy.Terrain.MaterialFamily.Cloth : b.Family;
             b.Unfounded = p.Afloat;
             foreach (var side in new[] { -1f, 1f })
                 b.Box(p.Centre + r * new Vector3(side * half, 0f, 0f), new Vector3(rail, p.Size.y, rail), r, cord, FloraPart.Bark);
+            b.Family = b.BaseFamily;
+            b.Wood = true;
             var step = g.Lod >= 1 ? 0.6f : 0.3f;
             for (var y = 0.3f; y < p.Size.y - 0.1f; y += step)
                 b.Box(foot + up * y, new Vector3(half * 2f, 0.04f, 0.05f), r, wood, FloraPart.Bark);
@@ -364,81 +445,78 @@ namespace Punchy.Flora
         static void StoneHouse(Grower g)
         {
             var s = g.S;
-            var b = g.B;
             var height = g.Range(s.Height);
             var half = height * s.Spread * 0.5f;      // half the wall's width
             var wall = height * 0.65f;
             g.Height = height;
             g.Width = half * 2.8f;
             g.TrunkRadius = half * 1.1f;
-            var corner = half * 1.414f;              // a 4-sided tube's radius to its corners
-            var square = Quaternion.Euler(0f, 45f, 0f);
 
-            // Walls: a block with flat faces (Z-32: a four-sided tube's smoothed normals turned 45 degrees at each corner,
-            // so every wall shaded from lit edges to a dark middle, or the reverse, and at a glancing view the
-            // double-sided flip caught part of a wall).
-            var first = b.VertexCount;
-            b.Box(new Vector3(0f, (wall - 0.15f) * 0.5f, 0f), new Vector3(half * 2f, wall + 0.15f, half * 2f), Quaternion.identity, g.Bark, FloraPart.Bark);
-            b.Recolor(first, (p, c) => p.y < 0.6f ? c * 0.8f : c);   // darker footing
-            b.Occlude(first, (p, n) => GroundOcclusion(p, wall * 0.5f));
-
-            // Wall detail: dressed quoins up each corner (alternating long and short blocks), a plinth course round
-            // the foot, and a string course under the eaves.
-            if (g.Lod < 2)
-            {
-                var dressed = g.Bark * 1.18f;
-                var course = 0.42f;
-                for (int c = 0; c < 4; c++)
-                {
-                    var cx = (c & 1) == 0 ? -half : half;
-                    var cz = (c & 2) == 0 ? -half : half;
-                    for (int k = 0; (k + 0.5f) * course < wall - 0.2f; k++)
-                    {
-                        var longOnX = k % 2 == 0;
-                        var size = new Vector3(longOnX ? 0.7f : 0.35f, course * 0.92f, longOnX ? 0.35f : 0.7f);
-                        var at = new Vector3(cx - Mathf.Sign(cx) * (size.x * 0.5f - 0.04f), (k + 0.5f) * course, cz - Mathf.Sign(cz) * (size.z * 0.5f - 0.04f));
-                        b.Box(at, size, Quaternion.identity, dressed * g.Range(0.92f, 1.08f), FloraPart.Bark);
-                    }
-                }
-                b.Box(new Vector3(0f, 0.2f, 0f), new Vector3(half * 2f + 0.14f, 0.4f, half * 2f + 0.14f), Quaternion.identity, g.Bark * 0.72f, FloraPart.Bark);
-                b.Box(new Vector3(0f, wall - 0.15f, 0f), new Vector3(half * 2f + 0.12f, 0.16f, half * 2f + 0.12f), Quaternion.identity, dressed, FloraPart.Bark);
-            }
-
-            // Low pyramid roof with an overhang, and a chimney.
-            var roof = b.VertexCount;
-            RoofTube(b, wall - 0.24f, corner * 1.2f, 4, g.FoliageColor(), FloraPart.Bark, height, 0.05f, 0f, 0f);   // rounded lip, not a knife edge (#32)
-            RotateFrom(b, roof, square);
-            b.Occlude(roof, (p, n) => Mathf.Lerp(0.8f, 1f, Mathf.Clamp01(n.y + 0.3f)));
-            var chimney = new Vector3(half * 0.55f, 0f, -half * 0.4f);
-            var stack = b.VertexCount;
-            b.Tube(new List<Vector3> { chimney + Vector3.up * (wall * 0.8f), chimney + Vector3.up * (height + 0.5f) },
-                   new List<float> { 0.32f, 0.3f }, 4, g.Bark * 0.85f, FloraPart.Bark);
-            RotateAround(b, stack, chimney, square);
-            ChimneyTop(g, chimney + Vector3.up * (height + 0.5f), 0.3f * 0.7071f, g.Bark * 0.85f);
-            g.Perches.Add(Vector3.up * height);
-            g.Perches.Add(chimney + Vector3.up * (height + 0.5f));
-
-            Doorway(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f), Mathf.Min(wall * 0.8f, HumanDoor));
-            // A window in the middle of each side wall and the back (the four-way Windows would put them on corners).
-            if (g.HasAccent && g.Lod < 2)
-                foreach (var dir in new[] { Vector3.right, Vector3.left, Vector3.back })
-                    Window(g, dir * (half + 0.03f) + Vector3.up * wall * 0.55f, Quaternion.LookRotation(dir), 0.6f, 0.75f);
-            // ...and one either side of the door.
-            if (g.HasAccent && g.Lod < 2 && half > 1.6f)
-                foreach (var x in new[] { -1f, 1f })
-                    Window(g, new Vector3(x * half * 0.62f, wall * 0.55f, half + 0.03f), Quaternion.identity, 0.6f, 0.75f);
-            // Collision: a square, not the circle round its middle, so its corners stop you too.
+            var seed = (uint)(g.R() * 16777215f) ^ ((uint)g.Variant << 24) ^ (uint)s.Seed * 0x9E3779B9u;
+            var trim = Punchy.Terrain.StructureKit.For(s.KitCulture);
+            trim.Wall = g.Bark;
+            trim.Trim = g.Bark * 1.18f;
+            trim.RoofColour = g.FoliageColor();
+            var parts = Punchy.Terrain.StructureKit.StoneHouse(seed, trim, half, wall, HouseLadderRoll(g, out _), out var door);
+            DrawKitHouse(g, parts, trim, Punchy.Terrain.StructureKit.Surfaces(s.KitCulture, seed), seed);
+            Doorway(g, half + 0.02f, door.x, door.y);
+            // Creatures still stop at a square of circles; the player skips them for the kit boxes.
             for (int k = 0; k < 4; k++)
                 g.Colliders.Add(new Vector4((k & 1) == 0 ? -half * 0.5f : half * 0.5f, (k & 2) == 0 ? -half * 0.5f : half * 0.5f, half * 0.55f, wall));
-            DoorMat(g, half + 0.02f, Mathf.Min(half * 0.6f, 1.25f));
-            // W-147: some have a ladder up a side wall to the eave (clear of the mid-wall window and the corner quoins).
-            if (HouseLadderRoll(g, out var pick))
+            DoorMat(g, half + 0.02f, door.x);
+        }
+
+        /// <summary>W-173 (#399): a kit-built town house's parts, lit windows, chimney tops, perches, ladders and LOD 0 boxes.</summary>
+        static void DrawKitHouse(Grower g, List<Punchy.Terrain.KitPart> parts, in Punchy.Terrain.CultureTrim trim,
+                                 (Punchy.Terrain.KitSurface Wall, Punchy.Terrain.KitSurface Roof) looks, uint seed)
+        {
+            var b = g.B;
+            var contacts = new List<float>();
+            var first = b.VertexCount;
+            var top = 0f;
+            var perch = Vector3.zero;
+            if (g.Lod == 0)
+                g.KitParts = parts;
+            for (int i = 0; i < parts.Count; i++)
             {
-                var side = pick < 0.5f ? -1f : 1f;
-                var eave = half * 1.2f;   // the pyramid roof's edge, its square turned to the walls
-                var z = -half * 0.55f;
-                HouseLadder(g, new Vector3(side * (eave + 0.35f), 0f, z), new Vector3(side * (eave + 0.05f), wall - 0.14f, z), new Vector3(side, 0f, 0f));
+                var p = parts[i];
+                var small = p.Piece == Punchy.Terrain.KitPiece.Trim || p.Piece == Punchy.Terrain.KitPiece.Rail || p.Piece == Punchy.Terrain.KitPiece.Beam ||
+                            p.Piece == Punchy.Terrain.KitPiece.Ladder || (p.Piece == Punchy.Terrain.KitPiece.Window && p.Material != Punchy.Terrain.KitMaterial.Opening);
+                if (small && g.Lod >= 2)
+                    continue;
+                var lit = p.Piece == Punchy.Terrain.KitPiece.Window && p.Material == Punchy.Terrain.KitMaterial.Opening;
+                if (!DrawKitPart(g, parts, i, trim, looks, false, lit, seed, contacts))
+                    continue;
+                var high = p.Centre.y + p.Size.y * 0.5f;
+                top = Mathf.Max(top, high);
+                if (g.Lod == 0 && !KitDecor(p))
+                    g.Boxes.Add(new KitBox { Centre = p.Centre, Half = p.Size * 0.5f, Rotation = p.Rotation, Reach = p.Size.magnitude * 0.5f });
+                if (p.Piece == Punchy.Terrain.KitPiece.Chimney)
+                {
+                    var head = p.Centre + Vector3.up * (p.Size.y * 0.5f);
+                    ChimneyTop(g, head, Mathf.Min(p.Size.x, p.Size.z) * 0.5f, Punchy.Terrain.StructureKit.Colour(trim, Punchy.Terrain.KitMaterial.Stone));
+                    g.Perches.Add(head + Vector3.up * 0.1f);
+                }
+                else if ((p.Piece == Punchy.Terrain.KitPiece.Wall || p.Piece == Punchy.Terrain.KitPiece.Roof) && high > perch.y)
+                    perch = new Vector3(p.Centre.x, high, p.Centre.z);
             }
+            if (perch.y > 1f)
+                g.Perches.Add(perch);
+            foreach (var p in parts)
+                if (p.Piece == Punchy.Terrain.KitPiece.Ladder)
+                {
+                    var outward = p.Rotation * Vector3.forward;
+                    g.Ladders.Add(new Punchy.Terrain.ClimbLadder
+                    {
+                        Foot = Punchy.Terrain.StructureKit.LadderFoot(p),
+                        Top = Punchy.Terrain.StructureKit.LadderLanding(p, Punchy.Terrain.StructureKit.LadderGrab),
+                        Out = new Vector3(outward.x, 0f, outward.z).normalized,
+                        Grade = Punchy.Terrain.StructureKit.LadderGrade
+                    });
+                }
+            b.DarkenBelow(first, 0.5f, 0.82f);   // darker footing
+            b.Occlude(first, (p, n) => GroundOcclusion(p, Mathf.Min(top, 4f) * 0.5f));
+            g.Height = Mathf.Max(g.Height, top);
         }
 
         /// <summary>
@@ -554,7 +632,7 @@ namespace Punchy.Flora
                 if (perch.y > 1f)
                     g.Perches.Add(perch);
             }
-            b.Recolor(first, (p, c) => p.y < 0.5f ? c * 0.8f : c);   // darker footing
+            b.DarkenBelow(first, 0.5f, 0.8f);   // darker footing
             b.Occlude(first, (p, n) => GroundOcclusion(p, height * 0.5f));
 
             // Fallen stones, most of them below the wall that came down.
@@ -625,7 +703,7 @@ namespace Punchy.Flora
             b.Blob(new Vector3(0f, 0.08f, -length * 0.4f), new Vector3(width * 0.42f, 0.08f, 0.11f), Quaternion.identity, detail, 0.15f,
                    g.R() * 50f, g.Bark, FloraPart.Bark, 1f, 0.3f, 0.6f);
             b.Occlude(first, (p, n) => GroundOcclusion(p, 0.15f));
-            b.Cloth(first, p => 0f);
+            b.Felt(first);
         }
 
         /// <summary>

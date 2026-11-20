@@ -65,6 +65,35 @@ namespace Punchy.Settings
                 Detail = GraphicsSettings.Detail,
                 Shadows = GraphicsSettings.Shadows
             };
+            PushShaderView();
+        }
+
+        // The shaders' screen-size fades (ScreenSize.hlsl) read Detail and the main camera's reference pixels from these
+        // globals. They are set before every frame draws, from the render loop itself, so they never depend on a system
+        // calling SetView (a posed shot camera or a scene without critters still gets them), and a Detail change in
+        // GraphicsSettings reaches the shaders on the next frame.
+        // (Ids looked up inline in PushShaderView: a static PropertyToID field would give DetailPolicy a managed static
+        // constructor, which Burst jobs reading it can't compile in a player build, BC1091, job 111.)
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void InitShaderView()
+        {
+            UnityEngine.Rendering.RenderPipelineManager.beginContextRendering -= BeforeRender;
+            UnityEngine.Rendering.RenderPipelineManager.beginContextRendering += BeforeRender;
+            PushShaderView();
+        }
+
+        static void BeforeRender(UnityEngine.Rendering.ScriptableRenderContext context, System.Collections.Generic.List<UnityEngine.Camera> cameras)
+            => PushShaderView();
+
+        /// <summary>Sets the shaders' Detail and main-camera reference pixels a metre (times Detail) from the current
+        /// settings; before any camera, the tuning view's 60 degrees.</summary>
+        static void PushShaderView()
+        {
+            var detail = GraphicsSettings.Detail;
+            var cam = UnityEngine.Camera.main;
+            Shader.SetGlobalFloat(Shader.PropertyToID("_PunchyDetail"), detail);
+            Shader.SetGlobalFloat(Shader.PropertyToID("_PunchyViewPpm"), PixelsPerMetreAt(cam != null ? cam.fieldOfView : ReferenceFov) * detail);
         }
 
         public static float PixelsPerMetreAt(float fovDegrees)
@@ -382,7 +411,7 @@ namespace Punchy.Settings
             => view.PixelsPerMetre > 0f ? Reach(size, pixels / math.max(view.Detail, 0.1f), view.PixelsPerMetre) : Reach(size, pixels, PixelsPerMetreAt(ReferenceFov));
 
         /// <summary>What a flora model is, for its rule (refactor 3.5c, from FloraModel.Static and the form).</summary>
-        public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure }
+        public enum FloraClass : byte { Tree, Plant, Rock, Debris, Structure, Field }
 
         /// <summary>
         /// Flora by class (refactor 3.5c / 3.3), the size being the bounding sphere's diameter times the plant's scale.
@@ -490,6 +519,8 @@ namespace Punchy.Settings
                 case FloraClass.Rock: return new Rule { Geometry = new Thresholds(120f, 32f, 0f), Shadow = 45f, SharpShadow = 400f };
                 // Logs, stumps, benches, eggs: gone once they're a few pixels.
                 case FloraClass.Debris: return new Rule { Geometry = new Thresholds(70f, 18f, 12f), Shadow = 55f, SharpShadow = float.MaxValue };
+                // Field rows are dense, so full rows only within about one field width.
+                case FloraClass.Field: return new Rule { Geometry = new Thresholds(1150f, 200f, 0f), Shadow = 14f, SharpShadow = 400f, WideShadow = Huge.WideShadow };
                 // Built things hold their reduced mesh far out: their outline is what shows.
                 default: return new Rule { Geometry = new Thresholds(295f, 75f, 0f), Shadow = 14f, SharpShadow = 400f, WideShadow = Huge.WideShadow };
             }

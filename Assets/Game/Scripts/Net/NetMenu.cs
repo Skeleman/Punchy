@@ -274,7 +274,7 @@ namespace Punchy.Net
             {
                 if (address.Trim() == lanAddress)
                     Notify("That's this PC's own address. Type the address shown on the host's Multiplayer tab.", 6f);
-                else if (!NetworkEndpoint.TryParse(address.Trim(), GameBootstrap.Port, out var endpoint))
+                else if (!GameBootstrap.TryParseAddress(address, out var endpoint))
                     Notify($"\"{address.Trim()}\" isn't an IP address (it looks like 192.168.1.20).", 6f);
                 else
                 {
@@ -390,6 +390,18 @@ namespace Punchy.Net
                 wasInGame = true;
                 GameBootstrap.JoiningSince = -1f;
                 lostAt = -1f;
+                ConnectionLogSystem.VersionRefused = false;
+                return;
+            }
+            // A host on another build drops the join at once (P-35 r3 row 4: ghost and RPC changes make old builds
+            // incompatible): say that, not "couldn't reach" after the timeout.
+            if (!wasInGame && ConnectionLogSystem.VersionRefused)
+            {
+                ConnectionLogSystem.VersionRefused = false;
+                Notify("Can't join: the host runs a different version of the game. Both need the same build.", 10f);
+                GameBootstrap.JoiningSince = -1f;
+                RelaySessions.Forget();
+                GameBootstrap.PlaySolo();
                 return;
             }
             // A join that never gets through (wrong address, host not running, blocked) gives up rather than

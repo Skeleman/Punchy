@@ -413,6 +413,7 @@ namespace Punchy.Items
         {
             for (int i = 0; i < ItemTable.Items.Length; i++)
             {
+                if (ItemTable.Items[i].Quest != null) continue;   // (P-49 r3: a quest-only item isn't folk gear: it borrows its Base's look)
                 if (Length(i) != ItemTable.Items[i].Length || SheathOf(i) != ItemTable.Items[i].Sheath)
                     Debug.LogError($"Items: FolkKits.Length/SheathOf({i}) is {Length(i)} {SheathOf(i)}, the {ItemTable.Items[i].Name}'s are {ItemTable.Items[i].Length} {ItemTable.Items[i].Sheath}");
                 if (HandLook(i) != ItemTable.Items[i].Weapon)
@@ -500,7 +501,7 @@ namespace Punchy.Items
             }
         }
 
-        static string KitName(byte slot)
+        static string KitName(ushort slot)
         {
             var item = FolkKit.Item(slot);
             return item < 0 ? "-" : item < ItemTable.Items.Length ? ItemTable.Items[item].Name : "?" + item;

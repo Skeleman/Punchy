@@ -1,0 +1,282 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84a346003d3f746448a8a6a7b921e513, type: 3}
+  m_Name: ItemIds
+  m_EditorClassIdentifier: Assembly-CSharp::Punchy.Items.ItemIds
+  Entries:
+  - Key: none
+    Retired: 0
+    Item: {fileID: 0}
+  - Key: stick
+    Retired: 0
+    Item: {fileID: 11400000, guid: cdd1a4c680647624c910fb79172fc083, type: 2}
+  - Key: stone
+    Retired: 0
+    Item: {fileID: 11400000, guid: 0955545fcc3a5854b99455fbf38f1ff5, type: 2}
+  - Key: berry
+    Retired: 0
+    Item: {fileID: 11400000, guid: 4c15fb5bdc8739b468a5ce573d12ad51, type: 2}
+  - Key: mushroom
+    Retired: 0
+    Item: {fileID: 11400000, guid: 7281d936a9fa6a84e8b45ff16f843e48, type: 2}
+  - Key: shell
+    Retired: 0
+    Item: {fileID: 11400000, guid: 6817fc880ddc24845b624c8c7bedafcc, type: 2}
+  - Key: fish
+    Retired: 0
+    Item: {fileID: 11400000, guid: f127990f8c8d2934ab5ad564b5251e98, type: 2}
+  - Key: coin
+    Retired: 0
+    Item: {fileID: 11400000, guid: 5448cf14d5065f2428bfec14a4060927, type: 2}
+  - Key: key
+    Retired: 0
+    Item: {fileID: 11400000, guid: 10cb6a038f6e0c24a8a85f9c191560bd, type: 2}
+  - Key: torch
+    Retired: 0
+    Item: {fileID: 11400000, guid: 4b62575d6215c86439f158fed8d440f1, type: 2}
+  - Key: staff
+    Retired: 0
+    Item: {fileID: 11400000, guid: c9c9c20a8d14cc842ad3250b832b2d8e, type: 2}
+  - Key: hat
+    Retired: 0
+    Item: {fileID: 11400000, guid: 45d993d91d63cd14195de2448b0393c4, type: 2}
+  - Key: pack
+    Retired: 0
+    Item: {fileID: 11400000, guid: b3e02d9b65934f9469b57921ee129e7b, type: 2}
+  - Key: club
+    Retired: 0
+    Item: {fileID: 11400000, guid: 442935cd04b50f147b5433d12e59f033, type: 2}
+  - Key: spear
+    Retired: 0
+    Item: {fileID: 11400000, guid: 8d67ee12fbf91754992d3c18e4b231e6, type: 2}
+  - Key: sword
+    Retired: 0
+    Item: {fileID: 11400000, guid: a0b46fcc83f8312409859f0311701c23, type: 2}
+  - Key: bow
+    Retired: 0
+    Item: {fileID: 11400000, guid: ff550b537f0b235449911041ce339764, type: 2}
+  - Key: arrow
+    Retired: 0
+    Item: {fileID: 11400000, guid: c8a81c9ee2230a148b41b1cc89b7a1cd, type: 2}
+  - Key: cap
+    Retired: 0
+    Item: {fileID: 11400000, guid: a20fc079da441524fb6f0cb6f1f3cfe9, type: 2}
+  - Key: helm
+    Retired: 0
+    Item: {fileID: 11400000, guid: f27bb699b4d09d542b2762711b57d1aa, type: 2}
+  - Key: jerkin
+    Retired: 0
+    Item: {fileID: 11400000, guid: 70879ea06c14a7744b840922dee14b42, type: 2}
+  - Key: chainmail
+    Retired: 0
+    Item: {fileID: 11400000, guid: 96c33ead64fe46446a0ae1b3d327b1ca, type: 2}
+  - Key: greaves
+    Retired: 0
+    Item: {fileID: 11400000, guid: feb933aa5b4fe7d408550e6ca5e76c16, type: 2}
+  - Key: boots
+    Retired: 0
+    Item: {fileID: 11400000, guid: aedb2075e4385e64ab9616c68a04c685, type: 2}
+  - Key: tunic
+    Retired: 0
+    Item: {fileID: 11400000, guid: 126d0c500f7d7b9459d6befa3f7f1dbb, type: 2}
+  - Key: robe
+    Retired: 0
+    Item: {fileID: 11400000, guid: 5707d1a402444254e930a4a115d6c4af, type: 2}
+  - Key: cloak
+    Retired: 0
+    Item: {fileID: 11400000, guid: 19f3412e8543afb44b985527ebb2efec, type: 2}
+  - Key: scarf
+    Retired: 0
+    Item: {fileID: 11400000, guid: 1e29fb3409b135c4cb6dd5d3745b2b97, type: 2}
+  - Key: hood
+    Retired: 0
+    Item: {fileID: 11400000, guid: f02de843282fbad42be13b955bc5a649, type: 2}
+  - Key: woolcap
+    Retired: 0
+    Item: {fileID: 11400000, guid: 6bc53818296f0c44c95a2abc11e68ca3, type: 2}
+  - Key: brimhat
+    Retired: 0
+    Item: {fileID: 11400000, guid: 2edeb91f629dc5d44a77e1ba37a8ff04, type: 2}
+  - Key: axe
+    Retired: 0
+    Item: {fileID: 11400000, guid: 3c0226e571fe11940a183ecd98803005, type: 2}
+  - Key: hammer
+    Retired: 0
+    Item: {fileID: 11400000, guid: 65daa2faff6fd36499c0ea1eb22b7752, type: 2}
+  - Key: rod
+    Retired: 0
+    Item: {fileID: 11400000, guid: e1a49ff43dae1f247bcf758bc0eb78d2, type: 2}
+  - Key: pickaxe
+    Retired: 0
+    Item: {fileID: 11400000, guid: bdaf9f484ee15a2448d1ad9a662f90e0, type: 2}
+  - Key: lantern
+    Retired: 0
+    Item: {fileID: 11400000, guid: 2b3b7fe481eddf043954ae25454f4c2f, type: 2}
+  - Key: shovel
+    Retired: 0
+    Item: {fileID: 11400000, guid: 69d9cf4067c23b947869d60177ae452b, type: 2}
+  - Key: great_club
+    Retired: 0
+    Item: {fileID: 11400000, guid: 10f74a6dd9e37404a8ca7dfb0ec7b4e3, type: 2}
+  - Key: shield
+    Retired: 0
+    Item: {fileID: 11400000, guid: 0c8190967c0cf3e4387dc7634f287fb4, type: 2}
+  - Key: letter
+    Retired: 0
+    Item: {fileID: 11400000, guid: f036da88327f9c543ac1602b2058f052, type: 2}
+  - Key: ore
+    Retired: 0
+    Item: {fileID: 11400000, guid: a13c6d99ecaddf641ab12afffd136a4f, type: 2}
+  - Key: ore_sack
+    Retired: 0
+    Item: {fileID: 11400000, guid: 3515e10cfb8eef0488a55cbc0aefbcec, type: 2}
+  - Key: hoe
+    Retired: 0
+    Item: {fileID: 11400000, guid: 2ed5149046419ec40b2499c05936524c, type: 2}
+  - Key: broom
+    Retired: 0
+    Item: {fileID: 11400000, guid: 9da99e1d87a07d549b3d73b8ca4882cb, type: 2}
+  - Key: smiths_hammer
+    Retired: 0
+    Item: {fileID: 11400000, guid: f1408f54989051f4c8a3c4194f25a67c, type: 2}
+  - Key: tongs
+    Retired: 0
+    Item: {fileID: 11400000, guid: ada5e57083cdfc24c80ca66aafa017d9, type: 2}
+  - Key: bucket
+    Retired: 0
+    Item: {fileID: 11400000, guid: 631a787a57049534fb954a5c6dbc68d4, type: 2}
+  - Key: bowl
+    Retired: 0
+    Item: {fileID: 11400000, guid: baadc93015d544c42a725a3e40ef7672, type: 2}
+  - Key: jar
+    Retired: 0
+    Item: {fileID: 11400000, guid: ae8bca3ba3f018645898000062013d05, type: 2}
+  - Key: apple
+    Retired: 0
+    Item: {fileID: 11400000, guid: 30cbb9f28b1b2db4cb5f1bb5ecae9998, type: 2}
+  - Key: bread
+    Retired: 0
+    Item: {fileID: 11400000, guid: 7c25781c868d5b84db00946d8ed8cda1, type: 2}
+  - Key: dough
+    Retired: 0
+    Item: {fileID: 11400000, guid: d2463200cd8b99547ad15e698e1d86ba, type: 2}
+  - Key: kneading_table
+    Retired: 0
+    Item: {fileID: 11400000, guid: fdc8b2182e140eb40bb0c289d645c99f, type: 2}
+  - Key: chopping_block
+    Retired: 0
+    Item: {fileID: 11400000, guid: 8abfaeef078d0a04a8a17a3d101b7fdb, type: 2}
+  - Key: log
+    Retired: 0
+    Item: {fileID: 11400000, guid: c1ea3c66f8a4a6d499ed094a6cc17afa, type: 2}
+  - Key: rope
+    Retired: 0
+    Item: {fileID: 11400000, guid: a170daf97c9dad54fa3adcaddf98f12d, type: 2}
+  - Key: hot_iron
+    Retired: 0
+    Item: {fileID: 11400000, guid: ecf5bd3d27b3cc24790e133113f4553f, type: 2}
+  - Key: creel
+    Retired: 0
+    Item: {fileID: 11400000, guid: 363561edf1f8a3542ae32a9ff16932d9, type: 2}
+  - Key: honeycomb
+    Retired: 0
+    Item: {fileID: 11400000, guid: 414d4cd2295cad74eb263d7454d4be5c, type: 2}
+  - Key: goggles
+    Retired: 0
+    Item: {fileID: 11400000, guid: d21efb8d6f5cbb048bee04b655b0f80d, type: 2}
+  - Key: kettle_hat
+    Retired: 0
+    Item: {fileID: 11400000, guid: 3af1e664312057c43924cb18527b9201, type: 2}
+  - Key: horned_helm
+    Retired: 0
+    Item: {fileID: 11400000, guid: d47b92ee6933e0047b4783fd42ec02f1, type: 2}
+  - Key: crested_helm
+    Retired: 0
+    Item: {fileID: 11400000, guid: 4ad305c896fdd4945aed9ec7f7fe5911, type: 2}
+  - Key: pot_helm
+    Retired: 0
+    Item: {fileID: 11400000, guid: 4c26df286a9b78e4c918da272160418b, type: 2}
+  - Key: skull_helm
+    Retired: 0
+    Item: {fileID: 11400000, guid: 01cb36f8b5eb48d46ae38b0d98420e56, type: 2}
+  - Key: breastplate
+    Retired: 0
+    Item: {fileID: 11400000, guid: aa4d14f5481fa2845887afa04f3f612d, type: 2}
+  - Key: leather_cuirass
+    Retired: 0
+    Item: {fileID: 11400000, guid: 2fda7b1f07fbd3b4facdfe82bed07472, type: 2}
+  - Key: sash
+    Retired: 0
+    Item: {fileID: 11400000, guid: bb308e7081f57574489239444b69a20f, type: 2}
+  - Key: hide_cape
+    Retired: 0
+    Item: {fileID: 11400000, guid: a43b094273dfb044d9a6f883ee0e8076, type: 2}
+  - Key: apron
+    Retired: 0
+    Item: {fileID: 11400000, guid: 055c1c5f4f3b96a4fbd0b9361eb74977, type: 2}
+  - Key: leather_apron
+    Retired: 0
+    Item: {fileID: 11400000, guid: 91aa5cf2a7f54394f850435bb4da0792, type: 2}
+  - Key: bakers_apron
+    Retired: 0
+    Item: {fileID: 11400000, guid: bc52e800e7500f946b1fa22686990ce7, type: 2}
+  - Key: bakers_cap
+    Retired: 0
+    Item: {fileID: 11400000, guid: 69924f93e20e4714aaa78a640c1c7715, type: 2}
+  - Key: straw_hat
+    Retired: 0
+    Item: {fileID: 11400000, guid: 8f4dce336368d5b4c9551788db974ba6, type: 2}
+  - Key: fishers_hat
+    Retired: 0
+    Item: {fileID: 11400000, guid: e772622b1f89dd3439a9477aae5b7ff5, type: 2}
+  - Key: satchel
+    Retired: 0
+    Item: {fileID: 11400000, guid: e44e6f691de54e442a3f727efc3d2d52, type: 2}
+  - Key: guy_rope
+    Retired: 0
+    Item: {fileID: 11400000, guid: 5ba93a9982661ea43bfd1f3c0d79d59f, type: 2}
+  - Key: rope_coil
+    Retired: 0
+    Item: {fileID: 11400000, guid: 890180d8f3025ad4ebe76601c6d67ff2, type: 2}
+  - Key: trestle
+    Retired: 0
+    Item: {fileID: 11400000, guid: ab52ec54f7161584f802ae1947a5efe5, type: 2}
+  - Key: dented_helm
+    Retired: 0
+    Item: {fileID: 11400000, guid: 88988eec80c21c146aaa8192f216eee9, type: 2}
+  - Key: spirit_flame
+    Retired: 0
+    Item: {fileID: 11400000, guid: a8af4af96ded0df4abc33e913b4aca66, type: 2}
+  - Key: heap
+    Retired: 0
+    Item: {fileID: 11400000, guid: 9c8f9a4d9b7d0464297485ec7ffd35a4, type: 2}
+  - Key: snow_block
+    Retired: 0
+    Item: {fileID: 11400000, guid: 5c573ea13a325f1408c50e8967e195b8, type: 2}
+  - Key: ice_block
+    Retired: 0
+    Item: {fileID: 11400000, guid: 208e1511c9a588043ad63924e090ee1f, type: 2}
+  - Key: glasses
+    Retired: 0
+    Item: {fileID: 11400000, guid: cce635954bf200a44a6271224793feb1, type: 2}
+  - Key: glow_goggles
+    Retired: 0
+    Item: {fileID: 11400000, guid: ae6a69903c83ef84aa6fa9fe2892b57e, type: 2}
+  - Key: heirloom_key
+    Retired: 0
+    Item: {fileID: 11400000, guid: 2cc095d96bcbce449b94ba43baf69180, type: 2}
+  - Key: elder_staff
+    Retired: 0
+    Item: {fileID: 11400000, guid: be8622279a1a1fa49858ef9502dbb7be, type: 2}
+  - Key: lost_key
+    Retired: 0
+    Item: {fileID: 11400000, guid: 8a76f3f34905baa4aa20040f4012d7c3, type: 2}

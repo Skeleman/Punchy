@@ -16,28 +16,22 @@ namespace Punchy.Terrain
         [Tooltip("Biomes this style is used in. Empty = anywhere (a fallback).")]
         public List<BiomeDefinition> Biomes = new List<BiomeDefinition>();
 
+        [Tooltip("The stone the cave is cut through (W-166 #336): its wall relief comes from MaterialLibrary.Stone, " +
+                 "the same rows every rock wall reads.")]
+        public StoneKind Stone;
+
+        /// <summary>This style's wall relief: its stone's row of the material library.</summary>
+        public MaterialLibrary.StoneRow Relief => MaterialLibrary.Stone[Mathf.Clamp((int)Stone, 0, MaterialLibrary.Stone.Length - 1)];
+
+        // W-166 row 2: a cave wall is cut in the scarps' country rock unless its stone is the theme (ice, crystal, ore).
+        public MaterialLibrary.StoneRow ReliefIn(StoneKind country) => Stone is StoneKind.Ice or StoneKind.Crystal or StoneKind.Ore
+            ? Relief : MaterialLibrary.Stone[Mathf.Clamp((int)country, 0, MaterialLibrary.Stone.Length - 1)];
+
         [Header("Shape")]
         [Tooltip("Passage width as a multiple of the landmark's radii (wide galleries > 1).")]
         [Range(0.5f, 2f)] public float Width = 1f;
         [Tooltip("Passage height as a multiple of its width (tall fissures > 1, low galleries < 1).")]
         [Range(0.4f, 2.5f)] public float Height = 1f;
-        [Tooltip("How lumpy the walls are (0 = smooth, as a lava tube or ice; 1 = ordinary rock).")]
-        [Range(0f, 2f)] public float Roughness = 1f;
-        [Tooltip("Size of the wall lumps: above 1 makes them smaller and busier.")]
-        [Range(0.3f, 3f)] public float Grain = 1f;
-        [Tooltip("How broken the upper walls and ceiling are: ridges, sharp creases and overhangs (0 = a smooth tube, " +
-                 "as a lava tube; 1 = jagged rock).")]
-        [Range(0f, 1.5f)] public float Jaggedness = 0.7f;
-        [Tooltip("Blocky collapse hollows in the ceiling, as a share of the jaggedness (fractured ice, bedded rock).")]
-        [Range(0f, 1f)] public float Blockiness = 0.3f;
-        [Tooltip("Sharp ribs across the walls and ceiling with scooped hollows between (melt-scalloped ice).")]
-        [Range(0f, 1f)] public float Ribs;
-        [Tooltip("Space between ribs (m).")]
-        [Range(0.8f, 4f)] public float RibSpacing = 1.6f;
-        [Tooltip("Flat faces meeting in sharp edges across the walls and ceiling (ore bodies, crystal): 0 = none.")]
-        [Range(0f, 1f)] public float Angularity;
-        [Tooltip("Size of those faces (m).")]
-        [Range(1f, 6f)] public float FacetSize = 2.5f;
         [Tooltip("How straight the passages run (1 = dug: straight drifts of even width, side passages at right " +
                  "angles, as a mine; 0 = winding natural passages).")]
         [Range(0f, 1f)] public float Straightness;
@@ -64,6 +58,11 @@ namespace Punchy.Terrain
         [Tooltip("W-172 row 5: the bench set against the wall of road tunnels' side chambers (those not left as camp " +
                  "sockets). None = no benches.")]
         public Punchy.Flora.FloraSpecies Bench;
+        [Tooltip("W-177: the mushroom species (a Mushroom flora form) that grows in clusters on Fungi wall patches, upright " +
+                 "on floors and out of the rock on walls. Drawn only, not baked. None = no clusters.")]
+        public Punchy.Flora.FloraSpecies Mushrooms;
+        [Tooltip("W-177: as Mushrooms, for the deep GlowFungi patches (a glowing species).")]
+        public Punchy.Flora.FloraSpecies GlowMushrooms;
         [Tooltip("How flat the floor is: 1 = a level floor halfway down the passage, 0 = the passage's own round bottom.")]
         [Range(0f, 1f)] public float FloorFlatness = 0.85f;
         [Tooltip("How many ledges and steps the floor has.")]
@@ -144,11 +143,6 @@ namespace Punchy.Terrain
         [Range(0f, 1f)] public float FloorGloss = 0.1f;
 
         [Header("Surface detail")]
-        [Tooltip("Strength of the fine surface relief: rough grain on rock, frost on ice. It also adds glints where the " +
-                 "lantern catches it.")]
-        [Range(0f, 1f)] public float Detail = 0.3f;
-        [Tooltip("Detail repeats per metre: above 1 makes it finer.")]
-        [Range(0.2f, 4f)] public float DetailScale = 1f;
         [Tooltip("A soft frosty rim where the wall turns away from the eye.")]
         [Range(0f, 1f)] public float Sheen;
 
@@ -176,6 +170,11 @@ namespace Punchy.Terrain
         [Tooltip("How often each kind of destination chamber is picked here: crystal grotto, underground lake, bat roost, buried ruin room.")]
         public Vector4 RoomWeights = Vector4.one;
 
+        [Header("Wall details (W-172 row 7)")]
+        [Tooltip("What the rock is, for the wall details that only some rock takes: flowstone on limestone, fossils in " +
+                 "sedimentary rock (the biome above decides the rest: frost, salt, moss, fungi).")]
+        public CaveRockKind RockKind;
+
         /// <summary>The look as four vectors for the cave shader's style table.</summary>
         public void Pack(Vector4[] table, int slot)
         {
@@ -191,11 +190,14 @@ namespace Punchy.Terrain
             var floorDark = FloorDark.linear;
             table[i + 5] = new Vector4(floor.r, floor.g, floor.b, FloorGrit);
             table[i + 6] = new Vector4(floorDark.r, floorDark.g, floorDark.b, FloorGloss);
-            table[i + 7] = new Vector4(Detail, DetailScale, Sheen, Moss);
+            table[i + 7] = new Vector4(Relief.Detail, Relief.DetailScale, Sheen, Moss);
             var moss = MossColor.linear;
             table[i + 8] = new Vector4(moss.r, moss.g, moss.b, CrackBreakup);
         }
     }
+
+    /// <summary>W-172 row 7: what a cave style's rock is, for CaveWallDetails.</summary>
+    public enum CaveRockKind : byte { Plain, Limestone, Sedimentary, Ice, Volcanic, Crystal }
 
     /// <summary>Where in a cave a plant grows: by the daylight (mouths, shafts), away from it, or anywhere.</summary>
     public enum CaveLight : byte

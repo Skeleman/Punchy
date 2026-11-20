@@ -168,8 +168,7 @@ namespace Punchy.Debugging
             for (int j = 0; j < set.RuinRooms.Length; j++)
             {
                 var o = set.RuinRooms[j];
-                float ou = math.min(rr.U1, o.U1) - math.max(rr.U0, o.U0), ov = math.min(rr.V1, o.V1) - math.max(rr.V0, o.V0);
-                if (j != room && ou >= -0.25f && ov >= -0.25f && math.max(ou, ov) >= 0.5f)
+                if (j != room && Punchy.Dungeon.TempleSockets.Touch(rr, o))
                     touching.Append($" {j}{(o.Kind == 1 ? " (open to the sky)" : "")}");
             }
             Debug.Log($"DebugControls: temple room {room} touches:{touching}");

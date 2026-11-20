@@ -4,6 +4,7 @@
 #include "PlayerReveal.hlsl"
 #include "SharedClock.hlsl"
 #include "WaterSwell.hlsl"
+#include "ScreenSize.hlsl"   // the breath and twitch settle by on-screen size at the main camera (rule 20)
 
 // Plants drawn by FloraSystem with indirect instanced draws. Each draw is one variant at one LOD; its instances
 // are the plants FloraCull.compute found visible, stored from the draw's startInstance in _FloraVisible as (plant index, dither
@@ -114,8 +115,9 @@ FloraVertex FloraTransform(FloraAttributes input)
             float3 v = _PunchyDoorOpen[i].xyz - float3(hingeWS.x, plant.position.y, hingeWS.z);
             float side = dot(v.xz, acrossWS.xz), ahead = dot(v.xz, outWS.xz);
             if (side > -1.0 && side < 3.0 && ahead > -0.5 && ahead < 15.0 && abs(v.y) < 2.5)
-                open = max(open, _PunchyDoorOpen[i].w);
+                open = _PunchyDoorOpen[i].w < 0 ? -1e4 : max(open, _PunchyDoorOpen[i].w); // w < 0: held shut (P-37 r3 walk-in doors)
         }
+        open = max(open, 0);
         float phi = open * 1.65;
         float3 rel = positionOS - hingeOS;
         float u = dot(rel, across), d = dot(rel, outwards);
@@ -193,14 +195,14 @@ FloraVertex FloraTransform(FloraAttributes input)
     // Breaths and twitches settle beyond 60-100 m, where they're too small to see.
     else if (input.data.z < -1.5)
     {
-        float size = (-input.data.z - 2) * plant.scale * (1 - smoothstep(60, 100, distance(plant.position, GetCameraPositionWS())));
+        float size = (-input.data.z - 2) * plant.scale * (1 - smoothstep(60, 100, PunchyMainReferenceDistance(distance(plant.position, GetCameraPositionWS()))));
         float beat = frac(_PunchyClock * 0.23 + plant.random * 7.1 + input.positionOS.x * 0.37);
         float jerk = beat < 0.06 ? sin(beat / 0.06 * 18.85) : 0;
         p += float3(sin(plant.random * 40 + input.positionOS.z), 0, cos(plant.random * 40 + input.positionOS.x)) * jerk * size;
     }
     else if (input.data.z < 0)
         p += n * (-input.data.z) * plant.scale * (0.5 + 0.5 * sin(_PunchyClock * 1.571 + plant.random * 6.28))   // a 4 s breath
-             * (1 - smoothstep(60, 100, distance(plant.position, GetCameraPositionWS())));
+             * (1 - smoothstep(60, 100, PunchyMainReferenceDistance(distance(plant.position, GetCameraPositionWS()))));
 
     // Cloth (part 10; how free each vertex is, 0 at its pole or bar to 1 at the free edge, rides on the part as a
     // fraction x 0.4): a wave running out to the free edge with a quicker flutter there, leaning downwind, hanging
@@ -231,7 +233,7 @@ FloraVertex FloraTransform(FloraAttributes input)
         float along = (input.positionOS.x + input.positionOS.z) * 0.9;
         float wave = sin(t - free * 4.2 + along);
         // The quicker flutter at the free edge only up close: far off it's a shimmer the eye reads as noise (Z-33).
-        float flutterNear = 1 - smoothstep(30, 80, distance(plant.position, GetCameraPositionWS()));
+        float flutterNear = 1 - smoothstep(30, 80, PunchyMainReferenceDistance(distance(plant.position, GetCameraPositionWS())));
         float flutter = taut ? 0 : sin(t * 1.8 - free * 5.5 + input.positionOS.y * 2.6) * free * flutterNear;
         // Taut cloth stirs only in wind, and gently (G-19): nothing in calm air.
         float amount = free * (taut ? 0.08 * smoothstep(0.2, 0.9, _PunchyWind) * (0.5 + 0.5 * gust) : 0.06 + 0.4 * strength) * plant.scale;
@@ -306,29 +308,9 @@ float4 FloraMossData(FloraAttributes input)
     return float4(x, input.positionOS);
 }
 
-float FloraMossHash(float3 p)
-{
-    p = frac(p * 0.3183099 + 0.1);
-    p *= 17.0;
-    return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-
-float FloraMossNoise(float3 p)
-{
-    float3 i = floor(p);
-    float3 f = frac(p);
-    f = f * f * (3 - 2 * f);
-    return lerp(lerp(lerp(FloraMossHash(i), FloraMossHash(i + float3(1, 0, 0)), f.x),
-                     lerp(FloraMossHash(i + float3(0, 1, 0)), FloraMossHash(i + float3(1, 1, 0)), f.x), f.y),
-                lerp(lerp(FloraMossHash(i + float3(0, 0, 1)), FloraMossHash(i + float3(1, 0, 1)), f.x),
-                     lerp(FloraMossHash(i + float3(0, 1, 1)), FloraMossHash(i + float3(1, 1, 1)), f.x), f.y), f.z);
-}
-
-// Clumps (coarse noise) and a frayed fringe (fine noise): the thinner the cover, the more of the sheet is cut away.
-half FloraMossClump(float3 p)
-{
-    return FloraMossNoise(p * 9) * 0.6 + FloraMossNoise(p * 31 + 3.1) * 0.4;
-}
+#include "Assets/Game/Shaders/Materials/Moss.hlsl"
+#define FloraMossNoise PunchyMossNoise
+#define FloraMossClump PunchyMossClump
 
 // R-30 leaf trial cuts. How solid a cut-out part reads from its pixel footprint (rule 20: by screen size, no metres):
 // leaves under a few pixels close up, so cards turn into whole hexagons, shells thin away and the rim stops fraying.
@@ -387,7 +369,7 @@ void FloraMossClip(float4 moss)
     if (moss.x > 1.5)
         return;
     // W-101 (#80): a fine ragged hem on top of the clumps, so the rim frays into tufts instead of a smooth cut.
-    clip(moss.x * 1.4 + FloraMossClump(moss.yzw) + (FloraMossNoise(moss.yzw * 70 + 1.3) - 0.5) * 0.4 - 1.0);
+    clip(PunchyMossHem(moss.yzw, moss.x));
 }
 
 #endif

@@ -26,7 +26,17 @@ namespace Punchy.Tests
             yield return null;
         }
 
-        /// <summary>Target: 117 landmarks, probe hash 689D5348 since W-138 row 3a (bores capped at 800 m and kept out from
+        /// <summary>Target: 120 landmarks, probe hash B32C5306 since #269 (fall notch walls wander and lean). 5B47CDAE since W-182 row 4 (two CastleGateRuins on their own spots).
+        /// 5A21F052 since W-182 row 3 (four CastleRuins on their own spots in Temperate,
+        /// Grassland and Tundra; the other 114 unmoved). DE33C724 since the W-153 row 3 tail (fall lip shoulders: the swamp
+        /// campsite near -1626,33 settles 0.2 m; the other 113 unmoved). 9113464F since W-153 rework row 3 (fall profiles and 138
+        /// described falls re-shape river ground). 4DC69668 since rework row 2 (river carve from the nearest
+        /// profile moved landmark spots by river ground). 9786243F since W-174 row 2 (one natural ground-edit profile: pass gullies, beds,
+        /// pads and paddy rims re-shape the ground, so roadside picks re-draw: five campsites, a fairy ring, the small fungal grotto at
+        /// (-1796,-201) and a grotto drop; a campsite, two burnt campfires, a cave network and a lone inn are new; the bear cave,
+        /// a waterfall and the sea folk landing and village move). 117 / 547D4E79 since the W-172 lava half-row (VolcanoCone joins Ashlands' list and
+        /// takes the Ashlands spot at (-891,-2021); one Ashlands BoneGraveyard at (-733,-2944) drops; the other 115 unmoved).
+        /// 689D5348 since W-138 row 3a (bores capped at 800 m and kept out from
         /// under towns: the west roads re-routed, so three roadside campsites are new and the C0a swamp waystation moved 65 m).
         /// 114 00D16E22 since W-138 row 2b (the two C0a waystations added; the roadside
         /// picks re-drawn on the new road net: inns, shrines, campsites, monuments and a ruin moved). 112 / A5D1D048 since W-138 row 2a (the sea folk landing 2 m and village 16 m
@@ -40,12 +50,12 @@ namespace Punchy.Tests
         {
             var hash = Game.Hook<string>("LandmarkHash");
             LogWatch.Measure($"landmarks {hash}; game line: {LogWatch.Last("[island]")}");
-            Assert.AreEqual("117 689D5348", hash);
+            Assert.AreEqual("120 B32C5306", hash);
             yield return null;
         }
 
         /// <summary>
-        /// Target: F0EF4BD5 since refactor 3.6 (a new field in the flora placement rules, BiomeRock: the blob's bytes moved,
+        /// Target: 01766C0A since W-154 toxic pools (DeadReed and BleachedStick join the flora; landmarks unchanged). 156425C3 since W-173 kit inn and hall (11-19: the hall from kit parts and the inn through DrawKitHouse move flora boxes and perches; landmarks unchanged). 1E90DBCF since W-173 kit surfaces (crate battens and lid, counter top board: the flora blob changes; landmarks unchanged). A9684863 since W-173 tent row (tent guy ropes and stakes change the tent's flora blob; landmarks unchanged). 1F4C927C since W-173 row 1 (kit quoins out past the wall face, stone house from kit parts). 7ED8D1F1 since W-173 (hall roof boxes and kit chimney feet move flora colliders and perches; 1AC019EC before). F0EF4BD5 since refactor 3.6 (a new field in the flora placement rules, BiomeRock: the blob's bytes moved,
         /// no placement changed). 83902658 since A-89 row 3 (main's W-122 marsh folk flora species, AEA50DCE on main, plus the PadFrog and
         /// Dragonfly species and the marsh life rows: 120 species). AD7E7781 since A-88 row 2 (the LakeSturgeon species and the sea folk lake fish rows). 706B915E since W-121 (sea folk buoy and raft species; gull perches on buoy masts). 65C95060 since W-120 (4 new sea folk flora species: glow stone, wreck, clam bed, vent field). 2998FA9A since W-119 (FishBoardwalk species, more fishing variants, moved stilt houses). 027CC3FD since W-118 (hazard house layout entries and the drift slope limit change flora data). 8A1979F1 since W-114 (the ribcage's bones and its BoneRemains, GiantRibs and rock props go into the flora
         /// blob; no species change). 90AC5F60 since W-113 (rows 1-3 changed tent, ruin plinth and roof flora, whose colliders and perches go into
@@ -61,7 +71,7 @@ namespace Punchy.Tests
         {
             var line = LogWatch.Last("fingerprint") ?? "no fingerprint line";
             LogWatch.Measure("fauna " + line);
-            StringAssert.Contains("fingerprint E764AAEC", line);   // E764AAEC since the second W-172 + main merge: W-172 row 3 camps with main's Frostdeer (#442). Branch: 3DCB5E78 since the W-172 + main merge re-pin: W-172 row 3 (A4A00AFD on the branch: goblin and ogre camps take SlabShelters and their own tents, so camp plots and anchor rows change) with main's A-113 trees (0654C913) give 3DCB5E78; row 6 moved no placement. 0654C913 since the A-113 re-pin on main 64eb4799: A-113's 5 temperate tree species (TulipTree, WhitePine, Willow, Beech, Fir) join the flora blob. 9EFF3BCF since the A-130 re-pin (#404): the dunes and the other land biomes without clearings join W-126's clearing mask, and palms and palo verde gain groves, so the flora blob changes; no landmark moved. 859112C9 since the A-127 row 1 re-pin: the limb data gains FollowsLeg and the turtle folk robe splits into a waist piece plus two TurtleRobePanel parts that follow the legs; no placement moved. 43D1F778 since the A-123 + main merge re-pin: A-123 + main merge re-pin: A-123 (6C032AE3 on the branch) with main's A-121 row 2 fire tempers (DDE01A70) give 43D1F778; no placement moved, landmarks 117 689D5348. 6C032AE3 since the A-123 row 2 re-pin: the dog's muzzle, nose and eyes move, and wolves, foxes and marsh dogs gain a nose part (an Eye-limb part at the muzzle tip); no placement moved, landmarks 117 689D5348. 3530F2AD since the A-123 row 1 re-pin: upright arms' sockets and rest splay now come from the torso's size (CreatureBlobBuilder.FitShoulder), so the blob's arm parts move; no placement moved, landmarks 117 689D5348. E483FBF0 since the A-118 re-pin: the creature blob gains LieHeight, LiePitch and LiesOnFold (lying on folded legs, measured per species); no placement moved, landmarks 117 689D5348. B2A5823C since the A-117 re-pin: row 1's stable plots and stablekeeper households (E99E8FCB) plus row 2's FloraPlacement.IsBuilding counting Stable and HitchRail, so their walls join the flora obstacle blob; no placement moved, landmarks 117 689D5348, layout 421 28DB5D55. 6A9E28E5 since the A-103 + main merge re-pin: A-103 row 3 (1078FBC3 on the branch: the TurtleChild and SeaChild species and spawn rows) with main b1aa418b (EC02D9B0: A-101 climbing, the blob's ClimbSkill byte, on top of 7B361633: W-147's roof, dock, rope and mine ladder records with main's A-103 row 2 sea folk) give 6A9E28E5; no placement change, landmarks 117 689D5348. 1078FBC3 since the A-103 row 3 re-pin: the TurtleChild and SeaChild species and their FolkChild spawn rows (species sort by name, so later indices shift); no placement change. 6DCC36A3 since the A-103 row 4 re-pin: SeaFolk, BatFolk and TurtleFolk join PlayableSpecies, so the carry table has three more rows (no placement change). B9ADEB35 since the A-103 row 2 re-pin: the sea folk species, its Sea* limbs, the SeaHousehold spawn rows and the blob's WalksBed flag (no placement change). C5B450EF since the A-103 + A-102 merge re-pin: A-103 row 1 (7D44629E: the turtle folk species, limbs, spawn row and the blob's TurtleJobs flag) with A-102 row 1 (151753F3: the blob gains BreathesWater and HoldBreath); no placement change. AD723954 since the A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots Main: 0206544F since the M-06 row 3b re-pin: the first Lab species (Frostdeer, Tundra 3, saved from the Model Lab) joins the species list after the built-ins and the Tundra fauna list through its Homes; no placement moved. 0654C913 since the A-113 re-pin on main 64eb4799: A-113's 5 temperate tree species (TulipTree, WhitePine, Willow, Beech, Fir) join the flora blob. 9EFF3BCF since the A-130 re-pin (#404): the dunes and the other land biomes without clearings join W-126's clearing mask, and palms and palo verde gain groves, so the flora blob changes; no landmark moved. 859112C9 since the A-127 row 1 re-pin: the limb data gains FollowsLeg and the turtle folk robe splits into a waist piece plus two TurtleRobePanel parts that follow the legs; no placement moved. 43D1F778 since the A-123 + main merge re-pin: A-123 + main merge re-pin: A-123 (6C032AE3 on the branch) with main's A-121 row 2 fire tempers (DDE01A70) give 43D1F778; no placement moved, landmarks 117 689D5348. 6C032AE3 since the A-123 row 2 re-pin: the dog's muzzle, nose and eyes move, and wolves, foxes and marsh dogs gain a nose part (an Eye-limb part at the muzzle tip); no placement moved, landmarks 117 689D5348. 3530F2AD since the A-123 row 1 re-pin: upright arms' sockets and rest splay now come from the torso's size (CreatureBlobBuilder.FitShoulder), so the blob's arm parts move; no placement moved, landmarks 117 689D5348. E483FBF0 since the A-118 re-pin: the creature blob gains LieHeight, LiePitch and LiesOnFold (lying on folded legs, measured per species); no placement moved, landmarks 117 689D5348. B2A5823C since the A-117 re-pin: row 1's stable plots and stablekeeper households (E99E8FCB) plus row 2's FloraPlacement.IsBuilding counting Stable and HitchRail, so their walls join the flora obstacle blob; no placement moved, landmarks 117 689D5348, layout 421 28DB5D55. 6A9E28E5 since the A-103 + main merge re-pin: A-103 row 3 (1078FBC3 on the branch: the TurtleChild and SeaChild species and spawn rows) with main b1aa418b (EC02D9B0: A-101 climbing, the blob's ClimbSkill byte, on top of 7B361633: W-147's roof, dock, rope and mine ladder records with main's A-103 row 2 sea folk) give 6A9E28E5; no placement change, landmarks 117 689D5348. 1078FBC3 since the A-103 row 3 re-pin: the TurtleChild and SeaChild species and their FolkChild spawn rows (species sort by name, so later indices shift); no placement change. 6DCC36A3 since the A-103 row 4 re-pin: SeaFolk, BatFolk and TurtleFolk join PlayableSpecies, so the carry table has three more rows (no placement change). B9ADEB35 since the A-103 row 2 re-pin: the sea folk species, its Sea* limbs, the SeaHousehold spawn rows and the blob's WalksBed flag (no placement change). C5B450EF since the A-103 + A-102 merge re-pin: A-103 row 1 (7D44629E: the turtle folk species, limbs, spawn row and the blob's TurtleJobs flag) with A-102 row 1 (151753F3: the blob gains BreathesWater and HoldBreath); no placement change. AD723954 since the A-97 row 3 re-pin: paw limb feet are now coat-coloured Paw segments, a little wider (no placement change). 66320C7C since the W-128 re-pin: the inn rebuilt from kit pieces (cce82b69) bakes new anchor rows. B15790ED since W-127 (was 7D75BB04, W-126 before it F0EF4BD5): the flora blob the build bakes gains the beacon fixture species and the fixture rows' MinPlots
+            StringAssert.Contains("fingerprint 01766C0A", line);
             yield return null;
         }
 
@@ -82,6 +92,97 @@ namespace Punchy.Tests
         }
 
         const float MaxTurnAll = 130f, MaxTurnWide = 130f;
+
+        /// <summary>
+        /// W-153 row 1 (#301): where the island's water breaks physical rules, counted by WaterTruth over every river
+        /// cell, every fall and a 4 m grid of the whole island. The baseline is the count of each kind when the probe
+        /// was written; a kind may only fall. Lower its number when a fix lands, until every one is 0.
+        /// </summary>
+        [UnityTest, Order(3)]
+        public IEnumerator Water_TruthCounts()
+        {
+            var counts = Game.Hook<int[]>("WaterTruthCounts");
+            LogWatch.Measure($"water truth ({string.Join(", ", WaterTruthKinds)}): {string.Join(", ", counts)}");
+            Assert.AreEqual(WaterTruthBaseline.Length, counts.Length, "the probe's kinds changed: update the baseline");
+            var over = new System.Collections.Generic.List<string>();
+            for (int k = 0; k < counts.Length; k++)
+                if (counts[k] > WaterTruthBaseline[k])
+                    over.Add($"{WaterTruthKinds[k]} {counts[k]} > {WaterTruthBaseline[k]}");
+            Assert.IsEmpty(over, $"more water defects than the baseline: {string.Join(", ", over)}");
+            yield return null;
+        }
+
+        /// <summary>#301: every river fall lands in water across its whole foot, a metre past each side of its sheet.</summary>
+        [UnityTest, Order(3)]
+        public IEnumerator Water_NoDryFallFeet()
+        {
+            var dry = Game.Hook<int>("DryFallFeet");
+            LogWatch.Measure($"dry fall feet: {dry}");
+            Assert.AreEqual(0, dry, "falls landing on ground instead of their plunge pool");
+            yield return null;
+        }
+
+        /// <summary>Steep water and pits (steep water diving into the ground) round the three places that had any may only fall.</summary>
+        [UnityTest, Order(3)]
+        public IEnumerator Water_SheetSlopes()
+        {
+            int steep = 0, pits = 0;
+            foreach (var spot in SheetSlopeSpots)
+            {
+                yield return TestSceneSetup.GoTo(spot.x, spot.y, 25f);
+                var counts = Game.Hook<int[]>("WaterSheet", spot.x, spot.y, 1);
+                steep += counts[8];
+                pits += counts[9];
+            }
+            LogWatch.Measure($"water sheet slopes: steep {steep}, pits {pits}");
+            Assert.LessOrEqual(steep, SheetSlopeBaseline.x, "more steep water than the baseline");
+            Assert.LessOrEqual(pits, SheetSlopeBaseline.y, "more water pits than the baseline");
+        }
+
+        static readonly Vector2[] SheetSlopeSpots = { new(-2729, 546), new(-490, 546), new(-2018, -1070) };
+        // Row 3 (cascade pools: water steeper than 0.2 m per metre steps down as registered falls, 140 -> 151): steep 118 -> 69, pits 22 -> 19.
+        // Row 4 (closed bank pits fill flat instead of tucking): steep 69 -> 66, pits 19 -> 16.
+        // Row 2 (riverless ponds of a cell or two get a bowl dug about a metre under their level): steep and pits stay 66 / 16.
+        static readonly Vector2Int SheetSlopeBaseline = new(66, 16);
+
+        static readonly string[] WaterTruthKinds =
+        {
+            "bend", "widthJump", "deadEnd", "source", "dryRun", "uphillGraph", "uphillSampled", "wall", "deep", "tilt", "step", "fallHead", "fallFoot"
+        };
+        // W-153 row 2 (still water last): dryRun 21 -> 10, uphillSampled 7 -> 0, wall 1987 -> 988, tilt 35 -> 31, step 1186 -> 959.
+        // No stepped pool is left in a wall or a step: the 109 'pool' walls still counted are fall and landmark
+        // head pools, which stand with ponds off (rows 3-6).
+        // Main merge (W-174 rivers and cave mouths, M-07 painted edits, W-162): the river graph changed under the probe,
+        // so the graph-only kinds moved (bend 80 -> 82, uphillGraph 31 -> 62) with deep 42 -> 43, step 959 -> 964 and
+        // fallFoot 4 -> 5; dryRun 10 -> 9, wall 988 -> 972, tilt 31 -> 29, fallHead 47 -> 46. Re-based here.
+        // uphillGraph 62 -> 10: 52 of the 62 were lake edges, where a lake cell's Bed holds the lake surface (flat water,
+        // uphillSampled 0), so the probe no longer compares beds across a lake edge. The 10 left are bed rises under 0.25 m.
+        // W-153 row 3 (river notches + small falls): notches cut rises left by later ground passes (dryRun 9 -> 7);
+        // channel water held to a fall's lip (dryRun 7 -> 3, wall 972 -> 930, fallFoot 5 -> 2) makes each step a small
+        // fall, which the probe counts as step 970 -> 1013, deep 43 -> 45 and tilt 29 -> 30 at the lips. Re-based here.
+        // Reverted: that channel water stood over ground the lower valley had dug, so rivers made raised water blocks
+        // with falls on every side. Notches stay; counts go back to dryRun 7, wall 972, deep 43, tilt 29, step 970,
+        // fallFoot 5. The river rework (docs/agents/river-rework.md) is meant to take wall to 0.
+        // Rework row 2 (carve and water from the nearest profile, blended at joins): dryRun 7 -> 0, wall 972 -> 457,
+        // deep 43 -> 11, tilt 29 -> 18, step 970 -> 610, fallHead 46 -> 0, fallFoot 5 -> 0. Re-based here.
+        // Rework row 3 (fall profile: bed and water step on one straight lip line, a foot pool below, every bed step
+        // of 1 m or more a described fall, 75 -> 138 falls): wall 457 -> 397, deep 11 -> 10, tilt 18 -> 17,
+        // step 610 -> 225. Re-based here.
+        // Rework row 4 (lake clip kept to river channels): deep ground under a lake is lake bed, not a dry hole;
+        // wall 397 -> 89 (lake walls 307 -> 5, thin fringes the row 6 ground test covers). Re-based here.
+        // Row 3 tail (fall lip shoulders: rock beside a sheet rises just above the upper water; lip pairs on an oblique
+        // fall's minor grid axis count as the fall's sheet): wall 89 -> 36 (fall walls 56 -> 5), step 225 -> 170. Re-based here.
+        // Perched-lake fix (lakes re-lowered to a dam-cut outlet, reshaped): bend 82 -> 83. Re-based here.
+        // Lake exits and left-lake river beds kept to the lowered lake (#617 follow-up): uphillGraph 10 -> 0, deep 10 -> 1
+        // (rivers in an old lake bed meet the lowered lake's surface, not its floor).
+        // Wall 36 -> 48: the -1750,-750 lake dropped 2.5 m to its dam-cut outlet and bared its old bed below the -2006,-1064 pond's ledge.
+        // Wall 48 -> 49 (fall-flank): the blocky steps beside a sheet leave one more wall by a fall (7 now).
+        // Wall 49 -> 11 (#365 bay mask): lake bays flood per pocket, not per point (pool walls 37 -> 3, lake walls 5 -> 1).
+        // Wall 7 -> 4 (fall-walls): lip shoulders follow the carved edge and foot bowls close before the water's edge; step 129 -> 125.
+        // Deep 1 -> 0 (lake-flow tie): a river at its lake's own level now takes the lake, so the last deep point goes.
+        // Tilt 17 -> 15, step 125 -> 108 (W-181 row 3 cascade pools): steep reaches step down as short falls between flat pools.
+        // Wall 4 -> 3 (W-173 lake-rim gully): dropped bay cells reflood to their level.
+        static readonly int[] WaterTruthBaseline = { 83, 0, 0, 0, 0, 0, 0, 3, 0, 15, 108, 0, 0 };
 
         /// <summary>
         /// Butterflies round the player in a meadow at noon, clear sky. No range was ever set: CritterSystem clips at 8
@@ -136,7 +237,8 @@ namespace Punchy.Tests
             yield return TestSceneSetup.Spawn("Deer", at.x + 2f, at.z);
             yield return TestSceneSetup.Weather(true);
             yield return TestSceneSetup.Seconds(2f);
-            Shots.Take("test-rain-deer");
+            // (P-50: the ready-gated ShotTool shot; the old immediate Shots.Take render stalled batchmode for minutes in rain.)
+            yield return Shots.Settled("test-rain-deer", 960, 540);
             yield return TestSceneSetup.Weather(false);
         }
 
@@ -186,17 +288,17 @@ namespace Punchy.Tests
         [UnityTest, Order(8)]
         public IEnumerator Place_PropFindsAndFramesWharf()
         {
-            var before = LogWatch.Last("FishWharf found in all");
+            var mark = LogWatch.Mark();
             Game.RunOptions("-place prop:FishWharf@0,0");
             var start = Time.realtimeSinceStartup;
-            while ((Game.Hook<bool>("PropPlacePending") || LogWatch.Last("FishWharf found in all") == before) && Time.realtimeSinceStartup - start < 30f)
+            while ((Game.Hook<bool>("PropPlacePending") || LogWatch.After(mark, "FishWharf found in all") == null) && Time.realtimeSinceStartup - start < 30f)
                 yield return null;
-            var found = LogWatch.Last("FishWharf found in all") ?? "no found line";
+            var found = LogWatch.After(mark, "FishWharf found in all");
             var first = LogWatch.Last("FishWharf #1 at") ?? "no #1 line";
             var framing = LogWatch.Last("framing FishWharf") ?? "no framing line";
             var at = Game.Hook<Vector3>("PlayerPosition");
-            LogWatch.Measure($"place prop: {found}; {first}; player at {at}");
-            Assert.AreNotEqual(before, LogWatch.Last("FishWharf found in all"), "-place prop: logged nothing (#137)");
+            LogWatch.Measure($"place prop: {found ?? "no found line"}; {first}; player at {at}");
+            Assert.IsNotNull(found, "-place prop: logged nothing (#137)");
             StringAssert.Contains("framing FishWharf #1", framing);
             var wharf = ParseAt(first);
             Assert.Less(Vector2.Distance(new Vector2(at.x, at.z), new Vector2(wharf.x, wharf.z)), 30f, "the player wasn't put beside the wharf");
@@ -298,6 +400,78 @@ namespace Punchy.Tests
             var problems = Game.Hook<string>("CaveSocketsMatchBuild");
             LogWatch.Measure($"{LogWatch.Last("[dungeon] caves:") ?? "no dungeon line"}; baked vs built: {(problems == "" ? "every cave the same" : problems)}");
             Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>W-176 (#475): no cave passage cuts a pit through another (side passages crossed each other at other
+        /// heights) and no passage floor drops off a ledge (side passages' dead ends fell 13-20 m into their chamber).</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator CaveLayout_NoPitsOrLedges()
+        {
+            var problems = Game.Hook<string>("CaveLayoutProblems");
+            LogWatch.Measure($"cave layout: {Game.HookField<string>("CaveLayoutTrail")}; {(problems == "" ? "no pits or ledges" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>W-174 rows 4-5 (#405): the terrain's cut edge round every temple entrance, cave mouth and scarp strip
+        /// follows the rim (the seam builder) with no slot or overhang wider than its kind allows, and ground inside a
+        /// temple's cut reads as removed.</summary>
+        [UnityTest, Order(90), Timeout(1200000)]   // one long frame: every rim cell and collar foot is sampled on the main thread, unbursted
+        public IEnumerator Seams_NoOpenRims()
+        {
+            var problems = Game.Hook<string>("SeamProblems");
+            LogWatch.Measure($"seams: {Game.HookField<string>("SeamTrail")}; {(problems == "" ? "no open seams" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        [UnityTest, Order(90), Timeout(600000)]
+        public IEnumerator MouthPatch_ExactRims()
+        {
+            var problems = Game.Hook<string>("MouthPatchProblems");
+            LogWatch.Measure($"mouth patch: {Game.HookField<string>("MouthPatchTrail")}; {(problems == "" ? "exact rims" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>W-175 #415: every species carrying a saved blueprint (Model Lab JSON) reads its parts at runtime and
+        /// stands in at least one settlement that lists it.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator Blueprints_PlacedInSettlements()
+        {
+            var problems = Game.Hook<string>("BlueprintPlacements");
+            LogWatch.Measure($"blueprints: {Game.HookField<string>("BlueprintTrail")}; {(problems == "" ? "all placed" : problems)}");
+            Assert.AreEqual("", problems);
+            yield return null;
+        }
+
+        /// <summary>P-47: no two dungeon chests (the temple's, every cave's, the ruin rooms') share a container id, so a
+        /// chest RPC names one chest on every machine.</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator DungeonChests_IdsUnique()
+        {
+            var problems = Game.Hook<string>("ChestIdClashes");
+            var line = LogWatch.Last("[chests]") ?? "no chests line";
+            LogWatch.Measure($"{line}; ids: {(problems == "" ? "no clashes" : problems)}");
+            Assert.AreEqual("", problems);
+            StringAssert.DoesNotContain(" 0 chests", line);
+            yield return null;
+        }
+
+        /// <summary>P-46: the sunken temple's sockets are pinned (a hall torch too low for its prop dropped, clutter kept
+        /// off chest spots). A layout change moves the hash: re-pin it and add a BENCH-QUEUE note. 646F01C4 since W-182 row 4
+        /// (same 73 sockets; CastleGateRuins joins the landmark list). B2ABB7FF since W-182 row 3 (same 73 sockets;
+        /// CastleRuins joins the landmark list). C41A5BA2 since W-174 row 2 (same 73 sockets on the re-shaped ground; was 2D2BFAEB).</summary>
+        [UnityTest, Order(90)]
+        public IEnumerator TempleSockets_Pinned()
+        {
+            var line = LogWatch.Last("[dungeon] sunken temple");
+            LogWatch.Measure(line ?? "no sunken temple dungeon line");
+            if (line == null)
+                Assert.Inconclusive("the sunken temple was not built in this world");
+            StringAssert.Contains("73 sockets", line);
+            StringAssert.Contains("hash 646F01C4", line);
             yield return null;
         }
 

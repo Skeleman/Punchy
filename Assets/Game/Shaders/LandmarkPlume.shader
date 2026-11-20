@@ -19,10 +19,12 @@ Shader "Punchy/Landmark Plume"
             #pragma target 4.5
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Sky.hlsl"
+            #include "Atmosphere.hlsl"
             #include "Glow.hlsl"
             #include "LandmarkEffects.hlsl"
 
@@ -34,7 +36,7 @@ Shader "Punchy/Landmark Plume"
                 float alpha : TEXCOORD2;
                 float4 screen : TEXCOORD3;
                 nointerpolation uint emitter : TEXCOORD4;
-                nointerpolation float age : TEXCOORD5;   // negative: a bubble (see BuildPlume)
+                nointerpolation float age : TEXCOORD5;   // negative: a bubble, above 1.5: a leaf, above 3.5: river churn, above 7.5: a seep's bead (see BuildPlume)
             };
 
             Varyings Vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
@@ -78,13 +80,74 @@ Shader "Punchy/Landmark Plume"
                         bubbleLit = lerp(e.color.rgb * 0.3, bubbleLit * 1.2, crest / max(crest + trough, 1e-3));
                     return half4(PunchyAtmosphere(bubbleLit, input.positionWS), bubbleAlpha);
                 }
-                float soft = saturate(1 - dot(input.uv, input.uv));
-                float wisp = PunchyValueNoise(input.uv * 2.0 + input.positionWS.xz * 0.15 + input.positionWS.y * 0.1) * 0.6 + 0.4;
-                half alpha = soft * soft * wisp * input.alpha;
+                // A seep's bead hugs its rock: a short depth fade, not the puffs' metre.
+                if (input.age > 7.5)
+                {
+                    float cool = input.age - 8;
+                    float rr = dot(input.uv, input.uv);
+                    float core = 1 - smoothstep(0.0, 0.35, rr);
+                    float rim = 1 - smoothstep(0.2, 1.0, rr);
+                    float2 beadUV = input.screen.xy / input.screen.w;
+                    float beadDepth = LinearEyeDepth(SampleSceneDepth(beadUV), _ZBufferParams);
+                    half beadAlpha = rim * input.alpha * saturate((beadDepth - input.positionCS.w) / 0.08);
+                    clip(beadAlpha - 0.002);
+                    half3 hot = lerp(e.color.rgb, half3(1, 0.85, 0.45), core * (1 - cool));
+                    half3 beadColor = hot * e.color.a * lerp(1.0, 0.35, cool);
+                    return half4(PunchyAtmosphere(beadColor, input.positionWS), beadAlpha);
+                }
+                if (input.age > 3.5)
+                {
+                    float2 q = input.uv;
+                    float cn = PunchyValueNoise(float2(q.x * 1.5, q.y * 5.0) + input.positionWS.xz * 0.7 + input.age * 13.0) * 0.7
+                        + PunchyValueNoise(q * 6.0 + input.positionWS.xz * 2.1) * 0.3;
+                    float erode = 0.2 + 0.55 * cn + 0.25 * frac(input.age);
+                    half churnAlpha = smoothstep(erode, erode + 0.25, 1 - dot(q, q)) * input.alpha;
+                    float2 churnScreen = input.screen.xy / input.screen.w;
+                    churnAlpha *= saturate((LinearEyeDepth(SampleSceneDepth(churnScreen), _ZBufferParams) - input.positionCS.w) / 0.3);
+                    clip(churnAlpha - 0.01);
+                    Light churnSun = GetMainLight();
+                    half3 churnLit = e.color.rgb * PunchyEffectLight(e, input.positionWS, half3(0, 1, 0), churnSun.color * 0.8 * (1 - PunchyCloudShadow(input.positionWS)), SampleSH(half3(0, 1, 0)));
+                    return half4(PunchyAtmosphere(churnLit, input.positionWS), churnAlpha);
+                }
+                if (input.age > 1.5)
+                {
+                    float lr = input.age - 2;
+                    float2 q = input.uv;
+                    half leafAlpha = smoothstep(0, 0.08, 0.95 * (1 - q.y * q.y) - abs(q.x)) * input.alpha;
+                    float2 leafScreen = input.screen.xy / input.screen.w;
+                    leafAlpha *= saturate((LinearEyeDepth(SampleSceneDepth(leafScreen), _ZBufferParams) - input.positionCS.w) / 0.1);
+                    clip(leafAlpha - 0.02);
+                    half3 n = normalize(cross(ddx(input.positionWS), ddy(input.positionWS)));
+                    Light leafSun = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
+                    half sunLit = leafSun.shadowAttenuation * (1 - PunchyCloudShadow(input.positionWS)) * (abs(dot(n, leafSun.direction)) * 0.75 + 0.25);
+                    half3 tone = lerp(e.color.rgb, half3(0.42, 0.24, 0.04), step(0.72, EffectHash(lr * 7.7)) * lerp(0.5, 0.9, EffectHash(lr * 3.1)));
+                    tone *= (0.8 + 0.4 * EffectHash(lr * 5.3)) * (1 - 0.3 * (1 - smoothstep(0.02, 0.07, abs(q.x))));
+                    half3 leafLit = tone * PunchyEffectLight(e, input.positionWS, n, leafSun.color * sunLit, SampleSH(half3(0, 1, 0))) + tone * e.color.a;
+                    return half4(PunchyAtmosphere(leafLit, input.positionWS), leafAlpha);
+                }
+                float2 q = input.uv;
+                half alpha;
+                // Vent wisps tear on noise that climbs through them, so they read as rising streaks, not balls.
+                if (e.fall.y > 0)
+                {
+                    float tear = PunchyValueNoise(float2(q.x * 1.6, q.y * 1.1 - _PunchyClock * 0.7) + input.positionWS.xz * 0.4 + input.age * 17.0) * 0.65
+                        + PunchyValueNoise(float2(q.x * 6.0, q.y * 3.0 - _PunchyClock * 1.3) + input.age * 5.0) * 0.35;
+                    float body = (1 - q.x * q.x) * (1 - q.x * q.x) * smoothstep(-1, -0.3, q.y) * smoothstep(1, 0.1, q.y);
+                    alpha = body * smoothstep(0.15 + 0.3 * input.age, 0.85 + 0.15 * input.age, tear) * input.alpha;
+                }
+                else
+                {
+                    float soft = saturate(1 - dot(q, q));
+                    float wisp = PunchyValueNoise(q * 2.0 + input.positionWS.xz * 0.15 + input.positionWS.y * 0.1) * 0.6 + 0.4;
+                    alpha = soft * soft * wisp * input.alpha;
+                }
 
                 float2 screenUV = input.screen.xy / input.screen.w;
                 float sceneDepth = LinearEyeDepth(SampleSceneDepth(screenUV), _ZBufferParams);
                 alpha *= saturate((sceneDepth - input.positionCS.w) / 1.0);
+                // A plume on water (fall.x, its fade in metres) fades into the surface, which the scene depth lacks.
+                if (e.fall.x > 0)
+                    alpha *= saturate((input.positionWS.y - e.position.y) / e.fall.x);
                 clip(alpha - 0.002);
 
                 Light light = GetMainLight();
