@@ -3,6 +3,7 @@
 
 // R-23 row 3: the shared parts live in SkyCommon.hlsl, Clouds.hlsl and Atmosphere.hlsl (see SkyCommon.hlsl).
 #include "Atmosphere.hlsl"
+#include "ScreenSize.hlsl"
 
 // ------------------------------------------------------------------------------------------------ far clouds, march
 
@@ -127,11 +128,13 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
                 continue;
             }
         }
-        // Edge detail fades with distance (R-4: full to 3.5 km, gone by 17.5 km; the smaller octave from 2.5 to 6 km),
-        // so far clouds don't shimmer.
+        // Edge detail fades with on-screen size (R-4, on screen size since R-35 pick E, rule 20): in the tuning view full
+        // to 3.5 km, gone by 17.5 km, the smaller octave from 2.5 to 6 km, so far clouds don't shimmer; a zoom keeps
+        // the detail further out, a wide view drops it sooner. (-skyoff 65536: in fixed metres, as before E.)
         bool oldEdges = ((uint)_PunchySkyOff & 128u) != 0;
-        float detail = oldEdges ? saturate(1.2 - t / 20000) : saturate(1.25 - t / 14000);
-        float fine = oldEdges ? 0 : 1 - smoothstep(2500, 6000, t);
+        float edgeDistance = ((uint)_PunchySkyOff & 65536u) != 0 ? t : PunchyMainReferenceDistance(t);
+        float detail = oldEdges ? saturate(1.2 - t / 20000) : saturate(1.25 - edgeDistance / 14000);
+        float fine = oldEdges ? 0 : 1 - smoothstep(2500, 6000, edgeDistance);
         [branch] if (canHold)
             punchyCloudStyle = PunchyCloudStyleAt(p.xz);
         float density = ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
