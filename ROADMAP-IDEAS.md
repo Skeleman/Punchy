@@ -17,6 +17,13 @@ asked, not started), **Later** (idea only). Updated 11-15 against main and merge
   distant clouds. Also: shadows (#716), underwater audio (#718), mid-LOD light flicker (#719), kit audit + lab viewer (#720).
   Status: **Next** (development paused for profiling).
 
+## Stabby reset (Zach 11-19)
+- **Stabby (Skeleman/Stabby, private).** A new project that uses Punchy only as reference: engine-independent core,
+  tests without Unity, enforceable one-representation rules, water-first world generation. Seeds generate a world sketch
+  (coast, ranges) that Zach reviews and may hand-edit; months of regression accepted. Phase 0 (standalone world core:
+  sketch, erosion, climate, lakes, rivers, biomes, CLI sheets, seed-sweep tests) Shipped 11-19. Multiplayer plan: world
+  synced as seed + sketch edits with chunk checksums; NPCs host-authoritative with interest management. Status: **In flight**.
+
 ## World and far view
 - **Far views (#298).** The whole island in sight: ground to the horizon, far forest, far life. Shipped: far
   terrain ring to about 3 km (W-131), tree and shrub impostors (R-7, R-11), far herds (A-108 row 2, PR #428), one population (A-110, PR #430). Next: R-22 (whole-island ground,
