@@ -1,0 +1,20 @@
+# Job 115 rebench after #722 (river-fall shapes) and #723 (seep search): main 661e155 (shelf) against 894e8ce, High,
+# -hitchms 200, 2 games each: the whole default route (walk, caves, run, glide), and the town spot 2988.8,-920 with
+# -spin 90 (camera turning, the card's ask). Frames over 200 ms by stop, and the 0.35-0.55 s present-wait band apart.
+Q=q163; TITLE="Job 115 rebench after #722/#723"
+BUILDS="661e155 894e8ce"
+RUNTIMEOUT=1800
+VIEWS="route spin"
+view() { case $1 in route) echo "-hitchms 200";;
+  spin) echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -spin 90";; esac; }
+ARMS="N O"
+arm() { case $1 in N) echo Profile-661e155;; O) echo Profile-894e8ce;; esac; }
+ROUNDS=2; GFX="High"
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-*-cs100-[12].log; do
+    echo "$(basename $f .log): $(grep -a 'BenchRoute: hitch' $f | awk '{s=$NF; n[s]++; if ($3>=350 && $3<=560) p[s]++; if ($3>560) b[s]++; if ($3>w[s]) w[s]=$3} END {for (k in n) printf "%s %d (0.35-0.55 s %d, over 0.56 s %d, worst %d) ", k, n[k], p[k], b[k], w[k]}')"
+    grep -a ' s frame at ' $f | sed 's/.*BenchRoute: /    /' | cut -c1-90
+  done
+}
