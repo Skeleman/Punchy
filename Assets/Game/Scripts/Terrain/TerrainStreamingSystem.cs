@@ -43,6 +43,8 @@ namespace Punchy.Terrain
             public int2 Coord;
             public int Lod;
             public float Distance;
+            /// <summary>A hole, or a chunk getting finer, big on screen: it may take the workers (see UrgentPixels).</summary>
+            public bool Urgent;
         }
 
         static readonly int TerrainFocusId = Shader.PropertyToID("_TerrainFocus");
@@ -64,6 +66,12 @@ namespace Punchy.Terrain
         /// chunk), so a stream of chunks coming into range is meshed a little every frame instead of in bursts that
         /// crowd out everything else, and chunks ahead of the way it's heading come first.</summary>
         const float FastSpeed = 10f;
+        /// <summary>#400: a missing or refining chunk at least this big on screen (reference pixels across, times Detail;
+        /// a 64 m chunk at about 400 m) is built in a wide batch. Everything else (chunks getting coarser, small ones, the
+        /// backlog when a tunnel mouth shows the surface again) trickles in narrow batches that leave the workers free.</summary>
+        const float UrgentPixels = 150f;
+        /// <summary>When off, every batch is half the workers wide (the #509 budget, for before/after checks).</summary>
+        public static bool ScreenBudget = true;
         float focusSpeed;
         /// <summary>The focus's smoothed horizontal heading (unit length, or zero when still).</summary>
         float2 focusHeading;
@@ -236,7 +244,9 @@ namespace Punchy.Terrain
             budget *= boost;
 
             UnloadDistantChunks(config, focus);
-            CollectWantedChunks(config, focus);
+            var eyeCam = Camera.main;
+            var ppm = Punchy.Settings.DetailPolicy.PixelsPerMetreAt(eyeCam != null ? eyeCam.fieldOfView : Punchy.Settings.DetailPolicy.ReferenceFov);
+            CollectWantedChunks(config, focus, ppm * Punchy.Settings.GraphicsSettings.Detail);
             TakeView(focus, config.ChunkSize);
             CheckFirstView(config, focus);
             if (wanted.Count == 0)
@@ -262,15 +272,20 @@ namespace Punchy.Terrain
                 }
             if (Loading)
                 FirstViewFirst(config, focus);
-            // Every chunk is the same size on the ground, so nearest first is largest on screen first (rule 20).
-            wanted.Sort((a, b) => a.Distance.CompareTo(b.Distance));
-            // #400: one chunk meshes on one worker, so a batch wider than about half the workers fills them all and
-            // other systems' jobs (the creature cull) queue behind it. Loading takes every worker.
+            // Urgent first; every chunk is the same size on the ground, so nearest first is largest on screen first (rule 20).
+            wanted.Sort((a, b) => a.Urgent != b.Urgent ? (a.Urgent ? -1 : 1) : a.Distance.CompareTo(b.Distance));
+            // #400: one chunk meshes on one worker. A wide batch leaves one worker for other systems' jobs (the creature
+            // cull); a trickle batch takes a quarter of them and a quarter of the vertices. Loading takes every worker.
             var workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
-            var maxCount = math.min(config.MaxBuildsPerFrame * boost, Loading ? workers : math.max(1, workers / 2));
+            var all = Loading || !ScreenBudget;
+            var urgent = all || wanted[0].Urgent;
+            var width = Loading ? workers : !ScreenBudget ? math.max(1, workers / 2) : urgent ? math.max(1, workers - 1) : math.max(1, workers / 4);
+            if (!urgent)
+                budget = math.min(budget, VertexBudget / 4);
+            var maxCount = math.min(config.MaxBuildsPerFrame * boost, width);
             var count = 0;
             var vertices = 0;
-            while (count < wanted.Count && count < maxCount)
+            while (count < wanted.Count && count < maxCount && (all || wanted[count].Urgent == urgent))
             {
                 vertices += BuildCost(config, source, wanted[count]);
                 if (count > 0 && vertices > budget)
@@ -382,7 +397,7 @@ namespace Punchy.Terrain
             UnloadCoords();
         }
 
-        void CollectWantedChunks(in TerrainConfig config, float2 focus)
+        void CollectWantedChunks(in TerrainConfig config, float2 focus, float pixelsPerMetre)
         {
             wanted.Clear();
             var size = config.ChunkSize;
@@ -400,10 +415,13 @@ namespace Punchy.Terrain
 
                 var distance = math.distance(focus, math.clamp(focus, min, min + size));
                 var lod = config.LodForDistance(distance);
-                if (loaded.TryGetValue(coord, out var existing) && existing.Lod == lod)
+                var has = loaded.TryGetValue(coord, out var existing);
+                if (has && existing.Lod == lod)
                     continue;
 
-                wanted.Add(new BuildItem { Coord = coord, Lod = lod, Distance = distance });
+                var big = Punchy.Settings.DetailPolicy.ScreenSize(size, distance, pixelsPerMetre) >= UrgentPixels;
+                var urgent = big && (!has || (existing.Lod >= 0 && lod < existing.Lod));
+                wanted.Add(new BuildItem { Coord = coord, Lod = lod, Distance = distance, Urgent = urgent });
             }
         }
 
