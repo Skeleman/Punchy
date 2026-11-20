@@ -4550,3 +4550,18 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
   `Punchy/Water` ForwardLit (as main feb40161 does), so its water is missing and no games ran. The laptop can't build main
   after some Water change in #540-#609; the main PC can. To go on bisecting, the laptop needs shelf builds of the midpoints
   (main PC: `shelf.sh put e96da9d` with #679's IslandV2 patch, ref refs/bench/guard-e96da9d = 68f8dd9 is local to the laptop).
+
+## Job 115 first look: the hitches are a fixed ~520 ms, GPU-side; plus a 61 s freeze entering the biggest cave (21:45)
+q158 route game, shelf build 894e8ce, laptop, High, 1920x1080, `-hitchms 200`:
+- Town (standing): 1% low **1.9 fps**, 8 frames over 200 ms in 15 s; town walk: 1% low 1.9 fps, 7 in 20 s. **Every one is
+  493-531 ms**, at irregular gaps of 0.5-3 s, at the same spot. A fixed length points to the present wait's ~500 ms
+  give-up (`DXGI.WaitOnSwapChain` < WaitForLastPresentation, as q156 caught): a GPU frame that runs past half a second,
+  not CPU work (which would vary). Forest (OakGrove) worst 57 ms, cave 26 ms: none there.
+- Entering the biggest cave: one **61.4 s** frame 1.1 s into the `cave` stop (settling), then an 11.2 s frame at
+  `caveapproach` and the game went quiet 150 s and was killed. That is the multi-second kind; the Profiler pass will look.
+- Not new today: 814a4da (11-17) already has the same 530-540 ms frames at the forest spot and village (q155b, 8-16 per
+  game). The 11-15 build 3eeb72d ran a clean town spot (worst 24-30 ms). q159 (queued behind q158) times them on
+  3eeb72d / 9a1694e (last shelf build of 11-14) / 814a4da / 894e8ce at the town, to narrow where they began.
+- Code check: the only Thread.Sleep in game code is DebugControls.Flight's flycave hitch test (off unless that test runs).
+- For the main PC: if Zach's hitches are also fixed-length (about 0.5, 1.0, 1.5 s...), it's this; a GPU capture
+  (PIX/Nsight GPU trace) over one is what names the pass, the CPU Profiler can't.

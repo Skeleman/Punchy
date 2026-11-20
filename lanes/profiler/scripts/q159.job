@@ -1,0 +1,20 @@
+# Job 115: when did the ~520 ms frames start? Every hitch in q158's town and town walk is 493-531 ms (the present wait's
+# ~500 ms give-up: a GPU frame that doesn't finish), and 814a4da already had them (q155b). The 11-15 build 3eeb72d ran
+# clean at the town spot 2988.8,-920. Frames over 200 ms there and at the route's town stop on 3eeb72d (11-14 09:48),
+# 9a1694e (11-14 20:44, the last shelf build before 814a4da), 814a4da (11-17) and 894e8ce (today).
+Q=q159; TITLE="Job 115 when the 520 ms frames start"
+BUILDS="3eeb72d 9a1694e 814a4da 894e8ce"
+VIEWS="spot town"
+view() { case $1 in
+  spot) echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200";;
+  town) echo "-benchstops town -hitchms 200";; esac; }
+ARMS="O N A M"
+arm() { case $1 in O) echo Profile-3eeb72d;; N) echo Profile-9a1694e;; A) echo Profile-814a4da;; M) echo Profile-894e8ce;; esac; }
+ROUNDS=2; GFX="High"
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-*-cs100-[12].log; do
+    echo "$(basename $f .log): $(grep -a 'BenchRoute: [a-z]*: avg' $f | grep -o 'worst [0-9.]* ms') | over 200: $(grep -a 'BenchRoute: hitch' $f | awk '$3>200' | wc -l), over 450: $(grep -a 'BenchRoute: hitch' $f | awk '$3>450' | wc -l), over 1000: $(grep -a 'BenchRoute: hitch' $f | awk '$3>1000' | wc -l)"
+  done
+}
