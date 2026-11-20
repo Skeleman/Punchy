@@ -17,3 +17,4 @@ Tick what you try; note anything off with place, time of day and preset. The aim
 - [ ] **Play**: no loading screen; chests open; households react to theft; you start with a torch.
 - [ ] **Performance**: frame rate on your usual preset in a river valley and a town.
 - Built from main b7db1ed6 (11-19, PR #697).
+- Playtest rebuild 11-19 from main a50545c8 (PR #710): adds #708 waterfall feet, #709 cave embers, #710 cloud fade, #711 compile fix.
