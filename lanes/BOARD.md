@@ -92,3 +92,4 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 - 11-16 R-35 (#333): Zach keeps the base clouds. Row 3 lands only E (screen-size fade); A-D are dropped unless BENCH shows one is cheaper. render-2 stays paused.
 - 11-16 colossus cloud dim: Zach sees no darkness change between clouds on and off; keep as is, no follow-up.
 - 11-18 #269 fall shelf: render-2 found the clip holes and pale shelf need FallShape box trimmed to where the sheet pours (or shelf geometry changed); queue to world after world/fall-pools.
+| #301 fall shelf | #301 | banks | DONE 11-19 (verified): WorldTests 23/23, NaN 0, holes gone in before/after | banks/fall-shelf@34075603, PR #708 | Review + merge |

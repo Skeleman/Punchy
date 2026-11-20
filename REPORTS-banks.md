@@ -122,3 +122,11 @@
 - 3 m: crust rafts and the rim get coarse normals (raft bevels, per-plate tilt, lumps) plus a soft specular, so they catch the light.
 - 80 m and beyond: large crust plates with glowing cracks held about 1.5 px wide, fading in by screen size with a plate-size crossfade, so no pop. 200/400 m reads as glowing cracks on dark crust, not an orange sheet.
 - WorldTests 23/23, sparkleprobe NaN 0 (3 m and 80 m). Shots: PunchyMilestones/water/lava/before, fixed, after4 (3/20/80/200/400 m).
+
+## 11-19 #301 tail: waterfall fall shelf - PR #708, banks/fall-shelf@34075603, done (verified)
+- Cause: the curtain clip box ran out to Run+1.5 past the face and cut the pool water the sheet lands in, which sits 10-30% of the drop above the pool. That opened holes onto the ground and left pale jagged panes. Width was fine.
+- Fix: FallShape.River measures ClipAhead (where the face meets the pool, max over 7 lip columns, +0.25, capped at Run+1.5). It goes to Water.shader as _PunchyRiverCurtainAhead, which replaces the fixed reach.
+- Probe over 151 falls: clipped flat samples 8522 -> 4241; clipped face samples 4466 -> 4231, so the face stays hidden.
+- WorldTests 23/23, sparkleprobe NaN 0 (fall 138, hot 17). Shots: PunchyMilestones/water/fall-shelf/before and after (falls 138, 20 and 37 at 10 m and 40 m); the holes and panes at the feet are gone.
+- Risk: a grey lip-water pane left of fall 20's sheet shows in both before and after (not this fix). Cost: one array read per clipped water pixel.
+- Shares: extended the FallShape -> RiverCurtains clip box; no parallel found.
