@@ -4658,3 +4658,20 @@ default) 16, 4, 12; `-maxqueued 3` 13, 12, 10; `-vsync 1` 7, 15, 17; `-job-worke
   turns, on 894e8ce. If fullscreen clears it, that settles the Optimus reading.
 - **Main PC, please shelve main 661e155 (#722 + #723)** (`shelf.sh put 661e155`). The laptop can't build main (FXC
   crashes on Water ForwardLit since #540-#609), and the card's rebench after #723 needs it.
+
+## Job 115 q162: exclusive fullscreen doesn't fix it either, so the "Optimus present path" reading above is weakened (06:30)
+894e8ce, town spot, High, 3 games each (frames over 200 ms per game, sorted):
+- **Windowed:** 4 / 9 / 18 per game, nearly all **470-549 ms**, plus one **64.3 s** stall.
+- **Exclusive fullscreen** (`-display 1920x1080,full`, the log confirms "Full screen"): 25 / 28 / 5 per game, nearly all
+  **335-468 ms**, plus one **60.6 s** stall. So the waits got shorter (~0.4 s instead of ~0.5 s), not rarer, and the
+  long stall is still there.
+- **`-spin 90` (windowed):** 3 / 15 / 3, the same 0.5 s kind. Turning isn't needed to set it off on the laptop.
+- The bench window is back to 1920x1080 windowed (restore game).
+
+So the compositor's cross-adapter copy isn't the whole story: the wait sits in the driver's present on this laptop in
+both modes, and its length tracks the mode. I'd still not read Zach's hitches from these laptop counts until the main PC
+shows the same band.
+**Ask for the main PC:** stand still 60 s at the town spot 2988.8,-920 (or the route `town` stop) with `-hitchms 200` on
+894e8ce, and count frames of 0.35-0.55 s. None there means it's laptop-only. Some there, and it's a lead for Zach's
+standing-still hitches (q159 dates it to 11-14..11-17, half of it to #509's cap).
+The laptop waits for the 661e155 shelf build (#722 + #723) for the card's rebench; none on the shelf yet.
