@@ -88,8 +88,8 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | M-07 r2b | #260 | world | editor-free done, uncompiled | world/map-edits-bake@2e2f6abb | PaintedEdits bake hook, TerrainSource.Edits, cache format 5. Rule 11 OK 11-16: edits hash in WorldSync.Signature only when edits exist. Now: overlap warnings; editor after W-174 r3 |
 | M-08 | #414 | lab | merged #435 | lab/set-piece-view | rows 1-3 shipped; #414 stays open for M-06 row 5 blueprints |
 | M-06 r3b | #413 | lab | merged #442 (Lab species herds moved to fauna, who own Herds.cs; lab blocked on W-166 / Zach) | lab/new-species 3c1ee5f1 | Homes merge, Lab species index group (after 124 built-ins), Save as new panel, KitParts field; Frostdeer (Tundra) verified solo + host; Fauna_Fingerprint 0206544F; temple Ruin ctor dropped (public static offered) |
+| #301 fall shelf | #301 | banks | DONE 11-19 (verified): WorldTests 23/23, NaN 0, holes gone in before/after | banks/fall-shelf@34075603, PR #708 | Review + merge |
 - 11-17 materials: rows 1-2b done (#542 #544 #561 #564 #567) plus mouth floor #566; iron kit #569, wood grain #573 done; next: W-163 row 2 strangler roots (#330).
 - 11-16 R-35 (#333): Zach keeps the base clouds. Row 3 lands only E (screen-size fade); A-D are dropped unless BENCH shows one is cheaper. render-2 stays paused.
 - 11-16 colossus cloud dim: Zach sees no darkness change between clouds on and off; keep as is, no follow-up.
 - 11-18 #269 fall shelf: render-2 found the clip holes and pale shelf need FallShape box trimmed to where the sheet pours (or shelf geometry changed); queue to world after world/fall-pools.
-| #301 fall shelf | #301 | banks | DONE 11-19 (verified): WorldTests 23/23, NaN 0, holes gone in before/after | banks/fall-shelf@34075603, PR #708 | Review + merge |
