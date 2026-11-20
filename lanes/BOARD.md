@@ -22,7 +22,7 @@ Branch tips as of 11-15 evening. Cards and details live in batches/ and the lane
 | W-162 | #327 | world | merged #535 | world/rock-walls | W-144 routes split to W-181 |
 | W-181 | #534 | world | scoped, needs owner call | - | Cave climb routes from W-144 on W-162 grades + W-178 hangings. Feeder must write Fauna/LedgeHang ClimbLedges (12-slot list); see REPORTS 11-17 |
 | W-166 r3-4 | #336 | materials | r4 sweep DONE: r4a gate 0 px, r4b salt tower stone, r4c ground items on the library (colours in vertex colours: MPB on Colossus loses the sun under Forward+); Landmarks_V3 pass | merged PR #476 | DONE; fauna sets colossus uv3 |
-| W-166 caves | #336 | materials | rock-wall row 1 (caves) #542, wood row #544 merged | materials/wood-kinds | Rows 1-2b shipped (#542 #564 #567), specks #640, fall sheen #644; river WaterColor #646, moss sheet #677; next W-181 water pits rows 1+4 |
+| W-166 caves | #336 | materials | rock-wall row 1 (caves) #542, wood row #544 merged | materials/wood-kinds | Rows 1-2b shipped (#542 #564 #567), specks #640, fall sheen #644; river WaterColor #646, moss sheet #677; vent wisps #707, glint #704; next ember-reach (#705 Ashlands caves glow by screen size) |
 | A-126 r2-4 | #367 | fauna | merged #429 | fauna/playtest-1114 | #367 closed |
 | A-108 r2-4 | #298 | fauna | merged #428, #444 | fauna/far-details | r4 merged #444 (follow-up: scramble lake-ring hash) |
 | A-119 | #339 | fauna | DONE (PR #464) | fauna/ride-size d2d408a3 merged | probe PASS (drawn differently 0, NaN 0); main merged, fauna 4BEFEA91 unchanged; rule 11: PlayerRide.cs 2 Riding.Pair calls |

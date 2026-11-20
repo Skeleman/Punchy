@@ -92,6 +92,7 @@ Every unlanded branch on origin, checked with merge-tree against origin/main on 
 - banks/lava-far -> #706
 - world/w172-r7-tail -> #705
 - materials/vent-wisps -> #707
+- render/one-surface-5 -> #494
 - materials/drift-grain -> #637
 - render/river-clarity -> #616
 - materials/damp-banks -> #615
@@ -118,7 +119,7 @@ Land later: player/p46 fb9bc62c (P-46 row 2, temple sockets out of walls + pin) 
 ## Land: the owning lane merges main in, re-pins, verifies, hands off "ready for PR"
 | Branch | Card | Owner | Note |
 |---|---|---|---|
-| render/cloud-e | R-35 r3 E #333 | render-2 | Built 25fbc044; waits on BENCH job 111 and shots. |
+| render/cloud-e | R-35 r3 E #333 | render-2 | Job 111 passed; main merged; needs play check, then PR. |
 | world/river-profiles | W-153 #301 | world | WIP. |
 | folk/a111-row1-parked | A-111 r1 | folk | Parked; only if A-110 slips. |
 | world/log-bark | W-170 r1 | world | Clean; confirm verified. |
@@ -130,8 +131,7 @@ Land later: player/p46 fb9bc62c (P-46 row 2, temple sockets out of walls + pin) 
 | b/cloud-shadow-map | profiler | profiler | Rework: store raw density, apply R-20 r4 soft edge after the read; BENCH cost check. |
 | render/foliage-realism | R-30 r1-r2c (#323) | render | Draft PR #457 (main merged in at 161ecc3a); waits on editor checks and job 102. |
 | player/ships | P-44 r1 draft | player | Parked (Zach 11-16); input for the moving-bodies card. |
-| render/far-island | R-22 r1 | render | Draft PR #482; verified, waits on BENCH job 107. |
-| render/one-surface-5 | R-23 r4+r5 (#298) | render-2 | Draft PR #494; verified, waits on BENCH job 109 and the drift pair. |
+| render/far-island | R-22 r1 | render-2 | Draft PR #482; job 107: flights +3-5 ms GPU; air cost split pending. |
 | render/far-forest | R-22 r3 (#298) | render | Rebase after #482; PR after BENCH job 112. |
 | render/grass-fields | R-31 (#325) | render | Prep at be206e54; waits on an editor slot. |
 | render/cloud-picks, render/one-surface-4 | R-35, R-23 r4 | render-2 | cloud-picks waits on Zach's pick; one-surface-4 folded into one-surface-5 (#494). |
