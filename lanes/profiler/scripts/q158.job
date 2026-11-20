@@ -1,0 +1,37 @@
+# Job 115 (Zach, top priority): multi-second hitches in normal play on main a50545c8 (release, RTX 5070 Ti), 10 s fps
+# dipping to 7-14 several times a minute, even standing still. Shelf build 894e8ce (main 894e8cea + bench overlay).
+# 1) The whole default route (town, town walk, forest, caves, night grove, storm, lake, river, run, glide, dash) at High
+#    with -hitchms 200: where the frames over 1 s land. 2) A 60 s Profiler capture standing still in the town, in the
+#    oak grove and at the forest spot 400,2800 (q156's), each analysed for every main-thread frame over 500 ms.
+Q=q158; TITLE="Job 115 hitch hunt"
+BUILDS="894e8ce"
+RUNTIMEOUT=1800
+VIEWS="route"
+view() { echo "-hitchms 200"; }
+ARMS="M"
+arm() { echo "Profile-894e8ce"; }
+ROUNDS=1; GFX="High"
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-894e8ce raws="" t s
+  for s in town forest spot; do
+    t=$Q-prof-$s-cs100-1
+    case $s in
+      spot) a="-goto 400,2800 -benchstops spot -benchspot 400,2800,0";;
+      *) a="-benchstops $s";;
+    esac
+    RUNTIMEOUT=600 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$s 894e8ce s100 1 -gfx High -fpscap 0 $a -hitchms 200 \
+      -benchlong $s 60 -profilestop $s "$W/q-$t.raw"
+    check "$R/q-$t.log"
+    echo "== $s hitches: $(grep -c ' s frame at ' "$R/q-$t.log")"; grep -h ' s frame at ' "$R/q-$t.log" | sed 's/.*BenchRoute: //' | head -12
+    [ -f "$R/q-$t.raw" ] && raws="$raws;$(cygpath -w "$R/q-$t.raw")"
+  done
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "${raws#;}" -out "$(cygpath -w "$R/$Q-prof.txt")" -over 500 -logFile "$W/analyze-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== analysis"; grep -a '^====\|^OVER' "$R/$Q-prof.txt" | cut -c1-600 | head -60
+}

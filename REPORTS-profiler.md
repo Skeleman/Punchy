@@ -4538,3 +4538,15 @@ Branch world/chunk-mesh-budget @ e32e1a4b vs main. Rerun Job 96's q137b.job unch
 
 ## 11-19 world FYI: PR #685 rebased on #687
 - After both merge, WaterTruthCounts reads walls 3, tilt 15, step 108 (the rest unchanged). Landmarks and fauna are unchanged.
+
+## Job 115 started; forest/village bisect paused (2026-11-19 21:22)
+- Job 115 (hitch hunt) runs now as q158 on the shelf build 894e8ce. First the whole default route at High with
+  `-hitchms 200`, then 60 s Profiler captures standing still in the town, the oak grove and the forest spot 400,2800,
+  analysed for every main-thread frame over 500 ms. Results as soon as they land.
+- Possibly the same thing: q156 (#676, forest spot, laptop) found ~500 ms frames every 4-5 s standing still, with the main
+  thread in `DXGI.WaitOnSwapChain` (GPU-bound present) or `Idle < WaitForJobGroupID`, and `CliffKitSystem` (Presentation)
+  at 65-220 ms self in each one, plus StoneColossi.Update at 50-90 ms. q158 checks whether that grows into the multi-second ones.
+- Bisect step 1 (q157) built nothing usable: the midpoint #609 (e96da9d plus #679's IslandV2 fix) crashes FXC 23 times on
+  `Punchy/Water` ForwardLit (as main feb40161 does), so its water is missing and no games ran. The laptop can't build main
+  after some Water change in #540-#609; the main PC can. To go on bisecting, the laptop needs shelf builds of the midpoints
+  (main PC: `shelf.sh put e96da9d` with #679's IslandV2 patch, ref refs/bench/guard-e96da9d = 68f8dd9 is local to the laptop).

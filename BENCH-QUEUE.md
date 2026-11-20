@@ -8,7 +8,7 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - Pull `coordination` and run `sh hooks/install.sh <fixed folder outside your trees>` (J-041 commit telemetry).
   Make one test commit on a b/ branch and check ~/.punchy-telemetry/commits.csv gets a row.
 
-## Job 115 (2026-11-19, QUEUED, TOP PRIORITY: drop everything else, Zach): multi-second hitches in normal play
+## Job 115 (2026-11-19, IN PROGRESS on the laptop (q158), TOP PRIORITY: drop everything else, Zach): multi-second hitches in normal play
 - Zach's playtest of main a50545c8 (release build, RTX 5070 Ti) has multi-second hitches everywhere, often, even standing
   still; the 10 s fps in Player.log dips to 7-14 several times a minute, and nothing is logged during them.
 - Build: Profile-894e8ce.zip on bench-builds (main 894e8cea + bench overlay; #710 is shader-only on top).
