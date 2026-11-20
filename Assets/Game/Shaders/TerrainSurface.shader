@@ -50,6 +50,7 @@ Shader "Punchy/Terrain Surface"
             #define PUNCHY_SURFACE_GLOW_WORLD
             #define PUNCHY_SURFACE_REAL_LIGHTS
             #include "Surface.hlsl"
+            #include "ScreenSize.hlsl"
             #include "SeepStreaks.hlsl"
             // x how much the ground under grass takes the blades' colour, y the grass radius (GroundDetailSystem).
             float4 _PunchyGrassTint;
@@ -455,6 +456,9 @@ Shader "Punchy/Terrain Surface"
                 TerrainCaveClip(input.cave);
 
                 float distance = length(input.positionWS - GetCameraPositionWS());
+                // The fixed-metre detail fades below were tuned at the reference view (Medium, 60 degrees, 1080 lines); they
+                // read this, so they keep the same on-screen size in any other view (rule 20, ScreenSize.hlsl).
+                float refDistance = PunchyReferenceDistance(distance);
                 half3 normalWS = NormalizeNormalPerPixel(input.normalWS);
                 float2 p = input.positionWS.xz;
                 half burrowDarken = 0;
@@ -531,13 +535,13 @@ Shader "Punchy/Terrain Surface"
                     float ppm = _PunchyTerrainDetailPpm > 0 ? _PunchyTerrainDetailPpm : 935 * detailFar / 110;
                     puddle *= saturate((2.3 * ppm / max(distance, 0.01) - 2) / 2);
                 }
-                half sheen = max(wet * (1 - 0.85 * porosity), max(shore, seep)) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, distance));
+                half sheen = max(wet * (1 - 0.85 * porosity), max(shore, seep)) * (1 - 0.8 * input.extra.y) * (1 - smoothstep(120, 450, refDistance));
 
                 half relief = 0.2 * (1 - puddle);   // (the octaves' fades are already in micro)
                 // Stronger or uncapped, the summed octaves tilt away from the sun into sky-lit spots on wet banks (#666).
                 half3 tilt = (half3)microSlope * relief;
                 normalWS = normalize(normalWS - tilt * rsqrt(1 + dot(tilt, tilt) * 16));
-                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, distance));
+                half cobbleFade = smoothstep(0.3, 0.55, input.paving.x) * (1 - smoothstep(30, 80, refDistance));
                 // W-108: paving above 1 is wear (SettlementSampling.Ground: the ruts down a cobbled road), and paving
                 // a little under 1 (a road's verge, the fade at a town's edge) lets the grass in between the stones.
                 half wear = saturate(input.paving.x - 1);
@@ -851,7 +855,7 @@ Shader "Punchy/Terrain Surface"
                 if (puddle > 0.01)
                 {
                     float3 v = inputData.viewDirectionWS;
-                    half rain = PunchyWetnessAt(p).g * (1 - smoothstep(20, 60, distance));
+                    half rain = PunchyWetnessAt(p).g * (1 - smoothstep(20, 60, refDistance));
                     float2 ripple = rain > 0.01 ? PuddleRings(p, _PunchyClock) * rain * 0.35 : float2(0, 0);
                     float3 n = normalize(float3(-ripple.x, 1, -ripple.y));
                     float3 r = reflect(-v, n);

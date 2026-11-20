@@ -65,6 +65,35 @@ namespace Punchy.Settings
                 Detail = GraphicsSettings.Detail,
                 Shadows = GraphicsSettings.Shadows
             };
+            PushShaderView();
+        }
+
+        // The shaders' screen-size fades (ScreenSize.hlsl) read Detail and the main camera's reference pixels from these
+        // globals. They are set before every frame draws, from the render loop itself, so they never depend on a system
+        // calling SetView (a posed shot camera or a scene without critters still gets them), and a Detail change in
+        // GraphicsSettings reaches the shaders on the next frame.
+        // (Ids looked up inline in PushShaderView: a static PropertyToID field would give DetailPolicy a managed static
+        // constructor, which Burst jobs reading it can't compile in a player build, BC1091, job 111.)
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void InitShaderView()
+        {
+            UnityEngine.Rendering.RenderPipelineManager.beginContextRendering -= BeforeRender;
+            UnityEngine.Rendering.RenderPipelineManager.beginContextRendering += BeforeRender;
+            PushShaderView();
+        }
+
+        static void BeforeRender(UnityEngine.Rendering.ScriptableRenderContext context, System.Collections.Generic.List<UnityEngine.Camera> cameras)
+            => PushShaderView();
+
+        /// <summary>Sets the shaders' Detail and main-camera reference pixels a metre (times Detail) from the current
+        /// settings; before any camera, the tuning view's 60 degrees.</summary>
+        static void PushShaderView()
+        {
+            var detail = GraphicsSettings.Detail;
+            var cam = UnityEngine.Camera.main;
+            Shader.SetGlobalFloat(Shader.PropertyToID("_PunchyDetail"), detail);
+            Shader.SetGlobalFloat(Shader.PropertyToID("_PunchyViewPpm"), PixelsPerMetreAt(cam != null ? cam.fieldOfView : ReferenceFov) * detail);
         }
 
         public static float PixelsPerMetreAt(float fovDegrees)

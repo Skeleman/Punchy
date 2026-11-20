@@ -34,6 +34,7 @@ Shader "Punchy/Flora"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Sky.hlsl"
             #include "WideShadow.hlsl"
+            #include "ScreenSize.hlsl"
             #include "Flora.hlsl"
             #include "Materials/Stone.hlsl"
             #include "Grounding.hlsl"
@@ -449,7 +450,7 @@ Shader "Punchy/Flora"
                 if (part == 0 || metal)
                 {
                     half fresnel = 0.04 + 0.96 * pow(1 - saturate(dot(n, v)), 5);
-                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, distance(input.positionWS, GetCameraPositionWS())));
+                    half sheenFar = metal ? 1 : lerp(0.25, 1, smoothstep(30, 120, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()))));
                     color += SampleSH(reflect(-v, n)) * fresnel * 0.35 * sheenFar * ao * (1 - barkCrevice) * lerp(1, 0.06, _PunchyUnderground) * lerp(1, PunchyUndersideSky, under);
                 }
 
@@ -535,7 +536,7 @@ Shader "Punchy/Flora"
                 if (part == 5)
                 {
                     // A steady glow beyond 100 m, where the shimmer can't be seen.
-                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, distance(input.positionWS, GetCameraPositionWS())));
+                    float amount = saturate((input.extra.x - 5) / 0.4) * (1 - smoothstep(80, 100, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS()))));
                     float pulse = 1 + amount * sin(_PunchyClock * 0.55 + r * 40 + input.positionWS.y * 0.7);
                     // Brighter in the dark of a cave (eyes adjusted to the dark see the glow stand out).
                     color += albedo * 1.6 * pulse * lerp(1, 2.5, _PunchyUnderground);
@@ -571,7 +572,7 @@ Shader "Punchy/Flora"
                     float2 hexB = fmod(abs(q + float2(0.866, 0.5)), float2(1.732, 1)) - float2(0.866, 0.5);
                     float2 h2 = dot(hexA, hexA) < dot(hexB, hexB) ? hexA : hexB;
                     float rim = max(abs(h2.y), dot(abs(h2), float2(0.866, 0.5)));
-                    half cellNear = 1 - smoothstep(4, 10, distance(input.positionWS, GetCameraPositionWS()));
+                    half cellNear = 1 - smoothstep(4, 10, PunchyReferenceDistance(distance(input.positionWS, GetCameraPositionWS())));
                     color *= 1 - smoothstep(0.38, 0.47, rim) * 0.35 * cellNear;
                 }
                 // Items 27-28: wet bark and leaves are rough and absorbent: a faint, broad damp sheen, not the sharp
