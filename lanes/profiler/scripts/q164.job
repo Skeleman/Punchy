@@ -1,0 +1,18 @@
+# Job 115 (laptop present waits): does the GPU's power state line up with the 0.35-0.55 s frames and the ~58 s stalls?
+# 661e155 (main, #722/#723), town spot 2988.8,-920, High, windowed 1920x1080, uncapped, 60 s stands, 5 games. The launch
+# wrapper logs nvidia-smi (pstate, clocks, util, power, throttle reasons) every 500 ms to results/q164-gpu.csv; after()
+# lines the hitches up against it by wall time (log birth time + "at X s").
+Q=q164; TITLE="Job 115 GPU power state vs present waits"
+BUILDS="661e155"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchlong spot 60"; }
+ARMS="N"
+arm() { echo "Profile-661e155"; }
+ROUNDS=5; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-spot-N-cs100-*.log; do
+    echo "$(basename $f): start $(date -d @$(stat -c %W "$f") +%T), over 200 ms $(grep -ac 'BenchRoute: hitch' "$f"), 0.35-0.55 s $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>=350&&$3<=550' | wc -l), worst $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>m{m=$3}END{print m+0}') | $(grep -ah 'BenchRoute: spot: avg' "$f" | cut -c1-120)"
+  done
+}
