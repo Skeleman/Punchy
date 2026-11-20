@@ -1,0 +1,18 @@
+# Job 115: q164 ran 5 clean games (no 0.35-0.55 s frames, no stalls) while nvidia-smi polled the GPU every 500 ms.
+# Does polling keep the GPU out of a power-state change that sets the waits off? Same 661e155 town-spot 60 s stand,
+# arms alternated: S = nvidia-smi polling during the game (a watcher starts it when the newest q165 log is an S game),
+# O = no polling. 5 rounds each.
+Q=q165; TITLE="Job 115 nvidia-smi polling on/off"
+BUILDS="661e155"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchlong spot 60"; }
+ARMS="S O"
+arm() { echo "Profile-661e155"; }
+ROUNDS=5; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local a f
+  for a in $ARMS; do for f in "$R"/q-$Q-spot-$a-cs100-*.log; do
+    echo "$a $(basename $f): over 200 ms $(grep -ac 'BenchRoute: hitch' "$f"), 0.35-0.55 s $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>=350&&$3<=550' | wc -l), over 0.56 s $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>560' | wc -l), worst $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>m{m=$3}END{print m+0}')"
+  done; done
+}
