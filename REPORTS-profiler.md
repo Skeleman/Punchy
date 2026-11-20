@@ -4566,7 +4566,7 @@ q158 route game, shelf build 894e8ce, laptop, High, 1920x1080, `-hitchms 200`:
 - For the main PC: if Zach's hitches are also fixed-length (about 0.5, 1.0, 1.5 s...), it's this; a GPU capture
   (PIX/Nsight GPU trace) over one is what names the pass, the CPU Profiler can't.
 
-## Job 115: the q158 Profiler captures; both hitch kinds are the present wait, not game work (22:20)
+## Job 115: the q158 Profiler captures; both hitch kinds are the present wait, not game work (21:47)
 Three 60 s captures standing still (894e8ce, High, laptop), every main-thread frame over 500 ms:
 - **Town: 10 frames of 502-537 ms; oak grove: 7 (500-539 ms) then one of 61.5 s; forest spot 400,2800: 9 (501-530 ms)
   then one of 53.6 s.** In every one, 466-519 ms (and the 61.5 s and 53.6 s) is self time in
@@ -4585,3 +4585,19 @@ Three 60 s captures standing still (894e8ce, High, laptop), every main-thread fr
   (running) times the 0.5 s frames on 3eeb72d / 9a1694e / 814a4da / 894e8ce to find the range they began in. Job 42's flags
   are worth a rerun once there's a reliable trigger: `-maxqueued 3` (+14% fps, Job 42) and `-vsync 1`.
 - Main PC: if Zach's hitches are near 0.5 s multiples or end when the window is touched or alt-tabbed, it's this.
+
+## Job 115 q159: the 0.5 s frames began between 9a1694e (11-14 20:44) and 814a4da (11-17); bisect running (22:23)
+Frames over 450 ms per game (2 games each, High, 1920x1080, laptop), standing still:
+
+| build | town spot 2988.8,-920 | route `town` stop | 1% low (spot) |
+|---|---|---|---|
+| 3eeb72d (11-14 09:48) | 0, 0 | 0, 1 | 40-44 fps |
+| 9a1694e (11-14 20:44, last shelf build before) | 1, 0 | 1, 2 | 12-27 fps |
+| 814a4da (11-17) | 12, 12 | 9, 9 (+ one **59.6 s** stall) | 1.9 fps |
+| 894e8ce (today) | 10, 12 | 8, 12 | 1.8-1.9 fps |
+
+- Clean split at the spot. (The route's town stop also has 13-16 frames of 200-450 ms on the old builds: those are its
+  arrival, a different kind; the 450+ band is the new one.)
+- CPU ms at the spot doubles with it (17-19 on the old builds, 51-75 on the new), because the mean includes the waits.
+- Bisect (bisect115.sh) runs now over main's 140 first-parent merges in that range, 2 spot games per step, ~8 steps;
+  results land in results/b115.log and here. Then the merge's own commits if it's a big one.
