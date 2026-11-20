@@ -1,0 +1,19 @@
+# Job 115: launch flags against the 0.5 s present-wait frames on today's main (shelf 894e8ce, no builds), town spot
+# 2988.8,-920, High, 3 games each: M default (uncapped), C -fpscap 60 (the game's default cap, as Zach plays),
+# Q -maxqueued 3 and V -vsync 1 (Job 42's flags, on main in FrameRateCap.cs), J -job-worker-count 3 (fewer workers),
+# F -force-gfx-direct (no graphics jobs: the log shows kGfxThreadingModeClientWorkerJobs, render work on the job workers).
+Q=q161; TITLE="Job 115 launch flags"
+BUILDS="894e8ce"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200"; }
+ARMS="M C Q V J F"
+arm() { case $1 in M) echo Profile-894e8ce;; C) echo "Profile-894e8ce -fpscap 60";; Q) echo "Profile-894e8ce -maxqueued 3";;
+  V) echo "Profile-894e8ce -vsync 1";; J) echo "Profile-894e8ce -job-worker-count 3";; F) echo "Profile-894e8ce -force-gfx-direct";; esac; }
+ROUNDS=3; GFX="High"
+after() {
+  [ -n "${DRY:-}" ] && return
+  local a f
+  for a in $ARMS; do
+    echo "$a: over 450 ms per game: $(for f in "$R"/q-$Q-spot-$a-cs100-[123].log; do grep -a 'BenchRoute: hitch' $f | awk '$3>450' | wc -l; done | tr '\n' ' ')| 1% low: $(grep -ah 'BenchRoute: spot: avg' "$R"/q-$Q-spot-$a-cs100-[123].log | grep -o '1% low [0-9.]*' | cut -d' ' -f3 | tr '\n' ' ')| avg: $(grep -ah 'BenchRoute: spot: avg' "$R"/q-$Q-spot-$a-cs100-[123].log | grep -o 'avg [0-9.]*' | cut -d' ' -f2 | tr '\n' ' ')| $(grep -ah 'FrameRateCap:\|GfxDevice: creating device client\|job-worker-count' "$R"/q-$Q-spot-$a-cs100-1.log | sort -u | cut -c1-70 | tr '\n' ';')"
+  done
+}

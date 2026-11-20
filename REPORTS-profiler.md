@@ -4625,3 +4625,20 @@ bisect115.sh over main's 140 first-parent merges 9a1694e..814a4da, town spot 298
   if that clears it, it's a one-line fix on today's main).
 - There's also a smaller step (0-1 to 2-5 a game) somewhere in #455..P-35 r2. That's second in line after q160.
 - Zach's 5070 Ti PC likely has more cores, so a bigger cap; whether this is his hitch depends on q160 and the main PC.
+
+## Job 115 q160: #509's worker cap is about half of it on the laptop; the rest came later (05:40)
+Town spot 2988.8,-920, High, 3 games each, frames over 450 ms per game (1% low fps):
+- G 9533f61 (last good): **0, 2, 3** (14.7, 5.2, 4.0)
+- D d2ac9d1 (#509): **11, 5, 6** (1.9, 0.0, 1.9)
+- A 814a4da: **10, 13, 10** (1.9 each)
+- N 814a4da with only #509's cap line reverted (bench-only 5cad062): **5, 5, 5** (2.1-2.5)
+- M 894e8ce (today): **14, 12, 6** (1.9, 1.8, 0.0)
+- W 894e8ce `-job-worker-count 14`: invalid, Unity clamps to 7 on this CPU (the log says so), so it's M again: 14, 10, 14.
+
+So #509 is a real step (0-3 to 5-11), and reverting its cap on 814a4da halves the count, but doesn't bring it back to
+9533f61's. The rest is spread across later merges (and the small earlier step). Every such frame is still the present
+wait with the GPU idle, not CPU work, so the cap looks like it makes a trigger more likely rather than being the cause.
+The log shows `kGfxThreadingModeClientWorkerJobs` (graphics jobs: render command work runs on the same job workers as the
+chunk meshing), which would connect busy workers to a late present. q161 (running, no builds) tries launch flags on
+today's main: `-fpscap 60` (the game's default, as Zach plays), `-maxqueued 3`, `-vsync 1`, `-job-worker-count 3` and
+`-force-gfx-direct` (no graphics jobs).
