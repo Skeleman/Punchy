@@ -1281,3 +1281,6 @@ River bend before/after #654: GPU ms (3 noise per shore pixel) and bake ms (2 no
 - 11-19 FYI #704 (shared glint): refactor only, same math per pixel; no cost change expected.
 - 11-19 FYI #706 (W-154 lava far form): lava pixels below 30 px/m get 1-2 extra 9-cell LavaCells plus a few noise reads; water vertices (chunk, pool, fine sheet) grow by 4 bytes. Fold an Ashlands volcano view into a later water bench.
 - 11-19 FYI #707 (vent wisps): vent puff fragment uses 2 value-noise taps (was 1), vents only, same particle count.
+
+## Request (2026-11-19, supervisor, R-22 r1 #298, branch render/far-island 3e2a988d, draft PR #482): air cost split
+Job 107 flights failed by +3-5 ms GPU, multi-second frames on High at 1000 m. Split the air cost at 300 m and 1000 m on High: island mesh build (CPU) vs island draw vs island shadow casting, island on vs off. Render-2 changes nothing until this lands.
