@@ -32,8 +32,14 @@ shaders, no NaN lines. Yaw 0 at every spot (most requests gave none).
 - Island bake (one -freshisland start per arm): A 53.4 s, B 60.2 s (+6.8 s, one sample). World ready 61.2 / 69.3 s.
 - In both arms, most views have a ~500 ms frame pair (1 s apart, every 4-5 s); that's where the 1.9 fps lows come from. It's not
   the laptop (the 11-15 build 3eeb72d at its old town view still runs 22-30 ms worst frames) and not the freeze sampler (same
-  frames with it off). It's view-dependent and was already in some 11-15 builds at towns. A Profiler capture (q156) is running to
-  name it.
+  frames with it off). It's view-dependent and was already in some 11-15 builds at towns (and q130's 3b19271 at High forest).
+  q156 (a Profiler capture on 9f792c3c at the forest, frames over 300 ms analysed): in nearly every one, the main thread waits
+  250-520 ms in `DXGI.WaitOnSwapChain`, so the GPU is taking half a second on those frames. It's not CPU work (CliffKitSystem,
+  StoneColossi and ColossusWalker top some of them at 100-375 ms, but only in the first 15 s after the world loads). VRAM isn't
+  full (6 GB card, Unity reports about 850 MB used). Naming the GPU work needs a GPU capture (RenderDoc or PIX) on a frame pair.
+  Those are hard to catch on this laptop; the main PC may be better for it. Until then, 1% lows on this laptop at High mostly
+  measure this stall. Use the mean GPU ms.
+- Bisect step 1 (q157) is running: main e96da9d7 (#609, the midpoint) against both ends, at the forest and the village.
 ## Profiler note 11-19: main feb40161 won't build on the laptop: Terrain Surface and Water crash FXC after ~30 min each
 
 The laptop's player build of main feb40161 (#696) timed out at 90 min. Its log:

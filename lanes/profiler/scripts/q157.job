@@ -1,0 +1,23 @@
+# Bisect step 1 for q155b's two fails (forest 400,2800 +2.83 ms GPU, village 2972,-885 +3.35 ms GPU and +17 ms CPU, main
+# 814a4da6 -> 9f792c3c). M = main e96da9d7 (#609), the first-parent midpoint (69 merges after A, 67 before B). Arms A, M, B
+# rotated, High, 1920x1080 uncapped, noon, Clear, 3 rounds, 300 frames. If M is near A, the cost is in #610-#676; if near B,
+# in #540-#609. before() stops if M logs an unsupported shader (laptop build; see the 11-19 FXC note).
+Q=q157; TITLE="bisect 1: forest and village"
+BUILDS="e96da9d 9f792c3 814a4da"
+VIEWS="forest village"
+view() { case $1 in
+  forest)  echo "-goto 400,2800 -benchstops spot -benchspot 400,2800,0 -benchhour 12 -benchweather Clear";;
+  village) echo "-goto 2972,-885 -benchstops spot -benchspot 2972,-885,0 -benchhour 12 -benchweather Clear";; esac; }
+ARMS="M B A"
+arm() { case $1 in M) echo "Profile-e96da9d";; B) echo "Profile-9f792c3";; A) echo "Profile-814a4da";; esac; }
+ROUNDS=3; GFX="High"; REF=A; BAR=1
+before() {
+  [ -n "${DRY:-}" ] && return
+  local f="$R/build-Profile-e96da9d.log"
+  echo "M build: FXC crashes $(grep -ac 'Suspected crash in FXC' "$f" 2>/dev/null), include errors $(grep -ac "Couldn't open include file" "$f" 2>/dev/null)"
+  [ "$(grep -ac 'Suspected crash in FXC\|Couldn.t open include file' "$f" 2>/dev/null)" = 0 ] || { echo "M build is missing shaders: not running the games"; exit 1; }
+}
+after() {
+  [ -n "${DRY:-}" ] && return
+  echo "logs with an unsupported shader: $(grep -al 'shader is not supported' "$R"/q-$Q-*.log | wc -l)"
+}
