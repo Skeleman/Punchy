@@ -1,0 +1,29 @@
+# Job 115 (playability): standing at the town spot, terrain meshing (BuildChunkMeshJob) takes a median 89 ms of worker
+# time a frame (q158), because 2167 of the 3014 chunks stream in after the world is ready (46 -> 91 s since start). Each
+# chunk job averages ~21 ms although most are far LODs (25-289 vertices). Where does the time go? Bench-only 2f4bbc1 =
+# 661e155 + profiler markers in BuildChunkMeshJob, per LOD (Chunk.Lod0-4) and per phase (Contacts, Patch, Grid, Post,
+# Collars, Water). One plain game (the "all chunks in" time), then a profiled 60 s stand at the town spot.
+Q=q166; TITLE="Job 115 chunk build cost by phase and LOD"
+BUILDS="2f4bbc1"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200"; }
+ARMS="K"
+arm() { echo "Profile-2f4bbc1"; }
+ROUNDS=1; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-2f4bbc1 t=$Q-prof-spot-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-spot 2f4bbc1 s100 1 -gfx High -fpscap 0 \
+    -goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 \
+    -benchlong spot 60 -profilestop spot "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\]' "$R"/q-$Q-*.log | cut -c1-160
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof.txt")" -over 500 -logFile "$W/analyze-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== chunk markers"; grep -a 'Chunk\.\|BuildChunkMeshJob' "$R/$Q-prof.txt" | grep -v '^SPIKE' | cut -c1-200
+}

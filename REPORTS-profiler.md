@@ -4695,3 +4695,30 @@ So #722/#723 didn't touch the laptop's present waits or the long stalls, as expe
 path (q161/q162). The main PC's town-spot count of 0.35-0.55 s frames is still the open question: none there, and these
 are laptop-only. **For the old bisect:** current main builds cleanly on the laptop (661e155: 0 FXC crashes), but the
 #609 midpoint still crashes FXC 24 times, so q157's midpoints in #540-#609 still need main-PC shelf builds.
+
+## Job 115 q164/q165: the laptop's present waits went away on their own; nvidia-smi polling and GPU heat aren't it (14:50)
+661e155, town spot, High, windowed, uncapped, 60 s stands (`-benchlong spot 60`), `-hitchms 200`:
+- **q164** (nvidia-smi polling every 500 ms throughout): 5 games, **0** frames in the 0.35-0.55 s band, no stalls. Each
+  game has one ~220 ms frame at ~44 s since start (the "world ready" frame). GPU in P0 the whole time, no throttling
+  apart from the odd power-cap flag, none of it lining up with the one hitch.
+- **q165** (polling on / off, alternated, 5 each): on 1 / 0 / 0 / 0 / 0 band frames per game, off 0 / 0 / 1 / 0 / 0. No
+  stalls in either.
+- Earlier the same day (q163, 13:05-13:43, same build, same spot) half the games had 5-17 band frames and ~58 s
+  stalls, and those games started cool (55-62 C), so heat isn't it either.
+
+So on this laptop the waits come and go with the machine's state over hours (15 clean games in a row since 13:48),
+not with the build, the flags (q161), the display mode (q162) or GPU polling. q163's stalling games were the first
+runs of a freshly built player, so a file scan of the new build is one candidate I can't test (the Defender rule).
+I'm leaving the laptop-only waits there: they can't judge Zach's hitches, and the main PC's town-spot count is still
+the useful check.
+
+## Playability: after spawn the terrain is still meshing for ~45 s on every worker (q158 profile)
+Standing at the town spot, `BuildChunkMeshJob` takes a median **89 ms of worker time a frame** (mean 138), 4.2 chunk
+jobs a frame (~21 ms each). The game log shows why: "world ready at 46.5 s, 847 chunks, 2167 more behind the first
+view", then "all chunks in at 90.7 s, 3014 chunks" (High: View x1.3, so 31 chunks of 64 m round the player). For those
+44 s `Loading` is still true, so batches take all 7 workers (not half, #400/#509) and creature/render jobs queue
+behind them. Most of those chunks are far LODs (25-289 vertices), so ~21 ms a chunk points to a fixed cost per chunk
+(likely `GroundContacts.Rasterise`, which places every shrub and tree cell in reach even for far chunks).
+**q166 (queued after q165):** bench-only 2f4bbc1 = 661e155 + profiler markers in the job per LOD and per phase
+(contacts, mouth patch, grid, post, collars, water), profiled 60 s stand from spawn. The user has given the
+profiler authority to change main for playability (supervisor paused), so a fix follows if the split shows one.
