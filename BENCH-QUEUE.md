@@ -988,10 +988,12 @@ Take the queue in this order. Anything not changed here runs as written in its j
 - View: the biggest town at 22:00 from about 150 m up (the R-39 row 1 glide spot), then from 600 m. Record CPU main-thread ms and GPU ms. Far flames now hand over instead of stopping at 150 m.
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms.
 
-## Job 101 (2026-11-15, NEEDS A POSE 11-16 (no smithy/brick chimney spot on record); QUEUED after 100; materials lane, W-166 merged #437): brick parallax
+## Job 101 (2026-11-15, POSE ADDED 11-19 by materials; QUEUED after 100; materials lane, W-166 merged #437): brick parallax
 - Arm: main b04b5432 (B) against b04b5432^1 (A). Profile builds, 1920x1080, Medium and High, uncapped, ABBA, 3 rounds.
 - View: a town with kit stone chimneys and the smithy at noon, low sun, camera 3-15 m from the brick walls. Record CPU main-thread ms and GPU ms.
 - Pass (rule 23): Medium at most +0.3 ms, High at most +0.5 ms. Ice and plaster are math only; this mainly prices the brick mortar parallax.
+- Pose (materials 11-19): smithy #1, landmark 92 (desert ridge), chimney stack about 3.5 m off. Flags: `-goto -1944.6,649.3 -time 12 -weather Clear -nohud -cam -1944.6,258.9,649.3,123.2,-6.6` (cam x,y,z,yaw,pitch; same view as `-camlook -1944.6,258.9,649.3,-1941.7,259.3,647.4`). Low-sun round: the same with `-time 17`. No island flags; main island. Finding it again: `-place prop:Smithy` puts you there (nearest from spawn).
+- Caveat: brick is only chimney stacks (smithy, kit stone chimneys), 0.7 m wide, so it covers about 2-3% of the frame at the closest legal pose; the stone hearth fills about 25%. A flat result means brick parallax is cheap at this coverage, not per full screen. Kit houses aren't placed on the current map (`prop:KitHouse` finds none). Framing shot: PunchyMilestones/W-166/job101-smithy.png.
 
 ## Note (2026-11-15, supervisor): fauna fingerprint on main is 0206544F since #442 (Frostdeer joins the species and Tundra lists; no placement moved). Re-pin any bench check that reads it.
 
