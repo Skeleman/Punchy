@@ -8,6 +8,16 @@ The supervisor adds requests here; kind-possum pulls before each job and reports
 - Pull `coordination` and run `sh hooks/install.sh <fixed folder outside your trees>` (J-041 commit telemetry).
   Make one test commit on a b/ branch and check ~/.punchy-telemetry/commits.csv gets a row.
 
+## Job 115 (2026-11-19, QUEUED, TOP PRIORITY: drop everything else, Zach): multi-second hitches in normal play
+- Zach's playtest of main a50545c8 (release build, RTX 5070 Ti) has multi-second hitches everywhere, often, even standing
+  still; the 10 s fps in Player.log dips to 7-14 several times a minute, and nothing is logged during them.
+- Build: Profile-894e8ce.zip on bench-builds (main 894e8cea + bench overlay; #710 is shader-only on top).
+- Do: play normally for 10 min (walk, sprint, a town, a forest, a cave mouth) with `-hitchms 200`, and capture the Unity
+  Profiler (or `-profiler-enable -profiler-log-file`) around at least three hitches over 1 s. Name the top markers in each
+  hitch (main thread and the job worker it waits on), and whether it is GC, a sync point, shader compile/upload or streaming.
+- Report to REPORTS-profiler.md as soon as the first hitch is explained; keep going until three are. The supervisor runs
+  the same hunt on the main PC; compare notes there.
+
 ## Standing rule: never idle (Zach, 2026-11-10)
 - When no job is QUEUED or RUNNING, take the next open part of job 47 (LOD range sweep), one kind per session, and report it like
   any job. Jobs the supervisor queues always go first; stop a sweep part at a clean point when one appears.
