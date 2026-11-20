@@ -392,3 +392,4 @@ when you play. Reopen any issue that's wrong; otherwise just delete its line. Ne
 - 11-19 #707 (#262 tail): near vent steam reads as soft rising streaks torn by noise, thinning upward, not round blobs.
 - 11-19 #494 R-23 rows 4-5 (#298): close-detail fades keep the same on-screen size at any FOV or Detail; should look like before at the default view.
 - 11-19 #708 (#301 tail): no holes or pale panes at waterfall feet; the pool water now reaches the face (a grey pane left of fall 20 predates this).
+- 11-19 #709 (#365 tail, #705): Ashlands cave embers now glow from 20 m (picked by screen size) and light reaches farther; the sulphur gets a faint warm tint. Check: inside an Ashlands cave from 20 m.

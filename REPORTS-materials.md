@@ -495,3 +495,9 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 - Near vent steam is now soft, rising streaks torn by climbing noise. They thin and widen as they rise, where they used to be round blobs. Branch materials/vent-wisps, 3 files, merge-tree clean.
 - Vent plumes needed a flag on the shared generic puff path (geysers, mist and chimneys share it). That took a one-line Fall = (0,1,0,0) in AddVent (AmbientBits.cs). Fall.y was unused by generic puffs.
 - Shots: PunchyMilestones/vent-wisps/wisp-{before,after}-{3m,20m}.png, matched at the fumarole field (-219,-2013) with the clock held. The before shots are hazier from session weather, not from the change.
+
+## 11-19 ember-reach - DONE, PR #709
+- Cave embers now register as LightKind.Fire stills (the seeps precedent), which gives them the R-25 glow slot by screen size. Ember reach went from 3.5 to 7 m. 2 files, 3 lines.
+- Shots: PunchyMilestones/ember-reach before/after 3m, 20m (#705 framing), m3m, m20m (mouth).
+- 20 m in cave: mean luma 5.5 -> 8.1, warm pixels 1.1% -> 2.3%. Mouth view unchanged. The cave stays dark.
+- Sulphur catches only a faint warm tint (squared falloff at 6-8 m). A stronger catch would need a sulphur material response; not done.
