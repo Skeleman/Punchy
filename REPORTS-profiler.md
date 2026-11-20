@@ -4642,3 +4642,19 @@ The log shows `kGfxThreadingModeClientWorkerJobs` (graphics jobs: render command
 chunk meshing), which would connect busy workers to a late present. q161 (running, no builds) tries launch flags on
 today's main: `-fpscap 60` (the game's default, as Zach plays), `-maxqueued 3`, `-vsync 1`, `-job-worker-count 3` and
 `-force-gfx-direct` (no graphics jobs).
+
+## Job 115 q161: no launch flag changes the 0.5 s frames; likely laptop-specific (Optimus present path) (06:20)
+894e8ce, town spot, High, 3 games each, frames over 450 ms per game: default **12, 10, 13**; `-fpscap 60` (the game's
+default) 16, 4, 12; `-maxqueued 3` 13, 12, 10; `-vsync 1` 7, 15, 17; `-job-worker-count 3` 13, 13, 14;
+`-force-gfx-direct` (graphics jobs off, log confirms kGfxThreadingModeDirect) 13, 8, 12. Every flag took (the logs say so).
+- So not graphics jobs, not the frame queue, not vsync, not the worker count, and not uncapped vs capped.
+- Read with the main PC's results (#722/#723: real CPU stalls, run leg worst 1555 -> 93 ms, no 0.5 s present waits
+  reported there): the laptop's fixed ~0.5 s present-wait frames (and the 50-60 s stalls, Job 41's) look **specific to
+  this laptop's present path**. It's a GTX 1060 Max-Q rendering for the Intel HD 630 that drives the panel (Optimus),
+  so every windowed present is copied across. The content does make it more likely: none on 11-14 builds, half from
+  #509's cap, the rest after. So they're worth knowing about, but probably **not Zach's hitches**, and the laptop's
+  hitch counts can't judge his.
+- q162 (running): exclusive fullscreen (`-display 1920x1080,full`, Zach's mode) against windowed, and `-spin 90`
+  turns, on 894e8ce. If fullscreen clears it, that settles the Optimus reading.
+- **Main PC, please shelve main 661e155 (#722 + #723)** (`shelf.sh put 661e155`). The laptop can't build main (FXC
+  crashes on Water ForwardLit since #540-#609), and the card's rebench after #723 needs it.

@@ -1,0 +1,22 @@
+# Job 115 (card: camera turns, exclusive fullscreen): on 894e8ce (shelf; no shelf build of main 661e155 with #722/#723
+# yet, and the laptop can't build main: FXC), town spot 2988.8,-920, High, 3 games each:
+# W -display 1920x1080,windowed (the usual bench window), X -display 1920x1080,full (exclusive fullscreen, like Zach;
+# on this Optimus laptop it may skip the desktop compositor), S windowed with -spin 90 (a steady camera turn).
+# -display saves into the bench build's own prefs (DisplaySettings), so every arm passes it and after() ends windowed.
+Q=q162; TITLE="Job 115 fullscreen and turns"
+BUILDS="894e8ce"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200"; }
+ARMS="W X S"
+arm() { case $1 in W) echo "Profile-894e8ce -display 1920x1080,windowed";; X) echo "Profile-894e8ce -display 1920x1080,full";;
+  S) echo "Profile-894e8ce -display 1920x1080,windowed -spin 90";; esac; }
+ROUNDS=3; GFX="High"
+after() {
+  [ -n "${DRY:-}" ] && return
+  local a f
+  RUNTIMEOUT=300 BENCHW=1920 BENCHH=1080 run Profile-894e8ce $Q-restore -gfx High -benchstops spot -benchspot 2988.8,-920,0 -goto 2988.8,-920 -display 1920x1080,windowed
+  echo "restore: $(grep -a '^Display:' "$R/q-$Q-restore.log" | cut -c1-80)"
+  for a in $ARMS; do
+    echo "$a: over 450 ms per game: $(for f in "$R"/q-$Q-spot-$a-cs100-[123].log; do grep -a 'BenchRoute: hitch' $f | awk '$3>450' | wc -l; done | tr '\n' ' ')| over 200: $(for f in "$R"/q-$Q-spot-$a-cs100-[123].log; do grep -a 'BenchRoute: hitch' $f | awk '$3>200' | wc -l; done | tr '\n' ' ')| 1% low: $(grep -ah 'BenchRoute: spot: avg' "$R"/q-$Q-spot-$a-cs100-[123].log | grep -o '1% low [0-9.]*' | cut -d' ' -f3 | tr '\n' ' ')| $(grep -ah '^Display:' "$R"/q-$Q-spot-$a-cs100-1.log | cut -c1-60)"
+  done
+}
