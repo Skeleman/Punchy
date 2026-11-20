@@ -490,3 +490,8 @@ Fix tried and reverted: I faded the dry-mud cracks out in the wet band, guessing
 ## 11-19 shared glint - DONE, PR #704
 - Rule 33: new Materials/Glint.hlsl (PunchyGlint, PunchyGlintLight, PunchyCellHash). Snow glitter (#698) and frost glints (#701) both call it with their own constants; TerrainSurface Grain uses the shared hash. Shader net -8 lines, compiles clean.
 - No look change: matched 1/3/20 m before/after at the IceCrag spot (frost left, snow right), ROI means within 0.4/255; remaining pixel diffs are swaying tufts and far rims. Shots in PunchyMilestones/shared-glint/.
+
+## 11-19 vent wisps - DONE, PR #707
+- Near vent steam is now soft, rising streaks torn by climbing noise. They thin and widen as they rise, where they used to be round blobs. Branch materials/vent-wisps, 3 files, merge-tree clean.
+- Vent plumes needed a flag on the shared generic puff path (geysers, mist and chimneys share it). That took a one-line Fall = (0,1,0,0) in AddVent (AmbientBits.cs). Fall.y was unused by generic puffs.
+- Shots: PunchyMilestones/vent-wisps/wisp-{before,after}-{3m,20m}.png, matched at the fumarole field (-219,-2013) with the clock held. The before shots are hazier from session weather, not from the change.
