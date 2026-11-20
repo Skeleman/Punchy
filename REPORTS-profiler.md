@@ -4601,3 +4601,27 @@ Frames over 450 ms per game (2 games each, High, 1920x1080, laptop), standing st
 - CPU ms at the spot doubles with it (17-19 on the old builds, 51-75 on the new), because the mean includes the waits.
 - Bisect (bisect115.sh) runs now over main's 140 first-parent merges in that range, 2 spot games per step, ~8 steps;
   results land in results/b115.log and here. Then the merge's own commits if it's a big one.
+
+## Job 115 bisect: the big rise in 0.5 s frames lands on #509 (d2ac9d1, chunk-mesh batches capped by worker count) (03:40)
+bisect115.sh over main's 140 first-parent merges 9a1694e..814a4da, town spot 2988.8,-920, High, frames over 450 ms per game:
+
+| commit | | per game |
+|---|---|---|
+| bb32a92 #455 render/audit-fixes | good | 0, 1 |
+| 25558ed P-35 r2 item catalog | (middle) | 3, 2, 2, 5 |
+| bed88b7 dungeon life props | (middle) | 2, 4, 2, 2 |
+| 9533f61 W-175 kit parts and units | **last good** | 0, 2 |
+| d984892 W-172 r7 cave wall details | good | 2, 2 |
+| **d2ac9d1 #400 / #509: cap chunk-mesh batches by worker count** | **first bad** | **4, 11** |
+| 2818da5 #515 world/seams | bad | 9, 12 |
+| 814a4da / 894e8ce | bad | 9-12 |
+
+- #509 (TerrainStreamingSystem): outside loading a batch takes at most half the job workers. On the laptop
+  (7 workers) that's 3 chunks a batch instead of MaxBuildsPerFrame 12. It fits Job 96b (11-16), which found #509 WORSE at
+  the tunnel entry (more slow frames, lower fps). How a smaller batch reaches the present wait isn't clear yet; streaming
+  that never catches up, so the meshing never stops, is the first guess.
+- d2ac9d1 itself was 4 and 11, so q160 (running) confirms with 3 games each: 9533f61, d2ac9d1, 814a4da, **814a4da with
+  only the cap line reverted** (bench-only 5cad062), today's 894e8ce, and **894e8ce with `-job-worker-count 14`** (cap 7, no build:
+  if that clears it, it's a one-line fix on today's main).
+- There's also a smaller step (0-1 to 2-5 a game) somewhere in #455..P-35 r2. That's second in line after q160.
+- Zach's 5070 Ti PC likely has more cores, so a bigger cap; whether this is his hitch depends on q160 and the main PC.

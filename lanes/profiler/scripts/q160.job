@@ -1,0 +1,20 @@
+# Job 115 confirm: the bisect's first bad merge is d2ac9d1 (#509: chunk-mesh batches capped at half the job workers
+# outside loading; the laptop has 7 workers, so 3 instead of MaxBuildsPerFrame 12). Frames over 450 ms at the town spot
+# 2988.8,-920 for: G 9533f61 (last good), D d2ac9d1 (first bad), A 814a4da, N 5cad062 (= 814a4da with only the cap line
+# back to MaxBuildsPerFrame * boost, refs/bench/nocap-814a4da, laptop only), M 894e8ce (shelf, today's main), and
+# W 894e8ce with -job-worker-count 14 (the cap becomes 7, with no build).
+Q=q160; TITLE="Job 115 confirm #509"
+BUILDS="9533f61 d2ac9d1 814a4da 5cad062 894e8ce"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200"; }
+ARMS="G D A N M W"
+arm() { case $1 in G) echo Profile-9533f61;; D) echo Profile-d2ac9d1;; A) echo Profile-814a4da;; N) echo Profile-5cad062;;
+  M) echo Profile-894e8ce;; W) echo "Profile-894e8ce -job-worker-count 14";; esac; }
+ROUNDS=3; GFX="High"
+after() {
+  [ -n "${DRY:-}" ] && return
+  local a f
+  for a in $ARMS; do
+    echo "$a: over 450 ms per game: $(for f in "$R"/q-$Q-spot-$a-cs100-[123].log; do grep -a 'BenchRoute: hitch' $f | awk '$3>450' | wc -l; done | tr '\n' ' ')| 1% low: $(grep -ah 'BenchRoute: spot: avg' "$R"/q-$Q-spot-$a-cs100-[123].log | grep -o '1% low [0-9.]*' | cut -d' ' -f3 | tr '\n' ' ')| workers: $(grep -ah 'JobWorkerCount\|job worker' "$R"/q-$Q-spot-$a-cs100-1.log | head -1 | cut -c1-80)"
+  done
+}
