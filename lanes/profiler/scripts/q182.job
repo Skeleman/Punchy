@@ -1,0 +1,29 @@
+# q181: at the river, Water reflections Low saves 8.8 ms GPU but Medium only 0.8: Low also turns off WaterPatchSystem
+# (the fine sheet round the player, its 60 Hz wave field, fine fall sheets). -waterfield 0 turns off just that, so:
+# High reflections with the field (F) and without (N), river and lake, High preset, 3 rounds; then profiled river stands
+# of each, to see where the field's cost goes.
+Q=q182; TITLE="Water field cost"
+BUILDS="0f9a72d"
+VIEWS="river lake"
+view() { echo "-hitchms 200 -benchstops $1"; }
+ARMS="F N"
+arm() { case $1 in F) echo "Profile-0f9a72d";; N) echo "Profile-0f9a72d -waterfield 0";; esac; }
+ROUNDS=3; GFX="High"; REF=F; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-0f9a72d t
+  for spot in "F" "N -waterfield_0"; do set -- $spot; t=$Q-prof-$1-cs100-1; local extra=${2//_/ }
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$1 0f9a72d s100 1 -gfx High -fpscap 0 \
+    -hitchms 200 -benchstops river $extra -profilestop river "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\] all chunks' "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$1.txt")" -over 500 -logFile "$W/analyze-$Q-$1.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$1.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+    echo "== water markers $1"; grep -a 'Water\|PlayerLoop\|DrawTransparent' "$R/$Q-prof-$1.txt" | grep -v '^SPIKE' | cut -c1-160 | head -20
+  done
+}

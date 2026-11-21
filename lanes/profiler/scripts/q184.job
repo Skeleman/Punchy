@@ -1,0 +1,28 @@
+# q183: TerrainStreamingSystem takes ~2 ms of main thread a frame at a loaded town stand. Bench-only 0395119 (main
+# 0f9a72d + a marker per step of its OnUpdate): which step. One plain game, then a profiled loaded town stand.
+#
+Q=q184; TITLE="Streaming system per step"
+BUILDS="0395119"
+VIEWS="town"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchwait 100 -benchlong spot 60"; }
+ARMS="M"
+arm() { echo "Profile-0395119"; }
+ROUNDS=1; GFX="High"; REF=M; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-0395119 t
+  for spot in town; do t=$Q-prof-$spot-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot 0395119 s100 1 -gfx High -fpscap 0 \
+    -hitchms 200 $( [ $spot = town ] && echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -benchwait 100 -benchlong spot 60 -profilestop spot" || echo "-benchwait 100 -benchstops townwalk -profilestop townwalk") "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\] all chunks' "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$spot.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+    echo "== main thread self ms, $spot"; grep -a 'Stream\.\|TerrainStreamingSystem' "$R/$Q-prof-$spot.txt" | grep -v '^SPIKE' | cut -c1-150
+  done
+}

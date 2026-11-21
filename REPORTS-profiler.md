@@ -4929,3 +4929,12 @@ The river frame is GPU-bound: main waits 32 ms a frame in DXGI.WaitOnSwapChain; 
 **For Zach (a look decision, not taken):** cheaper reflections would recover up to ~7 ms at rivers on High, e.g. a
 half-resolution reflection march, or Medium's preset defaulting Water reflections to Low. Both change the water's look;
 I haven't changed either. Next on the lane: look for same-look savings in the terrain and water shaders' per-pixel work.
+
+## q183: main-thread work in a loaded town, High (15:30)
+Main 0f9a72d, -benchwait 100 (all chunks in). Town square: GPU 19.8 ms, CPU 23.7 ms, 3 slow frames: with the
+terrain loaded the town is roughly balanced (q179's town CPU of 37 ms was streaming). Main-thread self time a frame,
+median (town / townwalk): FloraSystem.LateUpdate 1.5 / 2.6 ms, TerrainStreamingSystem 2.0 / (under 0.1), Creature-
+RenderSystem 1.4 / 1.7, ThirdPersonCamera.LateUpdate 1.1 / 0.8, FloraSystem.Draw 0.6 / 0.7, CaveSystem.Update 0.5 /
+0.6, ClimbLadderSystem 0.5 / -, everything else under 0.4 ms. (Profiler.FlushMemoryCounters, 2.2-2.4 ms, is the
+profiler's own.) TerrainStreamingSystem's 2 ms at a stand with every chunk in is odd: it rescans ~4,000 grid cells
+and the loaded chunks every frame. q184 times each step of its OnUpdate (bench-only 0395119).

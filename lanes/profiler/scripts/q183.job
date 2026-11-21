@@ -1,0 +1,28 @@
+# Towns are CPU-bound on High (q179 town: CPU 37 ms, GPU 26). Profiled town stands, fully loaded (-benchwait 100), on
+# main 0f9a72d: the town square (R-25 town, 2988.8,-920) and walking through it (the route's townwalk stop), to rank
+# the main thread's own work. One plain game first for the frame numbers.
+Q=q183; TITLE="Town CPU, loaded"
+BUILDS="0f9a72d"
+VIEWS="town"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchwait 100 -benchlong spot 60"; }
+ARMS="M"
+arm() { echo "Profile-0f9a72d"; }
+ROUNDS=1; GFX="High"; REF=M; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-0f9a72d t
+  for spot in town townwalk; do t=$Q-prof-$spot-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot 0f9a72d s100 1 -gfx High -fpscap 0 \
+    -hitchms 200 $( [ $spot = town ] && echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -benchwait 100 -benchlong spot 60 -profilestop spot" || echo "-benchwait 100 -benchstops townwalk -profilestop townwalk") "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\] all chunks' "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$spot.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+    echo "== main thread self ms, $spot"; grep -a '^Main|' "$R/$Q-prof-$spot.txt" | sort -t$'	' -k4 -gr | head -30 | cut -c1-150
+  done
+}
