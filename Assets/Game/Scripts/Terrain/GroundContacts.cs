@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
 
@@ -47,6 +48,8 @@ namespace Punchy.Terrain
         /// terrain's meshing time while it streams in after spawn.
         /// </summary>
         public const float NaturalMaxStep = 8f;
+        static readonly ProfilerMarker MBuilt = new ProfilerMarker("Contacts.Built"), MFine = new ProfilerMarker("Contacts.PlaceFine"),
+            MCoarse = new ProfilerMarker("Contacts.PlaceCoarse"), MStamp = new ProfilerMarker("Contacts.Stamp");
         /// <summary>The published placement and contacts (not created until FloraSystem has built).</summary>
         public static BlobAssetReference<FloraBlob> Flora;
         public static BlobAssetReference<Table> Contacts;
@@ -189,12 +192,20 @@ namespace Punchy.Terrain
                         continue;
                     // Out past where biome plants reach (or on a coarse chunk), only a town's buildings or a landmark's
                     // props can.
-                    if ((gap > natural || naturalOff) && !Built(ref f, source, cell, layer, cellSize))
-                        continue;
+                    if (gap > natural || naturalOff)
+                    {
+                        MBuilt.Begin(); var isBuilt = Built(ref f, source, cell, layer, cellSize); MBuilt.End();
+                        if (!isBuilt) continue;
+                    }
+                    var pm = naturalOff ? MCoarse : MFine;
+                    pm.Begin();
                     var plant = FloraPlacement.Place(ref f, source, cell, layer, footprint: true);
+                    pm.End();
                     if (plant.Model < 0 || plant.Model >= t.Models.Length || plant.Snow < 0f)   // floating plants: no ground
                         continue;
+                    MStamp.Begin();
                     Stamp(ref t, plant, origin, chunkMax, v, step, near, pixelsPerMetre, strength, reachScale, shade);
+                    MStamp.End();
                 }
             }
         }
