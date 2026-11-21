@@ -202,9 +202,15 @@ namespace Punchy.Terrain
         /// <summary>Whether a cell's plant could be a town's or a landmark's (as Place decides it).</summary>
         static bool Built(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, float cellSize)
         {
-            if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0 &&
-                SettlementSampling.Cell(ref source.Settlements.Value, ((float2)cell + 0.5f) * cellSize) >= 0)
-                return true;
+            // A town's plants (buildings, their door lamps, the square's beacon) come from the plots and streets listed in
+            // the settlement grid cell holding this one: an empty grid cell, most of the island, has none (job 115).
+            if (source.Settlements.IsCreated && f.SettlementSpecies.Length > 0)
+            {
+                ref var towns = ref source.Settlements.Value;
+                var townCell = SettlementSampling.Cell(ref towns, ((float2)cell + 0.5f) * cellSize);
+                if (townCell >= 0 && (towns.PlotCells[townCell].y > 0 || towns.StreetCells[townCell].y > 0))
+                    return true;
+            }
             var rng = new Random(math.hash(new int3(cell, layer * 7919 + 13)) | 1u);
             var xz = ((float2)cell + rng.NextFloat2()) * cellSize;
             return source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, xz, out _);
