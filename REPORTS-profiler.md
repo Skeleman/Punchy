@@ -4864,3 +4864,11 @@ fast (no wait) and a slow (200 s wait) stand to compare per-system costs.
   temperature only. Next benches will log CPU performance alongside and flag a stand that overlaps a dip.
 - The dips look like a power or thermal limit (the laptop's own management). Power settings are off limits to the
   lane, so this is for Zach: if the game feels uneven on this laptop, its cooling or power plan is a likely cause.
+
+## The 55 s first round at Medium town: a bench artefact, not a player issue (11:20)
+Every job's first game per build had "world ready" at ~66 s instead of ~10 s: `[island] cache miss no file 57322 ms`,
+then `cache hit ... island-v3-<stamp>.bin 1421 ms` on every later game. The player's island file is named for its
+build's stamp (W-140 row 4), so each new bench build bakes the island once (57 s on this laptop). Release builds ship
+the editor's baked island (IslandCacheBuildStep, W-168 row 2), so players don't pay it when the editor cache matches
+the build. Bench fix (after q179, as job.sh can't change mid-job): a throwaway warm-up launch per new build, so no
+measured round includes the bake. Earlier results stay valid: the bake fell on each build's first round alike.
