@@ -147,6 +147,7 @@ namespace Punchy.Terrain
             foreach (var pooled in meshPool)
                 Object.Destroy(pooled.mesh);
             loaded.Clear();
+            loadedVersion++;
             meshPool.Clear();
         }
 
@@ -185,6 +186,7 @@ namespace Punchy.Terrain
                     var chunk = loaded[coord];
                     chunk.Lod = -1;
                     loaded[coord] = chunk;
+                    loadedVersion++;
                 }
             }
 
@@ -312,6 +314,7 @@ namespace Punchy.Terrain
                     var chunk = loaded[coord];
                     chunk.Lod = -1;
                     loaded[coord] = chunk;
+                    loadedVersion++;
                 }
             }
             config.Lod0Distance *= appliedView;
@@ -358,6 +361,7 @@ namespace Punchy.Terrain
                     var chunk = loaded[coord];
                     chunk.Lod = -1;
                     loaded[coord] = chunk;
+                    loadedVersion++;
                 }
             }
 
@@ -382,29 +386,58 @@ namespace Punchy.Terrain
             UnloadCoords();
         }
 
+        /// <summary>Bumped on every change to <see cref="loaded"/>, so a still focus can skip the scan below.</summary>
+        int loadedVersion;
+        /// <summary>
+        /// The last scan that wanted nothing: its focus, the loaded chunks' version, the config it read, and how far the
+        /// focus can move before any cell's ring or LOD test could come out differently (every test is a distance from the
+        /// focus against a fixed threshold, and those distances change by at most how far the focus moves). Job 115 (q184):
+        /// the scan is ~4,000 cells and 1.3 ms of main thread a frame with every chunk in.
+        /// </summary>
+        float2 quietFocus;
+        int quietVersion = -1;
+        float quietMargin = -1f;
+        TerrainConfig quietConfig;
+
         void CollectWantedChunks(in TerrainConfig config, float2 focus)
         {
             wanted.Clear();
+            if (quietMargin > 0f && quietVersion == loadedVersion && math.distance(focus, quietFocus) < quietMargin &&
+                quietConfig.ChunkSize == config.ChunkSize && quietConfig.ViewRadiusChunks == config.ViewRadiusChunks &&
+                quietConfig.Lod0Distance == config.Lod0Distance && quietConfig.LodLevels == config.LodLevels)
+                return;
             var size = config.ChunkSize;
             var radius = config.ViewRadiusChunks * size;
             var r = config.ViewRadiusChunks;
             var centerCoord = (int2)math.floor(focus / size);
+            // (Cells outside the square scanned lie at least half a chunk beyond the ring.)
+            var margin = size * 0.5f;
 
             for (int dz = -r; dz <= r; dz++)
             for (int dx = -r; dx <= r; dx++)
             {
                 var coord = centerCoord + new int2(dx, dz);
                 var min = (float2)coord * size;
-                if (math.distance(min + size * 0.5f, focus) > radius)
+                var fromCentre = math.distance(min + size * 0.5f, focus);
+                margin = math.min(margin, math.abs(fromCentre - radius));
+                if (fromCentre > radius)
                     continue;
 
                 var distance = math.distance(focus, math.clamp(focus, min, min + size));
                 var lod = config.LodForDistance(distance);
+                // (LodForDistance steps at Lod0Distance x 1, 2, 4, ...)
+                for (int k = 0, band = 1; k < config.LodLevels - 1; k++, band *= 2)
+                    margin = math.min(margin, math.abs(distance - config.Lod0Distance * band));
                 if (loaded.TryGetValue(coord, out var existing) && existing.Lod == lod)
                     continue;
 
                 wanted.Add(new BuildItem { Coord = coord, Lod = lod, Distance = distance });
             }
+            // (Less a hair for rounding: the margin is a bound, not an estimate. A centre cell sat on the focus has none.)
+            quietMargin = wanted.Count == 0 ? margin - 0.01f : -1f;
+            quietFocus = focus;
+            quietVersion = loadedVersion;
+            quietConfig = config;
         }
 
         /// <summary>How many times its vertices a chunk over a cave is charged against the batch budget (#400).</summary>
@@ -579,6 +612,7 @@ namespace Punchy.Terrain
                 }
 
                 loaded[item.Coord] = chunk;
+                loadedVersion++;
             }
             DisposeBuild();
             StartLedger.Add("chunks apply", clock.Elapsed.TotalMilliseconds - waited, count);
@@ -760,6 +794,7 @@ namespace Punchy.Terrain
             meshPool.Push((chunk.Mesh, chunk.MeshId));
             meshPool.Push((chunk.WaterMesh, chunk.WaterMeshId));
             loaded.Remove(coord);
+            loadedVersion++;
         }
 
         void UnloadAll()
