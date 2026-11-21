@@ -1,0 +1,16 @@
+# Job 115: the laptop present waits right after a reboot (11-20 ~15:10). Same as q165 (661e155, town spot, 60 s stands)
+# with no polling, 4 games. If they are back after a fresh boot, uptime is not what clears them.
+Q=q167; TITLE="Job 115 fresh-boot recount"
+BUILDS="661e155"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchlong spot 60"; }
+ARMS="B"
+arm() { echo "Profile-661e155"; }
+ROUNDS=4; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local a f
+  for a in $ARMS; do for f in "$R"/q-$Q-spot-$a-cs100-*.log; do
+    echo "$a $(basename $f): over 200 ms $(grep -ac 'BenchRoute: hitch' "$f"), 0.35-0.55 s $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>=350&&$3<=550' | wc -l), over 0.56 s $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>560' | wc -l), worst $(grep -a 'BenchRoute: hitch' "$f" | awk '$3>m{m=$3}END{print m+0}')"
+  done; done
+}
