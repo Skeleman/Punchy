@@ -4837,3 +4837,15 @@ Medium forest ~70 -> 38 s, Medium town ~60 -> 39 s; the contact pass while strea
 
 New lead: loaded stands after a 100 s wait had ~400 slow frames and Medium forest B at 21.2 ms GPU, against ~90 and
 19.9-20.0 ms after a 70 s wait (q171/q172), same build and spot. q176 measures stands after 0/100/200/400 s waits.
+
+## q176: the slowdown comes and goes; it isn't growing with game time (09:30)
+Main 0f9a72d, Medium forest, 60 s stands after a wait, 2 rounds:
+| wait | GPU ms by round | CPU ms | slow frames | 1% low fps |
+|---|---|---|---|---|
+| 0 s | 19.3, 19.1 | 22.1 | 13 | 25.4 |
+| 100 s | 19.0, 21.1 | 24.0 | 143 | 23.9 |
+| 200 s | 21.1, 20.9 | 26.6 | 337 | 18.7 |
+| 400 s | 20.2, 19.6 | 23.4 | 43 | 23.4 |
+CPU and GPU rise together, by up to ~4.5 and ~2 ms, at some times and not others: something in the scene (creatures
+wandering into view, the sky) more than a leak. Logs are the same between slow and fast games. q177 profiles a
+fast (no wait) and a slow (200 s wait) stand to compare per-system costs.
