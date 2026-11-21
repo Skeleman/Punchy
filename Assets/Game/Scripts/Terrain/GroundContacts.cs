@@ -42,8 +42,9 @@ namespace Punchy.Terrain
         /// <summary>
         /// Job 115: chunks this coarse (m between vertices: LOD3 and out, 770 m+ at High) take only towns' and landmarks'
         /// contacts. A biome plant's contact reaches 3 m at most, so at this spacing it is spread over a whole vertex at
-        /// about a tenth of its strength (ContactShade.Weigh), close to Faint; and finding those plants re-placed every shrub and tree cell round the chunk
-        /// (FloraPlacement.Place, about 1500 cells a chunk), three quarters of the terrain's meshing time while it streams in after spawn.
+        /// about a tenth of its strength (ContactShade.Weigh), close to Faint; and finding those plants re-placed every
+        /// shrub and tree cell round the chunk (FloraPlacement.Place, about 1500 cells a chunk), three quarters of the
+        /// terrain's meshing time while it streams in after spawn.
         /// </summary>
         public const float NaturalMaxStep = 8f;
         /// <summary>The published placement and contacts (not created until FloraSystem has built).</summary>
