@@ -4788,3 +4788,13 @@ f73e786 vs 661e155, town and forest, Medium and High, 60 s stands from spawn, 3 
 - Medium forest's +0.83 ms GPU is likely a loading artefact: F has every chunk in at 52 s, inside the stand, and B
   only at 70 s, so B drew less far terrain for most of it. q171 re-runs Medium with -benchwait 70 (both stands start
   fully loaded). Merge to main if it's within +0.3 ms.
+
+## q171: Medium with both stands fully loaded (-benchwait 70) (02:00)
+| view | all chunks in, B -> F | GPU by round, B / F | mean GPU vs B |
+|---|---|---|---|
+| Medium forest | 68.1-69.7 -> 52.8-53.1 s | 19.7, 20, 20 / 20, 20.4, 20.2 | +0.30 (at the bar) |
+| Medium town | 60.3-115.4 -> 58.0-116.4 s | 15.7, 15.6, 16.2 / 14, 17.7, 17 | +0.40 (rounds spread 3.7 ms) |
+
+Loaded, B's forest GPU rose from 18.1 to 19.9 ms, so most of q170's +0.83 was B still loading. The fix only changes
+the contact weights written into LOD3+ chunks' vertices (same vertex count, shader and draws), so it shouldn't
+cost GPU; q172 repeats Medium forest with 6 rounds to tell +0.3 from noise.
