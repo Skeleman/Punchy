@@ -4905,7 +4905,7 @@ frame, so each pass is its share of the capture times the measured GPU (2 frames
 | DrawDepthNormalPrepass | 6.8 | 3.5 | 4.6 | 3.4 |
 | Main light shadowmap | 1.1 | 0.9 | 1.2 | 0.9 |
 | SSAO, low-res effect, post, rest | ~2 | ~1.6 | ~1.3 | ~1.8 |
-At the river, four transparent draws are ~80% of the transparent pass, all `Punchy/Water` (rdevents.py, new: the shader
-and buffers bound at chosen events). Water.shader's dearest step is its screen-space reflection march (28 + 5 depth
+At the river, four transparent draws are ~80% of the transparent pass; the biggest is `Punchy/Water` (rdevents.py, new: the
+shader bound at chosen events; the other three are being checked). Water.shader's dearest step is its screen-space reflection march (28 + 5 depth
 reads a pixel near, on High), already skipped where Fresnel leaves it under 2.5% (W-117). q181 prices it: the Water
 reflections setting at High / Medium / Low (-waterquality) at river, lake and forest, High preset, 3 rounds.
