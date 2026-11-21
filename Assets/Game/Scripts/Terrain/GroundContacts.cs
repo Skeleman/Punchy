@@ -35,6 +35,10 @@ namespace Punchy.Terrain
             public float4 Margins;
             /// <summary>The widest contact on the shrub and tree layers (m, at the biggest scale), for the screen gate.</summary>
             public float2 LayerWidths;
+            /// <summary>Per species (FloraBlob.Rules): its widest contact (m, at its biggest scale), or MaxValue where its
+            /// placement can stretch it (river spots: logs span the channel). Far chunks only re-place the species that
+            /// can show at their distance (Job 115: re-placing every cell was 94% of a far chunk's build).</summary>
+            public BlobArray<float> SpeciesWidths;
         }
 
         /// <summary>A contact narrower than this on screen at a chunk's nearest distance isn't drawn into it.</summary>
@@ -76,6 +80,7 @@ namespace Punchy.Terrain
             var extents = new float[count];
             var margins = float4.zero;
             var widths = float2.zero;
+            var modelWidths = new float[count];   // each model's widest contact, unscaled (0: none on layers 1-2)
             for (int i = 0; i < count; i++)
             {
                 var m = models[i];
@@ -105,6 +110,7 @@ namespace Punchy.Terrain
                     margins[slot] = math.max(margins[slot], reach);
                 margins[slot + 1] = math.max(margins[slot + 1], reach);
                 widths[layer - 1] = math.max(widths[layer - 1], widest * maxScale[i]);
+                modelWidths[i] = widest;
             }
 
             var builder = new BlobBuilder(Allocator.Temp);
@@ -121,6 +127,16 @@ namespace Punchy.Terrain
                 footArray[k] = feet[k];
             root.Margins = margins;
             root.LayerWidths = widths;
+            var speciesArray = builder.Allocate(ref root.SpeciesWidths, f.Rules.Length);
+            for (int s = 0; s < f.Rules.Length; s++)
+            {
+                // At this species' own biggest scale (as maxScale: props and folk scale on top).
+                var rule = f.Rules[s];
+                var widest = 0f;
+                for (int v = 0; v < rule.Variants && rule.FirstModel + v < count; v++)
+                    widest = math.max(widest, modelWidths[rule.FirstModel + v]);
+                speciesArray[s] = rule.RiverSpot != 0 ? float.MaxValue : widest * math.max(1f, rule.SizeRange.y) * 1.3f;
+            }
             Contacts = builder.CreateBlobAssetReference<Table>(Allocator.Persistent);
             builder.Dispose();
             Flora = flora;
@@ -158,6 +174,8 @@ namespace Punchy.Terrain
         {
             var size = step * (v - 1);
             var chunkMax = origin + size;
+            // Job 115: only the species whose contacts can show this far out (Stamp drops the rest foot by foot).
+            var only = WideSpecies(ref t, near, pixelsPerMetre);
             for (int layer = 1; layer <= 2; layer++)
             {
                 // Nothing on this layer is wide enough to see at this LOD's nearest distance.
@@ -181,12 +199,37 @@ namespace Punchy.Terrain
                     // Out past where biome plants reach, only a town's buildings or a landmark's props can.
                     if (gap > natural && !Built(ref f, source, cell, layer, cellSize))
                         continue;
-                    var plant = FloraPlacement.Place(ref f, source, cell, layer, footprint: true);
+                    var plant = FloraPlacement.Place(ref f, source, cell, layer, footprint: true, only: only);
                     if (plant.Model < 0 || plant.Model >= t.Models.Length || plant.Snow < 0f)   // floating plants: no ground
                         continue;
                     Stamp(ref t, plant, origin, chunkMax, v, step, near, pixelsPerMetre, strength, reachScale, shade);
                 }
             }
+        }
+
+        /// <summary>The species with a contact at least ContactPixels wide at this distance (every species when they all
+        /// are, or there are too many to mask).</summary>
+        static FloraPlacement.SpeciesMask WideSpecies(ref Table t, float near, float pixelsPerMetre)
+        {
+            var mask = new FloraPlacement.SpeciesMask();
+            var n = t.SpeciesWidths.Length;
+            if (pixelsPerMetre <= 0f || n > mask.Bits.Capacity * 64)
+                return mask;
+            var narrow = false;
+            for (int w = 0; w < (n + 63) >> 6; w++)
+            {
+                var bits = 0ul;
+                for (int k = 0; k < 64 && (w << 6) + k < n; k++)
+                {
+                    if (DetailPolicy.ScreenSize(t.SpeciesWidths[(w << 6) + k], near, pixelsPerMetre) >= ContactPixels)
+                        bits |= 1ul << k;
+                    else
+                        narrow = true;
+                }
+                mask.Bits.Add(bits);
+            }
+            mask.On = narrow;
+            return mask;
         }
 
         /// <summary>Whether a cell's plant could be a town's or a landmark's (as Place decides it).</summary>
