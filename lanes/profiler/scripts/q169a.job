@@ -1,0 +1,27 @@
+# Job 115 quick check of the second ground-contact fix (0d27763: far chunks only re-place species whose contacts can
+# show; q168 showed the first gate, fe51f15, never closed). Bench-only 87c129e = 0d27763 + q166's chunk markers.
+# Same as q166: one plain game, then a profiled 60 s town stand. Contacts were 40.8 ms median (q166), 34.7 (q168).
+Q=q169a; TITLE="Job 115 species-mask fix, quick profile"
+BUILDS="87c129e"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200"; }
+ARMS="K"
+arm() { echo "Profile-87c129e"; }
+ROUNDS=1; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-87c129e t=$Q-prof-spot-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-spot 87c129e s100 1 -gfx High -fpscap 0 \
+    -goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 \
+    -benchlong spot 60 -profilestop spot "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\]' "$R"/q-$Q-*.log | cut -c1-160
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof.txt")" -over 500 -logFile "$W/analyze-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== chunk markers"; grep -a 'Chunk\.\|BuildChunkMeshJob' "$R/$Q-prof.txt" | grep -v '^SPIKE' | cut -c1-200
+}

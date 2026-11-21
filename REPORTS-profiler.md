@@ -4735,3 +4735,19 @@ Fix (next, on main): gate the natural plants' contacts by their own footprint wi
 chunks only place cells that could be a town's buildings or a landmark's props. Expect the ~45 s of post-spawn
 meshing to mostly go, and chunk re-LODs while moving to get much cheaper. It'll be checked for a visible change at
 the LOD boundaries and benched against the Rule 23 bars.
+
+## q168: the first ground-contact fix (fe51f15) did nothing; a second (0d27763) is in test (21:40)
+fe51f15 vs 661e155, town and forest, Medium and High, 3 rounds: GPU all PASS (+0.00 to +0.20 ms), but the "all chunks
+in" time didn't move (town High 87.7-88.4 s vs 86.6-88.9 s) and the profiled stand still had Chunk.Contacts at 34.7 ms
+median. The gate it added (the widest biome-grown contact on the layer, under 2 px at the chunk's distance) never
+closes: some biome species are wide enough (big rocks, and trees drawn to the terrain edge by R-6 row 4) to show at
+any distance, so every cell was still placed. (The shots diff failed: job.sh's python has no PIL; fixed for q169.)
+q167 (fresh boot, 661e155, 4 town stands): no 0.35-0.55 s frames, no stalls.
+
+**0d27763** (b/perf-remesh; fe51f15 reverted): the gate is per species instead. GroundContacts' table carries each
+species' widest contact at its biggest scale (river-spot species, which placement can stretch, always pass), and
+`FloraPlacement.Place` takes an optional `SpeciesMask`. A cell whose every biome candidate is too narrow to show at
+the chunk's distance returns right after the biome lookup, before the ground/normal/surface sampling. Towns' and
+landmarks' cells return before the mask, so they're unchanged. Exact: everything it skips, Stamp would have dropped.
+q169a (running): quick profiled stand on bench-only 87c129e (0d27763 + markers); the full bench follows if
+contacts drop.
