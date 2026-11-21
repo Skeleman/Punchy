@@ -4798,3 +4798,10 @@ f73e786 vs 661e155, town and forest, Medium and High, 60 s stands from spawn, 3 
 Loaded, B's forest GPU rose from 18.1 to 19.9 ms, so most of q170's +0.83 was B still loading. The fix only changes
 the contact weights written into LOD3+ chunks' vertices (same vertex count, shader and draws), so it shouldn't
 cost GPU; q172 repeats Medium forest with 6 rounds to tell +0.3 from noise.
+
+## q172: Medium forest x6, loaded: +0.00 ms GPU. The fix is on main (cf01cd6, #724) (03:00)
+B 20, 19.8, 19.9, 20.3, 20.2, 20 (mean 20.03) / F 19.8, 20.4, 20.2, 20.3, 20.1, 19.4 (20.03): **+0.00 ms PASS**. q171's
++0.30 and +0.40 were noise. b/perf-remesh squash-merged to main as **cf01cd6** (PR #724), one commit with no net
+change other than the LOD3+ gate. Summary of the gain: Medium forest all chunks in 70 -> 52 s, slow frames while
+streaming 180 -> 14 (Medium forest), 339 -> 86 (High forest), 290 -> 145 (High town); the contact pass 35-41 -> 27 ms
+median a frame on the workers. Next: what's left in the meshing (Lod2/Lod3 near towns), then the town-spot stalls.
