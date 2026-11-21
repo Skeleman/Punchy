@@ -1,0 +1,10 @@
+# q180: at the water stops the transparent pass (the water) is 10-21 ms of GPU (forest 1 ms), and the water shader
+# marches screen-space reflections per pixel (28 + 5 steps near on High). What do the Water reflections settings
+# (-waterquality High/Medium/Low) cost there? Main 0f9a72d, High preset, 3 rounds; shots for the look.
+Q=q181; TITLE="Water reflections cost"
+BUILDS="0f9a72d"
+VIEWS="river lake forest"
+view() { echo "-hitchms 200 -benchstops $1"; }
+ARMS="H M L"
+arm() { case $1 in H) echo "Profile-0f9a72d -waterquality High";; M) echo "Profile-0f9a72d -waterquality Medium";; L) echo "Profile-0f9a72d -waterquality Low";; esac; }
+ROUNDS=3; GFX="High"; REF=H; BAR=1; RUNTIMEOUT=900
