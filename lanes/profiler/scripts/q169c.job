@@ -1,0 +1,28 @@
+# Job 115: why the species mask (0d27763) didn't cut the contact pass. Bench-only 561aaea = 87c129e + markers inside
+# GroundContacts.Rasterise (Contacts.Cell/Built/Place/Stamp/MaskOn/Layer; zero-length ones count calls) and Place
+# (Place.PastBound/Masked/PastMask). One plain game, then a profiled 60 s town stand. (q169b lost its after() to a
+# quoting slip; this is the same job, fixed.)
+Q=q169c; TITLE="Job 115 contact pass split"
+BUILDS="561aaea"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200"; }
+ARMS="K"
+arm() { echo "Profile-561aaea"; }
+ROUNDS=1; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-561aaea t=$Q-prof-spot-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-spot 561aaea s100 1 -gfx High -fpscap 0 \
+    -goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 \
+    -benchlong spot 60 -profilestop spot "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\]' "$R"/q-$Q-*.log | cut -c1-160
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof.txt")" -over 500 -logFile "$W/analyze-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== chunk markers"; grep -a 'Chunk\.\|BuildChunkMeshJob\|Contacts\.\|Place\.' "$R/$Q-prof.txt" | grep -v '^SPIKE' | cut -c1-200
+}

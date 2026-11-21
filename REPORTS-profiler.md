@@ -4751,3 +4751,19 @@ the chunk's distance returns right after the biome lookup, before the ground/nor
 landmarks' cells return before the mask, so they're unchanged. Exact: everything it skips, Stamp would have dropped.
 q169a (running): quick profiled stand on bench-only 87c129e (0d27763 + markers); the full bench follows if
 contacts drop.
+
+## q169a-d: why exact gates can't cut the contact pass, and the third fix (f73e786) (23:30)
+- q169a (the per-species mask, 0d27763 + markers): Contacts still 39.0 ms median, all chunks in at 89.9 s. No change.
+- q169c (markers inside Rasterise and Place), per frame at the town spot from spawn: **4294 `Place` calls, 38.5 ms**
+  (~9 us each, 99% of the contact pass); 2614 get past the density roll into the ground/normal/surface sampling; only
+  **142** come out as a plant that's stamped. Town/landmark checks (`Built`) 633 calls, 0.02 ms; Stamp 0.01 ms.
+- q169d (logs): contact ppm 1403 (935 x Detail 1.5), Lod0 208 m; the 220 species' contact widths are 0.13-7.2 m (river
+  spots unbounded). The mask was on (many species under the LOD3 threshold of ~1.1 m), but it never masked a cell:
+  every cell's candidate list is all the species its biome can grow, and every biome has a wide one (a tree, a big
+  rock). Which one a cell grows is only known after the expensive sampling, so there's no exact early out.
+
+**Third fix, f73e786** (b/perf-remesh; the two exact gates reverted): chunks with 8 m+ between vertices (LOD3 and out,
+770 m+ at High) take only towns' and landmarks' contacts. There a biome contact (3 m reach at most) is spread over a
+whole vertex at about a tenth of its strength (ContactShade.Weigh), close to `Faint`; Lod3+Lod4 are 66 of the 86 ms
+mean. This is a small visual change at distance, so q170 checks the shots against game-to-game noise as well as GPU
+(Rule 23) and the "all chunks in" time.

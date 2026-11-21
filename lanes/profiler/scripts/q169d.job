@@ -1,0 +1,13 @@
+# Job 115: why the far-chunk species mask never switches on (q169c: Contacts.MaskOn 0 calls). Bench-only 113584d =
+# 561aaea + logs of the job's contact pixels-per-metre and every species' contact width. One plain town game.
+Q=q169d; TITLE="Job 115 mask inputs"
+BUILDS="113584d"
+VIEWS="spot"
+view() { echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear"; }
+ARMS="K"
+arm() { echo "Profile-113584d"; }
+ROUNDS=1; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  grep -ah '\[bench115\]' "$R"/q-$Q-*.log | cut -c1-3000
+}

@@ -1,0 +1,53 @@
+# Job 115 fix check (third try): f73e786 (b/perf-remesh = 661e155 + chunks at 8 m+ vertex spacing, LOD3 and out,
+# take only towns' and landmarks' ground contacts) against 661e155. Same as q168: town spot and forest, 60 s stands
+# from spawn, Medium and High, 3 rounds, uncapped; Rule 23 Medium <= +0.3 ms GPU, High <= +1 ms. after(): "all chunks
+# in" time per game, the F/B shots diff (noise: q165's two arms), and a profiled town stand on bench-only e45676c
+# (the fix + q166's chunk markers).
+Q=q170; TITLE="Job 115 LOD3+ contact fix"
+BUILDS="f73e786 661e155 e45676c"
+VIEWS="town forest"
+view() { case $1 in
+  town)   echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchlong spot 60";;
+  forest) echo "-goto 400,2800 -benchstops spot -benchspot 400,2800,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchlong spot 60";; esac; }
+ARMS="F B"
+arm() { case $1 in F) echo "Profile-f73e786";; B) echo "Profile-661e155";; esac; }
+ROUNDS=3; GFX="Medium High"; REF=B; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f a g v
+  for f in "$R"/q-$Q-*-cs100-*.log; do
+    echo "$(basename $f .log): $(grep -ao 'all chunks in at [0-9.]* s' "$f" | head -1) | world ready $(grep -ao 'world ready at [0-9.]* s' "$f" | head -1 | grep -o '[0-9.]* s') | hitches over 200 ms $(grep -ac 'BenchRoute: hitch' "$f")"
+  done
+  /c/Users/zache/AppData/Local/Programs/Python/Python310/python.exe -I - "$R" <<'PY'
+import sys, os, glob
+from PIL import Image, ImageChops, ImageStat
+R = sys.argv[1]
+def diff(a, b):
+    A = Image.open(a).convert("RGB"); B = Image.open(b).convert("RGB")
+    if A.size != B.size: return "size differs"
+    d = ImageChops.difference(A, B).convert("L")
+    h = d.histogram(); n = sum(h)
+    return f"mean {ImageStat.Stat(d).mean[0]:.2f}, px over 16: {100*sum(h[17:])/n:.2f}%, over 48: {100*sum(h[49:])/n:.2f}%"
+for d in sorted(glob.glob(os.path.join(R, "q170-shots", "*-F"))):
+    b = d[:-2] + "-B"
+    for s in glob.glob(os.path.join(d, "*.png")):
+        o = os.path.join(b, os.path.basename(s))
+        if os.path.exists(o): print("shots", os.path.basename(d)[:-2], os.path.basename(s), diff(s, o))
+n = os.path.join(R, "q165-shots")
+print("noise (q165 S vs O, same build)", diff(os.path.join(n, "spot-S", "spot.png"), os.path.join(n, "spot-O", "spot.png")))
+PY
+  local o=Profile-e45676c t=$Q-prof-town-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-town e45676c s100 1 -gfx High -fpscap 0 \
+    -goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 \
+    -benchlong spot 60 -profilestop spot "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\] all chunks' "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof.txt")" -over 500 -logFile "$W/analyze-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== chunk markers (fix)"; grep -a 'Chunk\.\|BuildChunkMeshJob' "$R/$Q-prof.txt" | grep -v '^SPIKE' | cut -c1-200
+}
