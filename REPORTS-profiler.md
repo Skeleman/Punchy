@@ -4910,3 +4910,22 @@ chosen events; the six costliest transparent draws checked). They fall in two gr
 24436-24792): two water batches, or overlapping water surfaces, to look at next. Water.shader's dearest step is its screen-space reflection march (28 + 5 depth
 reads a pixel near, on High), already skipped where Fresnel leaves it under 2.5% (W-117). q181 prices it: the Water
 reflections setting at High / Medium / Low (-waterquality) at river, lake and forest, High preset, 3 rounds.
+
+## q181/q182: what the river's GPU time is (14:40)
+q181, Water reflections setting on the High preset (main 0f9a72d, 3 rounds, GPU ms vs High):
+| stop | High | Medium | Low |
+|---|---|---|---|
+| river | 49.0 | -0.77 | **-8.80** |
+| lake | 33.3 | -0.13 | -2.37 |
+| forest | 27.2 | -0.20 | +0.03 |
+Low also turns off WaterPatchSystem (the fine sheet, 60 Hz wave field, fine fall sheets). q182 isolates that with
+`-waterfield 0`: river -1.77 ms, lake -0.13. So at the river: **the reflection march ~7 ms** (step count barely matters:
+Medium's 16 steps save 0.8 ms, so the cost is per pixel, not per step), the field ~1.8 ms, other water shading ~10 ms,
+opaque ~21 ms (forest 16), mostly terrain chunk draws on the close rock face (the 27,648-index draws). Low's look:
+the river loses the banks' and the fall's reflections (results/q181-shots/river-*); water is ~40% of that screen.
+The river frame is GPU-bound: main waits 32 ms a frame in DXGI.WaitOnSwapChain; its own work is ~25 ms
+(CreatureRenderSystem 2.6, FaunaDirector.Comfort 2.0, FloraSystem.LateUpdate 1.7 ms the largest).
+
+**For Zach (a look decision, not taken):** cheaper reflections would recover up to ~7 ms at rivers on High, e.g. a
+half-resolution reflection march, or Medium's preset defaulting Water reflections to Low. Both change the water's look;
+I haven't changed either. Next on the lane: look for same-look savings in the terrain and water shaders' per-pixel work.
