@@ -4971,3 +4971,11 @@ on the walk the scan's median is ~0 in both builds (chunks are mostly mid-build 
 two arms job.sh's rotation runs F first every round, so the laptop's CPU dips could line up with it. q188: townwalk only,
 5 rounds, three arms (7798a1f, main, and q185's 17e539b) so the order rotates. Not merged until that's clear.
 q187 follows: bench-only 0d41aee times each step of FloraSystem.LateUpdate (1.5-2.6 ms self a frame in town).
+
+## q188: the townwalk gap was run order; 7798a1f merged as #726 (9ec0f17)
+Townwalk only, 5 rounds, three arms rotating. 1% low: main 11.8, 7798a1f 11.8, 17e539b 12.2 fps; CPU 30.8 / 31.0 /
+30.84 ms; slow frames 160 / 164 / 163; GPU 22.54 / 23.22 / 23.0 ms (+0.68 / +0.46, PASS; main's own rounds span
+21.8-23.2, and the change is main-thread only). Every arm had rounds at 9-10 fps and at 13-15 fps, so q186's three
+straight bad F rounds were the slot F always ran in. **Merged #726** (squash of 17e539b + 7798a1f): a loaded stand
+saves ~1.4 ms of main thread a frame. Bench note: with two arms, job.sh's rotation (rotate by one, reverse every other
+round) gives the same order every round; fixing that once q187 is done.
