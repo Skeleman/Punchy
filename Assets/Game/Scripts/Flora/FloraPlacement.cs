@@ -2488,23 +2488,7 @@ namespace Punchy.Flora
         /// exactly as without), leaving out its floor height and ground colour, which sample the ground round it and cost
         /// most of the call (Blocked asks on every step of every animal in town). Other plants are placed in full.
         /// </summary>
-        /// <summary>
-        /// Job 115: the species a caller can use (one bit each; landmark props always pass). GroundContacts' far chunks
-        /// only want species whose ground contacts can show at their distance: a cell whose every biome candidate is
-        /// narrower skips the ground, normal and surface sampling that would only pick a plant it then drops.
-        /// </summary>
-        public struct SpeciesMask
-        {
-            /// <summary>Room for 4032 species; past that every species passes.</summary>
-            public FixedList512Bytes<ulong> Bits;
-            public bool On;
-
-            public bool Has(int species) =>
-                !On || species < 0 || (species >> 6) >= Bits.Length || (Bits[species >> 6] & (1ul << (species & 63))) != 0;
-        }
-
-        public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false,
-                                                      in SpeciesMask only = default)
+        public static FloraSystem.FloraInstance Place(ref FloraBlob f, in TerrainSource source, int2 cell, int layer, bool footprint = false)
         {
             var none = new FloraSystem.FloraInstance { Model = -1 };
             var cellSize = f.CellSizes[layer];
@@ -2854,15 +2838,6 @@ namespace Punchy.Flora
             }
             if (roll >= bound)
                 return none;
-            // Job 115: whatever this cell grows, the caller would drop it (SpeciesMask).
-            if (only.On)
-            {
-                var wanted = false;
-                for (int c = 0; c < candidates.Length && !wanted; c++)
-                    wanted = only.Has(candidates[c]);
-                if (!wanted)
-                    return none;
-            }
 
             // Full sample of the ground; nothing over or at the edge of a cave entrance (a wide plant or rock standing
             // just outside the cut would overhang it and float).
