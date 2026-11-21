@@ -4819,3 +4819,12 @@ square's beacon) only come from the plots and streets listed in that grid cell (
 `TownFixture`), so **f828746** (b/perf-built) only takes cells whose grid cell lists some. Exact: no contact changes.
 q174 (running): f828746 vs cf01cd6, town and forest, Medium and High, 3 rounds, 60 s stands from spawn (the comment
 in the job says loaded; it isn't), "all chunks in", profiled stands on bench-only 7226cd9.
+
+## q174: the Built fix (f828746) cuts loading by a further 15-37 s (05:40)
+f828746 vs main cf01cd6, 60 s stands from spawn, 3 rounds. All chunks in (s since launch), B -> F:
+High forest 87.2-88.8 -> 52.5-53.3; High town 85.4-86.6 -> 49.1-49.3; Medium forest 52.1-52.8 -> 38.2-38.5;
+Medium town 57.6-58.3 -> 38.4-39.1 (the slow-boot round, world ready at 67 s: 117.0 -> 96.0).
+Profiled (bench-only 7226cd9): Chunk.Contacts median 0 at both spots; LOD3+ Place calls 1682 -> 8 (town), 960 -> 9
+(forest); what's left is LOD0-2's natural cells while moving (forest max 13.8 ms).
+GPU: Medium +0.27 / +0.50, High +2.03 (forest) / +1.27 (town), but F has every chunk in inside the stand and B
+doesn't (as q170/q171). The fix is exact, so q175 re-runs with both stands fully loaded (-benchwait 100).
