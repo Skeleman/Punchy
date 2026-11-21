@@ -4960,3 +4960,14 @@ quiet frame retests only those whose slack the focus's movement has used up (a h
 again when one changes, the focus has moved 16 m, a loaded chunk changed, or the config did. Still exact (simulated:
 1,200 random moves, none missed). q186: same views as q185 vs 0f9a72d, profiled town stand and townwalk on bench-only
 6dd676a.
+
+## q186: 7798a1f's skip works at a stand; the townwalk needs a second look (q188 running)
+Loads match exactly (forest 52.1-53.5 s and 3,024 chunks both arms, town 3,014, townwalk 3,024). Profiled loaded town
+stand (bench-only 6dd676a): TerrainStreamingSystem **2.0 -> 0.6 ms** a frame; CollectWantedChunks under the listing's
+floor (UnloadDistantChunks 0.31 and UpdateFarRing 0.28 are what's left). GPU vs main: forest -0.63, town -1.93,
+townwalk +0.70 ms, all PASS. But the townwalk's 1% low read worse in all 3 rounds (8.4/8.5/7.4 vs 13.4/16.1/12.5 fps;
+main thread 24.7/21.4/20.3 vs 18.5/18.3/20.2 ms; worst frame 136/181/472 vs 104/82/103 ms). I don't see a mechanism:
+on the walk the scan's median is ~0 in both builds (chunks are mostly mid-build and the system returns early), and with
+two arms job.sh's rotation runs F first every round, so the laptop's CPU dips could line up with it. q188: townwalk only,
+5 rounds, three arms (7798a1f, main, and q185's 17e539b) so the order rotates. Not merged until that's clear.
+q187 follows: bench-only 0d41aee times each step of FloraSystem.LateUpdate (1.5-2.6 ms self a frame in town).
