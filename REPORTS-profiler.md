@@ -4828,3 +4828,12 @@ Profiled (bench-only 7226cd9): Chunk.Contacts median 0 at both spots; LOD3+ Plac
 (forest); what's left is LOD0-2's natural cells while moving (forest max 13.8 ms).
 GPU: Medium +0.27 / +0.50, High +2.03 (forest) / +1.27 (town), but F has every chunk in inside the stand and B
 doesn't (as q170/q171). The fix is exact, so q175 re-runs with both stands fully loaded (-benchwait 100).
+
+## q175: the Built fix with loaded stands, all PASS; on main as 0f9a72d (#725) (08:20)
+-benchwait 100, 3 rounds, GPU F vs B: High forest -0.23, High town -0.37, Medium forest -0.27, Medium town -1.67.
+Shots F vs B: mean 0.72-1.57 (same-build noise 1.17). Squash-merged as **0f9a72d** (PR #725).
+Job 115 overall (661e155 -> 0f9a72d), all chunks in from launch: High forest ~88 -> 53 s, High town ~88 -> 49 s,
+Medium forest ~70 -> 38 s, Medium town ~60 -> 39 s; the contact pass while streaming ~41 -> ~0 ms a frame.
+
+New lead: loaded stands after a 100 s wait had ~400 slow frames and Medium forest B at 21.2 ms GPU, against ~90 and
+19.9-20.0 ms after a 70 s wait (q171/q172), same build and spot. q176 measures stands after 0/100/200/400 s waits.
