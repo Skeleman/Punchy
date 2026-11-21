@@ -4872,3 +4872,25 @@ build's stamp (W-140 row 4), so each new bench build bakes the island once (57 s
 the editor's baked island (IslandCacheBuildStep, W-168 row 2), so players don't pay it when the editor cache matches
 the build. Bench fix (after q179, as job.sh can't change mid-job): a throwaway warm-up launch per new build, so no
 measured round includes the bake. Earlier results stay valid: the bake fell on each build's first round alike.
+
+## q179: Job 115 on the full route, High: travelling is much smoother (12:10)
+Main 0f9a72d (M) vs 661e155 (B, before #724/#725), 3 rounds interleaved, mean per stop, B -> M:
+| stop | avg fps | 1% low fps | CPU ms | GPU ms | worst frame ms (max of 3) |
+|---|---|---|---|---|---|
+| town | 23.9 -> 27.0 | 6.5 -> 6.2 | 41.9 -> 37.3 | 22.1 -> 26.3 | 239 -> 262 |
+| townwalk | 28.2 -> 32.9 | 9.0 -> 15.2 | 35.4 -> 30.3 | 23.1 -> 23.6 | 159 -> 115 |
+| forest | 32.9 -> 33.0 | 15.7 -> 21.7 | 30.5 -> 30.3 | 21.4 -> 23.6 | 76 -> 56 |
+| cave | 62.8 -> 62.7 | 35.0 -> 33.4 | 16.0 -> 16.0 | 13.9 -> 14.1 | 46 -> 56 |
+| caveapproach | 14.7 -> 26.3 | 3.1 -> 6.4 | 68.3 -> 38.1 | 34.9 -> 26.3 | 394 -> 217 |
+| lavacave | 40.2 -> 54.2 | 13.9 -> 29.5 | 24.9 -> 18.4 | 14.5 -> 15.7 | 83 -> 66 |
+| nightgrove | 28.8 -> 28.5 | 9.1 -> 4.3 | 34.7 -> 36.0 | 24.9 -> 26.0 | 284 -> 412 |
+| storm | 22.0 -> 32.4 | 3.2 -> 16.2 | 46.1 -> 31.0 | 29.6 -> 25.5 | 657 -> 102 |
+| lake | 21.4 -> 22.7 | 5.9 -> 6.0 | 46.7 -> 43.8 | 34.1 -> 34.5 | 216 -> 821 |
+| river | 15.8 -> 19.0 | 6.0 -> 15.5 | 62.9 -> 52.8 | 44.3 -> 41.1 | 268 -> 68 |
+| stormshore | 19.0 -> 23.9 | 4.9 -> 11.1 | 52.5 -> 42.0 | 35.0 -> 34.5 | 236 -> 164 |
+| run | 25.5 -> 32.9 | 4.2 -> 6.1 | 39.3 -> 30.3 | 26.2 -> 22.2 | 629 -> 714 |
+| glide | 19.8 -> 26.1 | 1.5 -> 7.0 | 50.5 -> 38.1 | 33.0 -> 28.1 | 1730 -> 486 |
+| dash | 18.0 -> 20.1 | 5.1 -> 8.5 | 56.0 -> 50.0 | 37.0 -> 33.5 | 296 -> 156 |
+Town's GPU rise is the loading effect again (town is the first stop; M has more terrain in). Watch: nightgrove has a
+~0.4 s hitch in all three M rounds (B: 2 of 3 at ~0.28 s), and one lake round had an 0.8 s frame. The slowest stops
+now are by water: river 19 fps at 41 ms GPU, lake and stormshore ~34 ms. Next: profile the river stop's GPU passes.
