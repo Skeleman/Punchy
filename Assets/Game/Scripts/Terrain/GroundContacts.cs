@@ -35,11 +35,6 @@ namespace Punchy.Terrain
             public float4 Margins;
             /// <summary>The widest contact on the shrub and tree layers (m, at the biggest scale), for the screen gate.</summary>
             public float2 LayerWidths;
-            /// <summary>The widest contact a biome-grown model has on each layer (m, at its biggest scale). Where that's under
-            /// ContactPixels at a chunk's nearest distance, no biome plant's feet would be drawn into it (Stamp's own gate),
-            /// so only cells that could be a town's or a landmark's are placed (Job 115: re-placing every shrub and tree
-            /// cell round a far chunk was 94% of the terrain's meshing time).</summary>
-            public float2 NaturalWidths;
         }
 
         /// <summary>A contact narrower than this on screen at a chunk's nearest distance isn't drawn into it.</summary>
@@ -81,7 +76,6 @@ namespace Punchy.Terrain
             var extents = new float[count];
             var margins = float4.zero;
             var widths = float2.zero;
-            var naturalWidths = float2.zero;
             for (int i = 0; i < count; i++)
             {
                 var m = models[i];
@@ -111,8 +105,6 @@ namespace Punchy.Terrain
                     margins[slot] = math.max(margins[slot], reach);
                 margins[slot + 1] = math.max(margins[slot + 1], reach);
                 widths[layer - 1] = math.max(widths[layer - 1], widest * maxScale[i]);
-                if (natural[i])
-                    naturalWidths[layer - 1] = math.max(naturalWidths[layer - 1], widest * maxScale[i]);
             }
 
             var builder = new BlobBuilder(Allocator.Temp);
@@ -129,7 +121,6 @@ namespace Punchy.Terrain
                 footArray[k] = feet[k];
             root.Margins = margins;
             root.LayerWidths = widths;
-            root.NaturalWidths = naturalWidths;
             Contacts = builder.CreateBlobAssetReference<Table>(Allocator.Persistent);
             builder.Dispose();
             Flora = flora;
@@ -176,8 +167,6 @@ namespace Punchy.Terrain
                 var built = t.Margins[(layer - 1) * 2 + 1];
                 if (built <= 0f)
                     continue;
-                // Biome plants too narrow to see at this distance: only towns' and landmarks' cells can darken it.
-                var naturalSeen = DetailPolicy.ScreenSize(t.NaturalWidths[layer - 1], near, pixelsPerMetre) >= ContactPixels;
                 var cellSize = f.CellSizes[layer];
                 var lo = (int2)math.floor((origin - built) / cellSize);
                 var hi = (int2)math.floor((chunkMax + built) / cellSize);
@@ -190,7 +179,7 @@ namespace Punchy.Terrain
                     if (gap > built)
                         continue;
                     // Out past where biome plants reach, only a town's buildings or a landmark's props can.
-                    if ((gap > natural || !naturalSeen) && !Built(ref f, source, cell, layer, cellSize))
+                    if (gap > natural && !Built(ref f, source, cell, layer, cellSize))
                         continue;
                     var plant = FloraPlacement.Place(ref f, source, cell, layer, footprint: true);
                     if (plant.Model < 0 || plant.Model >= t.Models.Length || plant.Snow < 0f)   // floating plants: no ground
