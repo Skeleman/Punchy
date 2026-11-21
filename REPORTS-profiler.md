@@ -4767,3 +4767,24 @@ contacts drop.
 whole vertex at about a tenth of its strength (ContactShade.Weigh), close to `Faint`; Lod3+Lod4 are 66 of the 86 ms
 mean. This is a small visual change at distance, so q170 checks the shots against game-to-game noise as well as GPU
 (Rule 23) and the "all chunks in" time.
+
+## q170: the third fix (f73e786) works; one GPU number re-checked in q171 (00:50)
+f73e786 vs 661e155, town and forest, Medium and High, 60 s stands from spawn, 3 rounds, uncapped:
+
+| view | all chunks in, B -> F | CPU ms, B -> F | slow frames, B -> F | GPU vs B |
+|---|---|---|---|---|
+| High forest | (none in 60 s) -> 87.4-88.0 s | 35.4 -> 29.7 | 339 -> 86 | +0.20 PASS |
+| High town | 88.5-89.0 -> 84.8-85.2 s | 30.2 -> 26.9 | 290 -> 145 | -0.27 PASS |
+| Medium forest | 69.4-70.8 -> 51.8-52.4 s | 25.8 -> 22.0 | 180 -> 14 | **+0.83** (over the +0.3 bar) |
+| Medium town | 60.3-60.4 -> 57.4-58.0 s | 22.3 -> 20.8 | 116 -> 39 | +0.27 PASS |
+
+- Profiled town stand (e45676c, the fix + markers): Chunk.Contacts 26.8 ms median (was 34.7-40.8), BuildChunkMeshJob
+  27.8 (was 40.3-43.5); Lod3 mean 25.9 (was 39.2), Lod4 12.1 (was 22.8). What's left is Lod2
+  and Lod3's towns/landmarks cells.
+- Shots, F vs B (q165 same-build noise: mean 1.17, 1.90% px over 16): High forest 1.53/2.24%, High town 1.28/1.61%,
+  Medium town 0.39/0.39%, Medium forest 2.19/3.54%. Looked at Medium forest: the difference is falling leaves and
+  grass sway; terrain, trees and grass match. (The diff failed again in the job: `python -I` hides the user
+  site-packages where PIL is; run without -I.)
+- Medium forest's +0.83 ms GPU is likely a loading artefact: F has every chunk in at 52 s, inside the stand, and B
+  only at 70 s, so B drew less far terrain for most of it. q171 re-runs Medium with -benchwait 70 (both stands start
+  fully loaded). Merge to main if it's within +0.3 ms.
