@@ -4805,3 +4805,17 @@ B 20, 19.8, 19.9, 20.3, 20.2, 20 (mean 20.03) / F 19.8, 20.4, 20.2, 20.3, 20.1, 
 change other than the LOD3+ gate. Summary of the gain: Medium forest all chunks in 70 -> 52 s, slow frames while
 streaming 180 -> 14 (Medium forest), 339 -> 86 (High forest), 290 -> 145 (High town); the contact pass 35-41 -> 27 ms
 median a frame on the workers. Next: what's left in the meshing (Lod2/Lod3 near towns), then the town-spot stalls.
+
+## q173: what's left of the contact pass on main, and a fourth (exact) fix, f828746 (04:00)
+Profiled stands on bench-only 9f67630 (cf01cd6 + markers), per frame from spawn, median:
+| spot | Chunk.Contacts | Place on LOD3+ (calls) | Place on LOD0-2 (calls) | Built (calls) |
+|---|---|---|---|---|
+| town | 28.6 ms | 25.2 ms (1682) | 0 typical, 10.6 max (449) | 0.05 ms (3274) |
+| forest | 37.6 ms | 29.6 ms (960) | 0 typical, 12.8 max (467) | 0.05 ms (3276) |
+
+About half the LOD3+ cells still passed `GroundContacts.Built`, even in the forest: it took any point inside the
+settlement grid as a town's, and the grid covers most of the island. A town's plants (buildings, door lamps, the
+square's beacon) only come from the plots and streets listed in that grid cell (`FloraPlacement.Place`,
+`TownFixture`), so **f828746** (b/perf-built) only takes cells whose grid cell lists some. Exact: no contact changes.
+q174 (running): f828746 vs cf01cd6, town and forest, Medium and High, 3 rounds, 60 s stands from spawn (the comment
+in the job says loaded; it isn't), "all chunks in", profiled stands on bench-only 7226cd9.
