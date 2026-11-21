@@ -162,6 +162,18 @@ namespace Punchy.Flora
             /// </summary>
             public float FarRadius, FarPpm;
             public readonly Dictionary<int2, float> FarTiles = new Dictionary<int2, float>();
+            /// <summary>Bumped on every change to <see cref="Tiles"/>, so a still eye can skip Stream's scans (QuietHolds).</summary>
+            public int Version;
+            /// <summary>
+            /// Job 115: the last Stream that had nothing to do for this layer (no tile to drop, none to place): the eye, the
+            /// version, the ranges and the pixels per metre it saw, and its tests within QuietReach of their thresholds,
+            /// least slack first (Test: 0 a tile's drop, 1 a near cell's placing, 2 a far cell's).
+            /// </summary>
+            public bool Quiet, QuietSkip, QuietOk;
+            public float2 QuietEye;
+            public int QuietVersion;
+            public float QuietRadius, QuietFarRadius, QuietPpm;
+            public readonly List<(float Slack, int2 Tile, int Test)> QuietTests = new List<(float, int2, int)>();
             public NativeArray<FloraInstance> PlacingOutput;
             public int PlacingFrames;
             /// <summary>R-7: its models' impostor atlases (FloraSystem.Impostors.cs), or null for a layer without.</summary>
@@ -180,6 +192,7 @@ namespace Punchy.Flora
                 foreach (var tile in Tiles.Values)
                     tile.Dispose();
                 Tiles.Clear();
+                Version++;
                 Instances?.Release();
                 Visible?.Release();
                 Args?.Release();
@@ -809,22 +822,35 @@ namespace Punchy.Flora
                 // when the eye comes inside the radius or well inside where it was trimmed, to be placed again.
                 var ppm = FarPpmNow();
                 var refar = l.FarTiles.Count > 0 && (ppm > l.FarPpm * 1.1f || ppm < l.FarPpm * 0.8f);
+                l.QuietSkip = !replant && !refar && QuietHolds(l, camXZ, ppm, keep);
+                if (l.QuietSkip)
+                    continue;
+                l.QuietTests.Clear();
+                l.QuietOk = !replant && !refar;
                 foreach (var kv in l.Tiles)
                 {
-                    var gone = replant && UnderChangedKeepOut(l, kv.Key) || math.distance(TileCentre(l, kv.Key), camXZ) > keep;
-                    if (!gone && l.FarTiles.TryGetValue(kv.Key, out var from))
+                    var fromCentre = math.distance(TileCentre(l, kv.Key), camXZ);
+                    var gone = replant && UnderChangedKeepOut(l, kv.Key) || fromCentre > keep;
+                    var slack = math.abs(fromCentre - keep);
+                    if (l.FarTiles.TryGetValue(kv.Key, out var from))
                     {
                         var d = TileNearest(l, kv.Key, camXZ);
-                        gone = refar || d < l.Radius || d < from * FarRetrim;
+                        gone |= refar || d < l.Radius || d < from * FarRetrim;
+                        slack = math.min(slack, math.min(math.abs(d - l.Radius), math.abs(d - from * FarRetrim)));
                     }
+                    if (slack < QuietReach)
+                        l.QuietTests.Add((slack, kv.Key, 0));
                     if (gone)
                         scratch.Add(kv.Key);
                 }
+                if (scratch.Count > 0)
+                    l.QuietOk = false;
                 foreach (var key in scratch)
                 {
                     l.Tiles[key].Dispose();
                     l.Tiles.Remove(key);
                     l.FarTiles.Remove(key);
+                    l.Version++;
                     // (A plain loop, not RemoveAll with a lambda: capturing l and key cost a closure per layer every frame.)
                     for (int b = basins.Count - 1; b >= 0; b--)
                         if (basins[b].Layer == l.Index && basins[b].Tile.Equals(key))
@@ -861,10 +887,18 @@ namespace Punchy.Flora
                         continue;
                     Harvest(l, perTile);
                 }
-                if (budget <= 0 || l.PlacingTiles.IsCreated || pass == 1 && l.FarRadius <= l.Radius)
+                // (A layer with no far ring has no far cells to place: its pass 1 has nothing to do.)
+                if (pass == 1 && l.FarRadius <= l.Radius && !l.PlacingTiles.IsCreated)
                     continue;
+                if (budget <= 0 || l.PlacingTiles.IsCreated)
+                {
+                    l.QuietOk = false;
+                    continue;
+                }
                 if (pass == 1 && l.FarTiles.Count == 0)
                     l.FarPpm = FarPpmNow();
+                if (l.QuietSkip)
+                    continue;
 
                 scratch.Clear();
                 var outer = pass == 0 ? l.Radius : l.FarRadius;
@@ -874,12 +908,18 @@ namespace Punchy.Flora
                 for (int x = -r; x <= r; x++)
                 {
                     var c = centre + new int2(x, z);
+                    if (l.Tiles.ContainsKey(c))
+                        continue;
                     var d = TileNearest(l, c, camXZ);
-                    if (!l.Tiles.ContainsKey(c) && d < outer && (pass == 0 || d >= l.Radius))
+                    if (d < outer && (pass == 0 || d >= l.Radius))
                         scratch.Add(c);
+                    var slack = pass == 0 ? math.abs(d - outer) : math.min(math.abs(d - outer), math.abs(d - l.Radius));
+                    if (slack < QuietReach)
+                        l.QuietTests.Add((slack, c, 1 + pass));
                 }
                 if (scratch.Count == 0)
                     continue;
+                l.QuietOk = false;
                 tileOrder.TileSize = l.Settings.TileSize;
                 tileOrder.Eye = camXZ;
                 scratch.Sort(tileOrder);
@@ -903,7 +943,63 @@ namespace Punchy.Flora
                     Output = l.PlacingOutput
                 }.Schedule(l.PlacingOutput.Length, 64);
             }
+            foreach (var l in layers)
+            {
+                if (l.QuietSkip)
+                    continue;
+                l.Quiet = l.QuietOk && l.ModelCount > 0;
+                if (!l.Quiet)
+                    continue;
+                l.QuietTests.Sort((a, b) => a.Slack.CompareTo(b.Slack));
+                l.QuietEye = camXZ;
+                l.QuietVersion = l.Version;
+                l.QuietRadius = l.Radius;
+                l.QuietFarRadius = l.FarRadius;
+                l.QuietPpm = FarPpmNow();
+            }
             JobHandle.ScheduleBatchedJobs();
+        }
+
+        /// <summary>
+        /// How far the eye moves before Stream scans a quiet layer whole again. (Cells outside the square it scans are at
+        /// least a tile beyond its ring, and the smallest tile is 14 m.)
+        /// </summary>
+        const float QuietReach = 8f;
+
+        /// <summary>
+        /// Job 115: whether Stream would find nothing to do for this quiet layer. Every test it makes is a ground distance
+        /// from the eye against a threshold that holds while the layer's tiles, ranges and pixels per metre do, and those
+        /// distances change by at most how far the eye has moved, so only the tests with that little slack can come out
+        /// differently, and those are made again: the same result as the full scans, at a few tests a frame instead of
+        /// ~10,000 (q187: 1.6 ms of main thread a frame at a still town stand).
+        /// </summary>
+        bool QuietHolds(Layer l, float2 camXZ, float ppm, float keep)
+        {
+            if (!l.Quiet || l.Version != l.QuietVersion || l.Radius != l.QuietRadius || l.FarRadius != l.QuietFarRadius ||
+                ppm != l.QuietPpm || l.PlacingTiles.IsCreated || l.ModelCount == 0)
+                return false;
+            // (Plus a hair for rounding: the slack is a bound, not an estimate.)
+            var moved = math.distance(camXZ, l.QuietEye) + 0.01f;
+            if (moved >= QuietReach)
+                return false;
+            for (int i = 0; i < l.QuietTests.Count; i++)
+            {
+                var (slack, tile, test) = l.QuietTests[i];
+                if (slack > moved)
+                    break;
+                var d = TileNearest(l, tile, camXZ);
+                bool changed;
+                if (test == 0)
+                    changed = math.distance(TileCentre(l, tile), camXZ) > keep ||
+                              l.FarTiles.TryGetValue(tile, out var from) && (d < l.Radius || d < from * FarRetrim);
+                else if (test == 1)
+                    changed = d < l.Radius;
+                else
+                    changed = d < l.FarRadius && d >= l.Radius;
+                if (changed)
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>Turns a finished placement batch into tiles (each holding just its occupied cells).</summary>
@@ -941,6 +1037,7 @@ namespace Punchy.Flora
                     if (cells[i].Model >= 0)
                         plants[n++] = cells[i];
                 l.Tiles[tile] = plants;
+                l.Version++;
                 if (trim >= 0f)
                     l.FarTiles[tile] = from;
                 AddBasins(l, tile, plants);
