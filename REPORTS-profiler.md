@@ -4938,3 +4938,14 @@ RenderSystem 1.4 / 1.7, ThirdPersonCamera.LateUpdate 1.1 / 0.8, FloraSystem.Draw
 0.6, ClimbLadderSystem 0.5 / -, everything else under 0.4 ms. (Profiler.FlushMemoryCounters, 2.2-2.4 ms, is the
 profiler's own.) TerrainStreamingSystem's 2 ms at a stand with every chunk in is odd: it rescans ~4,000 grid cells
 and the loaded chunks every frame. q184 times each step of its OnUpdate (bench-only 0395119).
+
+## q184: TerrainStreamingSystem's 2 ms is the chunk scan; a fifth fix, 17e539b (16:20)
+Bench-only 0395119, loaded town stand, main-thread ms a frame (median): CollectWantedChunks **1.31**, Unload-
+DistantChunks 0.30, UpdateFarRing 0.26, the rest under 0.01. The scan walks ~4,000 grid cells (a managed Dictionary
+lookup each) every frame even with every chunk in and the player still.
+**17e539b** (b/perf-collect): a scan that wants nothing records how far the focus may move before any cell's ring or
+LOD test could change (each is a distance from the focus against a fixed threshold: Lod0Distance x 1/2/4/8 and the
+ring radius; capped at half a chunk for cells outside the scanned square), and later frames skip the scan while the
+focus stays inside that, no loaded chunk changed (a version bumped at every write to `loaded`) and the config holds.
+Exact. q185 (running): vs 0f9a72d at a loaded town stand, the townwalk, and a forest stand from spawn (all chunks in
+time and count must match), 3 rounds High, plus a profiled stand on bench-only a6bd1b4.
