@@ -4979,3 +4979,15 @@ Townwalk only, 5 rounds, three arms rotating. 1% low: main 11.8, 7798a1f 11.8, 1
 straight bad F rounds were the slot F always ran in. **Merged #726** (squash of 17e539b + 7798a1f): a loaded stand
 saves ~1.4 ms of main thread a frame. Bench note: with two arms, job.sh's rotation (rotate by one, reverse every other
 round) gives the same order every round; fixing that once q187 is done.
+
+## q187: FloraSystem.LateUpdate is its tile scan; a sixth fix, 265013a (q189 running)
+Bench-only 0d41aee, main-thread ms a frame, median (loaded town stand / townwalk): Flora.Stream **1.61 / 1.80**,
+FloraSystem.Draw 0.66 / 0.71, Upload - / 0.11, UpdateObstacles - / 0.04, ScaleRanges 0.03, the rest under 0.01.
+Stream walks every layer's tiles (the drop test: ~4,600 shrub tiles out to the terrain edge) and its near and far squares
+(the placing test: the shrubs' far square alone is ~81 x 81 tiles) every frame, a Dictionary lookup each.
+**265013a** (b/perf-florastream): as #726 for the chunks. A layer whose Stream had nothing to do keeps its tests within
+8 m of their thresholds, least slack first; while its tiles (a version), ranges and pixels per metre hold and nothing is
+being placed, later frames retest only those whose slack the eye's movement has used up. Exact (simulated: 375 moves
+over settled layers, none missed). q189: vs main 9ec0f17 at the loaded town stand, the townwalk and a forest stand from
+spawn (the flora "after the load" times must match), 3 rounds High; profiled town and townwalk on bench-only 5b444db.
+Bench: job.sh's rotation now alternates two arms (it reversed its own rotation every other round, so F always ran first).

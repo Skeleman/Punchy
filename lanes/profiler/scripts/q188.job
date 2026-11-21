@@ -1,0 +1,15 @@
+# q186: 7798a1f's townwalk read worse than main's in all 3 rounds (1% low 8.4/8.5/7.4 vs 13.4/16.1/12.5 fps, main thread
+# 24.7/21.4/20.3 vs 18.5/18.3/20.2 ms), but with two arms job.sh's rotation runs F first every round. Townwalk only, 5
+# rounds, a third arm (17e539b, q185's build) so the order rotates: F 7798a1f, B main 0f9a72d, G 17e539b. High, loaded.
+Q=q188; TITLE="Quiet chunk scan, townwalk"
+BUILDS="7798a1f 0f9a72d 17e539b"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="F B G"
+arm() { case $1 in F) echo "Profile-7798a1f";; B) echo "Profile-0f9a72d";; G) echo "Profile-17e539b";; esac; }
+ROUNDS=5; GFX="High"; REF=B; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a '^BenchRoute: townwalk:' $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms\|main thread [0-9.]* ms' | tr '\n' ' ') hitches $(grep -ac 'BenchRoute: hitch' $f)"; done
+}

@@ -1,0 +1,34 @@
+# Job 115, the quiet flora scan: 265013a (main 9ec0f17 + FloraSystem.Stream retests only its tests near a threshold
+# while nothing can change; exact) vs 9ec0f17. High, 3 rounds (two arms now alternate): a loaded town stand, the townwalk,
+# and a forest stand from spawn (the flora 'after the load' times must match). Then profiled town and townwalk on
+# bench-only 5b444db (the fix + q187's flora markers).
+Q=q189; TITLE="Quiet flora scan"
+BUILDS="265013a 9ec0f17 5b444db"
+VIEWS="town townwalk forest"
+view() { case $1 in
+  town) echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchwait 100 -benchlong spot 60";;
+  townwalk) echo "-hitchms 200 -benchwait 100 -benchstops townwalk";;
+  forest) echo "-goto 400,2800 -benchstops spot -benchspot 400,2800,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchlong spot 60";; esac; }
+ARMS="F B"
+arm() { case $1 in F) echo "Profile-265013a";; B) echo "Profile-9ec0f17";; esac; }
+ROUNDS=3; GFX="High"; REF=B; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-*-cs100-*.log; do echo "$(basename $f .log): $(grep -ao '\[stream\] all chunks in at [0-9.]* s' "$f" | head -1 | cut -c25-) | $(grep -ao '\[flora\] after the load.*' "$f" | head -1 | cut -c25-220)"; done
+  local o=Profile-5b444db t
+  for spot in town townwalk; do t=$Q-prof-$spot-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot 5b444db s100 1 -gfx High -fpscap 0 \
+    -hitchms 200 $( [ $spot = town ] && echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -benchwait 100 -benchlong spot 60 -profilestop spot" || echo "-benchwait 100 -benchstops townwalk -profilestop townwalk") "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\] all chunks' "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$spot.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+    echo "== main thread ms, $spot"; grep -a 'Flora\.\|FloraSystem' "$R/$Q-prof-$spot.txt" | grep -v '^SPIKE' | cut -c1-150
+  done
+}

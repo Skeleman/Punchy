@@ -1,0 +1,34 @@
+# Job 115, the quiet chunk scan take 2: 7798a1f (q185 showed the single margin was cm, so the skip never fired; now
+# only cells within 16 m of a threshold are retested on a quiet frame; exact) vs 0f9a72d. High, 3 rounds: a loaded town stand (-benchwait 100), the route's
+# townwalk (moving, loaded), and a forest stand from spawn ("all chunks in" time and count must match). Then a profiled
+# loaded town stand and townwalk on bench-only 6dd676a (the fix + q184's markers).
+Q=q186; TITLE="Quiet chunk scan, per-cell slack"
+BUILDS="7798a1f 0f9a72d 6dd676a"
+VIEWS="town townwalk forest"
+view() { case $1 in
+  town) echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchwait 100 -benchlong spot 60";;
+  townwalk) echo "-hitchms 200 -benchwait 100 -benchstops townwalk";;
+  forest) echo "-goto 400,2800 -benchstops spot -benchspot 400,2800,0 -benchhour 12 -benchweather Clear -hitchms 200 -benchlong spot 60";; esac; }
+ARMS="F B"
+arm() { case $1 in F) echo "Profile-7798a1f";; B) echo "Profile-0f9a72d";; esac; }
+ROUNDS=3; GFX="High"; REF=B; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-*-cs100-*.log; do echo "$(basename $f .log): $(grep -ao '\[stream\] all chunks in at [0-9.]* s since start, [0-9]* chunks' "$f" | head -1)"; done
+  local o=Profile-6dd676a t
+  for spot in town townwalk; do t=$Q-prof-$spot-cs100-1
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot 6dd676a s100 1 -gfx High -fpscap 0 \
+    -hitchms 200 $( [ $spot = town ] && echo "-goto 2988.8,-920 -benchstops spot -benchspot 2988.8,-920,0 -benchhour 12 -benchweather Clear -benchwait 100 -benchlong spot 60 -profilestop spot" || echo "-benchwait 100 -benchstops townwalk -profilestop townwalk") "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -ah '\[stream\] all chunks' "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$spot.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+    echo "== main thread self ms, $spot"; grep -a 'Stream\.\|TerrainStreamingSystem' "$R/$Q-prof-$spot.txt" | grep -v '^SPIKE' | cut -c1-150
+  done
+}

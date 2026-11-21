@@ -51,7 +51,8 @@ game() { # gfx view arm round
   echo "$(date +%T) $n r$r: $(grep -h 'BenchRoute: [a-z]*[^:]*: avg' "$f" 2>/dev/null | sed 's/.*BenchRoute: //' | grep -o '^[^:]*\|1% low [0-9.]*\|median [0-9.]* ms\|gpu [0-9.]* ms\|cpu [0-9.]* ms' | tr '\n' ' ') $(grep -h ' s frame at ' "$f" 2>/dev/null | cut -c1-70 | head -2 | tr '\n' ' ')"
 }
 rot() { local r=$1; shift; local a=("$@") n=$# i out=(); for ((i = 0; i < n; i++)); do out+=("${a[$(((i + r - 1) % n))]}"); done
-        [ $((r % 2)) = 0 ] && for ((i = n - 1; i >= 0; i--)); do echo -n "${out[$i]} "; done || echo -n "${out[*]}"; }
+        # (Two arms: the rotation alone alternates them; reversing as well would undo it, q186.)
+        [ $((r % 2)) = 0 ] && [ $n -gt 2 ] && for ((i = n - 1; i >= 0; i--)); do echo -n "${out[$i]} "; done || echo -n "${out[*]}"; }
 before
 rm -f "$R"/$Q-*.csv
 for g in $GFX; do
