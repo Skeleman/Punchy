@@ -39,6 +39,14 @@ namespace Punchy.Terrain
 
         /// <summary>A contact narrower than this on screen at a chunk's nearest distance isn't drawn into it.</summary>
         public const float ContactPixels = 2f;
+        /// <summary>
+        /// Job 115: chunks this coarse (m between vertices: LOD3 and out, 770 m+ at High) take only towns' and landmarks'
+        /// contacts. A biome plant's contact reaches 3 m at most, so at this spacing it is spread over a whole vertex at
+        /// about a tenth of its strength (ContactShade.Weigh), close to Faint; and finding those plants re-placed every
+        /// shrub and tree cell round the chunk (FloraPlacement.Place, about 1500 cells a chunk), three quarters of the
+        /// terrain's meshing time while it streams in after spawn.
+        /// </summary>
+        public const float NaturalMaxStep = 8f;
         /// <summary>The published placement and contacts (not created until FloraSystem has built).</summary>
         public static BlobAssetReference<FloraBlob> Flora;
         public static BlobAssetReference<Table> Contacts;
@@ -167,6 +175,7 @@ namespace Punchy.Terrain
                 var built = t.Margins[(layer - 1) * 2 + 1];
                 if (built <= 0f)
                     continue;
+                var naturalOff = step >= NaturalMaxStep;
                 var cellSize = f.CellSizes[layer];
                 var lo = (int2)math.floor((origin - built) / cellSize);
                 var hi = (int2)math.floor((chunkMax + built) / cellSize);
@@ -178,8 +187,9 @@ namespace Punchy.Terrain
                     var gap = math.cmax(math.max(origin - (cellMin + cellSize), cellMin - chunkMax));
                     if (gap > built)
                         continue;
-                    // Out past where biome plants reach, only a town's buildings or a landmark's props can.
-                    if (gap > natural && !Built(ref f, source, cell, layer, cellSize))
+                    // Out past where biome plants reach (or on a coarse chunk), only a town's buildings or a landmark's
+                    // props can.
+                    if ((gap > natural || naturalOff) && !Built(ref f, source, cell, layer, cellSize))
                         continue;
                     var plant = FloraPlacement.Place(ref f, source, cell, layer, footprint: true);
                     if (plant.Model < 0 || plant.Model >= t.Models.Length || plant.Snow < 0f)   // floating plants: no ground
