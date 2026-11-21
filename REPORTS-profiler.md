@@ -4949,3 +4949,14 @@ ring radius; capped at half a chunk for cells outside the scanned square), and l
 focus stays inside that, no loaded chunk changed (a version bumped at every write to `loaded`) and the config holds.
 Exact. q185 (running): vs 0f9a72d at a loaded town stand, the townwalk, and a forest stand from spawn (all chunks in
 time and count must match), 3 rounds High, plus a profiled stand on bench-only a6bd1b4.
+
+## q185: 17e539b's skip never fired; take 2, 7798a1f (q186 running)
+Loads match (forest 52.5-53.4 s and 3,024 chunks both arms; town 3,014; townwalk 3,024) and GPU passes (forest -0.03,
+town +0.37, townwalk -0.03 ms, bar 1), but the profiled stand still shows CollectWantedChunks at 1.9 ms: the skip
+never fired. One overall margin is the least slack of ~2,400 cells, and some cell always sits 2-30 cm from a ring or
+LOD threshold (simulated), so a standing player's small movements broke it. Not merged.
+**7798a1f** (b/perf-collect): the quiet scan keeps the cells within 16 m of a threshold, least slack first, and on a
+quiet frame retests only those whose slack the focus's movement has used up (a handful when standing); a full scan
+again when one changes, the focus has moved 16 m, a loaded chunk changed, or the config did. Still exact (simulated:
+1,200 random moves, none missed). q186: same views as q185 vs 0f9a72d, profiled town stand and townwalk on bench-only
+6dd676a.
