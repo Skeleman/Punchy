@@ -4894,3 +4894,18 @@ Main 0f9a72d (M) vs 661e155 (B, before #724/#725), 3 rounds interleaved, mean pe
 Town's GPU rise is the loading effect again (town is the first stop; M has more terrain in). Watch: nightgrove has a
 ~0.4 s hitch in all three M rounds (B: 2 of 3 at ~0.28 s), and one lake round had an 0.8 s frame. The slowest stops
 now are by water: river 19 fps at 41 ms GPU, lake and stormshore ~34 ms. Next: profile the river stop's GPU passes.
+
+## q180: the water stops' GPU by pass (RenderDoc, High, main 0f9a72d) (13:10)
+Measured GPU: forest 27.1, lake 34.4, stormshore 34.1, river 49.3 ms. RenderDoc's per-event times run ~2.6x the real
+frame, so each pass is its share of the capture times the measured GPU (2 frames each):
+| pass | forest | lake | river | stormshore |
+|---|---|---|---|---|
+| DrawTransparentObjects | 1.0 | 9.9 | **20.9** | 9.8 |
+| DrawOpaqueObjects | 15.8 | 17.9 | 20.8 | 17.6 |
+| DrawDepthNormalPrepass | 6.8 | 3.5 | 4.6 | 3.4 |
+| Main light shadowmap | 1.1 | 0.9 | 1.2 | 0.9 |
+| SSAO, low-res effect, post, rest | ~2 | ~1.6 | ~1.3 | ~1.8 |
+At the river, four transparent draws are ~80% of the transparent pass, all `Punchy/Water` (rdevents.py, new: the shader
+and buffers bound at chosen events). Water.shader's dearest step is its screen-space reflection march (28 + 5 depth
+reads a pixel near, on High), already skipped where Fresnel leaves it under 2.5% (W-117). q181 prices it: the Water
+reflections setting at High / Medium / Low (-waterquality) at river, lake and forest, High preset, 3 rounds.
