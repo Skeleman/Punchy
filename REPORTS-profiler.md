@@ -4849,3 +4849,18 @@ Main 0f9a72d, Medium forest, 60 s stands after a wait, 2 rounds:
 CPU and GPU rise together, by up to ~4.5 and ~2 ms, at some times and not others: something in the scene (creatures
 wandering into view, the sky) more than a leak. Logs are the same between slow and fast games. q177 profiles a
 fast (no wait) and a slow (200 s wait) stand to compare per-system costs.
+
+## q177/q178: the "slow over game time" stands are the laptop's CPU halving its clock in ~25 s dips (10:50)
+- q177 profiled a fast (no wait) and a slow (200 s wait) Medium forest stand on main: 23 vs 465 slow frames, CPU
+  22.3 vs 28.2 ms. Almost every marker was 30-50% slower, including fixed-cost work that doesn't depend on the scene
+  (ThirdPersonCamera.LateUpdate 0.68 -> 0.97 ms, Gfx.SetRenderTarget, WeatherSystem.Update 0.27 -> 0.39 ms): the
+  machine was slower, not the game busier.
+- q178 logged the CPU's % Processor Performance (typeperf, read-only) every 2 s through two games. Normal is ~120%
+  (turbo); twice in five minutes it fell to **44-49% for ~25 s** (07:41:20-07:41:45, 07:42:50-07:43:15). That
+  game's stand began just after the second dip and was fast (CPU 22.1 ms). A 60 s stand that overlaps a dip runs
+  ~40% of its frames at half clock, as in q176/q177.
+- So: not a game leak. A/B results from interleaved arms stay fair (both arms meet dips), but single-stand
+  absolute numbers on this laptop can be off by up to ~5 ms CPU / ~2 ms GPU. The bench's cool() waits on GPU
+  temperature only. Next benches will log CPU performance alongside and flag a stand that overlaps a dip.
+- The dips look like a power or thermal limit (the laptop's own management). Power settings are off limits to the
+  lane, so this is for Zach: if the game feels uneven on this laptop, its cooling or power plan is a likely cause.
