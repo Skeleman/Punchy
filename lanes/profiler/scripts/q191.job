@@ -1,0 +1,31 @@
+# q190: 265013a (quiet flora scan) FAILED the townwalk: in 4 of 6 rounds a run of 100-170 ms frames at x 3260-3296
+# near the walk's end (GPU up too), none in main's 6. One hole found since: tiles harvested in pass 0 had no drop tests
+# recorded, so a quiet layer could keep a far tile trimmed for up to 8 m after the eye came inside its Radius. b56add6
+# closes it. Townwalk, 6 rounds: F2 b56add6, B main 9ec0f17, G 265013a (does the burst repeat on G and not F2?). Then a
+# profiled townwalk on bench-only bf768a3 (b56add6 + flora markers).
+Q=q191; TITLE="Quiet flora scan, the townwalk burst"
+BUILDS="b56add6 9ec0f17 265013a bf768a3"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="F2 B G"
+arm() { case $1 in F2) echo "Profile-b56add6";; B) echo "Profile-9ec0f17";; G) echo "Profile-265013a";; esac; }
+ROUNDS=6; GFX="High"; REF=B; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-townwalk-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a '^BenchRoute: townwalk:' $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms\|main thread [0-9.]* ms' | tr '\n' ' ') hitches $(grep -ac 'BenchRoute: hitch' $f), at x 3250-3300: $(grep -a 'BenchRoute: hitch' $f | awk -F'player ' '{split($2,a,","); if (a[1]>=3250 && a[1]<=3300) n++} END{print n+0}')"; done
+  local o=Profile-bf768a3 t=$Q-prof-townwalk-cs100-1 spot=townwalk
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot bf768a3 s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -profilestop townwalk "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  echo "prof run hitches at x 3250-3300: $(grep -a 'BenchRoute: hitch' "$R/q-$t.log" | awk -F'player ' '{split($2,a,","); if (a[1]>=3250 && a[1]<=3300) n++} END{print n+0}')"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$spot.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== main thread ms, $spot"; grep -a 'Flora\.\|FloraSystem' "$R/$Q-prof-$spot.txt" | grep -v '^SPIKE' | cut -c1-150
+  echo "== spikes"; grep -a '^SPIKE' "$R/$Q-prof-$spot.txt" | head -25 | cut -c1-150
+}

@@ -5000,3 +5000,14 @@ FloraSystem.LateUpdate **2.47 -> 0.83 ms** a frame at the loaded town stand (Flo
 11.4 fps), townwalk +0.50 ms, all PASS. Townwalk CPU 33.0 vs 31.5 ms, but that is F's round 1 (CPU 35.4, and GPU 25.5:
 the machine, which a main-thread change can't move); rounds 2-3 are 31.6 / 32.1 vs 31.8 / 31.4. q190: townwalk only,
 6 rounds alternating, before merging.
+
+## q190: 265013a FAILS the townwalk; not merged (q191 running)
+6 rounds alternating: GPU +1.58 ms (FAIL), CPU 33.45 vs 31.25 ms. Four of F's six rounds have a run of 100-170 ms
+frames (6-25 of them, ~5 s) at x 3260-3296, z -855..-845, 154-160 s in, near the walk's end; none of main's six rounds
+has any there. Those frames are GPU-heavy as well (F's rounds with the run read 26-27 ms GPU against 23). So it is real,
+and the change's. I haven't found the mechanism. Re-reading the code, one hole: tiles harvested in pass 0 came after that
+frame's drop tests, so a layer could go quiet without drop tests for its newest tiles, and keep a far (trimmed) tile so
+for up to 8 m after the eye came inside its Radius. b56add6 closes it (a layer that harvested isn't quiet that frame).
+That hole delays re-placing; I don't see how it makes GPU-heavy frames, so q191 tests it directly: townwalk, 6 rounds,
+b56add6 vs main vs 265013a (does the run repeat on 265013a and not b56add6?), then a profiled townwalk on bench-only
+bf768a3 (b56add6 + flora markers).
