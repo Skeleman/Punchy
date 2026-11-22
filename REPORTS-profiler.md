@@ -4991,3 +4991,12 @@ being placed, later frames retest only those whose slack the eye's movement has 
 over settled layers, none missed). q189: vs main 9ec0f17 at the loaded town stand, the townwalk and a forest stand from
 spawn (the flora "after the load" times must match), 3 rounds High; profiled town and townwalk on bench-only 5b444db.
 Bench: job.sh's rotation now alternates two arms (it reversed its own rotation every other round, so F always ran first).
+
+## q189: the flora scan fix works; townwalk being rechecked (q190)
+Loads match: flora "after the load" trees / shrubs / ground in at the same times both arms (forest ~15.5 / 16.6 / 11 s
+after the load; town and townwalk likewise), all chunks in at the same times. Profiled (bench-only 5b444db):
+FloraSystem.LateUpdate **2.47 -> 0.83 ms** a frame at the loaded town stand (Flora.Stream under the listing's floor),
+**3.41 -> 1.84 ms** on the townwalk (Flora.Stream 1.80 -> 0.42). GPU vs main: forest -0.47, town -1.27 (1% low 20.5 vs
+11.4 fps), townwalk +0.50 ms, all PASS. Townwalk CPU 33.0 vs 31.5 ms, but that is F's round 1 (CPU 35.4, and GPU 25.5:
+the machine, which a main-thread change can't move); rounds 2-3 are 31.6 / 32.1 vs 31.8 / 31.4. q190: townwalk only,
+6 rounds alternating, before merging.

@@ -1,0 +1,14 @@
+# q189: 265013a's townwalk read slightly worse than main's (CPU 33.0 vs 31.5 ms, 1% low 8.1 vs 9.8 fps), mostly one round
+# where F's GPU rose too (25.5 ms: the machine, not the change). Townwalk only, 6 rounds alternating: F 265013a, B 9ec0f17.
+Q=q190; TITLE="Quiet flora scan, townwalk"
+BUILDS="265013a 9ec0f17"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="F B"
+arm() { case $1 in F) echo "Profile-265013a";; B) echo "Profile-9ec0f17";; esac; }
+ROUNDS=6; GFX="High"; REF=B; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a '^BenchRoute: townwalk:' $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms\|main thread [0-9.]* ms' | tr '\n' ' ') hitches $(grep -ac 'BenchRoute: hitch' $f)"; grep -a 'BenchRoute: hitch' $f | cut -c1-120; done
+}
