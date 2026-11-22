@@ -5023,3 +5023,8 @@ at the same cave state (26 chunks, 6 meshed). The machine slid through the run: 
 re-runs b56add6 vs main, 6 rounds alternating, after 20 min idle.
 **Separate lead:** the cave near the townwalk's end (about 3270,-850) costs runs of 100-600 ms frames when the CPU is
 slow: CaveSystem.Update on the main thread and its meshing jobs. Next on the lane after the flora fix settles.
+Cave lead, more: the burst frames (100-200 ms) are under CaveSystem's own 250 ms slow-frame log; in q191's profile
+they are the workers saturated (BuildChunkMeshJob 148 ms a spike frame vs 62 normally, CaveSystem:MeshJob 56 vs 0.6,
+SurfaceGlow ScanJob + FarScanJob 109 vs 22) with main and render waiting. Separately, every run logs one "[caves] slow
+frame" of 435-633 ms early in the load: "bat folk 278-349 ms, pools+glow 72-145 ms" (or "stream 340-630 ms"), a one-off
+load stall in CaveSystem's first frames.
