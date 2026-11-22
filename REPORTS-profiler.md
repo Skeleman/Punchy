@@ -5045,3 +5045,11 @@ TiWorker exited at 22:28. Two b56add6 rounds still had ~60 s stalls (left out), 
 the paired clean rounds are 24.0 vs 22.4 and 21.9 vs 22.4. Not a pass and not a clear fail: b56add6 stays unmerged until
 a clean machine (a fresh boot cleared these stalls before, q167). q194 builds bench-only a1b31c95 for the cave sub-marks
 (log lines only, so stalls don't spoil it).
+
+## q194: the cave load stall is spread over first-time draws, and it is inside the load (not playtime)
+Bench-only a1b31c9 (bench/cavemarks), townwalk, 3 games. The one big cave frame (455 / 504 ms; 205 in game 1) splits as
+bat folk mesh build 138-142, portals 75-113, wall details 60-72, surface glow 76-91, landmark pools 21-30 ms; room kits
+0. Each is a first-call cost (the same steps take ~0-20 ms after), on Mono, so part of it is likely JIT. Wall details
+also costs 31-104 ms on a few later frames (its per-frame build steps). All of these frames come before "world ready"
+(island 10 s, terrain 35 s), so they lengthen the load by about half a second and aren't hitches in play. Parked: the
+end-of-walk cave burst (in play, workers saturated) is the cave item that matters, and it needs a clean machine to bench.
