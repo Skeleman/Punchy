@@ -1,0 +1,18 @@
+# q192: void. Both arms had whole-process freezes of 25-132 s (wall clock gaps in the log, no game lines between) and
+# three stalled runs, while Windows servicing (TiWorker) was installing. Same job again once TiWorker has exited.
+# q191: F2 b56add6 passed (-0.65 ms GPU vs main) and G 265013a failed again (+1.57), but the machine slid all run (every
+# arm's GPU 23 -> 33 ms by round 6) and main had q190's end-of-walk burst too (the cave at x 3270-3296: CaveSystem
+# meshing; 5 of 6 rounds). The cave burst isn't the flora change's. This re-runs F2 vs main after 20 min idle, 6 rounds
+# alternating, to settle whether b56add6 holds the bar.
+Q=q193; TITLE="Quiet flora scan b56add6, townwalk"
+BUILDS="b56add6 9ec0f17"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="F2 B"
+arm() { case $1 in F2) echo "Profile-b56add6";; B) echo "Profile-9ec0f17";; esac; }
+ROUNDS=6; GFX="High"; REF=B; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-townwalk-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a '^BenchRoute: townwalk:' $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms\|main thread [0-9.]* ms' | tr '\n' ' ') hitches $(grep -ac 'BenchRoute: hitch' $f), at x 3250-3300: $(grep -a 'BenchRoute: hitch' $f | awk -F'player ' '{split($2,a,","); if (a[1]>=3250 && a[1]<=3300) n++} END{print n+0}')"; done
+}

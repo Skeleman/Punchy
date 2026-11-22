@@ -5028,3 +5028,13 @@ they are the workers saturated (BuildChunkMeshJob 148 ms a spike frame vs 62 nor
 SurfaceGlow ScanJob + FarScanJob 109 vs 22) with main and render waiting. Separately, every run logs one "[caves] slow
 frame" of 435-633 ms early in the load: "bat folk 278-349 ms, pools+glow 72-145 ms" (or "stream 340-630 ms"), a one-off
 load stall in CaveSystem's first frames.
+
+## q192: void, the laptop's Job 41 stalls in both arms (q193 queued)
+Every b56add6 round and two of main's had a 25-132 s frame (B rounds 1 and 4 were also re-run after a stall), and three
+games stalled outright and were killed. freezestall caught them: game at ~0 CPU, GPU 0%, window not responding, main
+thread in `JobHandle.ScheduleBatchedJobsAndComplete` with every worker parked inside a Burst job, until its cdb attach
+ended each one (hence the ~56 s). That is the stall of REPORTS 11-09 / 11-17, which comes and goes with the laptop's state
+(the last boot was 11-20; Windows servicing, TiWorker, has been installing since ~20:45). Not the build: q190/q191 ran
+the same two builds with no stalls. q193 (same job) waits for TiWorker to exit, then 10 min idle.
+Cave load stall: the "bat folk" mark covers DrawBatFolk and DrawRooms (portals, wall details, room kit builds), and there
+is one bat folk site, so building per site won't help. Bench-only a1b31c95 (bench/cavemarks) splits it; built after q193.
