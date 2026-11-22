@@ -5011,3 +5011,15 @@ for up to 8 m after the eye came inside its Radius. b56add6 closes it (a layer t
 That hole delays re-placing; I don't see how it makes GPU-heavy frames, so q191 tests it directly: townwalk, 6 rounds,
 b56add6 vs main vs 265013a (does the run repeat on 265013a and not b56add6?), then a profiled townwalk on bench-only
 bf768a3 (b56add6 + flora markers).
+
+## q191: the end-of-walk burst is a cave, on main too; b56add6 passes, 265013a fails again (q192 running)
+Townwalk, 6 rounds, three arms rotating. Main now has the 100-170 ms run at x 3250-3300 in 5 of 6 rounds (q190: 0 of
+6), b56add6 in 4, 265013a in 6. The profiled run (bench-only bf768a3) caught it: CaveSystem.Update 290 ms of main thread
+in one frame, and CaveSystem's Mesh/Field/Column jobs and SurfaceGlow's scans dominate the spike frames; every run ends
+at the same cave state (26 chunks, 6 meshed). The machine slid through the run: every arm's GPU went 23 -> 33 ms by round
+6 (the GPU is cooled to 64 C before each run, so it's the CPU side), and two processes that aren't mine are busy
+(SmartByteTelemetry, audiodg), which I've left alone. GPU vs main: b56add6 -0.65 PASS (CPU 38.2 vs 39.7 ms), 265013a
++1.57 FAIL. With 265013a failing twice and b56add6 passing once on a sliding machine, I'm not merging yet: q192
+re-runs b56add6 vs main, 6 rounds alternating, after 20 min idle.
+**Separate lead:** the cave near the townwalk's end (about 3270,-850) costs runs of 100-600 ms frames when the CPU is
+slow: CaveSystem.Update on the main thread and its meshing jobs. Next on the lane after the flora fix settles.
