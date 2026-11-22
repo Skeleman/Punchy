@@ -5038,3 +5038,10 @@ ended each one (hence the ~56 s). That is the stall of REPORTS 11-09 / 11-17, wh
 the same two builds with no stalls. q193 (same job) waits for TiWorker to exit, then 10 min idle.
 Cave load stall: the "bat folk" mark covers DrawBatFolk and DrawRooms (portals, wall details, room kit builds), and there
 is one bat folk site, so building per site won't help. Bench-only a1b31c95 (bench/cavemarks) splits it; built after q193.
+
+## q193: still the laptop's stalls; no verdict on b56add6 (q194 running)
+TiWorker exited at 22:28. Two b56add6 rounds still had ~60 s stalls (left out), three games were re-run, and round 6 slid
+(b56add6 CPU 43 ms, GPU 30.4; main 34.1 / 25.2). The table's +2.58 ms is 3 rounds against 4 with the slid round in it;
+the paired clean rounds are 24.0 vs 22.4 and 21.9 vs 22.4. Not a pass and not a clear fail: b56add6 stays unmerged until
+a clean machine (a fresh boot cleared these stalls before, q167). q194 builds bench-only a1b31c95 for the cave sub-marks
+(log lines only, so stalls don't spoil it).

@@ -1,0 +1,15 @@
+# q194: which part of CaveSystem's early-load slow frame (the "bat folk" mark, 280-350 ms) is it? Bench-only a1b31c95
+# (bench/cavemarks: main 9ec0f17 + sub-marks for bat folk, portals, wall details, room builds, landmark pools, surface
+# glow, logged as "[cavemarks]" for any cave frame over 100 ms). Townwalk, 3 rounds; also catches the end-of-walk cave.
+Q=q194; TITLE="Cave frame sub-marks a1b31c95, townwalk"
+BUILDS="a1b31c95"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="C"
+arm() { echo "Profile-a1b31c95"; }
+ROUNDS=3; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-townwalk-*-cs100-*.log; do echo "== $(basename $f .log)"; grep -a '^\[cavemarks\]\|^\[caves\] slow frame' $f | head -12 | cut -c1-220; done
+}
