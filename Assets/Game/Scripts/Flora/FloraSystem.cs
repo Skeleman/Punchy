@@ -886,6 +886,8 @@ namespace Punchy.Flora
                     if (!l.Placing.IsCompleted && ++l.PlacingFrames < 3)
                         continue;
                     Harvest(l, perTile);
+                    // (Its new tiles came after this frame's drop tests: not quiet until a scan has seen them.)
+                    l.QuietOk = false;
                 }
                 // (A layer with no far ring has no far cells to place: its pass 1 has nothing to do.)
                 if (pass == 1 && l.FarRadius <= l.Radius && !l.PlacingTiles.IsCreated)
