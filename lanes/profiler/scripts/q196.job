@@ -1,0 +1,19 @@
+# q196: v0.18.0 release gate. Main 5cfcda6 (#728, bundleVersion 0.18.0) vs v0.17.0's commit b7db1ed (#697).
+# Profile builds, High, uncapped, townwalk and glide, 3 rounds alternating; bars +1 ms GPU (High). after(): exceptions,
+# NaN lines and errors per game. (Zach's release go: 11-21, in the profiler session.)
+Q=q196; TITLE="v0.18.0 gate vs v0.17.0"
+BUILDS="5cfcda6 b7db1ed"
+VIEWS="townwalk glide"
+view() { case $1 in
+  townwalk) echo "-hitchms 100 -benchwait 100 -benchstops townwalk";;
+  glide)    echo "-hitchms 100 -benchwait 100 -benchstops glide";; esac; }
+ARMS="N O"
+arm() { case $1 in N) echo "Profile-5cfcda6";; O) echo "Profile-b7db1ed";; esac; }
+ROUNDS=3; GFX="High"; REF=O; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a "^BenchRoute: [a-z]*: avg" $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms' | tr '\n' ' ') exceptions $(grep -ac 'Exception' $f), NaN $(grep -aci 'nan' $f | head -1), hitches $(grep -ac 'BenchRoute: hitch' $f)"; done
+  grep -ah "Exception" "$R"/q-$Q-*-cs100-*.log | sort | uniq -c | sort -rn | head -8 | cut -c1-200
+  grep -ahiw "nan" "$R"/q-$Q-*-cs100-*.log | sort | uniq -c | sort -rn | head -5 | cut -c1-200
+}

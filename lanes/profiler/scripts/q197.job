@@ -1,0 +1,15 @@
+# q197: q196's v0.18.0 Profile build (5cfcda6) stalled in all 6 games while v0.17.0 never did; its code is b56add6's
+# (+ bundleVersion), which ran 6 clean games at 15:00 (q195). Same-build check: 5cfcda6 vs b56add6, townwalk, 2 rounds
+# each alternating. Both stall = the laptop's state; only 5cfcda6 = something in that build.
+Q=q197; TITLE="v0.18.0 stall check: 5cfcda6 vs b56add6"
+BUILDS="5cfcda6 b56add6"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="N F2"
+arm() { case $1 in N) echo "Profile-5cfcda6";; F2) echo "Profile-b56add6";; esac; }
+ROUNDS=2; GFX="High"; REF=F2; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-townwalk-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a '^BenchRoute: townwalk: avg' $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms' | tr '\n' ' ') island: $(grep -a '^\[island\] reports' $f | cut -c1-80)"; done
+}

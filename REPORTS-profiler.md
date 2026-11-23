@@ -5053,3 +5053,16 @@ bat folk mesh build 138-142, portals 75-113, wall details 60-72, surface glow 76
 also costs 31-104 ms on a few later frames (its per-frame build steps). All of these frames come before "world ready"
 (island 10 s, terrain 35 s), so they lengthen the load by about half a second and aren't hitches in play. Parked: the
 end-of-walk cave burst (in play, workers saturated) is the cave item that matters, and it needs a clean machine to bench.
+
+## q195-q197 and v0.18.0 (released)
+- **q195** (fresh boot): b56add6 vs main 9ec0f17, townwalk, 6 rounds, no stalls: GPU 25.02 vs 26.68 (-1.67 PASS), CPU
+  34.3 vs 36.4, 1% low 9.1 vs 7.6. Merged as #727 (a1590221).
+- **q196** gate, 5cfcda6 (#728, bundleVersion 0.18.0) vs v0.17.0 b7db1ed: 0 exceptions, 0 NaN in every game. Every
+  5cfcda6 game hit a ~60 s Job 41 stall (none of b7db1ed's). b7db1ed's lower GPU (11-15 ms) isn't comparable: it baked
+  its island (world ready 30 s later) and never logged "all chunks in", so it walked a less-loaded world; overall it is
+  worse (avg 23.6 vs 27.9 fps, 1% low 1.9 vs 6.8, worst 535 vs 158 ms, 25-54 of the laptop's 0.5 s waits a game).
+- **q197** (same-code check): 5cfcda6 vs b56add6, 2 rounds each, no stalls in either; +0.60 ms GPU PASS. So q196's stalls
+  were the laptop's state in that hour, not the build.
+- Release build 5cfcda6 (plain BuildPipeline player, product Punchy, no BenchmarkRoute), smoke clean at 3 caps.
+  No island file shipped (no editor bake in batch mode): first start bakes ~68 s, later starts load it in ~1.3 s.
+  **v0.18.0 published** (Latest, like v0.17.0): https://github.com/Skeleman/Punchy/releases/tag/v0.18.0
