@@ -1,0 +1,33 @@
+# q204: the townwalk's end slowdown, every thread. On main 50d7fc8 (contact cache in) the walk still drops to ~10 fps for
+# ~4 s at x 3250-3300 (q202: 100-150 ms frames, one 839 ms). q200 put its longest frame on DXGI.WaitOnSwapChain (715 ms,
+# the GPU behind) and the rest under no main-thread sample over 100 ms. One profiled townwalk; BurstFrames dumps the last
+# 60 frames (main and render threads' top self samples per frame) and what grows there against the frames before.
+Q=q204; TITLE="Townwalk end slowdown, all threads"
+BUILDS="50d7fc8"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="M"
+arm() { echo "Profile-50d7fc8"; }
+ROUNDS=0; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-50d7fc8 t=$Q-prof-townwalk-cs100-1 spot=townwalk
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot 50d7fc8 s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -profilestop townwalk "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -a 'BenchRoute: hitch' "$R/q-$t.log" | awk -F'player ' '{split($2,a,","); if (a[1]>=3250 && a[1]<=3300) n++} END{print "burst hitches: " n+0}'
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  cp "$S/BurstFrames.cs.txt" "$P/Assets/Game/Scripts/Editor/BurstFrames.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  ( cd "$P" && timeout 1500 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BurstFrames.Dump \
+      -raw "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-burst.txt")" -last 60 -top 4 -rows 50 -logFile "$W/burst-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta" \
+        "$P/Assets/Game/Scripts/Editor/BurstFrames.cs" "$P/Assets/Game/Scripts/Editor/BurstFrames.cs.meta"; strays >/dev/null
+  # Raw kept this time (W), for a second look.
+  [ -f "$R/$Q-burst.txt" ] || { echo "BurstFrames failed:"; grep -a "error CS\|Exception" "$W/burst-$Q.log" | head; }
+  echo "== spikes"; grep -a '^SPIKE' "$R/$Q-prof-$spot.txt" | head -25 | cut -c1-150
+  echo "== burst"; head -c 16000 "$R/$Q-burst.txt"
+}

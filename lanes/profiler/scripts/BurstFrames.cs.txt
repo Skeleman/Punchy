@@ -1,0 +1,84 @@
+// Profiler-only editor script (never committed): the last N frames of a .raw capture (the townwalk's end burst), every
+// thread: per frame its time and the main and render threads' top self samples; then self time summed over the window
+// per thread|sample, beside the same over the frames before it (per frame), to see what grows in the burst.
+// Unity -batchmode -executeMethod BurstFrames.Dump -raw <file> -out <txt> [-last 60] [-top 3] [-rows 60]
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using UnityEditorInternal;
+
+public static class BurstFrames
+{
+    static string Arg(string n, string d) { var a = Environment.GetCommandLineArgs(); var i = Array.IndexOf(a, n); return i >= 0 && i + 1 < a.Length ? a[i + 1] : d; }
+
+    static Dictionary<string, double> Selfs(UnityEditor.Profiling.RawFrameDataView v)
+    {
+        var self = new Dictionary<string, double>();
+        var n = v.sampleCount;
+        var own = new double[n];
+        for (int i = 0; i < n; i++) own[i] = v.GetSampleTimeMs(i);
+        var st = new Stack<(int idx, int left)>();
+        for (int i = 0; i < n; i++)
+        {
+            while (st.Count > 0 && st.Peek().left == 0) st.Pop();
+            if (st.Count > 0) { var top = st.Pop(); own[top.idx] -= v.GetSampleTimeMs(i); st.Push((top.idx, top.left - 1)); }
+            int c = v.GetSampleChildrenCount(i);
+            if (c > 0) st.Push((i, c));
+        }
+        for (int i = 0; i < n; i++)
+        {
+            var name = v.GetSampleName(i);
+            self.TryGetValue(name, out var s);
+            self[name] = s + own[i];
+        }
+        return self;
+    }
+
+    public static void Dump()
+    {
+        var raw = Arg("-raw", ""); var outPath = Arg("-out", "burstframes.txt");
+        var lastN = int.Parse(Arg("-last", "60")); var topN = int.Parse(Arg("-top", "3")); var rows = int.Parse(Arg("-rows", "60"));
+        var sb = new StringBuilder();
+        ProfilerDriver.ClearAllFrames();
+        var ok = ProfilerDriver.LoadProfile(raw, false);
+        int first = ProfilerDriver.firstFrameIndex, last = ProfilerDriver.lastFrameIndex;
+        int from = Math.Max(first, last - lastN + 1);
+        sb.AppendLine($"loaded={ok} frames {first}..{last}, window {from}..{last}");
+        var win = new Dictionary<string, double>(); var before = new Dictionary<string, double>();
+        int nWin = 0, nBefore = 0;
+        double t0 = -1;
+        for (int f = first; f <= last; f++)
+        {
+            var inWin = f >= from;
+            var acc = inWin ? win : before;
+            double ms = 0, start = 0;
+            var line = new StringBuilder();
+            for (int t = 0; t < 256; t++)
+            {
+                using var v = ProfilerDriver.GetRawFrameDataView(f, t);
+                if (!v.valid) { if (t == 0) break; else continue; }
+                if (t == 0) { ms = v.frameTimeMs; if (t0 < 0) t0 = v.frameStartTimeMs; start = (v.frameStartTimeMs - t0) / 1000.0; }
+                var thread = t == 0 ? "Main" : v.threadName.StartsWith("Worker") || v.threadName.StartsWith("Job") ? "Workers" : v.threadName == "Render Thread" ? "Render" : v.threadName;
+                var selfs = Selfs(v);
+                foreach (var kv in selfs)
+                {
+                    var key = thread + "|" + kv.Key;
+                    acc.TryGetValue(key, out var s); acc[key] = s + kv.Value;
+                }
+                if (inWin && (t == 0 || thread.StartsWith("Render")))
+                    line.Append($" | {thread}: " + string.Join(", ", selfs.OrderByDescending(x => x.Value).Take(topN).Select(x => $"{x.Key} {x.Value:F0}")));
+            }
+            if (inWin) { nWin++; sb.AppendLine($"frame {f} at {start:F1} s: {ms:F0} ms{line}"); }
+            else nBefore++;
+        }
+        sb.AppendLine($"== self ms per frame, window ({nWin} frames) vs before ({nBefore}): key, window, before, delta");
+        foreach (var kv in win.Select(kv => (kv.Key, w: kv.Value / Math.Max(1, nWin), b: (before.TryGetValue(kv.Key, out var b) ? b : 0) / Math.Max(1, nBefore)))
+                              .OrderByDescending(x => x.w - x.b).Take(rows))
+            sb.AppendLine($"{kv.Key}\t{kv.w:F2}\t{kv.b:F2}\t{kv.w - kv.b:F2}");
+        File.WriteAllText(outPath, sb.ToString());
+        UnityEditor.EditorApplication.Exit(0);
+    }
+}
