@@ -1,0 +1,34 @@
+# q202: ground contacts' placement cache (b/perf-contactcache 45636ef). q200 put the townwalk's chunk meshing at a median
+# 63 ms of worker time a frame in the contact pass's FloraPlacement.Place calls (1854 a frame, single chunk jobs up to
+# 726 ms), the burst at x 3250-3300. The cache keeps each cell's plant between chunk batches. Townwalk, 4 rounds:
+# C 45636ef, O 45636ef with -oldcontacts (same build, cache off), N main 3f569c7. Then a -contactcheck game (cached cells
+# placed again and compared) and a profiled townwalk on C.
+Q=q202; TITLE="Ground contact placement cache"
+BUILDS="45636ef 3f569c7"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="C O N"
+arm() { case $1 in C) echo "Profile-45636ef";; O) echo "Profile-45636ef -oldcontacts";; N) echo "Profile-3f569c7";; esac; }
+ROUNDS=4; GFX="High"; REF=N; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-townwalk-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a '^BenchRoute: townwalk: avg' $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms' | tr '\n' ' ') hitches $(grep -ac 'BenchRoute: hitch' $f), at x 3250-3300: $(grep -a 'BenchRoute: hitch' $f | awk -F'player ' '{split($2,a,","); if (a[1]>=3250 && a[1]<=3300) n++} END{print n+0}') exc $(grep -ac 'Exception' $f) nan $(grep -aic '\bnan\b' $f)"; done
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv Profile-45636ef $Q-check 45636ef s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -contactcheck
+  local c="$R/q-$Q-check-cs100-1.log"
+  echo "== contactcheck (exc $(grep -ac Exception $c) nan $(grep -aic '\bnan\b' $c))"; grep -a 'contactcheck' "$c" | tail -12
+  local o=Profile-45636ef t=$Q-prof-townwalk-cs100-1 spot=townwalk
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot 45636ef s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -profilestop townwalk "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$spot.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== worker rows, $spot"; grep -a 'BuildChunkMeshJob\|GroundContacts\|SurfaceGlow\|CaveSystem:\|CreatureRenderSystem\|FloraSystem:PlaceJob' "$R/$Q-prof-$spot.txt" | grep -v '^SPIKE' | cut -c1-150
+  echo "== spikes"; grep -a '^SPIKE' "$R/$Q-prof-$spot.txt" | head -20 | cut -c1-150
+}
