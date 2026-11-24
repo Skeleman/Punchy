@@ -1,0 +1,35 @@
+# q200: the burst at the townwalk's end (x 3250-3300: ~30 frames of 100-150 ms, up to 784 ms; q198 C rounds 2 and 4).
+# q198's spike frames put BuildChunkMeshJob at 92 ms of worker time (single jobs up to 120-408 ms). Bench-only ee7447c
+# = main 37c0339 + the chunk phase/LOD markers (Chunk.Lod0-4, Contacts, Patch, Grid, Post, Collars, Water) and the
+# contact-pass markers. One plain townwalk, then a profiled one: phase/LOD rows, spikes, and the main-thread trees of the
+# 3 longest frames (BigFrame), to see what the main thread waits on during the burst.
+Q=q200; TITLE="Townwalk end burst by chunk phase"
+BUILDS="ee7447c"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="K"
+arm() { echo "Profile-ee7447c"; }
+ROUNDS=1; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-ee7447c t=$Q-prof-townwalk-cs100-1 spot=townwalk
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof-$spot ee7447c s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -profilestop townwalk "$W/q-$t.raw"
+  check "$R/q-$t.log"
+  grep -a 'BenchRoute: hitch' "$R/q-$t.log" | awk -F'player ' '{split($2,a,","); if (a[1]>=3250 && a[1]<=3300) n++} END{print "burst hitches: " n+0}'
+  grep -ah '\[stream\]' "$R"/q-$Q-*.log | cut -c1-160 | tail -20
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  cp "$S/BigFrame.cs.txt" "$P/Assets/Game/Scripts/Editor/BigFrame.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  ( cd "$P" && timeout 1500 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BigFrame.Dump \
+      -raw "$(cygpath -w "$R/q-$t.raw")" -out "$(cygpath -w "$R/$Q-bigframe.txt")" -minms 100 -frames 3 -listms 100 -logFile "$W/bigframe-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta" \
+        "$P/Assets/Game/Scripts/Editor/BigFrame.cs" "$P/Assets/Game/Scripts/Editor/BigFrame.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-prof-$spot.txt" ] && [ -f "$R/$Q-bigframe.txt" ] && rm -f "$R"/q-$Q-prof-*.raw
+  echo "== chunk markers"; grep -a 'Chunk\.\|Contacts\.\|BuildChunkMeshJob' "$R/$Q-prof-$spot.txt" | grep -v '^SPIKE' | cut -c1-200
+  echo "== spikes"; grep -a '^SPIKE' "$R/$Q-prof-$spot.txt" | head -30 | cut -c1-150
+  echo "== bigframe"; head -c 12000 "$R/$Q-bigframe.txt"
+}
