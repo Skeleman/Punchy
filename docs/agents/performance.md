@@ -21,3 +21,10 @@ Read before adding jobs, per-frame work or anything that samples the terrain.
 - `-perflog` on a shot-list line logs frame/CPU/GPU ms, cave chunks submitted/in view, probe and `IsRock` cost (frame timing needs `PlayerSettings.enableFrameTimingStats` in that build). `-oldcave` turns the cave room cull and the Burst arm off for A/B runs; `-gocave x,z` / `-gocave #n` drops the player on a cave floor.
 - GPU A/Bs: pass `-display 1920x1080,windowed` and `-fpscap 0`, and check every shot's size. `-screen-width` in exclusive fullscreen can fall back to the desktop's 4K on one run and not the next, which looks like a large GPU difference. `-oldfloralod` draws flora by the old per-layer distances (refactor 3.5c).
 - `[stream] world ready` (W-168) fires once the first view is built (chunks in the camera's frustum plus a 2-chunk ring, far tiles too); `TerrainStreamingSystem.Loading` (load boost, flora's load budget) stays on until `[stream] all chunks in`. Waits that need the whole disc read `Loading` or `ShotIdle`, not the world-ready line.
+
+## Learned in November 2026 (profiler lane)
+
+- A cache of seed-derived placement (`SurfaceGlow.Cache`, `GroundContacts.Cache`) is valid only while `TerrainSource` (digging edits included), the flora `Version` and the Colossus keep-out circles are unchanged: key it on all three, drop the cells round a moved circle, and keep a `-...check` flag that re-places cached cells and logs differences.
+- Unity `.meta` guids are exactly 32 hex characters; a longer one is silently truncated, so two files can collide.
+- A Burst job that owns managed-looking per-item work: queue the items on the main thread, `.Run()` the job, and bring back only what it kept (`CreatureRenderSystem.HerdJob`); `UnsafeParallelHashMap`/`UnsafeQueue` avoid the safety system's complaints about default fields, ordered by `JobHandle`s.
+- On the bench laptop a walk's long stretch of 60-130 ms frames with every fixed-cost sample ~3x slower is the CPU's clock dip, not the game: compare paired GPU means, not hitch counts.
