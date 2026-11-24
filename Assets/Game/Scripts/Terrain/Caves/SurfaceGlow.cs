@@ -93,6 +93,7 @@ namespace Punchy.Terrain
             {
                 job.Complete();
                 running = false;
+                nearCache.Note("near");
                 Found.Clear();
                 for (int i = 0; i < positions.Length; i++)
                     Found.Add((positions[i].xyz, colors[i]));
@@ -105,13 +106,25 @@ namespace Punchy.Terrain
                 colors.Clear();
                 spillAt.Clear();
                 spillModel.Clear();
+                var reach = math.min(math.max(Radius, NearReach + MoveBeforeRescan), FarRadius);
+                // (The tree layer is searched out to SpillRadius for lit windows' spill.)
+                var disc = new float3(reach.x, reach.y, math.max(reach.z, SpillRadius));
+                var valid = nearCache.Begin(source, camPos.xz, disc, out var oldCentre, out var oldDisc, out var moved);
                 job = new ScanJob
                 {
                     Flora = blob,
                     Source = source,
                     ModelGlow = modelGlow,
                     Centre = camPos.xz,
-                    Reach = math.min(math.max(Radius, NearReach + MoveBeforeRescan), FarRadius),
+                    Reach = reach,
+                    Disc = disc,
+                    Cells = nearCache.Cells,
+                    Valid = valid,
+                    OldCentre = oldCentre,
+                    OldDisc = oldDisc,
+                    Moved = moved,
+                    Check = CacheCheck,
+                    Report = nearCache.Report,
                     CellSizes = cellSizes,
                     Positions = positions,
                     Colors = colors,
@@ -131,6 +144,7 @@ namespace Punchy.Terrain
             {
                 farJob.Complete();
                 farRunning = false;
+                farCache.Note("far");
                 FarScanMs = (float)farClock.Elapsed.TotalMilliseconds;
                 MapPlants.SetPixelData(farPlants, 0);
                 MapPlants.Apply(false, false);
@@ -147,12 +161,22 @@ namespace Punchy.Terrain
             {
                 farScannedAt = camPos;
                 farCorner = math.floor(camPos.xz / MapTexel) * MapTexel - MapSize * MapTexel * 0.5f;
+                var centre = farCorner + MapSize * MapTexel * 0.5f;
+                var valid = farCache.Begin(source, centre, FarRadius, out var oldCentre, out var oldDisc, out var moved);
                 farJob = new FarScanJob
                 {
                     Flora = blob,
                     Source = source,
                     ModelGlow = modelGlow,
                     Corner = farCorner,
+                    Centre = centre,
+                    Cells = farCache.Cells,
+                    Valid = valid,
+                    OldCentre = oldCentre,
+                    OldDisc = oldDisc,
+                    Moved = moved,
+                    Check = CacheCheck,
+                    Report = farCache.Report,
                     CellSizes = cellSizes,
                     Plants = farPlants,
                     Windows = farWindows,
@@ -199,6 +223,10 @@ namespace Punchy.Terrain
             colors = new NativeList<float4>(256, Allocator.Persistent);
             spillAt = new NativeList<float4>(64, Allocator.Persistent);
             spillModel = new NativeList<float2>(64, Allocator.Persistent);
+            nearCache.Dispose();
+            nearCache.Create();
+            farCache.Dispose();
+            farCache.Create();
             scannedAt = new float3(float.MaxValue);
             if (!anyGlow)
                 return;
@@ -260,6 +288,8 @@ namespace Punchy.Terrain
                 positions.Dispose();
             if (colors.IsCreated)
                 colors.Dispose();
+            nearCache.Dispose();
+            farCache.Dispose();
             Found.Clear();
             from = null;
             anyGlow = false;
@@ -280,29 +310,31 @@ namespace Punchy.Terrain
             /// x its model, y its scale.</summary>
             public NativeList<float4> SpillAt;
             public NativeList<float2> SpillModel;
+            /// <summary>The cell cache (SurfaceGlow.Cache): each layer's disc (Reach, the tree layer out to SpillRadius),
+            /// and the last scan's, whose cells are kept.</summary>
+            public float3 Disc;
+            public NativeList<GlowCell> Cells;
+            public bool Valid;
+            public float2 OldCentre;
+            public float3 OldDisc;
+            public FixedList512Bytes<float4> Moved;
+            public bool Check;
+            public NativeReference<int4> Report;
 
             public void Execute()
             {
                 ref var f = ref Flora.Value;
-                for (int layer = 0; layer < 3; layer++)
+                Refresh(ref f, Source, ModelGlow, Cells, Valid, OldCentre, OldDisc, Centre, Disc, CellSizes, new int3(1), Moved, Check, Report);
+                // Every glowing cell in the disc, in a full scan's order (layer, row, column).
+                for (int i = 0; i < Cells.Length; i++)
                 {
+                    var layer = Cells[i].Layer;
+                    var cell = Cells[i].Cell;
+                    var plant = Cells[i].Plant;
                     var size = CellSizes[layer];
                     var near = Reach[layer];
-                    var r = layer == 2 ? math.max(near, SpillRadius) : near;
-                    var lo = (int2)math.floor((Centre - r) / size);
-                    var hi = (int2)math.floor((Centre + r) / size);
-                    for (int y = lo.y; y <= hi.y; y++)
-                    for (int x = lo.x; x <= hi.x; x++)
                     {
-                        var cell = new int2(x, y);
-                        if (math.distancesq(((float2)cell + 0.5f) * size, Centre) > r * r)
-                            continue;
-                        var plant = FloraPlacement.Place(ref f, Source, cell, layer);
-                        if (plant.Model < 0 || plant.Model >= ModelGlow.Length)
-                            continue;
                         var glow = ModelGlow[plant.Model];
-                        if (glow.w == 0f)
-                            continue;
                         var fixture = FloraPlacement.IsFixtureGlow(glow.w);
                         if (glow.w < 0f && !fixture)
                         {
@@ -347,6 +379,15 @@ namespace Punchy.Terrain
             public NativeList<float4> FixtureAt, FixtureLight;
             /// <summary>A-115: how lit the route lamps not fully lit are, by foot (LampRoutes.Key); others in full.</summary>
             [ReadOnly] public NativeHashMap<int2, float> Dark;
+            /// <summary>The cell cache (SurfaceGlow.Cache): the map's centre, and the last scan's, whose cells are kept.</summary>
+            public float2 Centre;
+            public NativeList<GlowCell> Cells;
+            public bool Valid;
+            public float2 OldCentre;
+            public float3 OldDisc;
+            public FixedList512Bytes<float4> Moved;
+            public bool Check;
+            public NativeReference<int4> Report;
 
             public void Execute()
             {
@@ -355,28 +396,16 @@ namespace Punchy.Terrain
                 FixtureAt.Clear();
                 FixtureLight.Clear();
                 ref var f = ref Flora.Value;
-                var centre = Corner + MapSize * MapTexel * 0.5f;
-                for (int layer = 0; layer < 3; layer++)
+                // Every glowing cell within FarRadius, every FarStride on the island-wide grid (SurfaceGlow.Cache), in
+                // a full scan's order, so the maps' sums come out the same.
+                Refresh(ref f, Source, ModelGlow, Cells, Valid, OldCentre, OldDisc, Centre, FarRadius, CellSizes, FarStride, Moved, Check, Report);
+                for (int i = 0; i < Cells.Length; i++)
                 {
-                    var size = CellSizes[layer];
-                    var r = FarRadius[layer];
+                    var layer = Cells[i].Layer;
+                    var plant = Cells[i].Plant;
                     var step = FarStride[layer];
-                    // Steps on the whole-island grid of cells (not from the corner), so scans agree where they overlap.
-                    var lo = (int2)math.floor((centre - r) / size);
-                    lo -= ((lo % step) + step) % step;
-                    var hi = (int2)math.floor((centre + r) / size);
-                    for (int y = lo.y; y <= hi.y; y += step)
-                    for (int x = lo.x; x <= hi.x; x += step)
                     {
-                        var cell = new int2(x, y);
-                        if (math.distancesq(((float2)cell + 0.5f) * size, centre) > r * r)
-                            continue;
-                        var plant = FloraPlacement.Place(ref f, Source, cell, layer);
-                        if (plant.Model < 0 || plant.Model >= ModelGlow.Length)
-                            continue;
                         var glow = ModelGlow[plant.Model];
-                        if (glow.w == 0f)
-                            continue;
                         // W-127: the night map holds street lights only; a lit window's lamp is indoors (its spill
                         // panes light the street), so it no longer lights the ground through its walls from afar.
                         var fixture = FloraPlacement.IsFixtureGlow(glow.w);
