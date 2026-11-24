@@ -5097,3 +5097,12 @@ normally), FaunaDirector.Comfort 5 (0.6), CreatureRenderSystem 5-6 (1.7), Render
 lands on the walk's busiest stretch about 2.5 minutes in. Not a game fix. The single long frames in it (q200's 815 ms)
 are the GPU queue behind (DXGI.WaitOnSwapChain) in the same dip. Closed; benches should judge the walk by its
 paired GPU means, not the burst hitch counts.
+
+## q206: GPU by pass on main 1d40a7f (forest, town, river, High)
+Measured GPU: forest 26.7, town 25.3, river 51.0 ms. Forest in RenderDoc (70.5 ms replay, ~2.6x): opaque 41.5 (SRP
+batcher, mostly terrain, 22.6; indirect flora 18.9), depth-normal prepass 17.6 (terrain 10.0, flora 7.6), shadow map
+3.0, transparent 2.5, low-res effect 2.3, SSAO 1.6. The dearest single draws are the near terrain chunks (27,648
+indices: 6.1, 3.6, 1.7 ms replay), then the trees (19,785-index indirect, ~1 ms each). The PC renderer already runs
+Forward+ with depth priming forced, so opaque shades only visible pixels: the terrain's cost is its per-pixel work.
+Found: MicroDetailTriplanar's planes and its call site were ?: (both sides evaluated), so near flat ground ran all
+three planes' noise (27 value noises a pixel). q207 benches them as real branches (same look by construction).
