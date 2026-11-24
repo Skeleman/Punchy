@@ -30,7 +30,7 @@ public static class BurstFrames
         }
         for (int i = 0; i < n; i++)
         {
-            var name = v.GetSampleName(i);
+            var name = v.GetSampleName(i) ?? "?";
             self.TryGetValue(name, out var s);
             self[name] = s + own[i];
         }

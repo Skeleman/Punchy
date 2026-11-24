@@ -1,0 +1,37 @@
+# q205: q204 again, catching a burst. q204's one profiled walk had none (0 hitches at x 3250-3300; games range 0-40, q202),
+# and BurstFrames hit a null sample name (fixed). Three profiled townwalks on main 1a6e491; the one with the most burst
+# hitches gets BProfileTools and BurstFrames (last 80 frames, every thread); the raws are kept.
+Q=q205; TITLE="Townwalk end slowdown, all threads (3 tries)"
+BUILDS="1a6e491"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="M"
+arm() { echo "Profile-1a6e491"; }
+ROUNDS=0; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local o=Profile-1a6e491 spot=townwalk g best="" bestn=-1 n t
+  for g in 1 2 3; do
+    t=$Q-prof$g-townwalk-cs100-1
+    RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv $o $Q-prof$g-$spot 1a6e491 s100 1 -gfx High -fpscap 0 \
+      -hitchms 100 -benchwait 100 -benchstops townwalk -profilestop townwalk "$W/q-$t.raw"
+    check "$R/q-$t.log"
+    n=$(grep -a 'BenchRoute: hitch' "$R/q-$t.log" | awk -F'player ' '{split($2,a,","); if (a[1]>=3250 && a[1]<=3300) n++} END{print n+0}')
+    echo "game $g: burst hitches $n"
+    [ "$n" -gt "$bestn" ] && { bestn=$n; best=$t; }
+  done
+  echo "analysing $best ($bestn burst hitches)"
+  cp "$P/Library/LastSceneManagerSetup.txt" "$R/LastSceneManagerSetup.bak" 2>/dev/null
+  cp "$B/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs"
+  cp "$S/BurstFrames.cs.txt" "$P/Assets/Game/Scripts/Editor/BurstFrames.cs"
+  ( cd "$P" && timeout 3600 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BProfileTools.Analyze \
+      -raws "$(cygpath -w "$R/q-$best.raw")" -out "$(cygpath -w "$R/$Q-prof-$spot.txt")" -over 500 -logFile "$W/analyze-$Q-$spot.log" )
+  ( cd "$P" && timeout 1500 "$UNITY" -batchmode -projectPath "$(cygpath -m $P)" -executeMethod BurstFrames.Dump \
+      -raw "$(cygpath -w "$R/q-$best.raw")" -out "$(cygpath -w "$R/$Q-burst.txt")" -last 80 -top 4 -rows 50 -logFile "$W/burst-$Q.log" )
+  cp "$R/LastSceneManagerSetup.bak" "$P/Library/LastSceneManagerSetup.txt" 2>/dev/null
+  rm -f "$P/Assets/Game/Scripts/Editor/BProfileTools.cs" "$P/Assets/Game/Scripts/Editor/BProfileTools.cs.meta" \
+        "$P/Assets/Game/Scripts/Editor/BurstFrames.cs" "$P/Assets/Game/Scripts/Editor/BurstFrames.cs.meta"; strays >/dev/null
+  [ -f "$R/$Q-burst.txt" ] || { echo "BurstFrames failed:"; grep -a -A4 "error CS\|Exception" "$W/burst-$Q.log" | head; }
+  echo "== spikes"; grep -a '^SPIKE' "$R/$Q-prof-$spot.txt" | head -25 | cut -c1-150
+  echo "== burst"; head -c 20000 "$R/$Q-burst.txt"
+}
