@@ -5087,3 +5087,13 @@ end-of-walk cave burst (in play, workers saturated) is the cave item that matter
   26.32 vs 26.23 (+0.10 PASS; -oldherds 24.95, same build: noise), CPU 36.0 vs 35.7. Herd gather median 1.51 -> 1.04 ms
   a frame, max 20.5 -> 13.9. -herdlog identical with and without -oldherds; 0 exceptions, 0 NaN. Merged as #732
   (1a6e491). q204 (all-thread dump of the walk's end slowdown, main 50d7fc8) running.
+
+## q204/q205: the townwalk's end slowdown is the laptop's clock dip, not the game
+Main 1a6e491, three profiled townwalks: 0, 19 and 18 hitches at x 3250-3300 (q204's one walk: 0). The slow games' CPU
+is 40.6 ms against 32.9 in the clean one. BurstFrames (new dumper, every thread, last 80 frames) shows the slow stretch's
+frames (60-130 ms) with every fixed-cost sample ~3x its normal time at once: Profiler.FlushMemoryCounters 4-15 ms (2.2
+normally), FaunaDirector.Comfort 5 (0.6), CreatureRenderSystem 5-6 (1.7), RenderLoop.Draw on the render thread 17-24
+(4.9). Nothing grows on its own, so it is the CPU's clock halving (the laptop's ~25 s dips every ~90 s under load), which
+lands on the walk's busiest stretch about 2.5 minutes in. Not a game fix. The single long frames in it (q200's 815 ms)
+are the GPU queue behind (DXGI.WaitOnSwapChain) in the same dip. Closed; benches should judge the walk by its
+paired GPU means, not the burst hitch counts.
