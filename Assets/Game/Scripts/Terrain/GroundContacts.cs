@@ -19,7 +19,7 @@ namespace Punchy.Terrain
     /// shrub and tree cells round each chunk (FloraPlacement.Place, footprint only) and rasterises their feet into its
     /// vertices. Seed-derived and cosmetic: every peer computes the same from the same placement.
     /// </summary>
-    public static class GroundContacts
+    public static partial class GroundContacts
     {
         /// <summary>Every model's feet, for the chunk job.</summary>
         public struct Table
@@ -162,7 +162,8 @@ namespace Punchy.Terrain
         /// Burst (called from BuildChunkMeshJob).
         /// </summary>
         public static void Rasterise(ref FloraBlob f, ref Table t, in TerrainSource source, float2 origin, int v, float step,
-                                     float near, float pixelsPerMetre, float4 strength, float4 reachScale, NativeArray<float> shade)
+                                     float near, float pixelsPerMetre, float4 strength, float4 reachScale, NativeArray<float> shade,
+                                     in CacheView cache = default)
         {
             var size = step * (v - 1);
             var chunkMax = origin + size;
@@ -191,8 +192,8 @@ namespace Punchy.Terrain
                     // props can.
                     if ((gap > natural || naturalOff) && !Built(ref f, source, cell, layer, cellSize))
                         continue;
-                    var plant = FloraPlacement.Place(ref f, source, cell, layer, footprint: true);
-                    if (plant.Model < 0 || plant.Model >= t.Models.Length || plant.Snow < 0f)   // floating plants: no ground
+                    var plant = PlaceCached(ref f, ref t, source, cell, layer, cache);
+                    if (plant.Model < 0)
                         continue;
                     Stamp(ref t, plant, origin, chunkMax, v, step, near, pixelsPerMetre, strength, reachScale, shade);
                 }
@@ -216,7 +217,7 @@ namespace Punchy.Terrain
             return source.Landmarks.IsCreated && LandmarkSampling.Find(ref source.Landmarks.Value, xz, out _);
         }
 
-        static void Stamp(ref Table t, in FloraSystem.FloraInstance plant, float2 origin, float2 chunkMax, int v, float step,
+        static void Stamp(ref Table t, in CachedPlant plant, float2 origin, float2 chunkMax, int v, float step,
                           float near, float pixelsPerMetre, float4 strength, float4 reachScale, NativeArray<float> shade)
         {
             var feet = t.Models[plant.Model];

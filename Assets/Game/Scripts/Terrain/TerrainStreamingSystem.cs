@@ -137,6 +137,7 @@ namespace Punchy.Terrain
             Application.quitting -= CancelBuild;
             Punchy.Net.GameBootstrap.WorldsReplacing -= CancelBuild;
             CancelBuild();
+            GroundContacts.CacheDispose();
             foreach (var chunk in loaded.Values)
             {
                 Object.Destroy(chunk.Mesh);
@@ -523,6 +524,8 @@ namespace Punchy.Terrain
                 data.SetSubMesh(0, new SubMeshDescriptor(0, indexCount), MeshFlags);
             }
 
+            // (Job 115: the contact pass's cells kept from earlier batches; any it places are added once this one is done.)
+            var contactCache = GroundContacts.CacheBegin(source, out var contactReady);
             var job = new BuildChunkMeshJob
             {
                 Meshes = buildData,
@@ -540,9 +543,11 @@ namespace Punchy.Terrain
                 ContactStrength = ContactShade.Strength,
                 ContactReach = ContactShade.ReachScale,
                 ContactPixelsPerMetre = Punchy.Settings.DetailPolicy.Current.Data.PixelsPerMetre * Punchy.Settings.GraphicsSettings.Detail,
+                ContactCache = contactCache,
                 Clay = ScarpClay.On
             };
-            buildHandle = IJobParallelForExtensions.Schedule(job, count, 1);
+            buildHandle = IJobParallelForExtensions.Schedule(job, count, 1, contactReady);
+            GroundContacts.CacheEnd(contactCache, buildHandle);
             GroundContacts.Readers = buildHandle;   // freed only once this build is done reading them
             buildFrames = 0;
             Meshing = true;

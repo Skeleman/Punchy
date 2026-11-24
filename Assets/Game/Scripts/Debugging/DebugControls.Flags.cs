@@ -588,6 +588,10 @@ namespace Punchy.Debugging
             // beside the cell cache too and logs any cell that differs (SurfaceGlow.Cache).
             Punchy.Terrain.SurfaceGlow.CacheOff = System.Array.IndexOf(args, "-oldglow") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldglow") >= 0;
             Punchy.Terrain.SurfaceGlow.CacheCheck = System.Array.IndexOf(args, "-glowcheck") >= 0 || System.Array.IndexOf(LaunchArgs, "-glowcheck") >= 0;
+            // A/B: "-oldcontacts" places every chunk's contact cells each build, as before; "-contactcheck" places the
+            // cached ones again and logs any that differ (GroundContacts.Cache).
+            Punchy.Terrain.GroundContacts.CacheOff = System.Array.IndexOf(args, "-oldcontacts") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldcontacts") >= 0;
+            Punchy.Terrain.GroundContacts.CacheCheck = System.Array.IndexOf(args, "-contactcheck") >= 0 || System.Array.IndexOf(LaunchArgs, "-contactcheck") >= 0;
             // A-70 row 1 A/B: "-oldfootprints" places buildings again for every wall check, as before; "-footprintcheck"
             // asks FloraPlacement.Blocked too and counts any disagreement with the baked walls (logged with perf2).
             // (Both also hold from PlayArgs through every shot-list line, as -oldsearch does.)

@@ -100,6 +100,8 @@ namespace Punchy.Terrain
         public BlobAssetReference<GroundContacts.Table> Contacts;
         public float4 ContactStrength, ContactReach;
         public float ContactPixelsPerMetre;
+        /// <summary>Job 115: the contact pass's placement cache (GroundContacts.CacheBegin; default: none).</summary>
+        public GroundContacts.CacheView ContactCache;
         /// <summary>W-155: clay view (launch flag -clay): every vertex takes one flat grey surface.</summary>
         public bool Clay;
         /// <summary>Output: (min, max) local Y of the terrain mesh, for bounds.</summary>
@@ -145,7 +147,7 @@ namespace Punchy.Terrain
                 for (int i = 0; i < shade.Length; i++)
                     shade[i] = 1f;
                 GroundContacts.Rasterise(ref Flora.Value, ref Contacts.Value, Source, request.Origin, v, step, request.Near,
-                                         ContactPixelsPerMetre, ContactStrength, ContactReach, shade);
+                                         ContactPixelsPerMetre, ContactStrength, ContactReach, shade, ContactCache);
             }
 
             var patchMin = (int2)math.floor(request.Origin / MouthPatch.Cell) - 1;
