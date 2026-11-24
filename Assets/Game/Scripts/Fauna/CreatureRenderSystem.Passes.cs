@@ -413,6 +413,26 @@ namespace Punchy.Fauna
             passMark = t;
         }
 
+        // The drawn-only gathers (part of the "anchors" pass), each on its own (-renderpasslog).
+        static readonly string[] GatherNames = { "setup", "critters", "skybirds", "farfolk", "fardetails", "homesigns", "cavefish", "herds", "lakerings" };
+        readonly double[] gatherMs = new double[9];
+        long gatherMark;
+
+        void GatherStart()
+        {
+            if (PassLog)
+                gatherMark = System.Diagnostics.Stopwatch.GetTimestamp();
+        }
+
+        void GatherStep(int index)
+        {
+            if (!PassLog)
+                return;
+            var t = System.Diagnostics.Stopwatch.GetTimestamp();
+            gatherMs[index] += (t - gatherMark) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            gatherMark = t;
+        }
+
         void PassEnd(int kept, int creatureSegments, int segments, bool hidden)
         {
             if (!PassLog)
@@ -438,6 +458,12 @@ namespace Punchy.Fauna
                 passMs[i] = 0;
             }
             line.Append(" | total ").Append((sum / passFrames).ToString("0.000"));
+            line.Append("\nCreatureRenderSystem gathers (ms/frame):");
+            for (int i = 0; i < gatherMs.Length; i++)
+            {
+                line.Append(' ').Append(GatherNames[i]).Append(' ').Append((gatherMs[i] / passFrames).ToString("0.000"));
+                gatherMs[i] = 0;
+            }
             Debug.Log(line.ToString());
             passFrames = passCreatures = passKept = passSegments = passCreatureSegments = 0;
             passSince = now;

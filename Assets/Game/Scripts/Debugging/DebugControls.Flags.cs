@@ -84,6 +84,8 @@ namespace Punchy.Debugging
             // A-22 (#23): "-renderpasslog" logs CreatureRenderSystem's time per pass; "-oldcull" culls the old (managed) way.
             Punchy.Fauna.CreatureRenderSystem.PassLog = System.Array.IndexOf(args, "-renderpasslog") >= 0;
             Punchy.Fauna.CreatureRenderSystem.OldCull = System.Array.IndexOf(args, "-oldcull") >= 0;
+            // A/B: "-oldherds" works out the far herds' animals on the main thread, as before (CreatureRenderSystem.HerdJob).
+            Punchy.Fauna.CreatureRenderSystem.OldHerds = System.Array.IndexOf(args, "-oldherds") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldherds") >= 0;
             if (spinCheck && spinAt + 1 < args.Length && ParseFloats(args[spinAt + 1]) is float[] spin && spin.Length >= 2)
             {
                 spinDegrees = spin[0];

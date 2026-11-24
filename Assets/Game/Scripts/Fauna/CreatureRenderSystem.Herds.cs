@@ -209,6 +209,9 @@ namespace Punchy.Fauna
                 herdLive.Remove(i);
 
             var parts = 0;
+            // (Job 115: the herds in sight, their animals worked out together in Burst after this loop, CreatureRenderSystem.HerdJob.)
+            var herdWork = new NativeList<HerdWork>(64, Allocator.TempJob);
+            herdWorkInfo.Clear();
             for (int i = 0; i < set.Herds.Length; i++)
             {
                 ref var h = ref set.Herds[i];
@@ -244,6 +247,12 @@ namespace Punchy.Fauna
                 if (dust.w > 0f)
                     HerdsDusty++;
                 var ground = GroundUnder(terrain, i, place.Centre, HerdClock.Spread(h, look.Shape));
+                if (!OldHerds)
+                {
+                    herdWork.Add(new HerdWork { Herd = h, Shape = look.Shape, Place = place, Ground = ground, Handing = handing, Woke = woke });
+                    herdWorkInfo.Add((look, i, dust));
+                    continue;
+                }
                 var drawn = false;
                 for (int k = 0; k < h.Count; k++)
                 {
@@ -294,6 +303,8 @@ namespace Punchy.Fauna
                     herdDrawnHash = herdDrawnHash * 31u + (uint)i + 1u;
                 }
             }
+            parts += GatherHerdMembers(herdWork, terrain, cam, t, draw, ppm, now);
+            herdWork.Dispose();
             HerdMembersDrawn = herdMembers.Count;
             LogHerds(hour, now);
             return parts;
