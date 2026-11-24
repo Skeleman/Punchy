@@ -1,0 +1,21 @@
+# q207: the terrain shader's fine relief planes and puddle film as real branches (b/perf-terrainbranch 8df9007): a ?:
+# ran every triplanar plane's noise (27 value noises a pixel near the camera) wherever any octave was on. Same look by
+# construction. Forest, town, river (q206: forest opaque 41.5 of 70.5 RenderDoc ms, the near terrain chunk the dearest
+# draw), High, 4 rounds against main 1d40a7f; then each stop's last shots diffed T vs M, and M vs q206's M (same
+# build: the noise floor of animals and wind).
+Q=q207; TITLE="Terrain shader real branches"
+BUILDS="8df9007 1d40a7f"
+VIEWS="forest town river"
+view() { echo "-hitchms 200 -benchstops $1"; }
+ARMS="T M"
+arm() { case $1 in T) echo "Profile-8df9007";; M) echo "Profile-1d40a7f";; esac; }
+ROUNDS=4; GFX="High"; REF=M; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local v
+  for v in $VIEWS; do
+    python "$S/shotdiff.py" "$R/$Q-shots/$v-T/$v.png" "$R/$Q-shots/$v-M/$v.png" "$v T vs M"
+    python "$S/shotdiff.py" "$R/$Q-shots/$v-M/$v.png" "$R/q206-shots/$v-M/$v.png" "$v M vs q206 M"
+  done
+  for f in "$R"/q-$Q-*-T-cs100-*.log; do echo "$(basename $f .log): exc $(grep -ac 'Exception' $f) nan $(grep -aic '\bnan\b' $f)"; done
+}
