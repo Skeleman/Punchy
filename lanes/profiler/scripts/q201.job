@@ -1,0 +1,17 @@
+# q201: CreatureRenderSystem's steady main-thread cost. q199's -renderpasslog put ~1.5 ms a frame in the "anchors" slot,
+# which is the drawn-only gathers (critters, sky birds, far folk, far details, home signs, cave fish, herds, lake rings),
+# and ~0.6 ms in the extras writes. b/perf-creaturerender 16b6d4b = main 3f569c7 + a per-gather split in the same log.
+# One townwalk game with -renderpasslog, then the gather lines.
+Q=q201; TITLE="Creature render gathers split"
+BUILDS="16b6d4b"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk -renderpasslog"; }
+ARMS="G"
+arm() { echo "Profile-16b6d4b"; }
+ROUNDS=1; GFX="High"; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f="$R/q-$Q-townwalk-G-cs100-1.log"
+  echo "exc $(grep -ac Exception $f) nan $(grep -aic '\bnan\b' $f)"
+  grep -a 'CreatureRenderSystem gathers' "$f" | tail -30
+}
