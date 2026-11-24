@@ -532,6 +532,8 @@ namespace Punchy.Debugging
             // Testing toggles, per shot line: "-oldcave" (every cave chunk drawn, managed camera probe, as before W-48),
             // "-nocavewalls" (no cave walls drawn, to price them), "-perflog" (frame costs over the last 3 s of the wait).
             CaveSystem.NoRoomCull = ThirdPersonCamera.OldProbe = System.Array.IndexOf(args, "-oldcave") >= 0;
+            // A/B: "-oldview" runs the camera's open-air ground checks in managed code, as before (ThirdPersonCamera.Open).
+            ThirdPersonCamera.OldView = System.Array.IndexOf(args, "-oldview") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldview") >= 0;
             CaveSystem.NoWalls = System.Array.IndexOf(args, "-nocavewalls") >= 0;
             // "-nocaveskip" (W-135): from the surface, every unburied cave chunk drawn, as before the opening test.
             CaveSystem.NoSurfaceSkip = System.Array.IndexOf(args, "-nocaveskip") >= 0;

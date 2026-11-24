@@ -11,7 +11,7 @@ namespace Punchy.CameraRig
     /// Orbit camera that follows the ECS player entity. Mouse / right stick orbits, scroll zooms.
     /// Click the Game view to capture the cursor, Escape releases it.
     /// </summary>
-    public class ThirdPersonCamera : MonoBehaviour
+    public partial class ThirdPersonCamera : MonoBehaviour
     {
         public float Distance = 8f;
 
@@ -219,10 +219,15 @@ namespace Punchy.CameraRig
                 // SolidDistance knows them), or the head under the ground surface. There the rock probe decides, and
                 // the open-air checks below (ground clamp, hill pull-in) are skipped: they pulled the camera in to
                 // 1.5 m in temple rooms, into a small body (a rabbit), and up through the stone.
-                var ceilingUp = head.y < terrain.SampleHeight(head.xz) - 0.3f;
-                // (P-13: a house's room, off the island: InteriorCells boxes are solid to SolidDistance too.)
-                underground = terrain.CaveDistance(head) < CaveNear || terrain.TempleAir(head) || ceilingUp ||
-                              Punchy.Terrain.InteriorCells.Distance(head) < CaveNear;
+                if (OldView)
+                {
+                    var ceilingUp = head.y < terrain.SampleHeight(head.xz) - 0.3f;
+                    // (P-13: a house's room, off the island: InteriorCells boxes are solid to SolidDistance too.)
+                    underground = terrain.CaveDistance(head) < CaveNear || terrain.TempleAir(head) || ceilingUp ||
+                                  Punchy.Terrain.InteriorCells.Distance(head) < CaveNear;
+                }
+                else
+                    underground = HeadUnder(terrain, head);   // the same test in Burst (ThirdPersonCamera.Open)
                 if (underground)
                 {
                     var pivotLift = Vector3.zero;
@@ -276,6 +281,13 @@ namespace Punchy.CameraRig
                     smallLift = 0f;
                 }
                 SetNearPlane(near);
+                // The ground checks below, in Burst (ThirdPersonCamera.Open); managed as before with -oldview.
+                if (!OldView)
+                {
+                    OpenAir(terrain, ref position, ref rotation, target, orbitPitch);
+                    Place(position, rotation, lookUp, target, playerPosition);
+                    return;
+                }
                 var lens = new Unity.Mathematics.float3(position.x, position.y, position.z);
                 // (P-19: the lens may go under cave water now: Underwater draws it. P-18 kept it above.)
                 if (terrain.CaveDistance(lens) < 0f || underground && (terrain.TempleAir(lens) || position.y < terrain.SampleHeight(lens.xz)))
