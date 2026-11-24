@@ -309,6 +309,7 @@ namespace Punchy.Fauna
             const float behindCos = -0.17f;
             PassStart(bodies.Length);
             Pass(0);
+            GatherStart();
             // Which to keep (CullJob, in parallel: in a cave every creature's ground height is sampled, A-22, #23), then the
             // kept ones packed down and their parts counted (CompactJob), all in Burst on the workers (A-51, #62) while the
             // main thread gathers what doesn't need the creatures: the small life, the birds overhead, cave fish, traces.
@@ -395,23 +396,32 @@ namespace Punchy.Fauna
             var terrain = SystemAPI.GetSingleton<TerrainSource>();
             float3 camAt0 = cam.transform.position;
             // The small life round the listener (AmbientLife: songbirds, owls, crickets, frogs...), drawn only.
+            GatherStep(0);
             var critters = AmbientLife.Near(World, camAt0);
+            GatherStep(1);
             var extraCount = critters.Count * CritterParts;
             // Birds high overhead (geese and cranes in a V, soarers on a thermal), drawn only, from the shared clock.
             var skyClock = SkyClock(out var skyHour);
             extraCount += GatherSkyBirds(camAt0, skyClock, skyHour, terrain);
+            GatherStep(2);
             // The towns' far figures (A-109), drawn only, from the households and the shared clock.
             extraCount += GatherFarFolk(camAt0, skyClock, skyHour);
+            GatherStep(3);
             // The small things round the towns (A-110 row 7): boats, washing.
             extraCount += GatherFarDetails(terrain, camAt0, skyClock, skyHour);
+            GatherStep(4);
             // (-homesign: the debug markers of what each house shows, A-109 row 3.)
             extraCount += GatherHomeSigns(terrain, camAt0, skyHour);
+            GatherStep(5);
             // Fish in the caves' pools near the camera, drawn only.
             extraCount += GatherCaveFish(terrain, camAt0) * FishParts;
+            GatherStep(6);
             // The baked herds' far form, island-wide, from the shared clock (CreatureRenderSystem.Herds).
             extraCount += GatherHerds(camAt0, skyClock, skyHour, terrain, (float)SystemAPI.Time.ElapsedTime);
+            GatherStep(7);
             // Fish rising on far lakes at dawn, from the shared clock (CreatureRenderSystem.LakeRings).
             extraCount += GatherLakeRings(camAt0, skyClock, skyHour, terrain);
+            GatherStep(8);
             // Footprints and feathers (TraceSystem).
             var traces = World.GetExistingSystemManaged<TraceSystem>();
             var traceCount = traces != null ? traces.Count : 0;
