@@ -5066,3 +5066,20 @@ end-of-walk cave burst (in play, workers saturated) is the cave item that matter
 - Release build 5cfcda6 (plain BuildPipeline player, product Punchy, no BenchmarkRoute), smoke clean at 3 caps.
   No island file shipped (no editor bake in batch mode): first start bakes ~68 s, later starts load it in ~1.3 s.
   **v0.18.0 published** (Latest, like v0.17.0): https://github.com/Skeleman/Punchy/releases/tag/v0.18.0
+
+## q198-q202: glow cache, Burst camera, burst cause, creature gathers, contact cache
+- **q198** surface glow cell cache (b/perf-glowcache): -0.45 ms GPU vs main (PASS), 1% low 7.8 -> 8.9 fps; glowcheck 0
+  differing scans. Merged as #729 (37c0339).
+- **q199** camera ground checks in Burst (b/perf-camera): -2.43 ms GPU (25.12 vs 27.55), CPU 37.85 -> 33.95, 1% low
+  7.0 -> 8.7; shots frame the same as main and -oldcamera; 0 exceptions, 0 NaN. Merged as #730 (3f569c7).
+- **q200** bench-only bench/burstmarkers (never merge): the walk's chunk bursts are ground-contact placement.
+  Contacts.PlaceFine is 63 ms of worker time a frame (median; 1854 Place calls, ~34 us each, up to 726 ms in one chunk),
+  of BuildChunkMeshJob's 73.5. Chunk.Lod2 41 ms median, Lod1 peaks 873 ms. One 815 ms frame is 715 ms of
+  DXGI.WaitOnSwapChain (the GPU behind, not the CPU).
+- **q201** gather split (-renderpasslog): CreatureRenderSystem's "anchors" slot is its gathers, and herds are all of it
+  (0.7-1.6 ms a frame, spikes to 5 ms); every other gather < 0.25 ms. Its "cull" spikes (20-33 ms) are waits on
+  saturated workers, not its own work.
+- **q202** contact cache (b/perf-contactcache 45636ef) vs main 3f569c7, townwalk, 4 rounds: GPU 25.65 vs 27.18 (-1.53
+  PASS; -oldcontacts 26.38), CPU 36.4 vs 37.3. contactcheck: 0 cells differ over 600 batches (1.8M cached cells used);
+  0 exceptions, 0 NaN. BuildChunkMeshJob 73.5 -> 55.0 ms median a frame, longest single build 1077 -> 351 ms. The
+  x 3250-3300 hitches are still there (C 52, N 67, O 43 over 4 games; noisy). Merged as #731 (50d7fc8).
