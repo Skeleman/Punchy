@@ -420,9 +420,11 @@ Shader "Punchy/Terrain Surface"
             // Bank slopes: each plane's relief only where it faces, so a slope gets grain, not top-down streaks.
             float3 MicroDetailTriplanar(float3 pos, float3 tw, float3 w, out float3 slopeWS)
             {
-                float3 mt = tw.y > 0.02 ? MicroDetail(pos.xz, w) : float3(0, 0, 0.5);
-                float3 mx = tw.x > 0.02 ? MicroDetail(pos.zy, w) : float3(0, 0, 0.5);
-                float3 mz = tw.z > 0.02 ? MicroDetail(pos.xy, w) : float3(0, 0, 0.5);
+                // (Real branches: a ?: evaluates both sides, so every plane's noise ran on flat ground too.)
+                float3 mt = float3(0, 0, 0.5), mx = float3(0, 0, 0.5), mz = float3(0, 0, 0.5);
+                [branch] if (tw.y > 0.02) mt = MicroDetail(pos.xz, w);
+                [branch] if (tw.x > 0.02) mx = MicroDetail(pos.zy, w);
+                [branch] if (tw.z > 0.02) mz = MicroDetail(pos.xy, w);
                 slopeWS = float3(mt.x, 0, mt.y) * tw.y + float3(0, mx.y, mx.x) * tw.x + float3(mz.x, mz.y, 0) * tw.z;
                 return mt * tw.y + mx * tw.x + mz * tw.z;
             }
@@ -494,8 +496,9 @@ Shader "Punchy/Terrain Surface"
                 detailFade *= 1 - rockFace;
                 float3 triW = TriplanarWeights(normalize(input.normalWS));
                 float3 microSlope = 0;
-                float3 micro = max(octaves.x, max(octaves.y, octaves.z)) > 0.001
-                             ? MicroDetailTriplanar(input.positionWS, triW, octaves, microSlope) : float3(0, 0, 0.5);
+                float3 micro = float3(0, 0, 0.5);
+                [branch] if (max(octaves.x, max(octaves.y, octaves.z)) > 0.001)
+                    micro = MicroDetailTriplanar(input.positionWS, triW, octaves, microSlope);
 
                 // Rain: flat ground collects puddles (dark, mirror-smooth, no relief); elsewhere wet ground just
                 // darkens and gets a soft sheen. Grass and snow don't glaze. Far away the sheen fades, since at
@@ -852,7 +855,7 @@ Shader "Punchy/Terrain Surface"
                 // tint, like the water body); at grazing angles the live sky, by the water's Fresnel, off a surface
                 // that rain rings stir while it rains, plus the sun's glint. Was a flat 35-90% sky wash, which under
                 // a rain sky read as plain grey.
-                if (puddle > 0.01)
+                [branch] if (puddle > 0.01)
                 {
                     float3 v = inputData.viewDirectionWS;
                     half rain = PunchyWetnessAt(p).g * (1 - smoothstep(20, 60, refDistance));
