@@ -582,6 +582,10 @@ namespace Punchy.Debugging
             Punchy.Fauna.CreatureBrainSystem.SearchEveryFrame.Data = oldSearch;
             // #132 A/B: "-oldwalls" places every landmark prop within 15 m for each wall check, as before.
             FloraPlacement.OldWalls.Data = System.Array.IndexOf(args, "-oldwalls") >= 0 ? 1 : 0;
+            // A/B: "-oldglow" places the surface glow scans' whole discs each time, as before; "-glowcheck" places them
+            // beside the cell cache too and logs any cell that differs (SurfaceGlow.Cache).
+            Punchy.Terrain.SurfaceGlow.CacheOff = System.Array.IndexOf(args, "-oldglow") >= 0 || System.Array.IndexOf(LaunchArgs, "-oldglow") >= 0;
+            Punchy.Terrain.SurfaceGlow.CacheCheck = System.Array.IndexOf(args, "-glowcheck") >= 0 || System.Array.IndexOf(LaunchArgs, "-glowcheck") >= 0;
             // A-70 row 1 A/B: "-oldfootprints" places buildings again for every wall check, as before; "-footprintcheck"
             // asks FloraPlacement.Blocked too and counts any disagreement with the baked walls (logged with perf2).
             // (Both also hold from PlayArgs through every shot-list line, as -oldsearch does.)
