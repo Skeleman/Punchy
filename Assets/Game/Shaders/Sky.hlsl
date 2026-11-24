@@ -137,8 +137,10 @@ void PunchyCloudMarch(float3 dir, float2 screenPos, float framePhase, out half3 
         float fine = oldEdges ? 0 : 1 - smoothstep(2500, 6000, edgeDistance);
         [branch] if (canHold)
             punchyCloudStyle = PunchyCloudStyleAt(p.xz);
-        float density = ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
-            ? PunchyCloudDensityFine(p, weather, shape, detail, fine) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t)) : 0;
+        float density = 0;
+        // (A real branch: a ?: samples the noise out of the layer and in clear air too.)
+        [branch] if ((weather.r > 0.03 || shape.z > 0.02) && PunchyInCloudLayer(p.y, shape))
+            density = PunchyCloudDensityFine(p, weather, shape, detail, fine) * (1 - smoothstep(PUNCHY_FAR_START, PUNCHY_FAR_END, t));
 
         [branch] if (stride && density <= 0.004)
         {

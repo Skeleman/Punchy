@@ -74,7 +74,10 @@ half3 PunchyLibraryAlbedo(int family, int kind, float3 p, inout half3 n, float3 
             break;
         case PUNCHY_FAMILY_CLOTH:
         case PUNCHY_FAMILY_LEATHER:
-            result = albedo * (family == PUNCHY_FAMILY_LEATHER || kind == 1 ? PunchyHide(p, n, footprint) : PunchyLinen(p, n, footprint));
+            [branch] if (family == PUNCHY_FAMILY_LEATHER || kind == 1)   // (a ?: would run both)
+                result = albedo * PunchyHide(p, n, footprint);
+            else
+                result = albedo * PunchyLinen(p, n, footprint);
             break;
         case PUNCHY_FAMILY_ICE:
             result = albedo * PunchyIce(p, n, v, footprint, r);

@@ -226,33 +226,43 @@ Shader "Punchy/Flora"
                 // (Refactor 3.5, measuring a bake: "-nofloradetail" sets _PunchyFloraDetailOff and skips the procedural
                 // surface detail below, weathering, wood, cloth and strata, so a profiler A/B shows the most a bake could save.)
                 bool detail = _PunchyFloraDetailOff < 0.5;
-                if (detail && plaster)
+                // (Real branches throughout: a plain if or ?: can run every material a built piece could be.)
+                [branch] if (detail && plaster)
                     albedo *= PunchyPlasterKind(input.positionWS, n, footprint, r, (int)round((frac(input.extra.x) - 0.1) / 0.002));
-                else if (detail && tile)
+                else [branch] if (detail && tile)
                     albedo = PunchyRoofCover(albedo, input.positionWS, n, footprint, r, 1 + (int)round((frac(input.extra.x) - 0.091) / 0.0015), 0);
-                else if (detail && brick)
+                else [branch] if (detail && brick)
                     albedo *= PunchyBrick(input.positionWS, n, v, footprint, r);
-                else if (detail && ice)
+                else [branch] if (detail && ice)
                     albedo *= PunchyIce(input.positionWS, n, v, footprint, r);
-                else if (detail && builtStone)
+                else [branch] if (detail && builtStone)
                     albedo *= PunchyStoneBlocks(input.positionWS, n, footprint, rubble, r);
-                else if (detail && rope)
+                else [branch] if (detail && rope)
                     albedo *= PunchyRope(input.grainPos, facetOS, footprint);
-                else if (detail && paint)
+                else [branch] if (detail && paint)
                     albedo *= PunchyPaint(input.positionWS, n, footprint, r);
-                else if (detail && (part == 0 && built || strata))
+                else [branch] if (detail && (part == 0 && built || strata))
                     albedo *= lerp(1, PunchyWeathering(input.positionWS, n, footprint, r), wood ? 0.4 : 1);
                 // Timber: grain along each piece (Z-30: wood read as leather or plaster), or its planks, shingles or thatch.
                 // W-166: wood draws through Materials/Wood.hlsl, its kind riding on the wood mark (FloraMeshBuilder.WoodKind).
-                if (detail && wood)
-                    albedo = look == 3 ? albedo * PunchyThatchKind(input.grainPos, facetOS, footprint, woodKind)
-                                       : PunchyWoodSurface(albedo, look, input.grainPos, input.grainAxis, facetOS, footprint, input.color.rgb, woodKind);
+                [branch] if (detail && wood)
+                {
+                    [branch] if (look == 3)
+                        albedo *= PunchyThatchKind(input.grainPos, facetOS, footprint, woodKind);
+                    else
+                        albedo = PunchyWoodSurface(albedo, look, input.grainPos, input.grainAxis, facetOS, footprint, input.color.rgb, woodKind);
+                }
                 // Cloth: a linen weave (W-99).
                 // Hide (Cloth + 0.45, W-113): leather instead. Felt (Cloth + 0.48, a bedroll): matted wool.
-                if (detail && part == 10)
-                    albedo *= input.extra.x > 10.465 ? PunchyFelt(input.grainPos, facetOS, footprint)
-                            : input.extra.x > 10.42 ? PunchyHide(input.grainPos, facetOS, footprint)
-                                                    : PunchyLinen(input.grainPos, facetOS, footprint);
+                [branch] if (detail && part == 10)
+                {
+                    [branch] if (input.extra.x > 10.465)
+                        albedo *= PunchyFelt(input.grainPos, facetOS, footprint);
+                    else [branch] if (input.extra.x > 10.42)
+                        albedo *= PunchyHide(input.grainPos, facetOS, footprint);
+                    else
+                        albedo *= PunchyLinen(input.grainPos, facetOS, footprint);
+                }
                 // Banded rock (FloraSpecies.RockStrata): exactly the terrain's strata (TerrainSurface.shader), same
                 // world heights and colours, so a rock prop's layers line up with the cliff beside it.
                 if (detail && strata)
