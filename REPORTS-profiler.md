@@ -5083,3 +5083,7 @@ end-of-walk cave burst (in play, workers saturated) is the cave item that matter
   PASS; -oldcontacts 26.38), CPU 36.4 vs 37.3. contactcheck: 0 cells differ over 600 batches (1.8M cached cells used);
   0 exceptions, 0 NaN. BuildChunkMeshJob 73.5 -> 55.0 ms median a frame, longest single build 1077 -> 351 ms. The
   x 3250-3300 hitches are still there (C 52, N 67, O 43 over 4 games; noisy). Merged as #731 (50d7fc8).
+- **q203** far herds' member loop in Burst (b/perf-creaturerender 03acf0a) vs main 3f569c7, townwalk, 4 rounds: GPU
+  26.32 vs 26.23 (+0.10 PASS; -oldherds 24.95, same build: noise), CPU 36.0 vs 35.7. Herd gather median 1.51 -> 1.04 ms
+  a frame, max 20.5 -> 13.9. -herdlog identical with and without -oldherds; 0 exceptions, 0 NaN. Merged as #732
+  (1a6e491). q204 (all-thread dump of the walk's end slowdown, main 50d7fc8) running.
