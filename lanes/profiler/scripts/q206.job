@@ -1,0 +1,27 @@
+# q206: where the GPU goes on main 1d40a7f (after #729-#733) at forest, town and river, High: one game per stop for the
+# frame numbers, then two RenderDoc frames per stop split by pass with the 25 dearest draws (rdpasses.py), to pick
+# same-look shader savings (terrain opaque ~16-21 ms and the depth-normal prepass ~7 ms at forest in q180).
+Q=q206; TITLE="GPU by pass and top draws, forest town river"
+BUILDS="1d40a7f"
+VIEWS="forest town river"
+view() { echo "-hitchms 200 -benchstops $1"; }
+ARMS="M"
+arm() { echo "Profile-1d40a7f"; }
+ROUNDS=1; GFX="High"; REF=M; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local RDC="/c/Program Files/RenderDoc/renderdoccmd.exe" QRD="/c/Program Files/RenderDoc/qrenderdoc.exe" RD="$R/rd206" v
+  mkdir -p "$RD"; rm -f "$RD"/*.rdc
+  for v in $VIEWS; do
+    fixed Profile-1d40a7f || return 1; cool
+    ( cd "$P/Builds/Bench" && timeout 900 "$RDC" capture -w -d "$(cygpath -w "$P/Builds/Bench")" -c "$(cygpath -w "$RD/$v")" \
+        "$(cygpath -w "$P/Builds/Bench/Punchy.exe")" -logFile "$W/q-$Q-rd-$v.log" -benchroute -weatherseed 4 -time 12 -body ${BENCHBODY:-default} \
+        $(screen Bench 1920 1080) -gfx High -fpscap 0 -benchstops $v -renderdocstop $v 2 >/dev/null 2>&1 )
+    strays >/dev/null; check "$R/q-$Q-rd-$v.log"
+    echo "rd $v: $(grep -ah 'RenderDoc capture' "$R/q-$Q-rd-$v.log" | tr '\n' ' ' | cut -c1-200)"
+  done
+  local CAPS=$(ls "$RD"/*.rdc 2>/dev/null | xargs -n1 cygpath -w | tr '\n' ';')
+  [ -n "$CAPS" ] && RD_CAPS="$CAPS" RD_OUT="$(cygpath -w "$R/$Q-passes.txt")" RD_MAXDEPTH=6 RD_TOPDRAWS=25 timeout 3600 "$QRD" --python "$(cygpath -w "$S/rdpasses.py")" >/dev/null 2>&1
+  echo "qrenderdoc rc=$?"; strays >/dev/null
+  ls -la "$RD"
+}
