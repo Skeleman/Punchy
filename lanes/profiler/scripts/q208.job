@@ -1,0 +1,21 @@
+# q208: real branches in Flora.shader's built-material chain, its wood and cloth choices, Library.hlsl's hide or linen
+# and the cloud march's density read (b/perf-shaderbranch 60425b0), as q207 did for the terrain (#734). Same look by
+# construction. Town, bigtown (built flora) and forest (clouds), High, 4 rounds: S this, M main 4d96c37, D main with
+# -nofloradetail (no procedural detail at all: the most the flora part could save, look changes; reference only).
+# Then each stop's last shots diffed S vs M, and M vs D for scale.
+Q=q208; TITLE="Flora, cloth and cloud real branches"
+BUILDS="60425b0 4d96c37"
+VIEWS="town bigtown forest"
+view() { echo "-hitchms 200 -benchstops $1"; }
+ARMS="S M D"
+arm() { case $1 in S) echo "Profile-60425b0";; M) echo "Profile-4d96c37";; D) echo "Profile-4d96c37 -nofloradetail";; esac; }
+ROUNDS=4; GFX="High"; REF=M; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local v
+  for v in $VIEWS; do
+    python "$S/shotdiff.py" "$R/$Q-shots/$v-S/$v.png" "$R/$Q-shots/$v-M/$v.png" "$v S vs M" 2>/dev/null
+    python "$S/shotdiff.py" "$R/$Q-shots/$v-D/$v.png" "$R/$Q-shots/$v-M/$v.png" "$v D vs M" 2>/dev/null
+  done
+  for f in "$R"/q-$Q-*-S-cs100-*.log; do echo "$(basename $f .log): exc $(grep -ac 'Exception' $f) nan $(grep -aic '\bnan\b' $f)"; done
+}
