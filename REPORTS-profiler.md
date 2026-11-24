@@ -5106,3 +5106,19 @@ indices: 6.1, 3.6, 1.7 ms replay), then the trees (19,785-index indirect, ~1 ms 
 Forward+ with depth priming forced, so opaque shades only visible pixels: the terrain's cost is its per-pixel work.
 Found: MicroDetailTriplanar's planes and its call site were ?: (both sides evaluated), so near flat ground ran all
 three planes' noise (27 value noises a pixel). q207 benches them as real branches (same look by construction).
+
+## q207: terrain micro-detail and puddles as real branches, merged (#734, 4d96c37)
+TerrainSurface.shader's MicroDetailTriplanar planes, its call site and the puddle block were ?: or flattened ifs, so
+every pixel ran all three planes' noise. Now [branch] ifs (no gradient ops inside), same maths. GPU, High, 4 rounds vs
+main: forest 24.80 vs 26.32 (-1.52, lower every round), town 23.23 vs 25.10 (-1.88), river +0.12. Shots differ from main
+less than main differs from itself (forest 1.90 vs 2.11, town 0.47 vs 0.87, river 8.0 vs 10.6). 0 exceptions, 0 NaN.
+
+## q208: flora, cloth and cloud real branches: no gain, not merged
+b/perf-shaderbranch 60425b0 (on 4d96c37): Flora.shader's built-material chain, wood and cloth choices, Library.hlsl's
+hide or linen and Sky.hlsl's cloud density read as [branch] ifs. GPU vs main: town +0.35, bigtown +0.05, forest +0.30
+(all within bar, none lower). Even main with -nofloradetail (no flora surface detail at all) only saves 0.45-0.88, so
+the flora detail chain is not where the frame goes; the compiler was likely already branching most of it. Shot diffs
+were large in town (S vs M mean 11-20) but the shots show the same surfaces under a different time of day and
+townsfolk moved: the stop's clock, not the shader. 0 exceptions, 0 NaN. Branch kept on origin, not merged.
+Remaining GPU leads (q206): the depth-normal prepass (~6.6 ms real in the forest: terrain 10.0, flora 7.6 replay) and
+the near terrain chunks' per-pixel work.
