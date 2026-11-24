@@ -1,0 +1,19 @@
+# q199: the camera's open-air ground checks in Burst (b/perf-camera bcf060a). q183: ThirdPersonCamera.LateUpdate 1.1 ms
+# a frame at a town, ~22 managed TerrainSource calls. Townwalk, 4 rounds: V bcf060a, OV bcf060a with -oldview (managed,
+# same build), N main 5cfcda6. Then one V game with -renderpasslog for CreatureRenderSystem's pass split (1.4-1.7 ms
+# a frame in q183, 0.2 ms in November's logs).
+Q=q199; TITLE="Camera ground checks in Burst"
+BUILDS="bcf060a"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="V OV N"
+arm() { case $1 in V) echo "Profile-bcf060a";; OV) echo "Profile-bcf060a -oldview";; N) echo "Profile-5cfcda6";; esac; }
+ROUNDS=4; GFX="High"; REF=N; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-townwalk-*-cs100-*.log; do echo "$(basename $f .log): $(grep -a '^BenchRoute: townwalk: avg' $f | grep -o '1% low [0-9.]* fps\|worst [0-9.]* ms\|main thread [0-9.]* ms' | tr '\n' ' ') exc $(grep -ac 'Exception' $f) nan $(grep -aic '\bnan\b' $f)"; done
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv Profile-bcf060a $Q-passes bcf060a s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -renderpasslog
+  echo "== creature passes"; grep -a 'CreatureRenderSystem passes' "$R/q-$Q-passes-cs100-1.log" | cut -c1-420
+}
