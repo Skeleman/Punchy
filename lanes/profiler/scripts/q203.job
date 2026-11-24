@@ -1,0 +1,23 @@
+# q203: the far herds' member loop in Burst (b/perf-creaturerender 03acf0a). q201's per-gather split put ~1.5 ms a frame
+# (spikes to 5 ms) of CreatureRenderSystem's main thread in GatherHerds. Townwalk, 4 rounds: H 03acf0a, OH 03acf0a with
+# -oldherds (same build, managed loop), N main 3f569c7. Then one H game with -renderpasslog -herdlog for the gather split
+# and the herd counts, beside one OH game with -herdlog (the same herds drawn?).
+Q=q203; TITLE="Far herds member job"
+BUILDS="03acf0a"
+VIEWS="townwalk"
+view() { echo "-hitchms 100 -benchwait 100 -benchstops townwalk"; }
+ARMS="H OH N"
+arm() { case $1 in H) echo "Profile-03acf0a";; OH) echo "Profile-03acf0a -oldherds";; N) echo "Profile-3f569c7";; esac; }
+ROUNDS=4; GFX="High"; REF=N; BAR=1; RUNTIMEOUT=900
+after() {
+  [ -n "${DRY:-}" ] && return
+  local f
+  for f in "$R"/q-$Q-townwalk-H-cs100-*.log "$R"/q-$Q-townwalk-OH-cs100-*.log; do echo "$(basename $f .log): exc $(grep -ac 'Exception' $f) nan $(grep -aic '\bnan\b' $f)"; done
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv Profile-03acf0a $Q-split 03acf0a s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -renderpasslog -herdlog
+  RUNTIMEOUT=900 BENCHW=1920 BENCHH=1080 runcsv Profile-03acf0a $Q-old 03acf0a s100 1 -gfx High -fpscap 0 \
+    -hitchms 100 -benchwait 100 -benchstops townwalk -herdlog -oldherds
+  echo "== gathers (H)"; grep -a 'CreatureRenderSystem gathers' "$R/q-$Q-split-cs100-1.log" | tail -12
+  echo "== herds (H)"; grep -a '^Herds:' "$R/q-$Q-split-cs100-1.log" | head -20 | cut -c1-200
+  echo "== herds (OH)"; grep -a '^Herds:' "$R/q-$Q-old-cs100-1.log" | head -20 | cut -c1-200
+}
