@@ -181,6 +181,8 @@ namespace Punchy.Flora
             /// <summary>R-7: each model's impostor reach (FloraCull.compute's _ModelImpostor): all 0 until its bake is done.</summary>
             public float[] ImpostorReach;
             public GraphicsBuffer ImpostorBuffer;
+            /// <summary>R-30: each model's species leaf thinness (FloraSpecies.LeafThinness; Flora.hlsl's _FloraLeafThin).</summary>
+            public GraphicsBuffer LeafThinBuffer;
 
             public void Release()
             {
@@ -203,7 +205,8 @@ namespace Punchy.Flora
                 CastState?.Release();
                 SharpBuffer?.Release();
                 ImpostorBuffer?.Release();
-                ReachBuffer = CastState = SharpBuffer = ImpostorBuffer = null;
+                LeafThinBuffer?.Release();
+                ReachBuffer = CastState = SharpBuffer = ImpostorBuffer = LeafThinBuffer = null;
                 Instances = Visible = Args = Counts = Regions = Bounds = null;
                 if (Material != null)
                     UnityEngine.Object.Destroy(Material);
@@ -259,6 +262,8 @@ namespace Punchy.Flora
         static readonly int CountId = Shader.PropertyToID("_Count");
         static readonly int DrawCountId = Shader.PropertyToID("_DrawCount");
         static readonly int ModelBaseId = Shader.PropertyToID("_ModelBase");
+        static readonly int LeafThinId = Shader.PropertyToID("_FloraLeafThin");
+        static readonly int FloraModelBaseId = Shader.PropertyToID("_FloraModelBase");
         static readonly int PlanesId = Shader.PropertyToID("_Planes");
         static readonly int CameraId = Shader.PropertyToID("_CameraPosition");
         static readonly int LodId = Shader.PropertyToID("_Lod");
@@ -681,6 +686,11 @@ namespace Punchy.Flora
             layer.ImpostorReach = new float[bounds.Length];
             layer.ImpostorBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float));
             layer.ImpostorBuffer.SetData(layer.ImpostorReach);
+            var thin = new float[bounds.Length];
+            for (int m = 0; m < layer.ModelCount; m++)
+                thin[m] = models[layer.ModelBase + m].Species is { } species ? species.LeafThinness : 1f;
+            layer.LeafThinBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, bounds.Length, sizeof(float));
+            layer.LeafThinBuffer.SetData(thin);
             layer.Regions = new GraphicsBuffer(GraphicsBuffer.Target.Structured, draws, sizeof(uint));
         }
 
@@ -1127,6 +1137,8 @@ namespace Punchy.Flora
             l.Counts.SetData(l.ArgsData);
             l.Material.SetBuffer(InstancesId, l.Instances);
             l.Material.SetBuffer(VisibleId, l.Visible);
+            l.Material.SetBuffer(LeafThinId, l.LeafThinBuffer);
+            l.Material.SetInteger(FloraModelBaseId, l.ModelBase);
             l.StaticMaterial.SetBuffer(InstancesId, l.Instances);
             l.StaticMaterial.SetBuffer(VisibleId, l.Visible);
             SetImpostorBuffers(l);

@@ -338,6 +338,8 @@ namespace Punchy.Flora
             material.SetBuffer(InstancesId, layer.Instances);
             material.SetBuffer(VisibleId, layer.Visible);
             material.SetBuffer(BoundsId, layer.Bounds);
+            material.SetBuffer(LeafThinId, layer.LeafThinBuffer);
+            material.SetInteger(FloraModelBaseId, layer.ModelBase);
         }
 
         Mesh ImpostorQuad()

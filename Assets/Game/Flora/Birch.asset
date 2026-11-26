@@ -25,6 +25,7 @@ MonoBehaviour:
   Bark: {r: 0.85, g: 0.83, b: 0.78, a: 1}
   Foliage: {r: 0.3, g: 0.45, b: 0.15, a: 1}
   FoliageVariation: {r: 0.4, g: 0.5, b: 0.17, a: 1}
+  LeafThinness: 1.25
   Accents: []
   AccentAmount: 0.3
   ColorVariation: 0.12
